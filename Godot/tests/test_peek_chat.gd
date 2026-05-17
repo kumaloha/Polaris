@@ -61,3 +61,9 @@ func test_peek_handles_empty_man() -> void:
 	var r: Dictionary = PeekChat.peek({})
 	ok(r.has("others_chat"), "empty man still returns a well-formed record")
 	eq((r["others_chat"] as Array).size(), 0, "empty man -> empty others_chat, no crash")
+
+func test_peek_others_chat_is_a_distinct_copy() -> void:
+	var m: Dictionary = _man("evan")
+	var r: Dictionary = PeekChat.peek(m)
+	ok(not is_same(r["others_chat"], m["others_chat"]), "peek returns a copy, not a reference into Content data")
+	eq(str(r["others_chat"]), str(m["others_chat"]), "the copy is value-equal to the source")
