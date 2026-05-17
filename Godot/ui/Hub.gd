@@ -84,6 +84,8 @@ func _post_night() -> void:
 	# and act_after only sets it when future_payload is non-empty and never reaches
 	# _post_night in that branch); erase for hygiene in case of edge paths.
 	ui.erase("show_future")
+	ui.erase("post_result")
+	ui.erase("read_feedback")
 	if flow.at_week_boundary():
 		ui["settle"] = flow.settle()
 		if flow.at_season_boundary():
@@ -99,3 +101,15 @@ func _post_night() -> void:
 func dismiss_overlay() -> void:
 	overlay = ""
 	go_face(F.HOME)
+
+func act_compose_post(posture: String) -> void:
+	ensure_night()
+	if ui.has("post_result"):
+		return
+	ui["post_result"] = flow.compose_post(posture)
+	_render()
+
+func act_read_signal(hidden_type: String, guess: String) -> void:
+	var r = flow.read_signal(hidden_type, guess)
+	ui["read_feedback"] = "correct" if r.correct else "wrong"
+	_render()

@@ -231,6 +231,25 @@ const ZH := {
 
 	# ── Hub shell: build-lock banner ──────────────────────────────────────────
 	"Locked in for tonight.": "今晚已定型。",
+
+	# ── Social face (Plan C Task 1) ───────────────────────────────────────────
+	# NOTE: "SOCIAL MEDIA", "resource", "growth", "high_sugar" already exist
+	# above (existing keys, unchanged) — reused, not duplicated.
+	"After you change your look you post. What you post decides who slides in.":
+		"换好造型就发出去。你发什么，决定谁来撩你。",
+	"POST TONIGHT":      "今晚发帖",
+	"Scarce — restrained, fewer but higher-value":
+		"克制——少而高质",
+	"Validation — chase the feed, more but cheaper":
+		"博取认同——多但廉价",
+	"(One post per night. Go to PARTY to read who showed up.)":
+		"（每晚一帖。去派对看谁来了。）",
+	"READ THE COMMENTS": "读评论区",
+	"Filed — you read him right.":
+		"已归档——你读对了。",
+	"Off. Look again.":  "看走眼了，再看看。",
+	"A DM: \"hey gorgeous, up late thinking about you 😉\"":
+		"一条私信：「美女还没睡呀，一直在想你 😉」",
 }
 static func t(s: String) -> String:
 	if lang != "zh":

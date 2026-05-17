@@ -265,9 +265,32 @@ static func build(h) -> Control:
 				UiKit.btn(r, "CONFIRM  →", T.PAD, T.REF_H - NAV_H - 40 - T.BTN_H, W, T.BTN_H,
 					func(): h.act_after(h.ui["after"]))
 		Hub.F.SOCIAL:
-			UiKit.label(r, "SOCIAL MEDIA", T.PAD, 200, T.TITLE, T.ACCENT)
-			UiKit.label(r, "Your circle decides which rooms you get into.",
-				T.PAD, 300, T.BODY, T.DIM, W)
+			UiKit.label(r, "SOCIAL MEDIA", T.PAD, 240, T.TITLE, T.ACCENT)
+			UiKit.label(r, "After you change your look you post. What you post decides who slides in.", T.PAD, 330, T.SMALL, T.DIM, W)
+			var y := 470
+			if h.ui.has("post_result"):
+				var pr = h.ui["post_result"]
+				UiKit.label(r, "Posted. %d slid in · %d girlfriend lead(s) · Standing %+d · Control %+d" % [int(pr["inbound_men"].size()), int(pr["gf_leads"].size()), int(pr["standing_delta"]), int(pr["control_delta"])], T.PAD, y, T.BODY, T.TEXT, W)
+				y += 150
+				if str(pr["mirror"]) != "":
+					UiKit.label(r, str(pr["mirror"]), T.PAD, y, T.SMALL, Color(0.85,0.35,0.35), W)
+					y += 140
+				UiKit.label(r, "(One post per night. Go to PARTY to read who showed up.)", T.PAD, y, T.SMALL, T.DIM, W)
+			else:
+				UiKit.label(r, "POST TONIGHT", T.PAD, y, T.SMALL, T.DIM); y += 56
+				UiKit.btn(r, "Scarce — restrained, fewer but higher-value", T.PAD, y, W, T.BTN_H, func(): h.act_compose_post("scarce")); y += T.BTN_H + 16
+				UiKit.btn(r, "Validation — chase the feed, more but cheaper", T.PAD, y, W, T.BTN_H, func(): h.act_compose_post("validation")); y += T.BTN_H + 28
+			y += 20
+			UiKit.label(r, "READ THE COMMENTS", T.PAD, y, T.SMALL, T.DIM); y += 56
+			if h.ui.has("read_feedback"):
+				var fb: String = h.ui["read_feedback"]
+				UiKit.label(r, "Filed — you read him right." if fb == "correct" else "Off. Look again.", T.PAD, y, T.SMALL, (T.ACCENT if fb == "correct" else T.DIM), W)
+				y += 90
+			UiKit.label(r, "A DM: \"hey gorgeous, up late thinking about you 😉\"", T.PAD, y, T.SMALL, T.TEXT, W); y += 80
+			for g in ["high_sugar", "resource", "growth"]:
+				var gg: String = g
+				UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal("high_sugar", gg))
+				y += 116
 		Hub.F.CARDS:
 			var s = h.flow.state.snapshot()
 			UiKit.label(r, "COLLECTION", T.PAD, 200, T.TITLE, T.ACCENT)
