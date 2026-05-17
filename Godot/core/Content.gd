@@ -6,17 +6,29 @@ static func men() -> Array:
 			"surface": "resource", "energy_cost": 3,
 			"risk": "Control tendency", "opportunity": "Concrete action if you make him earn it",
 			"chat": [{"from": "him", "text": "Saturday night?"},
-					 {"from": "you", "text": "Tell me when and where."}]},
+					 {"from": "you", "text": "Tell me when and where."}],
+			"others_chat": [
+				{"to": "a colleague", "text": "Can't do Thursday. I'll have the numbers to you Friday 9am — you'll have them."},
+				{"to": "his sister", "text": "Booked Mum's flights. Aisle seat like she likes. Don't tell her, let her find out."},
+				{"to": "an ex", "text": "I'm not doing the late-night thing. If you want to talk, it's a call, daytime."}]},
 		{"id": "evan", "name": "Evan", "hidden_type": "high_sugar",
 			"surface": "growth", "energy_cost": 2,
 			"risk": "Midnight sugar, no action", "opportunity": "Short spike only",
 			"chat": [{"from": "him", "text": "Still awake? Thinking of you."},
-					 {"from": "you", "text": "It's late."}]},
+					 {"from": "you", "text": "It's late."}],
+			"others_chat": [
+				{"to": "another girl, 1:14am", "text": "you're not like the others. you actually get me 🌙"},
+				{"to": "a third girl, last Tuesday", "text": "you're different. nobody's ever understood me like you do"},
+				{"to": "the group chat", "text": "lmaooo I just say what they wanna hear, who's actually showing up tho"}]},
 		{"id": "leo", "name": "Leo", "hidden_type": "growth",
 			"surface": "false_alpha", "energy_cost": 1,
 			"risk": "Ego-sensitive, low spike", "opportunity": "Cheap to observe, long upside",
 			"chat": [{"from": "him", "text": "I kept thinking about what you said."},
-					 {"from": "you", "text": "Go on."}]},
+					 {"from": "you", "text": "Go on."}],
+			"others_chat": [
+				{"to": "his best friend", "text": "I was loud at the table, I know. Overdid it. Working on it, genuinely."},
+				{"to": "a mentor", "text": "You said one line three months ago about compounding patience. I still think about it."},
+				{"to": "his brother", "text": "Didn't get the round. It's fair. Going back in better, not louder."}]},
 	]
 static func personas() -> Array:
 	return [
