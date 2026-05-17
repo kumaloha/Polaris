@@ -16,3 +16,11 @@ Edit `data/tuning.json` and re-run. No code change needed for numbers.
 
 ## Deferred (not in this engine)
 Dark-advisory girlfriend module, disguise-curve tuning, per-persona cost tables, number balancing.
+
+## Play with UI (interactive)
+
+Open the project in Godot 4.6 and press Play, or:
+`godot --path . res://scenes/Game.tscn`
+
+Click through: Ready Room → Girlfriend Night → First Eye → Party (5 rounds) → After Party → Future Eye → repeat. Headless UI smoke: `godot --headless --script res://ui_smoke.gd`.
+Visuals are a code-generated baseline (cold-premium, no art); to be re-skinned from a reference app later.
