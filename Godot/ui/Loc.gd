@@ -286,6 +286,24 @@ const ZH := {
 	"PEEK_TO_OTHERS":    "他对别人说的",
 	"PEEK_HINGE":        "—— 他不演你的时候 ——",
 	"PEEK_BACK":         "返回",
+
+	# ── 鉴渣休闲小游戏 (casual spotter) ──────────────────────────────────────
+	"SPOT_INTEL":        "开天眼 · 他对别人说的",
+	"SPOT_FACE":         "他正对你说",
+	"SPOT_ASK":          "他是？",
+	"SPOT_GOOD":         "好男人",
+	"SPOT_SCUM":         "渣男",
+	"SPOT_EXPOSE":       "当面拆穿",
+	"SPOT_PROBE":        "饭局试探",
+	"SPOT_LEAVE":        "直接走开",
+	"SPOT_NEXT":         "下一个",
+	"SPOT_TALLY":        "看穿 %d / %d",
+	"END_SCUM_EXPOSE":   "%s 当场破功，话都接不上。你拿起包，没回头。",
+	"END_SCUM_PROBE":    "你不动声色多问一句，%s 自己把谎接圆不上了。看清了。",
+	"END_SCUM_LEAVE":    "你没解释，直接走。%s 还在想哪句说错了。",
+	"END_GOOD_EXPOSE":   "%s 沉默了一下，没辩解，走了。你拆穿了一个没装的人。",
+	"END_GOOD_PROBE":    "%s 经得起问，答得很实。你看到的是真的。",
+	"END_GOOD_LEAVE":    "你走了。%s 没追。有些人不会演，也不会求。",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
