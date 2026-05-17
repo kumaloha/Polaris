@@ -75,19 +75,31 @@ func _section(cv: Control, title_key: String, lines: Array, y0: int, show_to: bo
 	UiKit.label(cv, title_key, 0, y, T.SMALL, T.DIM, W)
 	y += 70
 	var bw: int = int(float(W) * 0.84)
+	var inner_w: int = bw - 60
 	for line in lines:
 		var tx: String = str(line["text"])
-		var pan: Panel = UiKit.panel(cv, 0, y, bw, 160)
-		UiKit.label(pan, tx, 30, 26, T.BODY, T.TEXT, bw - 60)
+		# Deterministic bubble height: estimate wrapped rows from text length
+		# at T.BODY in inner_w (conservative chars/line → over-provision).
+		# Generous height is free inside the scroll container; a clipped
+		# gut-punch line is not.
+		var per_line: int = max(1, int(float(inner_w) / float(T.BODY) * 1.6))
+		var rows: int = int(ceil(float(tx.length()) / float(per_line)))
+		if rows < 1:
+			rows = 1
+		var bh: int = rows * int(float(T.BODY) * 1.4) + 60
+		if bh < 120:
+			bh = 120
+		var pan: Panel = UiKit.panel(cv, 0, y, bw, bh)
+		UiKit.label(pan, tx, 30, 26, T.BODY, T.TEXT, inner_w)
 		if show_to:
 			var who: String = str(line.get("to", ""))
 			if who != "":
-				UiKit.label(cv, who, 8, y + 160 + 4, T.TINY, T.FAINT, bw)
-				y += 160 + 4 + 38 + T.GAP
+				UiKit.label(cv, who, 8, y + bh + 4, T.TINY, T.FAINT, bw)
+				y += bh + 4 + 38 + T.GAP
 			else:
-				y += 160 + T.GAP
+				y += bh + T.GAP
 		else:
-			y += 160 + T.GAP
+			y += bh + T.GAP
 	return y + 28
 
 func _hinge(cv: Control, y0: int, W: int) -> int:
