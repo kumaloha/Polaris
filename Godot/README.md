@@ -32,3 +32,10 @@ Visuals are a code-generated baseline (cold-premium, no art); to be re-skinned f
 - `SeasonFlow.read_signal(hidden_type, guess)` — high-frequency read; correct guess archives a `state.dossier` entry (judgment equity → net worth).
 - `SeasonFlow.apply_outfit(id)` / `apply_workout(id)` — apply `Content.outfits()/workouts()` effects.
 - Numbers live in `data/tuning.json` `social` / `dossier`.
+
+## Play with UI — Hub (current)
+
+The linear flow was replaced by a portrait hub. Open the project in Godot 4.6 and Play, or:
+`godot --path . res://scenes/Game.tscn`
+
+Home shows your avatar/stats + energy bar (opportunity cost). Bottom nav: 自我提升 / 社媒 / 派对 / 约会 / 集卡 / 资产. Soft daily cycle: pick build in 自我提升 → enter 派对 (begins the night) → 派对 rounds → 约会 resolves it (Future Eye) → settlement; build is locked for the night once you enter 派对. 社媒 / 集卡 / 资产 are Plan C stubs. Headless hub smoke: `godot --headless --script res://ui_smoke.gd`.
