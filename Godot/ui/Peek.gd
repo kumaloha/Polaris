@@ -10,7 +10,6 @@ var state: String = "intel"        # intel -> face -> ending -> (next) intel
 var idx: int = 0
 var seen: int = 0
 var correct: int = 0
-var judged_scum: bool = false
 var _choice: String = ""
 var _was_right: bool = false
 var _pending_guess: int = -1       # -1 none, 1 scum, 0 good (face sub-step)
@@ -37,7 +36,6 @@ func reveal_face() -> void:
 func judge(is_scum_guess: bool, choice: String) -> void:
 	if state != "face":
 		return
-	judged_scum = is_scum_guess
 	_choice = choice
 	var truth: bool = Spotter.is_scumbag(_man_now())
 	_was_right = (is_scum_guess == truth)
