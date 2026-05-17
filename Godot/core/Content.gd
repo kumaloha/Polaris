@@ -43,3 +43,15 @@ static func self_investments() -> Array:
 		{"id": "solo_reset", "name": "Solo Reset", "effect": {"energy": 2}},
 		{"id": "evidence_study", "name": "Evidence Study", "effect": {"first_eye_depth": 1}},
 	]
+static func outfits() -> Array:
+	return [
+		{"id": "midnight_silk", "name": "Midnight Silk", "effect": {"charm": 2}},
+		{"id": "power_suit", "name": "Power Suit", "effect": {"position": 1}},
+		{"id": "soft_athleisure", "name": "Soft Athleisure", "effect": {"charm": 1}},
+	]
+static func workouts() -> Array:
+	return [
+		{"id": "reset_run", "name": "Reset Run", "effect": {"energy": 2}},
+		{"id": "power_lift", "name": "Power Lift", "effect": {"position": 1}},
+		{"id": "calm_yoga", "name": "Calm Yoga", "effect": {"energy": 1}},
+	]

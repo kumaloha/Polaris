@@ -6,5 +6,7 @@
   "control": {"chase_penalty": 1, "earn_gain": 1},
   "book": {"creditor_energy_drain": 1, "observe_decay_per_night": 1, "fantasy_debt_per_unsettled": 1, "missed_threshold": 9},
   "gates": {"tier1_warmth": 0, "tier2_warmth": 3, "tier3_warmth": 6},
-  "inherit": {"keep_social": true, "keep_dossier": true, "reset_men": true, "reset_energy": true}
+  "inherit": {"keep_social": true, "keep_dossier": true, "reset_men": true, "reset_energy": true},
+  "social": {"scarce_reach": 1, "validation_reach": 3, "scarce_standing": 1, "validation_standing": 0, "gf_lead_threshold": 2, "gf_lead_warmth": 1},
+  "dossier": {"read_correct_archives": 1}
 }

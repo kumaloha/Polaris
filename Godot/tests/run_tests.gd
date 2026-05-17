@@ -7,6 +7,7 @@ const TESTS := [
 	"res://tests/test_girlfriends.gd", "res://tests/test_soft_ruin.gd",
 	"res://tests/test_season_flow.gd",
 	"res://tests/test_season_flow_interactive.gd",
+	"res://tests/test_content_hub.gd",
 ]
 func _initialize() -> void:
 	var fails := 0
