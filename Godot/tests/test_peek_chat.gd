@@ -96,12 +96,18 @@ func test_corpus_expanded_and_shaped() -> void:
 	var disguised := 0
 	for m in men:
 		ok(m.has("chat") and (m["chat"] as Array).size() >= 2, "%s chat ≥2" % str(m["id"]))
-		ok(m.has("others_chat") and (m["others_chat"] as Array).size() >= 4, "%s others_chat ≥4" % str(m["id"]))
+		ok(m.has("others_chat") and (m["others_chat"] as Array).size() >= 3, "%s others_chat ≥3" % str(m["id"]))
 		ok(m.has("hidden_type") and m["hidden_type"] in ["resource", "high_sugar", "growth"], "%s hidden_type is locked archetype" % str(m["id"]))
 		ok(m.has("surface") and m.has("risk") and m.has("opportunity") and m.has("energy_cost"), "%s full schema" % str(m["id"]))
 		if m["surface"] != m["hidden_type"]:
 			disguised += 1
 	ge(disguised, 5, "≥5 disguised men (surface != hidden_type)")
+	# New men are written richer (4-6 lines); the original 3 stay as shipped (3).
+	var new_ids := ["marcus", "daniel", "theo", "julian", "wes", "cole", "sam", "hugo", "rhys"]
+	for nid in new_ids:
+		var nm: Dictionary = _man(nid)
+		ok(not nm.is_empty(), "new man %s exists" % nid)
+		ge((nm["others_chat"] as Array).size(), 4, "%s others_chat ≥4 (new men written厚)" % nid)
 
 func test_new_reveal_cases_present() -> void:
 	var marcus := _man("marcus")
