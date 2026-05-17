@@ -22,7 +22,8 @@ func advance_night() -> Array:
 		if p.decision == "observe":
 			var d: int = Tuning.num("book.observe_decay_per_night", 1)
 			p.decay += d
-			if p.decay >= 9 and p.status == "open":
+			var miss: int = Tuning.num("book.missed_threshold", 9)
+			if p.decay >= miss and p.status == "open":
 				p.status = "missed"
 				events.append({"man": p.man, "event": "missed_growth"})
 		elif p.decision == "string_along":
