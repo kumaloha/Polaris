@@ -39,3 +39,7 @@ The linear flow was replaced by a portrait hub. Open the project in Godot 4.6 an
 `godot --path . res://scenes/Game.tscn`
 
 Home shows your avatar/stats + energy bar (opportunity cost). Bottom nav: 自我提升 / 社媒 / 派对 / 约会 / 集卡 / 资产. Soft daily cycle: pick build in 自我提升 → enter 派对 (begins the night) → 派对 rounds → 约会 resolves it (Future Eye) → settlement; build is locked for the night once you enter 派对. 社媒 / 集卡 / 资产 are Plan C stubs. Headless hub smoke: `godot --headless --script res://ui_smoke.gd`.
+
+## Full night flow (Plan C)
+
+A night now flows: 自我提升 (set build) → 社交媒体 (post: 克制/博认同 → who slides in; read DMs → dossier) → 派对 (read the people your post attracted) → 约会 (resolve; Future Eye) → settlement. 集卡 browses dossier / girlfriend network / earned keyframes; 资产清单 shows the net-worth balance sheet. Headless: `godot --headless --script res://ui_smoke.gd` (drives a full night incl. the post).
