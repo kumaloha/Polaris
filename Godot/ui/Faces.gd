@@ -327,46 +327,53 @@ static func build(h) -> Control:
 					UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal(truth, gg))
 					y += 116
 		Hub.F.ASSETS:
+			# Visual frame is unchanged; the header+collection scroll inside it so
+			# accumulated dossier/keyframes can never clip behind the navbar.
 			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
-			UiKit.label(r, "ASSET LIST", T.PAD, 240, T.TITLE, T.ACCENT)
-			UiKit.label(r, "What you compounded. The men cleared; you didn't.", T.PAD, 330, T.SMALL, T.DIM, W)
+			var sc_top := 240
+			var sc_bot := T.REF_H - T.NAV_H
+			var cv := UiKit.scroll(r, 0, sc_top, T.REF_W, sc_bot - sc_top)
+			var oy := -sc_top
+			UiKit.label(cv, "ASSET LIST", T.PAD, 240 + oy, T.TITLE, T.ACCENT)
+			UiKit.label(cv, "What you compounded. The men cleared; you didn't.", T.PAD, 330 + oy, T.SMALL, T.DIM, W)
 			var s2 = h.flow.state.snapshot()
 			var dz: int = h.flow.state.dossier.size()
 			var kz: int = h.flow.state.keyframes.size()
 			var liab := 0
 			for db in h.flow.state.debts:
 				liab += int(db.get("amount", 0))
-			var y := 460
-			UiKit.label(r, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.DISPLAY, T.ACCENT, W); y += 130
-			UiKit.label(r, "ASSETS", T.PAD, y, T.SMALL, T.DIM); y += 56
-			UiKit.label(r, "Standing %d   Dossier %d   Keyframes %d" % [int(s2["position"]), dz, kz], T.PAD + 16, y, T.BODY, T.TEXT, W); y += 96
-			UiKit.label(r, "LIABILITIES", T.PAD, y, T.SMALL, T.DIM); y += 56
-			UiKit.label(r, "Fantasy debt %d" % liab, T.PAD + 16, y, T.BODY, Color(0.85,0.35,0.35), W); y += 96
+			var y := 460 + oy
+			UiKit.label(cv, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.DISPLAY, T.ACCENT, W); y += 130
+			UiKit.label(cv, "ASSETS", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(cv, "Standing %d   Dossier %d   Keyframes %d" % [int(s2["position"]), dz, kz], T.PAD + 16, y, T.BODY, T.TEXT, W); y += 96
+			UiKit.label(cv, "LIABILITIES", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(cv, "Fantasy debt %d" % liab, T.PAD + 16, y, T.BODY, Color(0.85,0.35,0.35), W); y += 96
 			if h.ui.has("settle"):
-				UiKit.label(r, "last week settled at %s" % str(h.ui["settle"].get("net_worth", 0)), T.PAD + 16, y, T.SMALL, T.DIM, W)
+				UiKit.label(cv, "last week settled at %s" % str(h.ui["settle"].get("net_worth", 0)), T.PAD + 16, y, T.SMALL, T.DIM, W)
 			y += 70
-			UiKit.label(r, "COLLECTION", T.PAD, y, T.TITLE, T.ACCENT); y += 90
-			UiKit.label(r, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, y, T.SMALL, T.DIM, W); y += 80
-			UiKit.label(r, "DOSSIER (men you read right)", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(cv, "COLLECTION", T.PAD, y, T.TITLE, T.ACCENT); y += 90
+			UiKit.label(cv, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, y, T.SMALL, T.DIM, W); y += 80
+			UiKit.label(cv, "DOSSIER (men you read right)", T.PAD, y, T.SMALL, T.DIM); y += 56
 			var d: Array = h.flow.state.dossier
 			if d.size() == 0:
-				UiKit.label(r, "— none yet —", T.PAD + 16, y, T.SMALL, T.TEXT); y += 56
+				UiKit.label(cv, "— none yet —", T.PAD + 16, y, T.SMALL, T.TEXT); y += 56
 			else:
 				for e in d:
-					UiKit.label(r, "·  %s" % str(e["type"]), T.PAD + 16, y, T.SMALL, T.TEXT); y += 50
+					UiKit.label(cv, "·  %s" % str(e["type"]), T.PAD + 16, y, T.SMALL, T.TEXT); y += 50
 			y += 30
-			UiKit.label(r, "GIRLFRIEND NETWORK", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(cv, "GIRLFRIEND NETWORK", T.PAD, y, T.SMALL, T.DIM); y += 56
 			for g in Content.girlfriends():
 				var warm: int = int(h.flow.gf._warmth.get(g["id"], 0))
-				UiKit.label(r, "·  %s (%s)  warmth %d" % [str(g["name"]), str(g["role"]), warm], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 56
+				UiKit.label(cv, "·  %s (%s)  warmth %d" % [str(g["name"]), str(g["role"]), warm], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 56
 			y += 30
-			UiKit.label(r, "KEYFRAMES (proven futures)", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(cv, "KEYFRAMES (proven futures)", T.PAD, y, T.SMALL, T.DIM); y += 56
 			var kf: Array = h.flow.state.keyframes
 			if kf.size() == 0:
-				UiKit.label(r, "— none yet —", T.PAD + 16, y, T.SMALL, T.TEXT)
+				UiKit.label(cv, "— none yet —", T.PAD + 16, y, T.SMALL, T.TEXT); y += 50
 			else:
 				for k in kf:
-					UiKit.label(r, "·  %s — %s" % [str(k["man"]), str(k["result"])], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 50
+					UiKit.label(cv, "·  %s — %s" % [str(k["man"]), str(k["result"])], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 50
+			cv.custom_minimum_size = Vector2(0, y + 80)
 		_:
 			UiKit.label(r, "YOU", T.PAD, 200, T.TITLE, T.ACCENT)
 

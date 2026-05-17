@@ -77,6 +77,7 @@ static func label(parent: Control, text: String, x: int, y: int, size: int, col:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	l.position = Vector2(x, y)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if w > 0:
 		l.size = Vector2(w, 0)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -116,3 +117,25 @@ static func navbar(parent: Control) -> Panel:
 	p.add_theme_stylebox_override("panel", _stylebox(T.PANEL_2, T.STROKE, 1, 0))
 	parent.add_child(p)
 	return p
+# Scrollable region. Returns a transparent content Control to draw into with
+# local coords; set its custom_minimum_size.y to the total content height to
+# define the scroll extent. Vertical-only, clipped, slim cold-premium bar.
+static func scroll(parent: Control, x: int, y: int, w: int, h: int) -> Control:
+	var sc := ScrollContainer.new()
+	sc.position = Vector2(x, y)
+	sc.size = Vector2(w, h)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	sc.clip_contents = true
+	var vb := sc.get_v_scroll_bar()
+	if vb != null:
+		vb.custom_minimum_size = Vector2(10, 0)
+		vb.add_theme_stylebox_override("scroll", _stylebox(T.PANEL, T.STROKE, 0, T.RADIUS))
+		vb.add_theme_stylebox_override("grabber", _stylebox(T.ACCENT_SOFT, T.ACCENT_SOFT, 0, T.RADIUS))
+		vb.add_theme_stylebox_override("grabber_highlight", _stylebox(T.ACCENT, T.ACCENT, 0, T.RADIUS))
+		vb.add_theme_stylebox_override("grabber_pressed", _stylebox(T.ACCENT, T.ACCENT, 0, T.RADIUS))
+	parent.add_child(sc)
+	var cv := Control.new()
+	cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sc.add_child(cv)
+	return cv
