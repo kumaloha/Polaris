@@ -194,12 +194,12 @@ static func build(h) -> Control:
 					UiKit.btn(r, Loc.t(a.to_upper().replace("_", " ")), T.PAD, by, W, T.BTN_H,
 						func(): h.act_party(act))
 					by += T.BTN_H + 16
-			elif h.ui.get("_chose_party", false) and h.flow.party_men().size() > 0:
+			elif h.ui.get("_chose_party", false) and h.party_face_men().size() > 0:
 				UiKit.label(r, "FIRST EYE", T.PAD, 200, T.TITLE, T.ACCENT)
 				UiKit.label(r, "Surface only. The truth is in the signs, not the words.",
 					T.PAD, 290, T.SMALL, T.DIM, W)
 				var y := 420
-				for m in h.flow.party_men():
+				for m in h.party_face_men():
 					var line := "%s   ·   %s\n%s %s\n\"%s\"" % [
 						Loc.t(str(m["name"])), Loc.t(str(m["surface"])),
 						Loc.t("risk:"), Loc.t(str(m["risk"])),

@@ -113,3 +113,9 @@ func act_read_signal(hidden_type: String, guess: String) -> void:
 	var r = flow.read_signal(hidden_type, guess)
 	ui["read_feedback"] = "correct" if r.correct else "wrong"
 	_render()
+
+func party_face_men() -> Array:
+	var inbound = flow.inbound_men()
+	if inbound.size() > 0:
+		return inbound
+	return flow.party_men()
