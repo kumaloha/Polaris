@@ -55,3 +55,14 @@ static func workouts() -> Array:
 		{"id": "power_lift", "name": "Power Lift", "effect": {"position": 1}},
 		{"id": "calm_yoga", "name": "Calm Yoga", "effect": {"energy": 1}},
 	]
+static func dm_signals() -> Array:
+	return [
+		{"text": "still up? can't stop thinking about you 😉", "hidden_type": "high_sugar", "surface": "high_sugar"},
+		{"text": "you're different. you actually listen.", "hidden_type": "high_sugar", "surface": "growth"},
+		{"text": "dinner Thursday 8 — I booked the corner table.", "hidden_type": "resource", "surface": "resource"},
+		{"text": "flying back Sunday, let's lock a real date this week.", "hidden_type": "resource", "surface": "resource"},
+		{"text": "loud party guy energy, but asked what you're building.", "hidden_type": "growth", "surface": "false_alpha"},
+		{"text": "quiet, kept following up on what you said last time.", "hidden_type": "growth", "surface": "growth"},
+		{"text": "VIP table, bottles, 'come thru' — no plan, no time.", "hidden_type": "high_sugar", "surface": "resource"},
+		{"text": "humble, almost shy — runs two clinics, never led with it.", "hidden_type": "resource", "surface": "growth"},
+	]

@@ -11,6 +11,7 @@ const TESTS := [
 	"res://tests/test_seasonflow_self_improve.gd",
 	"res://tests/test_seasonflow_funnel.gd",
 	"res://tests/test_seasonflow_dossier.gd",
+	"res://tests/test_dm_signals.gd",
 ]
 func _initialize() -> void:
 	var fails := 0
