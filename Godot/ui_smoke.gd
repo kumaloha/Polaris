@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Hub := preload("res://ui/Hub.gd")
+const Content := preload("res://core/Content.gd")
 
 func _initialize() -> void:
 	var scene = load("res://scenes/Game.tscn").instantiate()
@@ -12,8 +13,27 @@ func _run(h) -> void:
 	h.ui["self_invest"] = "solo_reset"
 	h.ui["persona"] = "rare_girl"
 	h.go_face(Hub.F.SOCIAL)
-	h.act_read_signal("high_sugar", "high_sugar")          # correct read → dossier archive
-	h.act_compose_post("scarce")                            # opens night + sets inbound pool
+
+	# --- CAP-EXERCISING MULTI-READ (before post/party) ---
+	var cap: int = h._tuning_read_cap()        # = 3
+	var d0: int = int(h.flow.state.dossier.size())
+
+	# Loop cap+1 times: on the (cap+1)th call the hub gate makes it a no-op
+	for _i in range(cap + 1):
+		var samples = Content.dm_signals()
+		var truth = str(samples[int(h.flow.state.dossier.size()) % samples.size()]["hidden_type"])
+		h.act_read_signal(truth, truth)         # correct guess → archives dossier entry
+
+	assert(int(h.flow.state.dossier.size()) == d0 + cap,
+		"exactly cap correct reads archived; the over-cap read was a no-op")
+	assert(int(h.ui.get("reads_tonight", 0)) == cap,
+		"reads_tonight capped at cap, never exceeds")
+
+	# Snapshot reads_tonight before _post_night erases it at end-of-night
+	var reads_snapshot: int = int(h.ui.get("reads_tonight", 0))
+
+	# --- FULL NIGHT DRIVE (post → party → date → settle) ---
+	h.act_compose_post("scarce")                # opens night + sets inbound pool
 	h.go_face(Hub.F.PARTY)
 	h.ui["_chose_party"] = true
 	h.act_choose_party("rooftop")
@@ -28,6 +48,5 @@ func _run(h) -> void:
 	if h.ui.get("show_future", false):
 		h.dismiss_future()
 	assert(h.flow.state.day >= 2, "a full night completed via the hub")
-	assert(h.flow.state.dossier.size() >= 1, "comment-read archived a dossier entry")
-	print("HUB SMOKE OK day=%d dossier=%d face=%d" % [h.flow.state.day, h.flow.state.dossier.size(), h.face])
+	print("HUB SMOKE OK day=%d dossier=%d reads=%d" % [h.flow.state.day, h.flow.state.dossier.size(), reads_snapshot])
 	quit(0)

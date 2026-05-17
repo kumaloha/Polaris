@@ -43,3 +43,7 @@ Home shows your avatar/stats + energy bar (opportunity cost). Bottom nav: 自我
 ## Full night flow (Plan C)
 
 A night now flows: 自我提升 (set build) → 社交媒体 (post: 克制/博认同 → who slides in; read DMs → dossier) → 派对 (read the people your post attracted) → 约会 (resolve; Future Eye) → settlement. 集卡 browses dossier / girlfriend network / earned keyframes; 资产清单 shows the net-worth balance sheet. Headless: `godot --headless --script res://ui_smoke.gd` (drives a full night incl. the post).
+
+## Read-practice (Plan D)
+
+The 社交媒体 comment/DM read is now a varied deterministic sample set (8 DMs incl. disguised tells where the surface vibe ≠ the real type). Each correct read archives the dossier (judgment equity → net worth). Capped at `social.read_cap` (default 3) reads/night; resets each night.
