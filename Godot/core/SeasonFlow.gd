@@ -290,3 +290,9 @@ func compose_post(posture: String) -> Dictionary:
 
 func inbound_men() -> Array:
 	return _np_inbound
+
+func read_signal(hidden_type: String, guess: String) -> Dictionary:
+	var correct := guess == hidden_type
+	if correct:
+		state.dossier.append({"type": hidden_type, "result": "read_correct"})
+	return {"correct": correct, "dossier_size": state.dossier.size()}
