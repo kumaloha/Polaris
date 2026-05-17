@@ -9,11 +9,13 @@ class_name PeekChat
 # NOTE: uses defensive man.get(...) (unlike FirstEye's direct man["..."])
 # on purpose — peek must survive partial/empty input (see test_peek_handles_empty_man).
 static func peek(man: Dictionary) -> Dictionary:
-	# Shallow copy: never hand a consumer a reference into Content's data
-	# (a future UI may sort/annotate this in place). Lines are value dicts.
+	# Shallow copies: never hand a consumer a reference into Content's data
+	# (a future UI may sort/annotate these in place). Lines are value dicts.
 	var others: Array = (man.get("others_chat", []) as Array).duplicate()
+	var to_you: Array = (man.get("chat", []) as Array).duplicate()
 	return {
 		"name": str(man.get("name", "")),
 		"surface_claim": str(man.get("surface", "")),
+		"to_you_chat": to_you,
 		"others_chat": others,
 	}

@@ -67,3 +67,25 @@ func test_peek_others_chat_is_a_distinct_copy() -> void:
 	var r: Dictionary = PeekChat.peek(m)
 	ok(not is_same(r["others_chat"], m["others_chat"]), "peek returns a copy, not a reference into Content data")
 	eq(str(r["others_chat"]), str(m["others_chat"]), "the copy is value-equal to the source")
+
+func test_peek_carries_to_you_chat() -> void:
+	var r: Dictionary = PeekChat.peek(_man("evan"))
+	ok(r.has("to_you_chat"), "peek carries to_you_chat (his performance face)")
+	var ty: Array = r["to_you_chat"]
+	ok(ty.size() >= 1, "evan to_you_chat non-empty")
+	for line in ty:
+		ok(line.has("from") and line.has("text"), "to_you line shape {from,text}")
+
+func test_peek_to_you_is_a_distinct_copy() -> void:
+	var m: Dictionary = _man("leo")
+	var r: Dictionary = PeekChat.peek(m)
+	ok(not is_same(r["to_you_chat"], m["chat"]), "to_you_chat is a copy, not a ref into Content")
+	eq(str(r["to_you_chat"]), str(m["chat"]), "the copy is value-equal to the source")
+
+func test_peek_with_to_you_still_hides_truth() -> void:
+	for id in ["adrian", "evan", "leo"]:
+		var r: Dictionary = PeekChat.peek(_man(id))
+		ok(not r.has("hidden_type"), "still no truth for %s after adding to_you_chat" % id)
+		ok(not r.has("risk"), "still no risk label for %s" % id)
+	var e: Dictionary = PeekChat.peek({})
+	eq((e["to_you_chat"] as Array).size(), 0, "empty man -> empty to_you_chat, no crash")
