@@ -37,6 +37,31 @@ func test_party_drive_and_after_date_returns_future_eye() -> void:
 	eq(f.state.day, 2, "night finished, day advanced")
 	ok(fin.has("snapshot"), "finish returns snapshot")
 
+func test_interactive_log_does_not_leak_across_nights() -> void:
+	var f = SF.new()
+	# Night 1: chase pattern that produces MIRROR/log lines
+	f.begin_night("solo_reset", "rare_girl")
+	f.choose_party("rooftop")
+	f.set_primary("evan")
+	var e1 = f.start_party()
+	for i in range(e1.total_rounds):
+		e1.act("engage")
+		f.record_party_action("engage")
+	f.resolve_after({"evan": "date"})
+	var n1 = f.finish_night()
+	var n1_count = (n1.log as Array).size()
+	# Night 2: must NOT contain night 1's accumulated lines
+	f.begin_night("solo_reset", "rare_girl")
+	f.choose_party("rooftop")
+	f.set_primary("leo")
+	var e2 = f.start_party()
+	for i in range(e2.total_rounds):
+		e2.act("exit")
+		f.record_party_action("exit")
+	f.resolve_after({"leo": "observe"})
+	var n2 = f.finish_night()
+	ok((n2.log as Array).size() <= n1_count, "night 2 log not inflated by night 1 (no leak)")
+
 func test_batch_step_night_still_works() -> void:
 	var f = SF.new()
 	var r = f.step_night({"self_invest": "solo_reset", "primary": "leo",

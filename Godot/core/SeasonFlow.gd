@@ -125,6 +125,7 @@ func begin_night(self_invest_id: String, persona_id: String) -> void:
 	_np_primary = ""
 	_np_backup = ""
 	_np_control_delta = 0
+	log_lines = []
 	for c in Content.self_investments():
 		if c.id == self_invest_id:
 			state.apply(c.effect)
