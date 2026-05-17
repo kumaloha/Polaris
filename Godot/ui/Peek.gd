@@ -1,12 +1,19 @@
 extends Node
 const Content := preload("res://core/Content.gd")
 const PeekChat := preload("res://core/PeekChat.gd")
+const Spotter := preload("res://core/Spotter.gd")
 const UiKit := preload("res://ui/UiKit.gd")
 const T := preload("res://ui/Theme.gd")
 const Loc := preload("res://ui/Loc.gd")
 
-var state: String = "list"      # "list" | "reveal"
-var sel_id: String = ""
+var state: String = "intel"        # intel -> face -> ending -> (next) intel
+var idx: int = 0
+var seen: int = 0
+var correct: int = 0
+var judged_scum: bool = false
+var _choice: String = ""
+var _was_right: bool = false
+var _pending_guess: int = -1       # -1 none, 1 scum, 0 good (face sub-step)
 var _layer: CanvasLayer
 
 func _ready() -> void:
@@ -14,100 +21,108 @@ func _ready() -> void:
 	add_child(_layer)
 	_render()
 
-func _man(id: String) -> Dictionary:
-	for m in Content.men():
-		if m["id"] == id:
-			return m
-	return {}
+func _man_now() -> Dictionary:
+	var men: Array = Content.men()
+	if men.is_empty():
+		return {}
+	return men[idx % men.size()]
 
-func open_reveal(id: String) -> void:
-	sel_id = id
-	state = "reveal"
+func reveal_face() -> void:
+	if state != "intel":
+		return
+	_pending_guess = -1
+	state = "face"
 	_render()
 
-func back_to_list() -> void:
-	state = "list"
-	sel_id = ""
+func judge(is_scum_guess: bool, choice: String) -> void:
+	if state != "face":
+		return
+	judged_scum = is_scum_guess
+	_choice = choice
+	var truth: bool = Spotter.is_scumbag(_man_now())
+	_was_right = (is_scum_guess == truth)
+	if _was_right:
+		correct += 1
+	_pending_guess = -1
+	state = "ending"
+	_render()
+
+func next_round() -> void:
+	if state != "ending":
+		return
+	seen += 1
+	idx += 1
+	_pending_guess = -1
+	state = "intel"
 	_render()
 
 func _render() -> void:
 	for c in _layer.get_children():
 		c.queue_free()
-	var sig: String = "list" if state == "list" else "reveal:" + sel_id
-	var r: Control = UiKit.screen(sig)
-	if state == "list":
-		_build_list(r)
-	else:
-		_build_reveal(r)
+	var r: Control = UiKit.screen("spot:%d:%s" % [idx, state])
+	match state:
+		"intel": _build_intel(r)
+		"face": _build_face(r)
+		"ending": _build_ending(r)
+		_: _build_intel(r)
 	_layer.add_child(r)
 
-func _build_list(r: Control) -> void:
-	var W: int = T.REF_W - T.PAD * 2
-	UiKit.label(r, "PEEK_TITLE", T.PAD, T.PAD, T.TITLE, T.ACCENT)
-	UiKit.label(r, "PEEK_LIST_SUB", T.PAD, T.PAD + 86, T.SMALL, T.DIM, W)
-	var y: int = T.PAD + 220
-	for m in Content.men():
-		var mid: String = m["id"]
-		var nm: String = str(m["name"])
-		var lead: String = Loc.t("PEEK_ROW_LEAD")
-		UiKit.btn(r, nm + "   ·   " + lead, T.PAD, y, W, T.BTN_H, func() -> void: open_reveal(mid))
-		y += T.BTN_H + T.GAP
+func _sharp_line(others: Array) -> String:
+	if others.is_empty():
+		return ""
+	var ln: Dictionary = others[0]
+	return "（对%s）%s" % [str(ln.get("to", "")), str(ln.get("text", ""))]
 
-func _build_reveal(r: Control) -> void:
+func _build_intel(r: Control) -> void:
 	var W: int = T.REF_W - T.PAD * 2
-	var man: Dictionary = _man(sel_id)
-	var p: Dictionary = PeekChat.peek(man)
+	var p: Dictionary = PeekChat.peek(_man_now())
+	UiKit.label(r, "SPOT_INTEL", T.PAD, T.PAD, T.TITLE, T.ACCENT)
+	UiKit.label(r, Loc.t("SPOT_TALLY") % [correct, seen], T.PAD, T.PAD + 90, T.SMALL, T.DIM, W)
+	var others: Array = p.get("others_chat", [])
+	UiKit.panel(r, T.PAD, 360, W, 360)
+	UiKit.label(r, _sharp_line(others), T.PAD + 40, 410, T.BODY, T.TEXT, W - 80)
+	UiKit.btn(r, "SPOT_FACE", T.PAD, T.REF_H - 320, W, T.BTN_H, reveal_face)
+
+func _build_face(r: Control) -> void:
+	var W: int = T.REF_W - T.PAD * 2
+	var p: Dictionary = PeekChat.peek(_man_now())
 	var to_you: Array = p.get("to_you_chat", [])
-	var others: Array = p["others_chat"]
-	UiKit.label(r, str(p["name"]), T.PAD, T.PAD, T.TITLE, T.ACCENT)
-	UiKit.label(r, "PEEK_REVEAL_SUB", T.PAD, T.PAD + 86, T.SMALL, T.DIM, W)
-	UiKit.btn(r, "PEEK_BACK", T.PAD, T.REF_H - 170, 300, 120, func() -> void: back_to_list())
-	var top: int = T.PAD + 200
-	var body: Control = UiKit.scroll(r, T.PAD, top, W, T.REF_H - top - 210)
-	var y: int = 0
-	y = _section(body, "PEEK_TO_YOU", to_you, y, false, W)
-	y = _hinge(body, y, W)
-	y = _section(body, "PEEK_TO_OTHERS", others, y, true, W)
-	body.custom_minimum_size = Vector2(W, y)
+	var line := ""
+	if not to_you.is_empty():
+		line = str((to_you[0] as Dictionary).get("text", ""))
+	UiKit.label(r, str(p.get("name", "")) + " · " + Loc.t("SPOT_FACE"), T.PAD, T.PAD, T.TITLE, T.ACCENT)
+	UiKit.panel(r, T.PAD, 320, W, 300)
+	UiKit.label(r, line, T.PAD + 40, 370, T.BODY, T.TEXT, W - 80)
+	UiKit.label(r, "SPOT_ASK", T.PAD, 700, T.SMALL, T.DIM, W)
+	var y := 780
+	UiKit.btn(r, "SPOT_SCUM", T.PAD, y, W, T.BTN_H, func() -> void: _ask_choice(true))
+	y += T.BTN_H + T.GAP
+	UiKit.btn(r, "SPOT_GOOD", T.PAD, y, W, T.BTN_H, func() -> void: _ask_choice(false))
+	if _pending_guess != -1:
+		y += T.BTN_H + T.GAP * 2
+		UiKit.label(r, "SPOT_ASK", T.PAD, y, T.SMALL, T.DIM, W); y += 64
+		var guess_scum: bool = _pending_guess == 1
+		for ch in [["expose", "SPOT_EXPOSE"], ["probe", "SPOT_PROBE"], ["leave", "SPOT_LEAVE"]]:
+			var cid: String = ch[0]
+			var clbl: String = ch[1]
+			UiKit.btn(r, clbl, T.PAD, y, W, T.BTN_H, func() -> void: judge(guess_scum, cid))
+			y += T.BTN_H + T.GAP
 
-func _section(cv: Control, title_key: String, lines: Array, y0: int, show_to: bool, W: int) -> int:
-	var y: int = y0
-	UiKit.label(cv, title_key, 0, y, T.SMALL, T.DIM, W)
-	y += 70
-	var bw: int = int(float(W) * 0.84)
-	var inner_w: int = bw - 60
-	for line in lines:
-		var tx: String = str(line["text"])
-		# Deterministic bubble height: estimate wrapped rows from text length
-		# at T.BODY in inner_w (conservative chars/line → over-provision).
-		# Generous height is free inside the scroll container; a clipped
-		# gut-punch line is not.
-		var per_line: int = max(1, int(float(inner_w) / float(T.BODY) * 1.6))
-		var rows: int = int(ceil(float(tx.length()) / float(per_line)))
-		if rows < 1:
-			rows = 1
-		var bh: int = rows * int(float(T.BODY) * 1.4) + 60
-		if bh < 120:
-			bh = 120
-		var pan: Panel = UiKit.panel(cv, 0, y, bw, bh)
-		UiKit.label(pan, tx, 30, 26, T.BODY, T.TEXT, inner_w)
-		if show_to:
-			var who: String = str(line.get("to", ""))
-			if who != "":
-				UiKit.label(cv, who, 8, y + bh + 4, T.TINY, T.FAINT, bw)
-				y += bh + 4 + 38 + T.GAP
-			else:
-				y += bh + T.GAP
-		else:
-			y += bh + T.GAP
-	return y + 28
+func _ask_choice(is_scum_guess: bool) -> void:
+	if state != "face":
+		return
+	_pending_guess = 1 if is_scum_guess else 0
+	_render()
 
-func _hinge(cv: Control, y0: int, W: int) -> int:
-	var y: int = y0 + 18
-	var rule := ColorRect.new()
-	rule.color = T.ACCENT
-	rule.position = Vector2(0, y)
-	rule.size = Vector2(W, 2)
-	cv.add_child(rule)
-	UiKit.label(cv, "PEEK_HINGE", 0, y + 18, T.SMALL, T.ACCENT, W)
-	return y + 18 + 64 + 28
+func _build_ending(r: Control) -> void:
+	var W: int = T.REF_W - T.PAD * 2
+	var m: Dictionary = _man_now()
+	var truth: bool = Spotter.is_scumbag(m)
+	var key: String = Spotter.ending_key(truth, _choice)
+	var nm: String = str(m.get("name", ""))
+	UiKit.label(r, nm, T.PAD, T.PAD, T.TITLE, T.ACCENT)
+	UiKit.panel(r, T.PAD, 340, W, 360)
+	UiKit.label(r, Loc.t(key) % nm, T.PAD + 40, 390, T.BODY, T.TEXT, W - 80)
+	var verdict := "你看穿了。" if _was_right else "你被他骗了。"
+	UiKit.label(r, verdict, T.PAD, 760, T.TITLE, (T.ACCENT if _was_right else T.DANGER), W)
+	UiKit.btn(r, "SPOT_NEXT", T.PAD, T.REF_H - 320, W, T.BTN_H, next_round)
