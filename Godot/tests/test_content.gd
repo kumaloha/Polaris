@@ -2,7 +2,7 @@ extends "res://tests/test_base.gd"
 const Content := preload("res://core/Content.gd")
 func test_three_archetypes() -> void:
 	var men = Content.men()
-	eq(men.size(), 3, "3 base men")
+	ge(men.size(), 12, "≥12 men")
 	var types := []
 	for m in men: types.append(m.hidden_type)
 	ok("resource" in types and "high_sugar" in types and "growth" in types, "all archetypes")

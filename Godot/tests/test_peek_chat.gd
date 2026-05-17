@@ -89,3 +89,30 @@ func test_peek_with_to_you_still_hides_truth() -> void:
 		ok(not r.has("risk"), "still no risk label for %s" % id)
 	var e: Dictionary = PeekChat.peek({})
 	eq((e["to_you_chat"] as Array).size(), 0, "empty man -> empty to_you_chat, no crash")
+
+func test_corpus_expanded_and_shaped() -> void:
+	var men: Array = Content.men()
+	ge(men.size(), 12, "≥12 men in the corpus")
+	var disguised := 0
+	for m in men:
+		ok(m.has("chat") and (m["chat"] as Array).size() >= 2, "%s chat ≥2" % str(m["id"]))
+		ok(m.has("others_chat") and (m["others_chat"] as Array).size() >= 4, "%s others_chat ≥4" % str(m["id"]))
+		ok(m.has("hidden_type") and m["hidden_type"] in ["resource", "high_sugar", "growth"], "%s hidden_type is locked archetype" % str(m["id"]))
+		ok(m.has("surface") and m.has("risk") and m.has("opportunity") and m.has("energy_cost"), "%s full schema" % str(m["id"]))
+		if m["surface"] != m["hidden_type"]:
+			disguised += 1
+	ge(disguised, 5, "≥5 disguised men (surface != hidden_type)")
+
+func test_new_reveal_cases_present() -> void:
+	var marcus := _man("marcus")
+	var daniel := _man("daniel")
+	var julian := _man("julian")
+	eq(marcus["hidden_type"], "high_sugar", "marcus truth = high_sugar")
+	eq(marcus["surface"], "resource", "marcus performs resource (痛: hollow provider)")
+	eq(daniel["hidden_type"], "resource", "daniel truth = resource")
+	eq(daniel["surface"], "high_sugar", "daniel performs high_sugar (爽: dismissable but real)")
+	eq(julian["hidden_type"], "high_sugar", "julian truth = high_sugar")
+	eq(julian["surface"], "growth", "julian performs growth (痛: performative depth)")
+	for id in ["marcus", "daniel", "julian"]:
+		var r: Dictionary = PeekChat.peek(_man(id))
+		ok(not r.has("hidden_type"), "%s peek still hides truth" % id)
