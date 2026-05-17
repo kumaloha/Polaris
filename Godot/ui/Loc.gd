@@ -250,6 +250,25 @@ const ZH := {
 	"Off. Look again.":  "看走眼了，再看看。",
 	"A DM: \"hey gorgeous, up late thinking about you 😉\"":
 		"一条私信：「美女还没睡呀，一直在想你 😉」",
+
+	# ── Collection face (Plan C Task 3) ──────────────────────────────────────
+	"Your reads, your circle, your proven calls — earned, not drawn.":
+		"你的读人、你的圈子、你应验的判断——挣来的，不是抽来的。",
+	"DOSSIER (men you read right)":
+		"案底（你读对过的男人）",
+	"GIRLFRIEND NETWORK":
+		"闺蜜网络",
+	"KEYFRAMES (proven futures)":
+		"关键帧（被验证的未来）",
+	"— none yet —":
+		"— 暂无 —",
+
+	# ── Asset-list face (Plan C Task 3) ──────────────────────────────────────
+	"What you compounded. The men cleared; you didn't.":
+		"你复利下来的东西。男人都清仓了，你没有。",
+	# NOTE: "ASSETS" already exists above — not re-added.
+	"LIABILITIES":
+		"负债",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
