@@ -40,6 +40,7 @@ const ZH := {
 	"ENGAGE":            "试探",
 	"BOUNDARY":          "立界限",
 	"SOCIAL_PROOF":      "秀社交资本",
+	"SOCIAL PROOF":      "秀社交资本",
 	"EXIT":              "离场",
 
 	# ── After-party action buttons ─────────────────────────────────────────────
