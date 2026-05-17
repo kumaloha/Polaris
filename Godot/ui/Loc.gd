@@ -192,6 +192,41 @@ const ZH := {
 	# These are composed in SeasonFlow; we translate the prefixes and combine
 	"[MIRROR] ":         "[镜像] ",
 	"[BOOK] ":           "[账本] ",
+
+	# ── Hub shell: face titles ────────────────────────────────────────────────
+	"YOU":               "你",
+	"SELF-IMPROVEMENT":  "自我提升",
+	"SOCIAL MEDIA":      "社交媒体",
+	"DATING":            "约会",
+	"COLLECTION":        "集卡",
+	"ASSET LIST":        "资产清单",
+
+	# ── Hub shell: bottom nav tabs ────────────────────────────────────────────
+	"SELF":              "自我",
+	"SOCIAL":            "社媒",
+	"CARDS":             "集卡",
+	"ASSETS":            "资产",
+
+	# ── Hub shell: SELF group headers ─────────────────────────────────────────
+	"SELF_INVESTMENTS":  "自我投资",
+	"PERSONAS":          "人设",
+	"OUTFITS":           "装扮",
+	"WORKOUTS":          "运动",
+
+	# ── Hub shell: subtitles ──────────────────────────────────────────────────
+	"You decide who's worth your energy.":
+		"谁值得你的精力，你说了算。",
+	"Invest in yourself before you walk in.":
+		"踏出门之前，先投资自己。",
+	# NOTE: "Decide where your energy goes. You can only Date one." already
+	# exists above (existing key, unchanged) — reused, not duplicated.
+	"Nothing booked yet.":
+		"暂时没有可约对象。",
+
+	# ── Hub shell: HUD / stat word fragments ──────────────────────────────────
+	"ENERGY":            "精力",
+	"charm":             "魅力",
+	"control":           "掌控",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
