@@ -24,3 +24,11 @@ Open the project in Godot 4.6 and press Play, or:
 
 Click through: Ready Room → Girlfriend Night → First Eye → Party (5 rounds) → After Party → Future Eye → repeat. Headless UI smoke: `godot --headless --script res://ui_smoke.gd`.
 Visuals are a code-generated baseline (cold-premium, no art); to be re-skinned from a reference app later.
+
+## Engine: social funnel + dossier (Plan A)
+
+- `SeasonFlow.compose_post(posture)` — `posture ∈ {"scarce","validation"}`; reuses ControlEngine (scarce=earn, validation=chase). Returns `{inbound_men, gf_leads, control_delta, standing_delta, mirror}`. Intra-night, one post/night, never advances the day.
+- `SeasonFlow.inbound_men()` — the funnel-produced men pool for the night.
+- `SeasonFlow.read_signal(hidden_type, guess)` — high-frequency read; correct guess archives a `state.dossier` entry (judgment equity → net worth).
+- `SeasonFlow.apply_outfit(id)` / `apply_workout(id)` — apply `Content.outfits()/workouts()` effects.
+- Numbers live in `data/tuning.json` `social` / `dossier`.
