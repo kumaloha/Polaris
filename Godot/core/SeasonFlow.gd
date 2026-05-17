@@ -25,6 +25,8 @@ var _np_primary: String = ""
 var _np_backup: String = ""
 var _np_control_delta: int = 0
 var _np_begun: bool = false
+var _np_inbound: Array = []
+var _np_posted: bool = false
 
 func _init() -> void:
 	state = GameState.new()
@@ -125,6 +127,8 @@ func begin_night(self_invest_id: String, persona_id: String) -> void:
 	_np_primary = ""
 	_np_backup = ""
 	_np_control_delta = 0
+	_np_inbound = []
+	_np_posted = false
 	log_lines = []
 	for c in Content.self_investments():
 		if c.id == self_invest_id:
@@ -240,3 +244,49 @@ func apply_workout(workout_id: String) -> void:
 		if w["id"] == workout_id:
 			state.apply(w["effect"])
 			return
+
+func _inbound_for(posture: String) -> Array:
+	var scarce_order := ["adrian", "leo", "evan"]
+	var valid_order := ["evan", "adrian", "leo"]
+	var ids: Array = scarce_order if posture == "scarce" else valid_order
+	var reach: int
+	if posture == "scarce":
+		reach = int(Tuning.num("social.scarce_reach", 1))
+	else:
+		reach = int(Tuning.num("social.validation_reach", 3))
+	var out := []
+	for i in range(min(reach, ids.size())):
+		out.append(_man(ids[i]))
+	return out
+
+func compose_post(posture: String) -> Dictionary:
+	if _np_posted:
+		return {"inbound_men": [], "gf_leads": [], "control_delta": 0,
+			"standing_delta": 0, "mirror": ""}
+	_np_posted = true
+	var action := "boundary" if posture == "scarce" else "engage"
+	var ce = ControlEngine.resolve({}, action)
+	var control_delta: int = int(ce.control)
+	var standing_delta: int
+	if posture == "scarce":
+		standing_delta = int(Tuning.num("social.scarce_standing", 1))
+	else:
+		standing_delta = int(Tuning.num("social.validation_standing", 0))
+	state.apply({"control": control_delta, "position": standing_delta})
+	_np_inbound = _inbound_for(posture)
+	var gf_leads := []
+	if posture == "scarce" and state.position >= int(Tuning.num("social.gf_lead_threshold", 2)):
+		for g in Content.girlfriends():
+			if int(g["tier"]) == 2:
+				gf.adjust(g["id"], int(Tuning.num("social.gf_lead_warmth", 1)))
+				gf_leads.append(g["id"])
+				break
+	var mirror := ""
+	if posture == "validation" and state.control < 0:
+		mirror = "Your feed reads thirsty. To them you're the easy one — a sugar source, held cheap."
+	return {"inbound_men": _np_inbound, "gf_leads": gf_leads,
+		"control_delta": control_delta, "standing_delta": standing_delta,
+		"mirror": mirror}
+
+func inbound_men() -> Array:
+	return _np_inbound
