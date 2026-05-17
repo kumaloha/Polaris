@@ -30,22 +30,15 @@ static func _hud(r: Control, h) -> void:
 		int(s["day"]), int(s["season"]), int(s["week"]),
 		int(s["charm"]), int(s["position"]), int(s["control"]),
 		Loc.t("Net worth"), int(s["net_worth"])]
-	UiKit.label(r, top, T.PAD, T.PAD, T.SMALL, T.DIM)
-	# Energy bar
 	var e: int = int(s["energy"])
 	var bar_y := T.PAD + 70
 	var bar_w := T.REF_W - T.PAD * 2
-	var track := ColorRect.new()
-	track.color = T.PANEL
-	track.position = Vector2(T.PAD, bar_y)
-	track.size = Vector2(bar_w, 16)
-	r.add_child(track)
-	var frac: float = clamp(float(e) / 12.0, 0.0, 1.0)
-	var fill := ColorRect.new()
-	fill.color = T.ACCENT
-	fill.position = Vector2(T.PAD, bar_y)
-	fill.size = Vector2(int(bar_w * frac), 16)
-	r.add_child(fill)
+	# Surface strip behind the HUD line + energy bar
+	UiKit.panel(r, T.PAD - 24, T.PAD - 24, bar_w + 48, (bar_y + 22 + 56) - (T.PAD - 24) + 24)
+	UiKit.label(r, top, T.PAD, T.PAD, T.SMALL, T.DIM)
+	# Energy bar
+	var frac: float = float(e) / 16.0
+	UiKit.bar(r, T.PAD, bar_y, bar_w, frac, T.ACCENT)
 	UiKit.label(r, Loc.t("ENERGY") + " %d" % e, T.PAD, bar_y + 22, T.SMALL, T.DIM)
 
 static func _nav(r: Control, h) -> void:
@@ -61,6 +54,7 @@ static func _nav(r: Control, h) -> void:
 	var bw := (T.REF_W - T.PAD * 2 - T.GAP * (n - 1)) / n
 	var bx := T.PAD
 	var by := T.REF_H - NAV_H - 20
+	UiKit.navbar(r)
 	for tab in tabs:
 		var fid: int = tab[0]
 		var lbl: String = tab[1]
@@ -70,11 +64,12 @@ static func _nav(r: Control, h) -> void:
 		bx += bw + T.GAP
 
 static func build(h) -> Control:
-	var r := UiKit.root(str(h.face) + "|" + h.overlay)
+	var r := UiKit.screen(str(h.face) + "|" + h.overlay)
 	var W: int = T.REF_W - T.PAD * 2
 
 	# ── Future Eye overlay ──────────────────────────────────────────────────
 	if h.ui.get("show_future", false):
+		UiKit.panel(r, T.PAD - 24, 200 - 24, W + 48, (T.REF_H - T.BTN_H - T.PAD - 40) - (200 - 24))
 		UiKit.label(r, "FUTURE EYE", T.PAD, 200, T.TITLE, T.ACCENT)
 		var y := 320
 		for fp in h.future_payload:
@@ -96,6 +91,7 @@ static func build(h) -> Control:
 	# ── Week / Season overlays ──────────────────────────────────────────────
 	if h.overlay == "settle":
 		var stl = h.ui.get("settle", {})
+		UiKit.panel(r, T.PAD - 24, 260 - 36, W + 48, (380 + 140) - (260 - 36))
 		UiKit.label(r, "WEEK SETTLEMENT", T.PAD, 260, T.TITLE, T.ACCENT)
 		UiKit.label(r, "%s %s  ·  %s %s  ·  %s %s" % [
 			Loc.t("Net worth"), str(stl.get("net_worth", 0)),
@@ -107,6 +103,7 @@ static func build(h) -> Control:
 		return r
 	if h.overlay == "season":
 		var cl = h.ui.get("close", {})
+		UiKit.panel(r, T.PAD - 24, 260 - 36, W + 48, (460 + 140) - (260 - 36))
 		UiKit.label(r, "SEASON CLOSE", T.PAD, 260, T.TITLE, T.ACCENT)
 		UiKit.label(r, "Your year, your call.", T.PAD, 360, T.BODY, T.DIM, W)
 		UiKit.label(r, "%s — %s %s  ·  %s %s" % [
@@ -130,6 +127,8 @@ static func build(h) -> Control:
 			for p in Content.personas():
 				if p["id"] == persona_id:
 					persona_name = p["name"]
+			# Stat block surface
+			UiKit.panel(r, T.PAD - 24, 300 - 28, W + 48, (380 + 56) - (300 - 28))
 			# Stat line: localize words, keep numbers raw (no translatable sentence).
 			UiKit.label(r, "%s · %s %d · %s %d · %s %d" % [
 				Loc.t(str(persona_name)),
@@ -139,14 +138,36 @@ static func build(h) -> Control:
 				T.PAD, 300, T.BODY, T.TEXT, W)
 			UiKit.label(r, "You decide who's worth your energy.",
 				T.PAD, 380, T.SMALL, T.DIM, W)
-			# Avatar placeholder
-			var av := ColorRect.new()
-			av.color = T.PANEL
-			av.position = Vector2(T.PAD, 480)
-			av.size = Vector2(W, 520)
-			r.add_child(av)
-			UiKit.label(r, "·", T.PAD + W / 2 - 10, 720, T.TITLE, T.DIM)
+			# ── Heroine emblem (code-gen composition; no art assets) ─────────────
+			var em_x := T.PAD
+			var em_y := 480
+			var em_w := W
+			var em_h := 520
+			UiKit.panel(r, em_x, em_y, em_w, em_h)
+			# Inner framed vignette
+			UiKit.panel(r, em_x + 60, em_y + 50, em_w - 120, em_h - 100, true)
+			# Vertical accent column behind the monogram
+			var col := ColorRect.new()
+			col.color = T.ACCENT_SOFT
+			col.position = Vector2(em_x + em_w / 2 - 6, em_y + 80)
+			col.size = Vector2(12, em_h - 160)
+			r.add_child(col)
+			# Geometric corner marks (champagne accent ticks)
+			for corner in [Vector2(em_x + 90, em_y + 80), Vector2(em_x + em_w - 90 - 70, em_y + 80), Vector2(em_x + 90, em_y + em_h - 80 - 8), Vector2(em_x + em_w - 90 - 70, em_y + em_h - 80 - 8)]:
+				var tick := ColorRect.new()
+				tick.color = T.ACCENT
+				tick.position = corner
+				tick.size = Vector2(70, 8)
+				r.add_child(tick)
+			# Large monogram — first glyph of the persona name, the she-at-centre mark
+			var mono: String = str(persona_name).strip_edges()
+			var initial: String = mono.substr(0, 1).to_upper() if mono.length() > 0 else "·"
+			UiKit.label(r, initial, em_x + em_w / 2 - 42, em_y + 150, T.DISPLAY, T.ACCENT)
+			# Persona name beneath the mark
+			UiKit.label(r, Loc.t(str(persona_name)), em_x + 60, em_y + em_h - 150, T.TITLE, T.TEXT, em_w - 120)
+			UiKit.label(r, "·", em_x + em_w / 2 - 10, em_y + em_h - 60, T.TITLE, T.DIM)
 		Hub.F.SELF:
+			UiKit.panel(r, T.PAD - 24, 200 - 28, W + 48, (T.REF_H - NAV_H - 40) - (200 - 28))
 			UiKit.label(r, "SELF-IMPROVEMENT", T.PAD, 200, T.TITLE, T.ACCENT)
 			UiKit.label(r, "Invest in yourself before you walk in.",
 				T.PAD, 290, T.SMALL, T.DIM, W)
@@ -181,6 +202,7 @@ static func build(h) -> Control:
 				y += 24
 		Hub.F.PARTY:
 			if h.enc != null and not h.enc.finished:
+				UiKit.panel(r, T.PAD - 24, 200 - 28, W + 48, (T.REF_H - NAV_H - 40) - (200 - 28))
 				var st = h.enc.read()
 				UiKit.label(r, Loc.t("PARTY") + "  ·  round %d / %d" % [
 					int(st["round"]), int(st["of"])], T.PAD, 200, T.TITLE, T.ACCENT)
@@ -195,6 +217,7 @@ static func build(h) -> Control:
 						func(): h.act_party(act))
 					by += T.BTN_H + 16
 			elif h.ui.get("_chose_party", false) and h.party_face_men().size() > 0:
+				UiKit.panel(r, T.PAD - 24, 200 - 28, W + 48, (T.REF_H - NAV_H - 40) - (200 - 28))
 				UiKit.label(r, "FIRST EYE", T.PAD, 200, T.TITLE, T.ACCENT)
 				UiKit.label(r, "Surface only. The truth is in the signs, not the words.",
 					T.PAD, 290, T.SMALL, T.DIM, W)
@@ -209,6 +232,7 @@ static func build(h) -> Control:
 						func(): h.act_enter_party(mid))
 					y += T.CARD_H + 80
 			else:
+				UiKit.panel(r, T.PAD - 24, 200 - 28, W + 48, (T.REF_H - NAV_H - 40) - (200 - 28))
 				UiKit.label(r, "PARTY MAP", T.PAD, 200, T.TITLE, T.ACCENT)
 				UiKit.label(r, "Your circle decides which rooms you get into.",
 					T.PAD, 290, T.SMALL, T.DIM, W)
@@ -234,6 +258,7 @@ static func build(h) -> Control:
 						lb.disabled = true
 					y += T.BTN_H + 16
 		Hub.F.DATING:
+			UiKit.panel(r, T.PAD - 24, 200 - 28, W + 48, (T.REF_H - NAV_H - 40) - (200 - 28))
 			UiKit.label(r, "DATING", T.PAD, 200, T.TITLE, T.ACCENT)
 			UiKit.label(r, "Decide where your energy goes. You can only Date one.",
 				T.PAD, 290, T.SMALL, T.DIM, W)
@@ -265,6 +290,7 @@ static func build(h) -> Control:
 				UiKit.btn(r, "CONFIRM  →", T.PAD, T.REF_H - NAV_H - 40 - T.BTN_H, W, T.BTN_H,
 					func(): h.act_after(h.ui["after"]))
 		Hub.F.SOCIAL:
+			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
 			UiKit.label(r, "SOCIAL MEDIA", T.PAD, 240, T.TITLE, T.ACCENT)
 			UiKit.label(r, "After you change your look you post. What you post decides who slides in.", T.PAD, 330, T.SMALL, T.DIM, W)
 			var y := 470
@@ -302,6 +328,7 @@ static func build(h) -> Control:
 					UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal(truth, gg))
 					y += 116
 		Hub.F.CARDS:
+			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
 			UiKit.label(r, "COLLECTION", T.PAD, 240, T.TITLE, T.ACCENT)
 			UiKit.label(r, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, 330, T.SMALL, T.DIM, W)
 			var y := 470
@@ -326,6 +353,7 @@ static func build(h) -> Control:
 				for k in kf:
 					UiKit.label(r, "·  %s — %s" % [str(k["man"]), str(k["result"])], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 50
 		Hub.F.ASSETS:
+			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
 			UiKit.label(r, "ASSET LIST", T.PAD, 240, T.TITLE, T.ACCENT)
 			UiKit.label(r, "What you compounded. The men cleared; you didn't.", T.PAD, 330, T.SMALL, T.DIM, W)
 			var s2 = h.flow.state.snapshot()
@@ -339,7 +367,7 @@ static func build(h) -> Control:
 			UiKit.label(r, "Standing %d   Dossier %d   Keyframes %d" % [int(s2["position"]), dz, kz], T.PAD + 16, y, T.BODY, T.TEXT, W); y += 110
 			UiKit.label(r, "LIABILITIES", T.PAD, y, T.SMALL, T.DIM); y += 56
 			UiKit.label(r, "Fantasy debt %d" % liab, T.PAD + 16, y, T.BODY, Color(0.85,0.35,0.35), W); y += 110
-			UiKit.label(r, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.TITLE, T.ACCENT, W); y += 110
+			UiKit.label(r, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.DISPLAY, T.ACCENT, W); y += 110
 			if h.ui.has("settle"):
 				UiKit.label(r, "last week settled at %s" % str(h.ui["settle"].get("net_worth", 0)), T.PAD, y, T.SMALL, T.DIM, W)
 		_:
