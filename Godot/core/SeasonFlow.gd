@@ -228,3 +228,15 @@ func finish_night() -> Dictionary:
 	_np_begun = false
 	return {"log": log_lines, "snapshot": state.snapshot(),
 		"insolvent": SoftRuin.is_insolvent(state), "book_events": events}
+
+func apply_outfit(outfit_id: String) -> void:
+	for o in Content.outfits():
+		if o["id"] == outfit_id:
+			state.apply(o["effect"])
+			return
+
+func apply_workout(workout_id: String) -> void:
+	for w in Content.workouts():
+		if w["id"] == workout_id:
+			state.apply(w["effect"])
+			return
