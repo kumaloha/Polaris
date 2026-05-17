@@ -2,5 +2,5 @@ config_version=5
 
 [application]
 config/name="Hunting Backend"
-run/main_scene="res://scenes/Boot.tscn"
+run/main_scene="res://scenes/Game.tscn"
 config/features=PackedStringArray("4.3")
