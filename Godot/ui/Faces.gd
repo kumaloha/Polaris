@@ -150,7 +150,10 @@ static func build(h) -> Control:
 			UiKit.label(r, "SELF-IMPROVEMENT", T.PAD, 200, T.TITLE, T.ACCENT)
 			UiKit.label(r, "Invest in yourself before you walk in.",
 				T.PAD, 290, T.SMALL, T.DIM, W)
+			if h.night_open:
+				UiKit.label(r, "Locked in for tonight.", T.PAD, 330, T.SMALL, T.ACCENT, W)
 			var y := 380
+			var locked: bool = h.night_open
 			var groups := [
 				[Content.self_investments(), "SELF_INVESTMENTS", "self_invest"],
 				[Content.personas(), "PERSONAS", "persona"],
@@ -164,7 +167,7 @@ static func build(h) -> Control:
 				for c in grp[0]:
 					var cid: String = c["id"]
 					var sel: bool = h.ui.get(key, "") == cid
-					UiKit.btn(r, Loc.t(str(c["name"])), T.PAD, y, W, T.BTN_H,
+					var b := UiKit.btn(r, Loc.t(str(c["name"])), T.PAD, y, W, T.BTN_H,
 						func():
 							if h.ui.get(key, "") == cid:
 								h.ui.erase(key)
@@ -172,6 +175,8 @@ static func build(h) -> Control:
 								h.ui[key] = cid
 							h._render(),
 						sel)
+					if locked:
+						b.disabled = true
 					y += T.BTN_H + 14
 				y += 24
 		Hub.F.PARTY:

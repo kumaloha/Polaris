@@ -227,6 +227,9 @@ const ZH := {
 	"ENERGY":            "精力",
 	"charm":             "魅力",
 	"control":           "掌控",
+
+	# ── Hub shell: build-lock banner ──────────────────────────────────────────
+	"Locked in for tonight.": "今晚已定型。",
 }
 static func t(s: String) -> String:
 	if lang != "zh":

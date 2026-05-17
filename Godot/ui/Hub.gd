@@ -78,6 +78,12 @@ func dismiss_future() -> void:
 	_post_night()
 
 func _post_night() -> void:
+	ui.erase("after")
+	ui.erase("_chose_party")
+	# show_future is already false here (dismiss_future clears it before calling us,
+	# and act_after only sets it when future_payload is non-empty and never reaches
+	# _post_night in that branch); erase for hygiene in case of edge paths.
+	ui.erase("show_future")
 	if flow.at_week_boundary():
 		ui["settle"] = flow.settle()
 		if flow.at_season_boundary():
