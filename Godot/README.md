@@ -38,11 +38,11 @@ Visuals are a code-generated baseline (cold-premium, no art); to be re-skinned f
 The linear flow was replaced by a portrait hub. Open the project in Godot 4.6 and Play, or:
 `godot --path . res://scenes/Game.tscn`
 
-Home shows your avatar/stats + energy bar (opportunity cost). Bottom nav: 自我提升 / 社媒 / 派对 / 约会 / 集卡 / 资产. Soft daily cycle: pick build in 自我提升 → enter 派对 (begins the night) → 派对 rounds → 约会 resolves it (Future Eye) → settlement; build is locked for the night once you enter 派对. 社媒 / 集卡 / 资产 are Plan C stubs. Headless hub smoke: `godot --headless --script res://ui_smoke.gd`.
+Home shows your avatar/stats + energy bar (opportunity cost). Bottom nav: 自我提升 / 社媒 / 派对 / 约会 / 资产. Soft daily cycle: pick build in 自我提升 → enter 派对 (begins the night) → 派对 rounds → 约会 resolves it (Future Eye) → settlement; build is locked for the night once you enter 派对. 社媒 / 资产 are Plan C stubs. Headless hub smoke: `godot --headless --script res://ui_smoke.gd`.
 
 ## Full night flow (Plan C)
 
-A night now flows: 自我提升 (set build) → 社交媒体 (post: 克制/博认同 → who slides in; read DMs → dossier) → 派对 (read the people your post attracted) → 约会 (resolve; Future Eye) → settlement. 集卡 browses dossier / girlfriend network / earned keyframes; 资产清单 shows the net-worth balance sheet. Headless: `godot --headless --script res://ui_smoke.gd` (drives a full night incl. the post).
+A night now flows: 自我提升 (set build) → 社交媒体 (post: 克制/博认同 → who slides in; read DMs → dossier) → 派对 (read the people your post attracted) → 约会 (resolve; Future Eye) → settlement. 资产 shows the net-worth balance sheet with the dossier / girlfriend network / keyframe collection as its holdings beneath it (集卡 merged into 资产 — cards are the judgment-equity assets). Headless: `godot --headless --script res://ui_smoke.gd` (drives a full night incl. the post).
 
 ## Read-practice (Plan D)
 
@@ -52,7 +52,7 @@ The 社交媒体 comment/DM read is now a varied deterministic sample set (8 DMs
 
 Premium layered look: 3-layer gradient background + radial glow, a display/sans font pair (Cinzel display / Montserrat body), a token-driven surface system (rounded panels with stroke + soft shadow), restyled buttons and energy bar, a gated 0.18 s enter-fade (plays only on real face/overlay transitions, not on every tap).
 
-Per-face panel + typography pass across all 6 faces, _hud ribbon, and navbar. A code-gen **HOME heroine emblem** (layered panels + shapes + display monogram + persona name) — she-at-the-centre, no illustration or art assets, no male art.
+Per-face panel + typography pass across all 5 faces, _hud ribbon, and navbar. A code-gen **HOME heroine emblem** (layered panels + shapes + display monogram + persona name) — she-at-the-centre, no illustration or art assets, no male art.
 
 Soul unchanged: cold-premium palette, single champagne accent, anti-otome, defensive copy. No Loc/gameplay/engine change — the unmodified 59 tests + `ui_smoke` prove behavior is identical.
 

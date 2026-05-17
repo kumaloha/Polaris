@@ -47,7 +47,6 @@ static func _nav(r: Control, h) -> void:
 		[Hub.F.SOCIAL, "SOCIAL"],
 		[Hub.F.PARTY, "PARTY"],
 		[Hub.F.DATING, "DATING"],
-		[Hub.F.CARDS, "CARDS"],
 		[Hub.F.ASSETS, "ASSETS"],
 	]
 	var n := tabs.size()
@@ -327,11 +326,27 @@ static func build(h) -> Control:
 					var gg: String = g
 					UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal(truth, gg))
 					y += 116
-		Hub.F.CARDS:
+		Hub.F.ASSETS:
 			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
-			UiKit.label(r, "COLLECTION", T.PAD, 240, T.TITLE, T.ACCENT)
-			UiKit.label(r, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, 330, T.SMALL, T.DIM, W)
-			var y := 470
+			UiKit.label(r, "ASSET LIST", T.PAD, 240, T.TITLE, T.ACCENT)
+			UiKit.label(r, "What you compounded. The men cleared; you didn't.", T.PAD, 330, T.SMALL, T.DIM, W)
+			var s2 = h.flow.state.snapshot()
+			var dz: int = h.flow.state.dossier.size()
+			var kz: int = h.flow.state.keyframes.size()
+			var liab := 0
+			for db in h.flow.state.debts:
+				liab += int(db.get("amount", 0))
+			var y := 460
+			UiKit.label(r, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.DISPLAY, T.ACCENT, W); y += 130
+			UiKit.label(r, "ASSETS", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(r, "Standing %d   Dossier %d   Keyframes %d" % [int(s2["position"]), dz, kz], T.PAD + 16, y, T.BODY, T.TEXT, W); y += 96
+			UiKit.label(r, "LIABILITIES", T.PAD, y, T.SMALL, T.DIM); y += 56
+			UiKit.label(r, "Fantasy debt %d" % liab, T.PAD + 16, y, T.BODY, Color(0.85,0.35,0.35), W); y += 96
+			if h.ui.has("settle"):
+				UiKit.label(r, "last week settled at %s" % str(h.ui["settle"].get("net_worth", 0)), T.PAD + 16, y, T.SMALL, T.DIM, W)
+			y += 70
+			UiKit.label(r, "COLLECTION", T.PAD, y, T.TITLE, T.ACCENT); y += 90
+			UiKit.label(r, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, y, T.SMALL, T.DIM, W); y += 80
 			UiKit.label(r, "DOSSIER (men you read right)", T.PAD, y, T.SMALL, T.DIM); y += 56
 			var d: Array = h.flow.state.dossier
 			if d.size() == 0:
@@ -352,24 +367,6 @@ static func build(h) -> Control:
 			else:
 				for k in kf:
 					UiKit.label(r, "·  %s — %s" % [str(k["man"]), str(k["result"])], T.PAD + 16, y, T.SMALL, T.TEXT, W - 16); y += 50
-		Hub.F.ASSETS:
-			UiKit.panel(r, T.PAD - 24, 240 - 28, W + 48, (T.REF_H - NAV_H - 40) - (240 - 28))
-			UiKit.label(r, "ASSET LIST", T.PAD, 240, T.TITLE, T.ACCENT)
-			UiKit.label(r, "What you compounded. The men cleared; you didn't.", T.PAD, 330, T.SMALL, T.DIM, W)
-			var s2 = h.flow.state.snapshot()
-			var dz: int = h.flow.state.dossier.size()
-			var kz: int = h.flow.state.keyframes.size()
-			var liab := 0
-			for db in h.flow.state.debts:
-				liab += int(db.get("amount", 0))
-			var y := 480
-			UiKit.label(r, "ASSETS", T.PAD, y, T.SMALL, T.DIM); y += 56
-			UiKit.label(r, "Standing %d   Dossier %d   Keyframes %d" % [int(s2["position"]), dz, kz], T.PAD + 16, y, T.BODY, T.TEXT, W); y += 110
-			UiKit.label(r, "LIABILITIES", T.PAD, y, T.SMALL, T.DIM); y += 56
-			UiKit.label(r, "Fantasy debt %d" % liab, T.PAD + 16, y, T.BODY, Color(0.85,0.35,0.35), W); y += 110
-			UiKit.label(r, "NET WORTH  %d" % int(s2["net_worth"]), T.PAD, y, T.DISPLAY, T.ACCENT, W); y += 110
-			if h.ui.has("settle"):
-				UiKit.label(r, "last week settled at %s" % str(h.ui["settle"].get("net_worth", 0)), T.PAD, y, T.SMALL, T.DIM, W)
 		_:
 			UiKit.label(r, "YOU", T.PAD, 200, T.TITLE, T.ACCENT)
 
