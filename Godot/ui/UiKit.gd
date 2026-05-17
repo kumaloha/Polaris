@@ -6,6 +6,7 @@ const Loc := preload("res://ui/Loc.gd")
 static var _f_sans: Font = null
 static var _f_disp: Font = null
 static var _f_loaded := false
+static var _last_sig := " force"
 static func _fonts() -> void:
 	if _f_loaded: return
 	_f_loaded = true
@@ -25,7 +26,7 @@ static func _stylebox(bg: Color, border: Color, bw: int, rad: int) -> StyleBoxFl
 	sb.shadow_color = Color(0, 0, 0, 0.45)
 	sb.shadow_size = 10
 	return sb
-static func screen() -> Control:
+static func screen(sig := " force") -> Control:
 	var r := Control.new()
 	r.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var grad := GradientTexture2D.new()
@@ -50,12 +51,18 @@ static func screen() -> Control:
 	gr.texture = glow
 	gr.set_anchors_preset(Control.PRESET_FULL_RECT)
 	r.add_child(gr)
-	r.modulate = Color(1, 1, 1, 0)
-	var tw := r.create_tween()
-	tw.tween_property(r, "modulate", Color(1, 1, 1, 1), 0.18)
+	var do_fade := sig == " force" or sig != _last_sig
+	if sig != " force":
+		_last_sig = sig
+	if do_fade:
+		r.modulate = Color(1, 1, 1, 0)
+		var tw := r.create_tween()
+		tw.tween_property(r, "modulate", Color(1, 1, 1, 1), 0.18)
+	else:
+		r.modulate = Color(1, 1, 1, 1)
 	return r
-static func root() -> Control:
-	return screen()
+static func root(sig := " force") -> Control:
+	return screen(sig)
 static func panel(parent: Control, x: int, y: int, w: int, h: int, raised := false) -> Panel:
 	var p := Panel.new()
 	p.position = Vector2(x, y)

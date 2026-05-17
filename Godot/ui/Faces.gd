@@ -70,7 +70,7 @@ static func _nav(r: Control, h) -> void:
 		bx += bw + T.GAP
 
 static func build(h) -> Control:
-	var r := UiKit.root()
+	var r := UiKit.root(str(h.face) + "|" + h.overlay)
 	var W: int = T.REF_W - T.PAD * 2
 
 	# ── Future Eye overlay ──────────────────────────────────────────────────
