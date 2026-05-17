@@ -86,6 +86,7 @@ func _post_night() -> void:
 	ui.erase("show_future")
 	ui.erase("post_result")
 	ui.erase("read_feedback")
+	ui.erase("reads_tonight")
 	if flow.at_week_boundary():
 		ui["settle"] = flow.settle()
 		if flow.at_season_boundary():
@@ -110,9 +111,17 @@ func act_compose_post(posture: String) -> void:
 	_render()
 
 func act_read_signal(hidden_type: String, guess: String) -> void:
+	var done: int = int(ui.get("reads_tonight", 0))
+	if done >= _tuning_read_cap():
+		return
 	var r = flow.read_signal(hidden_type, guess)
+	ui["reads_tonight"] = done + 1
 	ui["read_feedback"] = "correct" if r.correct else "wrong"
 	_render()
+
+func _tuning_read_cap() -> int:
+	var Tuning = load("res://core/Tuning.gd")
+	return int(Tuning.num("social.read_cap", 3))
 
 func party_face_men() -> Array:
 	var inbound = flow.inbound_men()

@@ -285,12 +285,22 @@ static func build(h) -> Control:
 			if h.ui.has("read_feedback"):
 				var fb: String = h.ui["read_feedback"]
 				UiKit.label(r, "Filed — you read him right." if fb == "correct" else "Off. Look again.", T.PAD, y, T.SMALL, (T.ACCENT if fb == "correct" else T.DIM), W)
-				y += 90
-			UiKit.label(r, "A DM: \"hey gorgeous, up late thinking about you 😉\"", T.PAD, y, T.SMALL, T.TEXT, W); y += 80
-			for g in ["high_sugar", "resource", "growth"]:
-				var gg: String = g
-				UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal("high_sugar", gg))
-				y += 116
+				y += 80
+			var samples: Array = Content.dm_signals()
+			var cap: int = h._tuning_read_cap()
+			var done: int = int(h.ui.get("reads_tonight", 0))
+			if done >= cap:
+				UiKit.label(r, "That's enough reading for tonight.", T.PAD, y, T.SMALL, T.DIM, W)
+			elif samples.size() > 0:
+				var idx: int = int(h.flow.state.dossier.size()) % samples.size()
+				var sample = samples[idx]
+				var truth: String = str(sample["hidden_type"])
+				UiKit.label(r, "DM: \"%s\"" % str(sample["text"]), T.PAD, y, T.SMALL, T.TEXT, W); y += 90
+				UiKit.label(r, "reads tonight %d / %d" % [done, cap], T.PAD, y, T.SMALL, T.DIM); y += 50
+				for g in ["high_sugar", "resource", "growth"]:
+					var gg: String = g
+					UiKit.btn(r, gg, T.PAD, y, W, 100, func(): h.act_read_signal(truth, gg))
+					y += 116
 		Hub.F.CARDS:
 			UiKit.label(r, "COLLECTION", T.PAD, 240, T.TITLE, T.ACCENT)
 			UiKit.label(r, "Your reads, your circle, your proven calls — earned, not drawn.", T.PAD, 330, T.SMALL, T.DIM, W)

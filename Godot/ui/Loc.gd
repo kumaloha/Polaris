@@ -273,6 +273,9 @@ const ZH := {
 	# ── Social face mirror line (Plan C Task 1 fix) ───────────────────────────
 	"Your feed reads thirsty. To them you're the easy one — a sugar source, held cheap.":
 		"你的动态透着饥渴。在他们眼里你就是那个好得手的——糖罐子，廉价。",
+
+	# ── Social face read cap (Plan D Task 2) ─────────────────────────────────
+	"That's enough reading for tonight.": "今晚读够了。",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
