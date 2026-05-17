@@ -276,6 +276,16 @@ const ZH := {
 
 	# ── Social face read cap (Plan D Task 2) ─────────────────────────────────
 	"That's enough reading for tonight.": "今晚读够了。",
+
+	# ── Peek (看聊记 UI slice) ───────────────────────────────────────────────
+	"PEEK_TITLE":        "开天眼",
+	"PEEK_LIST_SUB":     "挑一个。看看他不演你的时候，是什么样。",
+	"PEEK_ROW_LEAD":     "查聊记",
+	"PEEK_REVEAL_SUB":   "同一个人。上面他对你说的，下面他对别人说的。你自己读。",
+	"PEEK_TO_YOU":       "他对你说的",
+	"PEEK_TO_OTHERS":    "他对别人说的",
+	"PEEK_HINGE":        "—— 他不演你的时候 ——",
+	"PEEK_BACK":         "返回",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
