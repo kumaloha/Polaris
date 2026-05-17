@@ -36,3 +36,28 @@ func test_known_reveal_cases_present() -> void:
 	eq(leo["hidden_type"], "growth", "leo truth = growth")
 	eq(leo["surface"], "false_alpha", "leo postures false_alpha to her (disguised)")
 	ok((leo["others_chat"] as Array).size() >= 2, "leo others_chat exists")
+
+const PeekChat := preload("res://core/PeekChat.gd")
+
+func test_peek_shape_and_surface() -> void:
+	var r: Dictionary = PeekChat.peek(_man("evan"))
+	ok(r.has("name") and r.has("surface_claim") and r.has("others_chat"), "peek shape {name,surface_claim,others_chat}")
+	eq(r["name"], "Evan", "peek carries the name")
+	eq(r["surface_claim"], "growth", "peek shows the surface he performs to her, for contrast")
+	ok((r["others_chat"] as Array).size() >= 2, "peek carries the chats-with-others")
+
+func test_peek_never_reveals_truth() -> void:
+	for id in ["adrian", "evan", "leo"]:
+		var r: Dictionary = PeekChat.peek(_man(id))
+		ok(not r.has("hidden_type"), "peek never exposes the truth for %s (clue, not answer)" % id)
+		ok(not r.has("risk"), "peek does not leak the engine risk label for %s" % id)
+
+func test_peek_is_deterministic() -> void:
+	var a: Dictionary = PeekChat.peek(_man("leo"))
+	var b: Dictionary = PeekChat.peek(_man("leo"))
+	eq(str(a), str(b), "peek is deterministic — same man, identical record")
+
+func test_peek_handles_empty_man() -> void:
+	var r: Dictionary = PeekChat.peek({})
+	ok(r.has("others_chat"), "empty man still returns a well-formed record")
+	eq((r["others_chat"] as Array).size(), 0, "empty man -> empty others_chat, no crash")
