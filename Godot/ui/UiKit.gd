@@ -139,3 +139,44 @@ static func scroll(parent: Control, x: int, y: int, w: int, h: int) -> Control:
 	cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sc.add_child(cv)
 	return cv
+# Horizontal twin of scroll(). Same cold-premium slim bar. Returns a
+# transparent content Control; set custom_minimum_size.x to total width.
+static func hscroll(parent: Control, x: int, y: int, w: int, h: int) -> Control:
+	var sc := ScrollContainer.new()
+	sc.position = Vector2(x, y)
+	sc.size = Vector2(w, h)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.clip_contents = true
+	var hb := sc.get_h_scroll_bar()
+	if hb != null:
+		hb.custom_minimum_size = Vector2(0, 10)
+		hb.add_theme_stylebox_override("scroll", _stylebox(T.PANEL, T.STROKE, 0, T.RADIUS))
+		hb.add_theme_stylebox_override("grabber", _stylebox(T.ACCENT_SOFT, T.ACCENT_SOFT, 0, T.RADIUS))
+		hb.add_theme_stylebox_override("grabber_highlight", _stylebox(T.ACCENT, T.ACCENT, 0, T.RADIUS))
+		hb.add_theme_stylebox_override("grabber_pressed", _stylebox(T.ACCENT, T.ACCENT, 0, T.RADIUS))
+	parent.add_child(sc)
+	var cv := Control.new()
+	cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sc.add_child(cv)
+	return cv
+# iOS-style chat bubble. Deterministic height (reused from pre-pivot
+# Peek._section): estimate wrapped rows at BODY in inner_w, over-provision.
+# mine=true → warm (her side); else cold panel (his side). Returns the Panel
+# so the caller can read .size.y for stacking.
+static func bubble(parent: Control, x: int, y: int, w: int, text: String, mine: bool) -> Panel:
+	var inner_w: int = w - 60
+	var per_line: int = max(1, int(float(inner_w) / float(T.BODY) * 1.6))
+	var rows: int = int(ceil(float(text.length()) / float(per_line)))
+	if rows < 1:
+		rows = 1
+	var bh: int = rows * int(float(T.BODY) * 1.4) + 60
+	if bh < 120:
+		bh = 120
+	var p := Panel.new()
+	p.position = Vector2(x, y)
+	p.size = Vector2(w, bh)
+	p.add_theme_stylebox_override("panel", _stylebox(T.ACCENT_SOFT if mine else T.PANEL_2, T.STROKE, 1, T.RADIUS))
+	parent.add_child(p)
+	label(p, text, 30, 26, T.BODY, T.TEXT, inner_w)
+	return p
