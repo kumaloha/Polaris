@@ -13,3 +13,9 @@ static func ending_key(is_scum: bool, choice: String) -> String:
 		c = "leave"
 	var who := "SCUM" if is_scum else "GOOD"
 	return "END_%s_%s" % [who, c.to_upper()]
+
+# (读对? × 真相) → 裁定 Loc key。绝不空,4 档互异,纯,绝不向 UI 暴露真相。
+static func verdict_key(was_right: bool, is_scum: bool) -> String:
+	var r := "RIGHT" if was_right else "WRONG"
+	var who := "SCUM" if is_scum else "GOOD"
+	return "VERDICT_%s_%s" % [r, who]

@@ -298,12 +298,26 @@ const ZH := {
 	"SPOT_LEAVE":        "直接走开",
 	"SPOT_NEXT":         "下一个",
 	"SPOT_TALLY":        "看穿 %d / %d",
-	"END_SCUM_EXPOSE":   "%s 当场破功，话都接不上。你拿起包，没回头。",
-	"END_SCUM_PROBE":    "你不动声色多问一句，%s 自己把谎接圆不上了。看清了。",
-	"END_SCUM_LEAVE":    "你没解释，直接走。%s 还在想哪句说错了。",
-	"END_GOOD_EXPOSE":   "%s 沉默了一下，没辩解，走了。你拆穿了一个没装的人。",
-	"END_GOOD_PROBE":    "%s 经得起问，答得很实。你看到的是真的。",
-	"END_GOOD_LEAVE":    "你走了。%s 没追。有些人不会演，也不会求。",
+	"END_SCUM_EXPOSE":   "你把他对别人那句话念出来。%s 笑没了，话也接不上。你拿包，没等他想好怎么接。",
+	"END_SCUM_PROBE":    "你不动声色多问一句。%s 补的谎比原来那个还松。够了，看清了。",
+	"END_SCUM_LEAVE":    "你没解释，直接走。%s 还在拼哪一句露了底——你已经不在了。",
+	"END_GOOD_EXPOSE":   "%s 没辩解，看了你一眼，走了。你赢了这场没人输的架，输的是他。",
+	"END_GOOD_PROBE":    "你问得很细。%s 答得更细，没有一处要找补。是真的。",
+	"END_GOOD_LEAVE":    "你走了。%s 没追，也没演。有些人，你回头才知道是真的。",
+
+	# ── 读准度裁定 (verdict · 4 档) ──────────────────────────────────────────
+	"VERDICT_RIGHT_SCUM": "你看穿了他。",
+	"VERDICT_RIGHT_GOOD": "你没看错人。",
+	"VERDICT_WRONG_SCUM": "他在你眼皮底下过关了。",
+	"VERDICT_WRONG_GOOD": "你错杀了一个真的。",
+
+	# ── 派对 / 收件箱 / thread ───────────────────────────────────────────────
+	"PARTY_TITLE":       "派对",
+	"PARTY_SUB":         "点谁，翻谁的手机。",
+	"INBOX_JUDGE":       "鉴定他",
+	"THREAD_BACK":       "返回",
+	"MARK_RIGHT":        "✓",
+	"MARK_WRONG":        "✗",
 }
 static func t(s: String) -> String:
 	if lang != "zh":
