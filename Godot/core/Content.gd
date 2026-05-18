@@ -171,8 +171,8 @@ static func men() -> Array:
 					 {"from": "you", "text": "at least you're upfront."},
 					 {"from": "him", "text": "tonight?"}],
 			"others_chat": [
-				{"to": "another girl, same night", "text": "tonight? you're hot, I'm fun, let's not overthink 😄"},
 				{"to": "the group chat", "text": "same text to all of them, some say yes, it's just math"},
+				{"to": "another girl, same night", "text": "tonight? you're hot, I'm fun, let's not overthink 😄"},
 				{"to": "a friend", "text": "three on rotation rn, none know, keeping it light"},
 				{"to": "his brother", "text": "nah never meeting her people, that's not the deal"}]},
 		{"id": "ezra", "name": "Ezra", "hidden_type": "high_sugar",
