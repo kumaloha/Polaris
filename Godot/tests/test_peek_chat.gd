@@ -122,3 +122,19 @@ func test_new_reveal_cases_present() -> void:
 	for id in ["marcus", "daniel", "julian"]:
 		var r: Dictionary = PeekChat.peek(_man(id))
 		ok(not r.has("hidden_type"), "%s peek still hides truth" % id)
+
+func test_corpus_size_locked() -> void:
+	ge(Content.men().size(), 36, "≥36 men after 12→36 expansion")
+	# Spot-check new ids across both disguise directions + a consistent one.
+	var owen := _man("owen")
+	var caleb := _man("caleb")
+	var arlo := _man("arlo")
+	eq(owen["hidden_type"], "high_sugar", "owen truth = high_sugar (痛: sugar→resource)")
+	eq(owen["surface"], "resource", "owen performs resource")
+	eq(caleb["hidden_type"], "resource", "caleb truth = resource (爽: resource→sugar)")
+	eq(caleb["surface"], "high_sugar", "caleb performs high_sugar")
+	eq(arlo["hidden_type"], "resource", "arlo truth = resource (consistent 好)")
+	eq(arlo["surface"], "resource", "arlo consistent (surface == truth)")
+	for nid in ["owen", "caleb", "arlo"]:
+		var r: Dictionary = PeekChat.peek(_man(nid))
+		ok(not r.has("hidden_type"), "%s peek still hides truth" % nid)
