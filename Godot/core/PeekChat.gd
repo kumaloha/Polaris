@@ -19,3 +19,19 @@ static func peek(man: Dictionary) -> Dictionary:
 		"to_you_chat": to_you,
 		"others_chat": others,
 	}
+
+# 派对收件箱视图：他对你那段(chat)成第 0 个「你」thread,他对每个别人
+# 那条各成一个单气泡 thread。仍绝不含 hidden_type。确定性,纯。
+# others_chat[0] 是最狠一句 → 它天然落在别人区第一行。空/缺字段安全。
+static func threads(man: Dictionary) -> Array:
+	var out: Array = []
+	var to_you: Array = (man.get("chat", []) as Array).duplicate(true)
+	out.append({"contact": "你", "kind": "you", "msgs": to_you})
+	for ln in (man.get("others_chat", []) as Array):
+		var d: Dictionary = ln
+		out.append({
+			"contact": str(d.get("to", "")),
+			"kind": "other",
+			"msgs": [{"from": "him", "text": str(d.get("text", ""))}],
+		})
+	return out

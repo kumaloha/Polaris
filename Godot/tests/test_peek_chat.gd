@@ -138,3 +138,39 @@ func test_corpus_size_locked() -> void:
 	for nid in ["owen", "caleb", "arlo"]:
 		var r: Dictionary = PeekChat.peek(_man(nid))
 		ok(not r.has("hidden_type"), "%s peek still hides truth" % nid)
+
+func test_threads_you_first_and_count() -> void:
+	var m: Dictionary = _man("marcus")
+	var th: Array = PeekChat.threads(m)
+	eq(th.size(), (m["others_chat"] as Array).size() + 1, "threads = others_chat + 你 thread")
+	eq(th[0]["contact"], "你", "thread[0] 是 你 thread")
+	eq(th[0]["kind"], "you", "thread[0] kind = you")
+	eq(str(th[0]["msgs"]), str(m["chat"]), "你 thread 携带他对你的 chat")
+
+func test_threads_others_are_single_him_bubbles() -> void:
+	var m: Dictionary = _man("evan")
+	var th: Array = PeekChat.threads(m)
+	ok(th.size() >= 2, "evan 有别人 thread")
+	for i in range(1, th.size()):
+		var t: Dictionary = th[i]
+		eq(t["kind"], "other", "非 0 号是别人 thread")
+		eq((t["msgs"] as Array).size(), 1, "别人 thread 现状单气泡")
+		eq((t["msgs"][0] as Dictionary)["from"], "him", "别人气泡来自 him")
+
+func test_threads_never_reveal_truth() -> void:
+	for id in ["adrian", "evan", "marcus", "owen", "caleb"]:
+		var th: Array = PeekChat.threads(_man(id))
+		for t in th:
+			ok(not (t as Dictionary).has("hidden_type"), "thread 无 hidden_type (%s)" % id)
+			for msg in ((t as Dictionary)["msgs"] as Array):
+				ok(not (msg as Dictionary).has("hidden_type"), "msg 无 hidden_type (%s)" % id)
+
+func test_threads_copy_not_ref() -> void:
+	var m: Dictionary = _man("leo")
+	var th: Array = PeekChat.threads(m)
+	ok(not is_same(th[0]["msgs"], m["chat"]), "你 thread msgs 是拷贝,不是 Content 引用")
+
+func test_threads_empty_man_safe() -> void:
+	var th: Array = PeekChat.threads({})
+	eq(th.size(), 1, "空 man → 只剩 你 thread")
+	eq((th[0]["msgs"] as Array).size(), 0, "空 man → 你 msgs 空,不崩")
