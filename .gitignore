@@ -1,0 +1,11 @@
+# OS
+.DS_Store
+
+# OMC / 工具本地状态（不入库）
+.omc/
+.omx/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
