@@ -1,0 +1,391 @@
+extends "res://tests/test_lib.gd"
+
+const ME := preload("res://core/match_engine.gd")
+
+# grid[y][x]，坐标 Vector2i(x, y)
+func test_find_horizontal_three() -> void:
+	var grid := [
+		[0, 0, 0, 1],
+		[1, 2, 3, 2],
+		[2, 3, 1, 0],
+	]
+	var matched: Array = ME.find_matches(grid)
+	assert_eq(matched.size(), 3, "expected exactly 3 matched cells")
+	assert_true(matched.has(Vector2i(0, 0)), "missing (0,0)")
+	assert_true(matched.has(Vector2i(1, 0)), "missing (1,0)")
+	assert_true(matched.has(Vector2i(2, 0)), "missing (2,0)")
+
+func test_gravity_pulls_tiles_down() -> void:
+	var E := ME.EMPTY
+	var grid := [
+		[1, E, 2],
+		[E, E, 3],
+		[4, 5, E],
+	]
+	ME.apply_gravity(grid)
+	# col0 [1,_,4]->[_,1,4]; col1 [_,_,5]->[_,_,5]; col2 [2,3,_]->[_,2,3]
+	assert_eq(grid, [
+		[E, E, E],
+		[1, E, 2],
+		[4, 5, 3],
+	], "gravity should drop tiles to column bottom")
+
+func test_refill_fills_all_empties_within_species_set() -> void:
+	var E := ME.EMPTY
+	var species := [0, 1, 2, 3]
+	var grid := [
+		[E, 1, E],
+		[2, E, 3],
+	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12345
+	ME.refill(grid, species, rng)
+	for row in grid:
+		for v in row:
+			assert_ne(v, E, "no EMPTY should remain after refill")
+			assert_true(species.has(v), "filled value must be in species set")
+	assert_eq(grid[0][1], 1, "existing tile kept")
+	assert_eq(grid[1][0], 2, "existing tile kept")
+	assert_eq(grid[1][2], 3, "existing tile kept")
+
+func test_refill_is_deterministic_with_seed() -> void:
+	var E := ME.EMPTY
+	var species := [0, 1, 2, 3, 4]
+	var g1 := [[E, E, E], [E, E, E]]
+	var g2 := [[E, E, E], [E, E, E]]
+	var r1 := RandomNumberGenerator.new(); r1.seed = 999
+	var r2 := RandomNumberGenerator.new(); r2.seed = 999
+	ME.refill(g1, species, r1)
+	ME.refill(g2, species, r2)
+	assert_ne(g1[0][0], E, "refill should actually fill (sanity)")
+	assert_eq(g1, g2, "same seed -> identical refill")
+
+func test_score_for_clear_escalates_with_cascade() -> void:
+	assert_eq(ME.score_for_clear(3, 1), 30, "3 tiles x10 x cascade1")
+	assert_eq(ME.score_for_clear(4, 2), 80, "4 tiles x10 x cascade2")
+	assert_eq(ME.score_for_clear(5, 3), 150, "5 tiles x10 x cascade3")
+
+const _SPECIES := [0, 1, 2, 3]
+# 含一个横向三连(顶行 0,0,0)的盘面
+const _GRID_WITH_MATCH := [
+	[0, 0, 0, 1],
+	[1, 2, 3, 2],
+	[2, 3, 1, 3],
+	[3, 1, 2, 1],
+]
+
+func test_resolve_stable_grid_scores_zero() -> void:
+	var grid := [[0, 1, 0], [1, 0, 1], [0, 1, 0]]  # 棋盘格，无三连
+	var before := grid.duplicate(true)
+	var rng := RandomNumberGenerator.new(); rng.seed = 1
+	var r: Dictionary = ME.resolve(grid, _SPECIES, rng)
+	assert_eq(r["score"], 0, "stable grid scores zero")
+	assert_eq(r["cascades"], 0, "stable grid has no cascades")
+	assert_eq(grid, before, "stable grid must be unchanged")
+
+func test_resolve_leaves_board_stable() -> void:
+	var grid := _GRID_WITH_MATCH.duplicate(true)
+	var rng := RandomNumberGenerator.new(); rng.seed = 42
+	ME.resolve(grid, _SPECIES, rng)
+	assert_true(ME.find_matches(grid).is_empty(), "board must be stable (no matches) after resolve")
+
+func test_resolve_scores_initial_match() -> void:
+	var grid := _GRID_WITH_MATCH.duplicate(true)
+	var rng := RandomNumberGenerator.new(); rng.seed = 42
+	var r: Dictionary = ME.resolve(grid, _SPECIES, rng)
+	assert_true(r["score"] >= 30, "clearing a 3-match scores at least 30")
+	assert_true(r["cascades"] >= 1, "at least one cascade happened")
+
+func test_resolve_deterministic_with_seed() -> void:
+	var g1 := _GRID_WITH_MATCH.duplicate(true)
+	var g2 := _GRID_WITH_MATCH.duplicate(true)
+	var c1 := RandomNumberGenerator.new(); c1.seed = 7
+	var c2 := RandomNumberGenerator.new(); c2.seed = 7
+	var r1: Dictionary = ME.resolve(g1, _SPECIES, c1)
+	var r2: Dictionary = ME.resolve(g2, _SPECIES, c2)
+	assert_true(r1["score"] > 0, "resolve should score (sanity)")
+	assert_eq(r1, r2, "same seed+grid -> identical result")
+	assert_eq(g1, g2, "same seed+grid -> identical final board")
+
+func test_legal_swap_true_when_creates_match() -> void:
+	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]
+	# 交换 (2,0)<->(2,1)：顶行变 0,0,0 → 合法；且相邻
+	assert_true(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "swap forms 0,0,0 in row0")
+	assert_eq(grid, [[0, 0, 1], [1, 2, 0], [3, 4, 5]], "is_legal_swap must not mutate grid")
+
+func test_illegal_swap_when_not_adjacent() -> void:
+	# (0,0) 与 (0,2) 非相邻(竖距2)；交换会让顶行成 0,0,0，但因非相邻仍非法
+	var grid := [[5, 0, 0, 1], [2, 3, 4, 6], [0, 7, 8, 9]]
+	assert_false(ME.is_legal_swap(grid, Vector2i(0, 0), Vector2i(0, 2)), "non-adjacent swap is illegal even if it would match")
+
+func test_illegal_swap_when_no_match_formed() -> void:
+	var grid := [[0, 1, 2], [3, 4, 5], [6, 7, 8]]  # 全不同，相邻交换也凑不出三连
+	assert_false(ME.is_legal_swap(grid, Vector2i(0, 0), Vector2i(1, 0)), "adjacent swap that forms no match is illegal")
+
+func test_has_legal_move_true_when_swap_exists() -> void:
+	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]  # (2,0)<->(2,1) 合法
+	assert_true(ME.has_legal_move(grid), "a legal swap exists")
+
+func test_has_legal_move_false_when_deadlock() -> void:
+	var grid := [[0, 1, 2], [3, 4, 5], [6, 7, 8]]  # 全不同，任何交换都凑不出消除
+	assert_false(ME.has_legal_move(grid), "no legal move -> deadlock")
+
+func test_make_board_no_initial_match_and_has_move() -> void:
+	var rng := RandomNumberGenerator.new(); rng.seed = 123
+	var grid := ME.make_board(8, 8, [0, 1, 2, 3, 4], rng)
+	assert_eq(grid.size(), 8, "height = 8")
+	assert_eq(grid[0].size(), 8, "width = 8")
+	assert_true(ME.find_matches(grid).is_empty(), "no pre-existing match at start")
+	assert_true(ME.has_legal_move(grid), "start board must have a legal move")
+
+func test_make_board_deterministic_with_seed() -> void:
+	var r1 := RandomNumberGenerator.new(); r1.seed = 5
+	var r2 := RandomNumberGenerator.new(); r2.seed = 5
+	var g1 := ME.make_board(6, 6, [0, 1, 2, 3], r1)
+	var g2 := ME.make_board(6, 6, [0, 1, 2, 3], r2)
+	assert_eq(g1.size(), 6, "built (sanity)")
+	assert_eq(g1, g2, "same seed -> identical board")
+
+# 含一个横向三连(顶行 0,0,0)、且棋子有重复 → 可重排成无消除有合法移动
+const _GRID_DEADish := [
+	[0, 0, 0, 1],
+	[2, 3, 1, 2],
+	[3, 1, 2, 3],
+	[1, 2, 3, 0],
+]
+
+func _flatten_sorted(grid: Array) -> Array:
+	var a := []
+	for row in grid:
+		a.append_array(row)
+	a.sort()
+	return a
+
+func test_reshuffle_preserves_multiset_and_yields_playable() -> void:
+	var grid := _GRID_DEADish.duplicate(true)
+	var before := _flatten_sorted(grid)
+	var rng := RandomNumberGenerator.new(); rng.seed = 77
+	ME.reshuffle(grid, rng)
+	assert_eq(_flatten_sorted(grid), before, "reshuffle must preserve the tile multiset")
+	assert_true(ME.find_matches(grid).is_empty(), "no pre-existing match after reshuffle")
+	assert_true(ME.has_legal_move(grid), "has a legal move after reshuffle")
+
+func test_reshuffle_deterministic_with_seed() -> void:
+	var g1 := _GRID_DEADish.duplicate(true)
+	var g2 := _GRID_DEADish.duplicate(true)
+	var r1 := RandomNumberGenerator.new(); r1.seed = 9
+	var r2 := RandomNumberGenerator.new(); r2.seed = 9
+	ME.reshuffle(g1, r1)
+	ME.reshuffle(g2, r2)
+	assert_true(ME.find_matches(g1).is_empty(), "actually reshuffled (sanity)")
+	assert_eq(g1, g2, "same seed -> identical reshuffle")
+
+# ---- v1.1 多连特效：分类 ----
+
+func test_classify_four_in_row_spawns_line_h() -> void:
+	var grid := [
+		[0, 0, 0, 0, 1],
+		[1, 2, 3, 2, 3],
+		[2, 3, 1, 3, 1],
+	]
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 1, "one special spawned")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "horizontal 4 -> LINE_H")
+	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
+
+func test_classify_five_in_row_spawns_colorbomb() -> void:
+	var grid := [
+		[0, 0, 0, 0, 0],
+		[1, 2, 3, 2, 3],
+		[2, 3, 1, 3, 1],
+	]
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 1, "one special spawned")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_COLORBOMB, "5 in a row -> COLORBOMB")
+	assert_eq(c["clear"].size(), 4, "5 matched minus 1 spawn = 4 cleared")
+
+func test_classify_three_in_row_no_spawn() -> void:
+	var grid := [
+		[0, 0, 0, 1, 2],
+		[1, 2, 3, 2, 3],
+		[2, 3, 1, 3, 1],
+	]
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 0, "plain 3-match spawns nothing")
+	assert_eq(c["clear"].size(), 3, "all 3 matched cleared")
+
+func test_classify_four_vertical_spawns_line_v() -> void:
+	var grid := [
+		[0, 1, 2],
+		[0, 2, 3],
+		[0, 3, 1],
+		[0, 1, 2],
+	]
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 1, "one special spawned")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "vertical 4 -> LINE_V")
+	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
+
+func test_classify_t_shape_spawns_bomb() -> void:
+	var grid := [[0, 0, 0], [1, 0, 2], [3, 0, 4]]  # row0 三连 + col1 三连，交于 (1,0)
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 1, "one special (bomb)")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_BOMB, "T/L -> BOMB")
+	assert_eq(c["spawns"][0]["pos"], Vector2i(1, 0), "bomb at the intersection")
+	assert_eq(c["clear"].size(), 4, "5 matched minus 1 bomb spawn = 4")
+
+func test_classify_l_shape_spawns_bomb() -> void:
+	var grid := [[0, 1, 2], [0, 3, 4], [0, 0, 0]]  # col0 三连 + row2 三连，交于 (0,2)
+	var c := ME.classify_matches(grid)
+	assert_eq(c["spawns"].size(), 1, "one special (bomb)")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_BOMB, "L -> BOMB")
+	assert_eq(c["spawns"][0]["pos"], Vector2i(0, 2), "bomb at the corner intersection")
+
+# ---- v1.1 特效层：fx 随重力同步下落 ----
+
+func test_gravity_moves_fx_with_tiles() -> void:
+	var E := ME.EMPTY
+	var N := ME.SP_NONE
+	var grid := [[1, E], [E, 2], [3, E]]
+	var fx := [[ME.SP_LINE_H, N], [N, ME.SP_LINE_V], [N, N]]
+	ME.apply_gravity(grid, fx)
+	assert_eq(grid, [[E, E], [1, E], [3, 2]], "tiles fall")
+	assert_eq(fx, [[N, N], [ME.SP_LINE_H, N], [N, ME.SP_LINE_V]], "fx falls in lockstep with tiles")
+
+func test_refill_sets_fx_none_on_new_tiles() -> void:
+	var E := ME.EMPTY
+	var N := ME.SP_NONE
+	var grid := [[E, 1], [2, E]]
+	var fx := [[99, ME.SP_LINE_H], [N, 99]]  # EMPTY 处 fx 故意留脏值 99
+	var rng := RandomNumberGenerator.new(); rng.seed = 3
+	ME.refill(grid, [0, 1, 2, 3], rng, fx)
+	assert_eq(fx[0][0], N, "new tile fx set to NONE")
+	assert_eq(fx[1][1], N, "new tile fx set to NONE")
+	assert_eq(fx[0][1], ME.SP_LINE_H, "existing special's fx preserved")
+
+# ---- v1.1 特效触发清除范围 ----
+
+func _blank(w: int, h: int) -> Array:
+	var g := []
+	for y in h:
+		var row := []
+		for x in w:
+			row.append(0)
+		g.append(row)
+	return g
+
+func test_effect_line_h_clears_whole_row() -> void:
+	var grid := _blank(5, 4)
+	var cells: Array = ME.special_effect_cells(grid, Vector2i(2, 1), ME.SP_LINE_H)
+	assert_eq(cells.size(), 5, "whole row of width 5")
+	for x in 5:
+		assert_true(cells.has(Vector2i(x, 1)), "row cell %d" % x)
+
+func test_effect_line_v_clears_whole_col() -> void:
+	var grid := _blank(5, 4)
+	var cells: Array = ME.special_effect_cells(grid, Vector2i(3, 0), ME.SP_LINE_V)
+	assert_eq(cells.size(), 4, "whole column of height 4")
+	for y in 4:
+		assert_true(cells.has(Vector2i(3, y)), "col cell %d" % y)
+
+func test_effect_bomb_clears_3x3_and_clamps() -> void:
+	var grid := _blank(5, 4)
+	assert_eq(ME.special_effect_cells(grid, Vector2i(2, 1), ME.SP_BOMB).size(), 9, "3x3 interior")
+	assert_eq(ME.special_effect_cells(grid, Vector2i(0, 0), ME.SP_BOMB).size(), 4, "3x3 clamped at corner")
+
+func test_effect_colorbomb_clears_all_of_target() -> void:
+	var grid := [[0, 1, 0], [2, 0, 3], [0, 1, 0]]  # 五个 0
+	var cells: Array = ME.special_effect_cells(grid, Vector2i(1, 1), ME.SP_COLORBOMB, 0)
+	assert_eq(cells.size(), 5, "all five 0-species cells")
+
+# ---- v1.1 汇总清除（匹配 + 特效触发链）----
+
+func _none_fx(w: int, h: int) -> Array:
+	var f := []
+	for y in h:
+		var row := []
+		for x in w:
+			row.append(ME.SP_NONE)
+		f.append(row)
+	return f
+
+func test_collect_four_match_marks_line_spawn() -> void:
+	var grid := [[0, 0, 0, 0, 1], [1, 2, 3, 2, 3], [2, 3, 1, 3, 1]]
+	var fx := _none_fx(5, 3)
+	var c := ME.collect_clears(grid, fx)
+	assert_eq(c["to_clear"].size(), 4, "all 4 matched cells in clear set")
+	assert_eq(c["spawns"].size(), 1, "one line spawned")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "h4 -> LINE_H")
+
+func test_collect_triggers_line_clears_whole_row() -> void:
+	var grid := [[9, 8, 5, 9, 8], [5, 5, 5, 7, 6], [8, 7, 4, 6, 9]]  # 仅 row1 的 5,5,5 三连
+	var fx := _none_fx(5, 3)
+	fx[1][2] = ME.SP_LINE_H  # (2,1) 是直线特效
+	var c := ME.collect_clears(grid, fx)
+	var tc: Array = c["to_clear"]
+	assert_eq(tc.size(), 5, "line trigger expands to whole row 1")
+	assert_true(tc.has(Vector2i(3, 1)) and tc.has(Vector2i(4, 1)), "row cells beyond the 3-match added by the line")
+
+func test_apply_clears_spawns_line_and_empties_others() -> void:
+	var grid := [[0, 0, 0, 0, 1], [1, 2, 3, 2, 3], [2, 3, 1, 3, 1]]
+	var fx := _none_fx(5, 3)
+	var c := ME.collect_clears(grid, fx)
+	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
+	var sp: Vector2i = c["spawns"][0]["pos"]
+	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_H, "spawn cell becomes LINE_H")
+	assert_ne(grid[sp.y][sp.x], ME.EMPTY, "spawn cell keeps its species (not emptied)")
+	var empties := 0
+	for x in 5:
+		if grid[0][x] == ME.EMPTY:
+			empties += 1
+	assert_eq(empties, 3, "3 of the 4 matched cells emptied (1 became the special)")
+
+# ---- v1.1 resolve 特效版（生成/触发/级联，整合）----
+
+const _GRID_FX := [
+	[0, 0, 0, 0, 1, 2],
+	[3, 1, 2, 1, 3, 4],
+	[4, 2, 3, 2, 4, 1],
+	[1, 3, 4, 3, 1, 3],
+	[2, 4, 1, 4, 2, 4],
+	[3, 1, 2, 1, 3, 1],
+]
+
+func test_resolve_fx_scores_and_leaves_board_stable() -> void:
+	var grid := _GRID_FX.duplicate(true)
+	var fx := _none_fx(6, 6)
+	var rng := RandomNumberGenerator.new(); rng.seed = 5
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4], rng, fx)
+	assert_true(r["score"] > 0, "resolve-fx scores")
+	assert_true(ME.find_matches(grid).is_empty(), "board stable after resolve-fx")
+
+func test_resolve_fx_deterministic_with_seed() -> void:
+	var g1 := _GRID_FX.duplicate(true)
+	var g2 := _GRID_FX.duplicate(true)
+	var f1 := _none_fx(6, 6)
+	var f2 := _none_fx(6, 6)
+	var c1 := RandomNumberGenerator.new(); c1.seed = 8
+	var c2 := RandomNumberGenerator.new(); c2.seed = 8
+	var r1 := ME.resolve(g1, [0, 1, 2, 3, 4], c1, f1)
+	var r2 := ME.resolve(g2, [0, 1, 2, 3, 4], c2, f2)
+	assert_true(r1["score"] > 0, "scored (sanity)")
+	assert_eq(r1, r2, "same seed -> identical result")
+	assert_eq(g1, g2, "same seed -> identical grid")
+	assert_eq(f1, f2, "same seed -> identical fx")
+
+# ---- v1.1 彩球交换引爆 ----
+
+func test_colorbomb_clear_set_targets_partner_species() -> void:
+	var grid := [
+		[0, 1, 2, 3],
+		[1, 0, 3, 2],
+		[8, 1, 2, 3],  # (0,2)=彩球；与上方 (0,1) 交换，partner species = grid[1][0] = 1
+		[4, 1, 2, 3],
+	]
+	var fx := _none_fx(4, 4)
+	fx[2][0] = ME.SP_COLORBOMB
+	var cells: Array = ME.colorbomb_clear_set(grid, fx, Vector2i(0, 2), Vector2i(0, 1))
+	# 1 在 (1,0),(0,1),(1,2),(1,3) 共 4 个；+ 彩球 (0,2) = 5
+	assert_eq(cells.size(), 5, "all four 1-cells + the colorbomb cell")
+	assert_true(cells.has(Vector2i(0, 2)), "colorbomb itself consumed")
+	assert_true(cells.has(Vector2i(1, 0)) and cells.has(Vector2i(1, 2)) and cells.has(Vector2i(1, 3)), "every target-species cell")

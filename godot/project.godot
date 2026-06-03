@@ -1,0 +1,19 @@
+; Godot 4.6 — 水果消除 Core 原型（裸 Core，无 Meta）
+; 设计依据见 ../docs/04_CORE_消除.md, 05_技术架构.md, 09_算法系统设计.md
+
+config_version=5
+
+[application]
+
+config/name="Fruit Match Core Prototype"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.6")
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=920
+
+[debug]
+
+gdscript/warnings/unused_parameter=0

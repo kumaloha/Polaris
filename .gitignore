@@ -5,6 +5,13 @@
 .omc/
 .omx/
 
+# Godot 导入缓存 / 临时渲染产物（不入库）
+.godot/
+godot/_shot*.png
+
+# C++ 构建产物
+engine/build/
+
 # 编辑器
 .vscode/
 .idea/

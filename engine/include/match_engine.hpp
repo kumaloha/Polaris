@@ -1,0 +1,158 @@
+#pragma once
+// match_engine.hpp — 消除 Core 规则的 C++ 镜像（与 godot/core/match_engine.gd 一一对应）。
+// 这是 09 护城河的地基：求解器/生成器都基于这套规则。grid[y][x]，坐标 Vec2{x,y}。
+#include <vector>
+#include <random>
+#include <cstdlib>
+#include <algorithm>
+
+namespace me {
+
+constexpr int EMPTY = -1;
+
+// 特效类型（与 GDScript SP_* 对应）
+enum Special { SP_NONE = 0, SP_LINE_H = 1, SP_LINE_V = 2, SP_BOMB = 3, SP_COLORBOMB = 4 };
+
+struct Vec2 {
+    int x = 0, y = 0;
+    bool operator==(const Vec2& o) const { return x == o.x && y == o.y; }
+};
+
+using Grid = std::vector<std::vector<int>>;
+
+// 找出所有应被消除的格子（横/竖 >=3 同 species），去重。
+inline std::vector<Vec2> find_matches(const Grid& g) {
+    int h = (int)g.size();
+    if (h == 0) return {};
+    int w = (int)g[0].size();
+    std::vector<std::vector<char>> mark(h, std::vector<char>(w, 0));
+    // 横向串
+    for (int y = 0; y < h; ++y) {
+        int x = 0;
+        while (x < w) {
+            if (g[y][x] == EMPTY) { ++x; continue; }
+            int e = x;
+            while (e + 1 < w && g[y][e + 1] == g[y][x]) ++e;
+            if (e - x + 1 >= 3)
+                for (int k = x; k <= e; ++k) mark[y][k] = 1;
+            x = e + 1;
+        }
+    }
+    // 纵向串
+    for (int x = 0; x < w; ++x) {
+        int y = 0;
+        while (y < h) {
+            if (g[y][x] == EMPTY) { ++y; continue; }
+            int e = y;
+            while (e + 1 < h && g[e + 1][x] == g[y][x]) ++e;
+            if (e - y + 1 >= 3)
+                for (int k = y; k <= e; ++k) mark[k][x] = 1;
+            y = e + 1;
+        }
+    }
+    std::vector<Vec2> out;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (mark[y][x]) out.push_back({x, y});
+    return out;
+}
+
+// 重力：每列非空落到列底，空升到顶。
+inline void apply_gravity(Grid& g) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    for (int x = 0; x < w; ++x) {
+        std::vector<int> stack;
+        for (int y = 0; y < h; ++y)
+            if (g[y][x] != EMPTY) stack.push_back(g[y][x]);
+        int empties = h - (int)stack.size();
+        for (int y = 0; y < h; ++y)
+            g[y][x] = (y < empties) ? EMPTY : stack[y - empties];
+    }
+}
+
+// 随机补充：EMPTY 填成 species 里的随机色（注入的 rng → 可复现）。
+inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng) {
+    std::uniform_int_distribution<int> dist(0, (int)species.size() - 1);
+    for (auto& row : g)
+        for (int& v : row)
+            if (v == EMPTY) v = species[dist(rng)];
+}
+
+// 一次消除得分 = 格数 × 基础分(10) × 连锁档。
+inline int score_for_clear(int count, int cascade_level) {
+    return count * 10 * cascade_level;
+}
+
+struct ResolveResult {
+    int score = 0, cascades = 0, cleared = 0;
+    bool operator==(const ResolveResult& o) const {
+        return score == o.score && cascades == o.cascades && cleared == o.cleared;
+    }
+};
+
+inline void swap_cells(Grid& g, Vec2 a, Vec2 b) {
+    std::swap(g[a.y][a.x], g[b.y][b.x]);
+}
+
+// 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不改变 g（内部换回）。
+inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b) {
+    if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
+    swap_cells(g, a, b);
+    bool found = !find_matches(g).empty();
+    swap_cells(g, a, b);
+    return found;
+}
+
+// 是否存在任一合法交换。
+inline bool has_legal_move(Grid& g) {
+    int h = (int)g.size();
+    if (h == 0) return false;
+    int w = (int)g[0].size();
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            if (x + 1 < w && is_legal_swap(g, {x, y}, {x + 1, y})) return true;
+            if (y + 1 < h && is_legal_swap(g, {x, y}, {x, y + 1})) return true;
+        }
+    return false;
+}
+
+// 消除→计分→下落→补充，循环直到稳定。原地修改 g。
+inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng) {
+    ResolveResult r;
+    while (true) {
+        auto matched = find_matches(g);
+        if (matched.empty()) break;
+        r.cascades++;
+        for (auto& p : matched) g[p.y][p.x] = EMPTY;
+        r.cleared += (int)matched.size();
+        r.score += score_for_clear((int)matched.size(), r.cascades);
+        apply_gravity(g);
+        refill(g, species, rng);
+    }
+    return r;
+}
+
+// 构造初始盘：避免开局现成消除，且保证有合法移动。
+inline Grid make_board(int w, int h, const std::vector<int>& species, std::mt19937& rng) {
+    Grid g;
+    for (int attempt = 0; attempt < 50; ++attempt) {
+        g.assign(h, std::vector<int>(w, EMPTY));
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < w; ++x) {
+                std::vector<int> choices = species;
+                if (x >= 2 && g[y][x - 1] == g[y][x - 2])
+                    choices.erase(std::remove(choices.begin(), choices.end(), g[y][x - 1]), choices.end());
+                if (y >= 2 && g[y - 1][x] == g[y - 2][x])
+                    choices.erase(std::remove(choices.begin(), choices.end(), g[y - 2][x]), choices.end());
+                if (choices.empty()) choices = species;
+                std::uniform_int_distribution<int> d(0, (int)choices.size() - 1);
+                g[y][x] = choices[d(rng)];
+            }
+        if (has_legal_move(g)) return g;
+    }
+    return g;  // 兜底
+}
+
+}  // namespace me
