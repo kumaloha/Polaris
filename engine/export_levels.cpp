@@ -67,7 +67,7 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
 }
 
 int main(int argc, char** argv) {
-    int count = (argc > 1) ? std::atoi(argv[1]) : 2;
+    int per_band = (argc > 1) ? std::atoi(argv[1]) : 3;
     const char* out_path = (argc > 2) ? argv[2] : "godot/levels.json";
 
     GenConfig cfg;
@@ -75,10 +75,16 @@ int main(int argc, char** argv) {
     cfg.h = 8;
     cfg.species = {0, 1, 2, 3, 4};
     cfg.move_limit = 25;
-    cfg.base_seed = 12345;
     cfg.trials = 12;
 
-    auto levels = generate_and_test(cfg, count, 400);
+    // 多难度库：每档若干关，由易到难（= 关卡进度/地图节奏的素材；二分目标命中难度带）
+    std::vector<GeneratedLevel> levels;
+    DiffBand bands[] = {band_easy(), band_medium(), band_hard()};
+    for (int bi = 0; bi < 3; ++bi) {
+        cfg.base_seed = 12345u + (uint32_t)bi * 2654435761u;  // 各档用不同盘
+        auto got = generate_for_difficulty(cfg, bands[bi], per_band, 800);
+        for (auto& gl : got) levels.push_back(gl);
+    }
 
     std::ostringstream o;
     o << "{\"levels\":[";
