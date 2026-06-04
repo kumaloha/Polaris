@@ -294,17 +294,21 @@ static func reshuffle(grid: Array, rng: RandomNumberGenerator) -> void:
 	if h == 0:
 		return
 	var w: int = grid[0].size()
+	# 只重排可动棋子；墙(WALL)/空格(EMPTY)固定不参与洗牌——否则异形棋盘会被打乱、墙乱飞。
+	var positions := []
 	var tiles := []
 	for y in h:
 		for x in w:
-			tiles.append(grid[y][x])
+			var v: int = grid[y][x]
+			if v == WALL or v == EMPTY:
+				continue
+			positions.append(Vector2i(x, y))
+			tiles.append(v)
 	for _attempt in 50:
 		_shuffle(tiles, rng)
-		var i := 0
-		for y in h:
-			for x in w:
-				grid[y][x] = tiles[i]
-				i += 1
+		for i in positions.size():
+			var p: Vector2i = positions[i]
+			grid[p.y][p.x] = tiles[i]
 		if find_matches(grid).is_empty() and has_legal_move(grid):
 			return
 	# 兜底：保留最后一次排列（极罕见）
@@ -477,3 +481,33 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 		else:
 			grid[pos.y][pos.x] = EMPTY
 			fx[pos.y][pos.x] = SP_NONE
+
+
+# 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat，不改 grid。
+# 用于彩球直清等不经 resolve 匹配循环的清除路径，使其与普通消除同样推进目标。
+# 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
+static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = []) -> Dictionary:
+	var by_species := {}
+	var jelly_cleared := 0
+	var blocker_cleared := 0
+	var has_jelly := not jelly.is_empty()
+	var has_coat := not coat.is_empty()
+	if has_coat:
+		var cleared_set := {}
+		for p in cells:
+			cleared_set[p] = true
+		for cy in grid.size():
+			for cx in grid[cy].size():
+				if coat[cy][cx] <= 0:
+					continue
+				if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
+					coat[cy][cx] -= 1
+					blocker_cleared += 1
+	for pos in cells:
+		var sp_p: int = grid[pos.y][pos.x]
+		if sp_p >= 0:
+			by_species[sp_p] = by_species.get(sp_p, 0) + 1
+		if has_jelly and jelly[pos.y][pos.x] > 0:
+			jelly[pos.y][pos.x] -= 1
+			jelly_cleared += 1
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}

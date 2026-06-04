@@ -82,7 +82,9 @@ func is_won() -> bool:
 	return true
 
 func is_lost() -> bool:
-	return moves_left <= 0 and score < target_score
+	# 步数耗尽且还没赢 = 负。必须用 is_won()（覆盖分数关 + 目标关），
+	# 不能只看 target_score——纯目标关 target_score=0 时 score<0 恒假 → 永不判负、卡死。
+	return moves_left <= 0 and not is_won()
 
 func is_over() -> bool:
 	return is_won() or is_lost()
@@ -119,6 +121,12 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	var cells := ME.colorbomb_clear_set(grid, fx, cb, partner)
 	var gained := ME.score_for_clear(cells.size(), 1)
 	score += gained
+	# 彩球直清的格也要计入目标（COLLECT/果冻/涂层），否则目标关白清。
+	# 须在 _apply_clears 清空 grid 之前结算（account_clears 读取被清格的 species）。
+	var acc := ME.account_clears(grid, cells, jelly, coat)
+	_accumulate(acc["by_species"])
+	jelly_cleared += acc["jelly_cleared"]
+	blocker_cleared += acc["blocker_cleared"]
 	ME._apply_clears(grid, fx, cells, [])   # 无 spawn，纯清除
 	ME.apply_gravity(grid, fx)
 	ME.refill(grid, species, rng, fx)

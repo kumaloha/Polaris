@@ -10,9 +10,7 @@ namespace me {
 
 constexpr int EMPTY = -1;
 constexpr int WALL = -2;  // 战场切割/异形棋盘：不可消、不可动、不补充；分隔区域
-
-// 特效类型（与 GDScript SP_* 对应）
-enum Special { SP_NONE = 0, SP_LINE_H = 1, SP_LINE_V = 2, SP_BOMB = 3, SP_COLORBOMB = 4 };
+// 注：C++ 裸 Core 不实现特效（4/5/T-L 仅 Godot 端）。原先残留的 Special enum 已删，避免误导性接口。
 
 struct Vec2 {
     int x = 0, y = 0;

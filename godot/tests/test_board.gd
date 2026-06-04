@@ -146,3 +146,61 @@ func test_colorbomb_swap_detonates_and_consumes_move() -> void:
 	assert_true(b.score > 0, "detonation scored")
 	assert_eq(b.moves_left, 9, "one move consumed")
 	assert_true(ME.find_matches(b.grid).is_empty(), "board settled after detonation")
+
+# ───────────────────────────── P1 回归（运行时 bug）─────────────────────────────
+
+func test_objective_level_loses_when_moves_exhausted() -> void:
+	# P1#1：纯目标关(target_score=0)，目标高到打不完、步数耗尽 → 必须判负。
+	# 旧 is_lost() 只看 score<target_score，target_score=0 时 score<0 恒假 → 卡死，既不胜也不负。
+	var objs := [{"type": "COLLECT", "species": 0, "target": 99999}]
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 0, 1, 3, [], objs)  # target_score=0，仅 1 步
+	var mv := _find_legal_move(b.grid)
+	assert_true(mv.size() == 2, "sanity: found legal move")
+	if mv.size() != 2:
+		return
+	b.try_swap(mv[0], mv[1])
+	assert_eq(b.moves_left, 0, "moves exhausted")
+	assert_false(b.is_won(), "objective not met")
+	assert_true(b.is_lost(), "P1#1: must be LOST when moves gone and objective unmet")
+	assert_true(b.is_over(), "game is over")
+
+func test_reshuffle_keeps_walls_in_place() -> void:
+	# P1#2：异形棋盘洗牌只应重排可动棋子；墙(WALL)必须原地不动、数量不变。
+	# 旧 reshuffle 把 WALL 也收进 tiles 一起 Fisher-Yates → 墙被洗到随机位置，棋盘损毁。
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var grid := []
+	for y in 6:
+		var row := []
+		for x in 6:
+			row.append((x + y) % 4)
+		grid.append(row)
+	var walls := [Vector2i(0, 0), Vector2i(5, 0), Vector2i(2, 3), Vector2i(1, 5)]
+	for wpos in walls:
+		grid[wpos.y][wpos.x] = ME.WALL
+	ME.reshuffle(grid, rng)
+	for wpos in walls:
+		assert_eq(grid[wpos.y][wpos.x], ME.WALL, "P1#2: wall stays put at %s" % str(wpos))
+	var wall_count := 0
+	for y in 6:
+		for x in 6:
+			if grid[y][x] == ME.WALL:
+				wall_count += 1
+	assert_eq(wall_count, walls.size(), "P1#2: wall count unchanged (none teleported)")
+
+func test_colorbomb_counts_toward_collect_objective() -> void:
+	# P1#3：彩球直清的格也要计入 COLLECT/果冻/涂层，否则目标关白清。
+	# 旧 _activate_colorbomb 只 _accumulate 了其后级联；彩球本体清掉的目标色没算。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1)  # 大目标 → 不会因分数胜
+	b.grid = [
+		[0, 1, 2, 3],
+		[1, 0, 3, 2],
+		[5, 1, 2, 3],  # (0,2)=5 占位彩球
+		[4, 1, 2, 3],
+	]
+	b.fx = b._blank_fx()
+	b.fx[2][0] = ME.SP_COLORBOMB
+	# 与上方 species-1 交换 → 直清全部 species-1：(1,0)(0,1)(1,2)(1,3) 共 4 个
+	b.try_swap(Vector2i(0, 2), Vector2i(0, 1))
+	assert_true(b.collected.get(1, 0) >= 4,
+		"P1#3: colorbomb direct clears must count toward COLLECT (>=4 of species 1), got %d" % b.collected.get(1, 0))
