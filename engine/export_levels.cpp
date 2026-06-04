@@ -117,21 +117,26 @@ int main(int argc, char** argv) {
         for (auto& gl : f.get())
             levels.push_back(gl);
 
-    // 滚动/挖矿关：每档一关，难度旋钮=步数(feed 深度固定)。同样三档【并行】二分校准。
-    ScrollConfig sc;
-    sc.w = 8;
-    sc.h = 8;
-    sc.species = {0, 1, 2, 3, 4};
-    sc.depth_pages = 4;   // 约 4 页深（首页可见，往下 3 页）
-    sc.trials = 8;
+    // 滚动/挖矿关：每档 per_band 关（与目标关同量），难度旋钮=步数(feed 深度固定/关)。
+    // 变 seed + 矿深(3~5页)增多样性。三档 × per_band 全部【并行】二分校准。
+    ScrollConfig sc_base;
+    sc_base.w = 8;
+    sc_base.h = 8;
+    sc_base.species = {0, 1, 2, 3, 4};
+    sc_base.trials = 8;
+    const int scroll_depths[] = {3, 4, 5};   // 不同矿深(页)：首页可见，往下 2~4 页
     DiffBand sbands[] = {band_easy(), band_medium(), band_hard()};
     std::vector<std::future<GeneratedLevel>> sfuts;
     for (int bi = 0; bi < 3; ++bi) {
-        DiffBand band = sbands[bi];
-        uint32_t seed = 999000u + (uint32_t)bi * 2654435761u;
-        sfuts.push_back(std::async(std::launch::async, [sc, band, seed]() {
-            return generate_scroll_for_difficulty(sc, band, seed);
-        }));
+        for (int k = 0; k < per_band; ++k) {
+            ScrollConfig sc = sc_base;
+            sc.depth_pages = scroll_depths[k % 3];   // 关间轮换矿深
+            DiffBand band = sbands[bi];
+            uint32_t seed = 990000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            sfuts.push_back(std::async(std::launch::async, [sc, band, seed]() {
+                return generate_scroll_for_difficulty(sc, band, seed);
+            }));
+        }
     }
     for (auto& f : sfuts)
         levels.push_back(f.get());
