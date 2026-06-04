@@ -94,8 +94,8 @@ int main(int argc, char** argv) {
     const char* out_path = (argc > 2) ? argv[2] : "godot/levels.json";
 
     GenConfig cfg;
-    cfg.w = 8;
-    cfg.h = 8;
+    cfg.w = 9;       // 默认 9×9，对齐 Candy Crush
+    cfg.h = 9;
     cfg.species = {0, 1, 2, 3, 4};
     cfg.move_limit = 25;
     cfg.trials = 12;
@@ -106,6 +106,7 @@ int main(int argc, char** argv) {
     std::vector<std::future<std::vector<GeneratedLevel>>> futs;
     for (int bi = 0; bi < 3; ++bi) {
         GenConfig c = cfg;
+        c.h = 9 + bi;                                       // 各档盘高 9/10/11，增维度多样性(宽固定 9)
         c.base_seed = 12345u + (uint32_t)bi * 2654435761u;  // 各档用不同盘
         DiffBand band = bands[bi];
         futs.push_back(std::async(std::launch::async, [c, band, per_band]() {
@@ -120,8 +121,8 @@ int main(int argc, char** argv) {
     // 滚动/挖矿关：每档 per_band 关（与目标关同量），难度旋钮=步数(feed 深度固定/关)。
     // 变 seed + 矿深(3~5页)增多样性。三档 × per_band 全部【并行】二分校准。
     ScrollConfig sc_base;
-    sc_base.w = 8;
-    sc_base.h = 8;
+    sc_base.w = 9;
+    sc_base.h = 9;
     sc_base.species = {0, 1, 2, 3, 4};
     sc_base.trials = 8;
     const int scroll_depths[] = {3, 4, 5};   // 不同矿深(页)：首页可见，往下 2~4 页

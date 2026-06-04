@@ -9,12 +9,14 @@ const LevelLibrary := preload("res://core/level_library.gd")
 const CelestialBg := preload("res://ui/celestial_bg.gd")
 const Burst := preload("res://ui/burst.gd")
 
-const W := 8
-const H := 8
+var W := 9    # 关卡维度(载入后由 board 同步)；默认 9×9，对齐 Candy Crush
+var H := 9
 const SPECIES := [0, 1, 2, 3, 4]
-const CELL := 80.0   # 大棋格填满宽度；魔法阵改为贴边环绕(8×8 对角线超画布宽，无法整圈套住)
+const CELL := 72.0   # 9 列正好填满画布宽(9*72+8*6=696)；行数随关卡变(可竖长)
 const GAP := 6.0
-const ORIGIN := Vector2(19.0, 420.0)   # 居中(682 宽盘): 横 (720-682)/2，纵向画布居中
+const VIEW_W := 720.0
+const VIEW_H := 1520.0
+var ORIGIN := Vector2(12.0, 200.0)   # 按关卡维度在 _relayout 里算(居中)
 const TARGET := 2000
 const MOVES := 25
 
@@ -54,12 +56,13 @@ var moves_label: Label
 var status_label: Label
 var hint_label: Label
 var sel_frame: ColorRect
+var _bg                  # CelestialBg(背景+魔法阵)，按维度更新圆心/半径
+var _frame: Panel        # 棋盘奶白软底框，按维度更新位置/大小
 
 
 func _ready() -> void:
 	_load_pieces()
 	_build_hud()
-	_build_tiles()
 	algo_levels = LevelLibrary.load_file("res://levels.json")   # 优先读 C++ 导出的算法关卡库
 	_new_game()
 
@@ -167,6 +170,10 @@ func _new_game() -> void:
 	selected = Vector2i(-1, -1)
 	input_locked = false
 	_over_fired = false
+	W = board.width                  # 关卡维度可变(默认 9×9，可竖长)，由 board 同步
+	H = board.height
+	_rebuild_tiles()                 # 按本关维度(重)建网格
+	_relayout()                      # 居中 + 更新框/圆环/技能条/提示位置
 	_render()
 	_update_skill_button()
 
@@ -234,52 +241,72 @@ func _demo_coat_layer() -> Array:
 
 # ───────────────────────────── HUD / 节点构建 ─────────────────────────────
 func _build_hud() -> void:
-	# 占星背景(深蓝渐变+星点) + 棋盘金框
-	var bg := CelestialBg.new()
-	bg.light_mode = true          # 浅蓝通透星空(对齐 board.png)
-	bg.show_circle = true
-	bg.inner_ring = false         # 对局大阵：金环在棋盘外侧，不切棋盘
-	bg.planets = true
-	var bcenter := ORIGIN + Vector2(W * CELL + (W - 1) * GAP, H * CELL + (H - 1) * GAP) * 0.5
-	bg.circle_center = bcenter
-	bg.glow_center = bcenter
-	bg.circle_radius = (W * CELL + (W - 1) * GAP) * 0.5 + 38.0   # 贴着棋盘外缘环绕
-	bg.z_index = -10
-	add_child(bg)
-	var frame := Panel.new()
-	frame.position = Vector2(ORIGIN.x - 18, ORIGIN.y - 18)
-	frame.size = Vector2(W * CELL + (W - 1) * GAP + 36, H * CELL + (H - 1) * GAP + 36)
-	frame.z_index = -5
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 占星浅蓝背景(几何在 _relayout 按维度设)
+	_bg = CelestialBg.new()
+	_bg.light_mode = true          # 浅蓝通透星空(对齐 board.png)
+	_bg.show_circle = true
+	_bg.inner_ring = false         # 对局大阵：金环在棋盘外侧
+	_bg.planets = true
+	_bg.z_index = -10
+	add_child(_bg)
+	# 棋盘奶白软底框(几何在 _relayout 设)
+	_frame = Panel.new()
+	_frame.z_index = -5
+	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var fs := StyleBoxFlat.new()
-	fs.bg_color = Color(0.97, 0.94, 0.85, 0.28)   # 奶白软底(对齐 board.png，替掉深框)
+	fs.bg_color = Color(0.97, 0.94, 0.85, 0.28)   # 奶白软底(对齐 board.png)
 	fs.set_corner_radius_all(30)
 	fs.set_border_width_all(2)
 	fs.border_color = Color("e9c97c")
 	fs.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
 	fs.shadow_size = 18
-	frame.add_theme_stylebox_override("panel", fs)
-	add_child(frame)
-
-	title_label = _mk_label(Vector2(96, 268), 26)
+	_frame.add_theme_stylebox_override("panel", fs)
+	add_child(_frame)
+	# 选中高亮框
+	sel_frame = ColorRect.new()
+	sel_frame.color = Color(1, 1, 1, 0.28)
+	sel_frame.size = Vector2(CELL, CELL)
+	sel_frame.visible = false
+	sel_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sel_frame.z_index = 5
+	add_child(sel_frame)
+	# 顶部 HUD 状态条
+	title_label = _mk_label(Vector2(40, 44), 24)
 	title_label.add_theme_color_override("font_color", Color("6e5520"))   # 浅底用深金
-	score_label = _mk_label(Vector2(96, 312), 28)
+	score_label = _mk_label(Vector2(40, 86), 28)
 	score_label.add_theme_color_override("font_color", Color("1e2c4e"))   # 浅底用深蓝
-	moves_label = _mk_label(Vector2(96, 356), 26)
+	moves_label = _mk_label(Vector2(40, 130), 26)
 	moves_label.add_theme_color_override("font_color", Color("2c3a60"))
-	status_label = _mk_label(Vector2(540, 312), 34)
+	status_label = _mk_label(Vector2(500, 86), 32)
 	status_label.add_theme_color_override("font_color", Color("17744a"))
 	hint_label = _mk_label(Vector2(19, 1112), 18)
 	hint_label.add_theme_color_override("font_color", Color(0.16, 0.24, 0.42, 0.78))
 	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换关卡"
 	skill_button = Button.new()
-	skill_button.position = Vector2(19, 372)   # 棋盘正上方
-	skill_button.size = Vector2(682, 42)
 	skill_button.z_index = 50
 	skill_button.add_theme_font_size_override("font_size", 22)
 	skill_button.pressed.connect(_use_skill)
 	skill_button.visible = false
 	add_child(skill_button)
+
+
+# 按当前 W/H 居中布局：算 ORIGIN + 更新背景圆环/框/技能条/提示位置。
+func _relayout() -> void:
+	var bw := W * CELL + (W - 1) * GAP
+	var bh := H * CELL + (H - 1) * GAP
+	var area_top := 168.0
+	var area_bot := 1402.0
+	ORIGIN = Vector2((VIEW_W - bw) * 0.5, maxf(area_top, area_top + (area_bot - area_top - bh) * 0.5))
+	var bc := ORIGIN + Vector2(bw, bh) * 0.5
+	_bg.circle_center = bc
+	_bg.glow_center = bc
+	_bg.circle_radius = bw * 0.5 + 38.0   # 贴棋盘外缘
+	_bg.queue_redraw()
+	_frame.position = Vector2(ORIGIN.x - 16, ORIGIN.y - 16)
+	_frame.size = Vector2(bw + 32, bh + 32)
+	skill_button.position = Vector2(ORIGIN.x, ORIGIN.y - 52)   # 棋盘正上方
+	skill_button.size = Vector2(bw, 42)
+	hint_label.position = Vector2(ORIGIN.x, ORIGIN.y + bh + 16)
 
 
 func _mk_label(pos: Vector2, fsize: int) -> Label:
@@ -291,15 +318,19 @@ func _mk_label(pos: Vector2, fsize: int) -> Label:
 	return l
 
 
-func _build_tiles() -> void:
-	sel_frame = ColorRect.new()
-	sel_frame.color = Color(1, 1, 1, 0.28)
-	sel_frame.size = Vector2(CELL, CELL)
-	sel_frame.visible = false
-	sel_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sel_frame.z_index = 5
-	add_child(sel_frame)
-
+func _rebuild_tiles() -> void:
+	# 释放旧网格(切到不同维度的关卡时)，再按当前 W/H 重建
+	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, piece_rects, burst_rects]:
+		for row in arr:
+			for n in row:
+				n.queue_free()
+	tiles.clear()
+	labels.clear()
+	jelly_rects.clear()
+	coat_rects.clear()
+	coat_labels.clear()
+	piece_rects.clear()
+	burst_rects.clear()
 	tiles.resize(H)
 	labels.resize(H)
 	jelly_rects.resize(H)
