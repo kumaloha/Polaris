@@ -34,6 +34,8 @@ var demo_idx := 0        # 当前关索引（按 R 递进）
 var algo_levels: Array = []   # 算法生成的关卡库（res://levels.json，C++ 导出）；非空则优先玩它
 var equipped_skill: String = ""   # 本局所带技能 id（角色 id 归一）
 var loadout: Dictionary = {}       # Meta 喂参（技能+铭文：步数/倍率/开局特效）；空则只按 equipped_skill
+signal game_over(result)           # 对局结束(过关/失败)→ app 弹结算屏
+var _over_fired := false           # 本局是否已发过 game_over(只发一次)
 var _skill_aim: String = ""       # 技能瞄准模式: ""/"borrow"/"repay"/"sametypeclear"
 var skill_button: Button
 var tiles := []          # tiles[y][x] -> ColorRect（道具底色块）
@@ -60,6 +62,13 @@ func _ready() -> void:
 	_build_tiles()
 	algo_levels = LevelLibrary.load_file("res://levels.json")   # 优先读 C++ 导出的算法关卡库
 	_new_game()
+
+
+# 轮询对局结束(覆盖交换/技能/死局等所有结束来源)，发一次 game_over 给 app。
+func _process(_dt: float) -> void:
+	if not _over_fired and board != null and board.is_over():
+		_over_fired = true
+		emit_signal("game_over", board.result())
 
 
 # ───────────────────────────── Demo 关定义 ─────────────────────────────
@@ -157,6 +166,7 @@ func _new_game() -> void:
 	_skill_aim = ""
 	selected = Vector2i(-1, -1)
 	input_locked = false
+	_over_fired = false
 	_render()
 	_update_skill_button()
 

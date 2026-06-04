@@ -142,6 +142,7 @@ func _show_game() -> void:
 	game.name = "Game"
 	game.set_script(GameScript)
 	add_child(game)   # _ready 同步：建 HUD/tiles、读关卡库、_new_game(默认关)
+	game.game_over.connect(Callable(self, "_on_game_over"))   # 对局结束→结算屏
 	# Meta 个性化：心流调度选关 + 喂 loadout(技能+铭文)，再按选定关重开
 	_cur_level = -1
 	if meta != null:
@@ -162,15 +163,90 @@ func _show_game() -> void:
 	add_child(back)
 
 
-# 离开对局：若本局已结束(过关/失败)→结果入账 Meta + 存档，再回首页
+# 中途返回(未结束=放弃本局，不入账)。结束的入账走 _on_game_over。
 func _exit_game() -> void:
-	var game = get_node_or_null("Game")
-	if meta != null and game != null and game.board != null and game.board.is_over():
-		meta.bank_result(game.board.result())
+	_show_home()
+
+
+# 对局结束(game_over 信号)：结果入账 Meta + 存档 + 记入已玩，弹结算屏。
+func _on_game_over(result: Dictionary) -> void:
+	if meta != null:
+		meta.bank_result(result)
 		meta.save()
 		if _cur_level >= 0:
 			_played[_cur_level] = true
-	_show_home()
+	_show_result(result)
+
+
+# 结算屏(占星风)：星级 + 最终得分 + 奖励(碎片/水晶) + 下一关/再玩/回首页。
+func _show_result(result: Dictionary) -> void:
+	_clear()
+	_add_gradient_background(true)
+	var won: bool = bool(result.get("won", false))
+	var stars: int = int(result.get("stars", 0))
+	var score: int = int(result.get("score", 0))
+	var frags: int = int(result.get("fragments", 0))
+	var crystals_gained: int = 1 if won else 0   # 与 MetaState.bank_result 一致：过关 +1 水晶
+
+	# 标题
+	var en := _label("LEVEL CLEAR" if won else "LEVEL FAILED", Rect2(0, 96, VIEW_W, 28), 16, C_GOLD)
+	add_child(en)
+	var zh := _label("过 关 !" if won else "未 通 关", Rect2(0, 126, VIEW_W, 64), 46, C_INK)
+	add_child(zh)
+
+	# 星级(三颗，亮=已得)
+	var star_y := 214
+	for i in 3:
+		var on: bool = i < stars
+		var big: bool = i == 1
+		var sz := 76 if big else 58
+		var sx := VIEW_W * 0.5 + (i - 1) * 86 - sz * 0.5
+		var sy := star_y + (0 if big else 12)
+		var st := _label("★", Rect2(sx, sy, sz, sz), sz, C_GOLD if on else Color(1, 1, 1, 0.16))
+		add_child(st)
+
+	# 最终得分
+	add_child(_label("最终得分", Rect2(0, 322, VIEW_W, 24), 16, C_INK_DIM))
+	var sc := _label(_fmt(score), Rect2(0, 346, VIEW_W, 64), 52, C_GOLD)
+	add_child(sc)
+
+	# 奖励面板
+	var panel := _dark_panel(Rect2(150, 440, 420, 120), 24, C_GOLD, 1)
+	add_child(panel)
+	panel.add_child(_inner_label("本关奖励", Rect2(0, 12, 420, 24), 16, C_GOLD))
+	if won:
+		_reward_chip(panel, Color("ff9ec7"), "碎片", frags, Rect2(40, 48, 160, 56))
+		_reward_chip(panel, Color("c79bff"), "水晶", crystals_gained, Rect2(220, 48, 160, 56))
+	else:
+		panel.add_child(_inner_label("差一点点，再来一次～", Rect2(0, 56, 420, 28), 18, C_INK_DIM))
+
+	# 按钮
+	var primary_text := "下一关 ▸" if won else "再玩一次"
+	var primary := _gold_button(primary_text, "体力 1", Rect2(228, 626, 264, 84))
+	primary.pressed.connect(Callable(self, "_show_game"))   # 重新走调度(过关→新关；失败→大概率同档)
+	add_child(primary)
+	var homebtn := _round_button("‹", Rect2(18, 18, 48, 48))
+	homebtn.z_index = 50
+	homebtn.pressed.connect(Callable(self, "_show_home"))
+	add_child(homebtn)
+	var home_wide := _button("回首页", Rect2(270, 728, 180, 52), Color("9d6cf0"), Color("7a3fe0"))
+	home_wide.pressed.connect(Callable(self, "_show_home"))
+	add_child(home_wide)
+
+
+func _reward_chip(parent: Control, icon_color: Color, label: String, n: int, rect: Rect2) -> void:
+	var chip := Panel.new()
+	chip.position = rect.position
+	chip.size = rect.size
+	chip.add_theme_stylebox_override("panel", _style(Color(0.06, 0.10, 0.22, 0.6), 16, Color(1, 1, 1, 0.12), 1))
+	parent.add_child(chip)
+	var dot := Panel.new()
+	dot.position = Vector2(12, (rect.size.y - 26) * 0.5)
+	dot.size = Vector2(26, 26)
+	dot.add_theme_stylebox_override("panel", _style(icon_color, 999, Color(1, 1, 1, 0.5), 1))
+	chip.add_child(dot)
+	chip.add_child(_inner_label(label, Rect2(46, 8, rect.size.x - 50, 22), 14, C_INK_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+	chip.add_child(_inner_label("×%d" % n, Rect2(46, 28, rect.size.x - 50, 24), 20, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
 
 
 func _selected_character() -> Dictionary:
