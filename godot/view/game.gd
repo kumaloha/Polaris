@@ -66,8 +66,8 @@ func _ready() -> void:
 
 # 轮询对局结束(覆盖交换/技能/死局等所有结束来源)，发一次 game_over 给 app。
 func _process(_dt: float) -> void:
-	if not _over_fired and board != null and board.is_over():
-		_over_fired = true
+	if not _over_fired and not input_locked and board != null and board.is_over():
+		_over_fired = true   # 动画期间(input_locked)推迟，避免结算屏中途 free 掉正在动画的节点
 		emit_signal("game_over", board.result())
 
 
@@ -440,6 +440,8 @@ func _render_cell(x: int, y: int) -> void:
 	var bu = burst_rects[y][x]
 	rect.position = p
 	pr.position = p - Vector2(7, 7)
+	pr.pivot_offset = pr.size * 0.5   # 缩放动画绕中心
+	pr.scale = Vector2.ONE
 	bu.position = p - Vector2(11, 11)
 	bu.visible = false
 	lab.position = p
@@ -622,6 +624,8 @@ func _attempt(a: Vector2i, b: Vector2i) -> void:
 
 	await _slide(nodes, [pb, pb, pa, pa], 0.12)
 
+	var initial := _swap_preview_matches(a, b)   # 交换后会消除的格(供清除闪光)
+	var pre := _grid_copy(board.grid)            # 移动前盘面(供落定动画 diff)
 	var r: Dictionary = board.try_swap(a, b)
 	if not r["ok"]:
 		await _slide(nodes, [pa, pa, pb, pb], 0.12)  # 非法 → 滑回
@@ -630,7 +634,8 @@ func _attempt(a: Vector2i, b: Vector2i) -> void:
 		return
 
 	_render()
-	await _pop_flash()
+	_animate_clear_flash(initial)                # 消除处白光爆闪
+	await _animate_settle(pre)                   # 变动格"落定"(下落+缩放归位)
 	input_locked = false
 
 
@@ -639,6 +644,60 @@ func _slide(nodes: Array, targets: Array, dur: float) -> void:
 	for i in nodes.size():
 		tw.tween_property(nodes[i], "position", targets[i], dur)
 	await tw.finished
+
+
+func _grid_copy(g: Array) -> Array:
+	var out := []
+	for row in g:
+		out.append(row.duplicate())
+	return out
+
+
+# 在副本上预演交换，返回会被消除的格(供清除闪光)。特效交换无普通消除→空。
+func _swap_preview_matches(a: Vector2i, b: Vector2i) -> Array:
+	var g := _grid_copy(board.grid)
+	ME._swap_cells(g, a, b)
+	return ME.find_matches(g, board.coat)
+
+
+# 清除闪光：在消除格上快速白闪(看不到旧棋子被清，但给出"这里消除了"的反馈)。
+func _animate_clear_flash(cells: Array) -> void:
+	for c in cells:
+		var fl := ColorRect.new()
+		fl.color = Color(1, 1, 1, 0.0)
+		fl.size = Vector2(CELL, CELL)
+		fl.position = _cell_pos(c.x, c.y)
+		fl.z_index = 6
+		fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(fl)
+		var tw := create_tween()
+		tw.tween_property(fl, "color", Color(1, 1, 1, 0.85), 0.06)
+		tw.tween_property(fl, "color", Color(1, 1, 1, 0.0), 0.18)
+		tw.tween_callback(fl.queue_free)
+
+
+# 落定：变动格(对比 pre)的宝石从上方略降 + 缩放归位，按行错峰，似"下落补齐"。
+func _animate_settle(pre: Array) -> void:
+	var tw := create_tween().set_parallel(true)
+	var any := false
+	for y in H:
+		for x in W:
+			if y < pre.size() and x < pre[y].size() and pre[y][x] == board.grid[y][x]:
+				continue   # 未变动
+			var pr: TextureRect = piece_rects[y][x]
+			if not pr.visible:
+				continue
+			any = true
+			var dest := pr.position
+			pr.position = dest - Vector2(0, 18)
+			pr.scale = Vector2(0.5, 0.5)
+			var d := 0.018 * y
+			tw.tween_property(pr, "position", dest, 0.2).set_delay(d).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			tw.tween_property(pr, "scale", Vector2.ONE, 0.2).set_delay(d).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if any:
+		await tw.finished
+	else:
+		tw.kill()
 
 
 # 消除后整盘轻微"脉冲"提示发生了变化（v1 简化版反馈；逐级联动画留待 v1.x）
