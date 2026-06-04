@@ -435,3 +435,18 @@ func test_skill_foresight() -> void:
 	assert_true(moves.size() >= 1 and moves.size() <= 3, "foresight returns up to 3 best moves")
 	assert_true(b.active_used, "active used")
 	assert_eq(b.skill_foresight(3).size(), 0, "one per game -> empty")
+
+func test_longswap_via_board() -> void:
+	# 隔位对换(#4)：board.longswap_armed 时 try_swap 接受隔一格交换，用后消耗。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 20, 1)
+	b.grid = [
+		[1, 1, 0, 1],
+		[2, 3, 0, 2],
+		[3, 0, 2, 3],
+		[0, 2, 3, 0],
+	]
+	b.fx = b._blank_fx()
+	assert_false(b.try_swap(Vector2i(0, 0), Vector2i(2, 0))["ok"], "not armed: distance-2 rejected")
+	b.longswap_armed = true
+	assert_true(b.try_swap(Vector2i(0, 0), Vector2i(2, 0))["ok"], "armed: distance-2 swap ok")
+	assert_false(b.longswap_armed, "armed consumed after use")

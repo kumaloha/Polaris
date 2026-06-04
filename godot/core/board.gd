@@ -45,6 +45,8 @@ var colorbomb_shield: int = 0
 var shield_used: bool = false
 # 引擎原语类主动技能(重力翻转#5/同类消除#7/破障#9/预知#8)的一局一次标志
 var active_used: bool = false
+# 隔位对换(#4)：armed 时下一次交换允许隔一格(span=2)，用完消耗
+var longswap_armed: bool = false
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -81,6 +83,7 @@ func start() -> void:
 	colorbomb_shield = 0
 	shield_used = false
 	active_used = false
+	longswap_armed = false
 
 func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
@@ -152,13 +155,17 @@ func skill_repay(cell: Vector2i) -> bool:
 func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	if is_over():
 		return {"ok": false, "reason": "over"}
-	if abs(a.x - b.x) + abs(a.y - b.y) != 1:
+	var span := 2 if longswap_armed else 1   # 隔位对换#4：armed 时允许隔一格
+	var ok_range: bool = (a.y == b.y and abs(a.x - b.x) == span) or (a.x == b.x and abs(a.y - b.y) == span)
+	if not ok_range:
 		return {"ok": false, "reason": "not_adjacent"}
-	# 彩球交换引爆（无需形成普通消除，始终合法）
-	if fx[a.y][a.x] == ME.SP_COLORBOMB or fx[b.y][b.x] == ME.SP_COLORBOMB:
+	# 彩球交换引爆（仅相邻；隔位不引爆彩球）
+	if span == 1 and (fx[a.y][a.x] == ME.SP_COLORBOMB or fx[b.y][b.x] == ME.SP_COLORBOMB):
 		return _activate_colorbomb(a, b)
-	if not ME.is_legal_swap(grid, a, b, coat):
+	if not ME.is_legal_swap(grid, a, b, coat, span):
 		return {"ok": false, "reason": "illegal"}
+	if longswap_armed:
+		longswap_armed = false   # 隔位对换消耗
 	_push_history()   # 时间回退#2：记录走子前局面
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
