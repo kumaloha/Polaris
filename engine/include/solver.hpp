@@ -62,7 +62,23 @@ struct PlayResult {
     int jelly_cleared = 0;       // 累计清掉的果冻层
     int blocker_cleared = 0;     // 累计破掉的涂层(冰/锁)层
     std::vector<int> collected;  // 各 species 累计消除数
+    std::vector<int> solspace_curve;  // 每步"能产生消除的有效交换数"（局内节奏）
 };
+
+// 局内节奏评分：前松后紧 = 前半段可选步均值 > 后半段，越大越好（09 §3.6）。
+inline double rhythm_quality(const std::vector<int>& curve) {
+    int n = (int)curve.size();
+    if (n < 4) return 0.0;
+    int half = n / 2;
+    double early = 0, late = 0;
+    for (int i = 0; i < half; ++i) early += curve[i];
+    for (int i = half; i < n; ++i) late += curve[i];
+    early /= half;
+    late /= (n - half);
+    if (early < 1.0) return 0.0;
+    double q = (early - late) / early;
+    return q < 0.0 ? 0.0 : q;
+}
 
 // 一步交换的"价值"：朝当前目标推进多少（目标感知，不是单纯分数）。
 // SCORE→分数；COLLECT→消的目标色数×W；JELLY/BLOCKER→清的层数×W；分数当次要项。
@@ -215,6 +231,7 @@ inline PlayResult smart_greedy_play(const Level& lv) {
            && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) break;
+        res.solspace_curve.push_back((int)moves.size());  // 局内节奏：本步可选有效交换数
         double best_v = -1e18;
         Move best = moves[0];
         for (const auto& m : moves) {
@@ -312,6 +329,7 @@ inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
            && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) break;
+        res.solspace_curve.push_back((int)moves.size());  // 局内节奏：本步可选有效交换数
         double best_v = -1e18;
         Move best = moves[0];
         for (const auto& m : moves) {

@@ -124,6 +124,28 @@ static void test_evaluate_gap_and_difficulty() {
     CHECK(e.skilled_pass_rate >= 0.0 && e.skilled_pass_rate <= 1.0, "pass rate in [0,1]");
 }
 
+static void test_rhythm_quality() {
+    std::vector<int> decreasing = {10, 9, 8, 4, 3, 2};  // 前松后紧
+    std::vector<int> flat = {5, 5, 5, 5, 5, 5};
+    CHECK(rhythm_quality(decreasing) > rhythm_quality(flat), "front-loose-back-tight scores higher than flat");
+    CHECK(rhythm_quality(flat) <= 0.01, "flat curve ~ 0 rhythm");
+    std::vector<int> tiny = {3, 1};
+    CHECK_EQ((int)(rhythm_quality(tiny) * 100), 0, "too-short curve -> 0");
+}
+
+static void test_solspace_curve_recorded() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.move_limit = 20;
+    lv.target_score = 100000;  // 不可能 → 走满步
+    lv.seed = 7;
+    auto r = heuristic_play(lv, solver_panel()[0]);
+    CHECK((int)r.solspace_curve.size() == r.moves_used, "curve has one entry per played move");
+    CHECK(r.solspace_curve.size() > 0, "curve recorded");
+}
+
 static void test_panel_vote() {
     std::mt19937 gen(123);
     Level lv;
@@ -251,6 +273,8 @@ int main() {
     test_mc_deterministic();
     test_random_play();
     test_evaluate_gap_and_difficulty();
+    test_rhythm_quality();
+    test_solspace_curve_recorded();
     test_panel_vote();
     test_archetypes_differ();
     test_evaluate_deterministic();

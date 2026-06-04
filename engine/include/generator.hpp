@@ -30,6 +30,7 @@ struct GeneratedLevel {
     double ceil_score = 0;     // greedy 玩家原始均分（天花板）
     double lfhc_gap = 0;       // (ceil-floor)/floor
     double skilled_pass = 0;   // 定目标后技巧玩家通过率
+    double rhythm = 0;         // 局内节奏(前松后紧)评分，09 §3.6
     const char* difficulty = "?";
 };
 
@@ -147,12 +148,17 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         // 目标关的"可解性"：目标感知天花板多次一次都赢不了 → 不可解，丢掉
         if (fe.skilled_pass_rate <= 0.0) continue;
 
+        // 局内节奏：用"目标至上"画像跑一局，量其解空间曲线
+        PlayResult rep = heuristic_play(final, solver_panel()[0]);
+        double rhythm = rhythm_quality(rep.solspace_curve);
+
         GeneratedLevel gl;
         gl.level = final;
         gl.floor_score = floor_s;
         gl.ceil_score = ceil_s;
         gl.lfhc_gap = gap;
         gl.skilled_pass = fe.skilled_pass_rate;
+        gl.rhythm = rhythm;
         gl.difficulty = fe.difficulty;
         out.push_back(gl);
     }

@@ -17,6 +17,7 @@ static void test_generate_curates_library() {
     for (const auto& gl : lib) {
         CHECK(gl.lfhc_gap >= cfg.min_gap, "every kept level meets min depth");
         CHECK(gl.skilled_pass > 0.0, "every kept level is solvable by the goal-directed ceiling");
+        CHECK(gl.rhythm >= 0.0, "every kept level has a rhythm score");
         if (gl.level.objectives.empty()) {
             n_score++;
             CHECK(gl.level.target_score > (int)gl.floor_score, "SCORE target above floor (casual struggles)");
@@ -40,8 +41,8 @@ static void test_generate_curates_library() {
         const char* kinds[] = {"SCORE", "COLLECT", "JELLY", "BLOCKER"};  // 按 ObjType 序
         const auto& s = lib[0].level;
         const char* kind = s.objectives.empty() ? "SCORE" : kinds[s.objectives[0].type];
-        std::printf("  [gen] kept=%d (score=%d collect=%d jelly=%d blocker=%d)  sample: %s gap=%.2f diff=%s\n",
-                    (int)lib.size(), n_score, n_collect, n_jelly, n_blocker, kind, lib[0].lfhc_gap, lib[0].difficulty);
+        std::printf("  [gen] kept=%d (score=%d collect=%d jelly=%d blocker=%d)  sample: %s gap=%.2f rhythm=%.2f diff=%s\n",
+                    (int)lib.size(), n_score, n_collect, n_jelly, n_blocker, kind, lib[0].lfhc_gap, lib[0].rhythm, lib[0].difficulty);
     }
 }
 
