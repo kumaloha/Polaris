@@ -3,6 +3,7 @@ extends RefCounted
 # grid 约定：grid[y][x] = species(int >= 0) 或 EMPTY。坐标用 Vector2i(x, y)。
 
 const EMPTY := -1
+const WALL := -2  # 战场切割/异形棋盘：不可消、不可动、不补充；分隔区域
 
 # 特效类型（fx 层；SP_NONE = 普通棋子）
 const SP_NONE := 0
@@ -18,13 +19,13 @@ static func find_matches(grid: Array) -> Array:
 		return []
 	var w: int = grid[0].size()
 	var matched := {}  # Vector2i -> true（当作 set 去重）
-	# 横向扫描
+	# 横向扫描（EMPTY 和 WALL 都不参与，墙也不能连成串）
 	for y in h:
 		var run_start := 0
 		for x in range(1, w + 1):
-			var same: bool = x < w and grid[y][x] != EMPTY and grid[y][x] == grid[y][run_start]
+			var same: bool = x < w and grid[y][x] != EMPTY and grid[y][x] != WALL and grid[y][x] == grid[y][run_start]
 			if not same:
-				if x - run_start >= 3 and grid[y][run_start] != EMPTY:
+				if x - run_start >= 3 and grid[y][run_start] != EMPTY and grid[y][run_start] != WALL:
 					for k in range(run_start, x):
 						matched[Vector2i(k, y)] = true
 				run_start = x
@@ -32,9 +33,9 @@ static func find_matches(grid: Array) -> Array:
 	for x in w:
 		var run_start := 0
 		for y in range(1, h + 1):
-			var same: bool = y < h and grid[y][x] != EMPTY and grid[y][x] == grid[run_start][x]
+			var same: bool = y < h and grid[y][x] != EMPTY and grid[y][x] != WALL and grid[y][x] == grid[run_start][x]
 			if not same:
-				if y - run_start >= 3 and grid[run_start][x] != EMPTY:
+				if y - run_start >= 3 and grid[run_start][x] != EMPTY and grid[run_start][x] != WALL:
 					for k in range(run_start, y):
 						matched[Vector2i(x, k)] = true
 				run_start = y
@@ -50,23 +51,29 @@ static func apply_gravity(grid: Array, fx: Array = []) -> void:
 	var w: int = grid[0].size()
 	var has_fx := not fx.is_empty()
 	for x in w:
-		var stack := []     # 该列非空 species，按 top->bottom 顺序
-		var fx_stack := []  # 对应特效
-		for y in h:
-			if grid[y][x] != EMPTY:
-				stack.append(grid[y][x])
-				if has_fx:
-					fx_stack.append(fx[y][x])
-		var empties := h - stack.size()
-		for y in h:
-			if y < empties:
-				grid[y][x] = EMPTY
-				if has_fx:
-					fx[y][x] = SP_NONE
-			else:
-				grid[y][x] = stack[y - empties]
-				if has_fx:
-					fx[y][x] = fx_stack[y - empties]
+		# 墙把列切成独立段，各段内分别下落
+		var seg_start := 0
+		for y in range(h + 1):
+			if y == h or grid[y][x] == WALL:
+				var stack := []     # 段内非空 species（段内无墙）
+				var fx_stack := []
+				for k in range(seg_start, y):
+					if grid[k][x] != EMPTY:
+						stack.append(grid[k][x])
+						if has_fx:
+							fx_stack.append(fx[k][x])
+				var empties := (y - seg_start) - stack.size()
+				for k in range(seg_start, y):
+					var idx := k - seg_start
+					if idx < empties:
+						grid[k][x] = EMPTY
+						if has_fx:
+							fx[k][x] = SP_NONE
+					else:
+						grid[k][x] = stack[idx - empties]
+						if has_fx:
+							fx[k][x] = fx_stack[idx - empties]
+				seg_start = y + 1
 
 
 # 随机补充：把所有 EMPTY 填成 species_set 里的随机 species（用注入的 rng → 可复现）。
@@ -171,6 +178,10 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i) -> bool:
 	if abs(a.x - b.x) + abs(a.y - b.y) != 1:
 		return false  # 必须正交相邻
+	var va = grid[a.y][a.x]
+	var vb = grid[b.y][b.x]
+	if va == WALL or vb == WALL or va == EMPTY or vb == EMPTY:
+		return false  # 墙/空格不可参与交换（墙不可动）
 	_swap_cells(grid, a, b)
 	var found := not find_matches(grid).is_empty()
 	_swap_cells(grid, a, b)  # 还原
@@ -199,13 +210,17 @@ static func has_legal_move(grid: Array) -> bool:
 
 
 # 构造初始盘：逐格随机但避免凑成 3 连（开局无现成消除），并保证至少有一个合法移动。
-static func make_board(w: int, h: int, species: Array, rng: RandomNumberGenerator) -> Array:
+static func make_board(w: int, h: int, species: Array, rng: RandomNumberGenerator, wall_mask: Array = []) -> Array:
+	var has_mask := not wall_mask.is_empty()
 	var grid := []
 	for _attempt in 50:
 		grid = []
 		for y in h:
 			var row := []
 			for x in w:
+				if has_mask and wall_mask[y][x]:
+					row.append(WALL)
+					continue
 				var choices: Array = species.duplicate()
 				# 避免横向三连：左边两格已同色，则排除该色
 				if x >= 2 and row[x - 1] == row[x - 2]:

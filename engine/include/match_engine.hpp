@@ -9,6 +9,7 @@
 namespace me {
 
 constexpr int EMPTY = -1;
+constexpr int WALL = -2;  // 战场切割/异形棋盘：不可消、不可动、不补充；分隔区域
 
 // 特效类型（与 GDScript SP_* 对应）
 enum Special { SP_NONE = 0, SP_LINE_H = 1, SP_LINE_V = 2, SP_BOMB = 3, SP_COLORBOMB = 4 };
@@ -26,11 +27,11 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
     if (h == 0) return {};
     int w = (int)g[0].size();
     std::vector<std::vector<char>> mark(h, std::vector<char>(w, 0));
-    // 横向串
+    // 横向串（跳过 EMPTY 和 WALL：它们不参与消除、也不能让墙连成串）
     for (int y = 0; y < h; ++y) {
         int x = 0;
         while (x < w) {
-            if (g[y][x] == EMPTY) { ++x; continue; }
+            if (g[y][x] == EMPTY || g[y][x] == WALL) { ++x; continue; }
             int e = x;
             while (e + 1 < w && g[y][e + 1] == g[y][x]) ++e;
             if (e - x + 1 >= 3)
@@ -42,7 +43,7 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
     for (int x = 0; x < w; ++x) {
         int y = 0;
         while (y < h) {
-            if (g[y][x] == EMPTY) { ++y; continue; }
+            if (g[y][x] == EMPTY || g[y][x] == WALL) { ++y; continue; }
             int e = y;
             while (e + 1 < h && g[e + 1][x] == g[y][x]) ++e;
             if (e - y + 1 >= 3)
@@ -57,18 +58,27 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
     return out;
 }
 
-// 重力：每列非空落到列底，空升到顶。
+// 重力：每列非空落到列底，空升到顶。墙(WALL)不动，把列切成若干独立段，各段内分别下落。
 inline void apply_gravity(Grid& g) {
     int h = (int)g.size();
     if (h == 0) return;
     int w = (int)g[0].size();
     for (int x = 0; x < w; ++x) {
-        std::vector<int> stack;
-        for (int y = 0; y < h; ++y)
-            if (g[y][x] != EMPTY) stack.push_back(g[y][x]);
-        int empties = h - (int)stack.size();
-        for (int y = 0; y < h; ++y)
-            g[y][x] = (y < empties) ? EMPTY : stack[y - empties];
+        int seg_start = 0;
+        for (int y = 0; y <= h; ++y) {
+            if (y == h || g[y][x] == WALL) {
+                std::vector<int> stack;  // 段内非空棋子（段内无墙）
+                for (int k = seg_start; k < y; ++k)
+                    if (g[k][x] != EMPTY) stack.push_back(g[k][x]);
+                int seg_len = y - seg_start;
+                int empties = seg_len - (int)stack.size();
+                for (int k = seg_start; k < y; ++k) {
+                    int idx = k - seg_start;
+                    g[k][x] = (idx < empties) ? EMPTY : stack[idx - empties];
+                }
+                seg_start = y + 1;  // 跳过墙
+            }
+        }
     }
 }
 
@@ -99,6 +109,9 @@ inline void swap_cells(Grid& g, Vec2 a, Vec2 b) {
 // 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不改变 g（内部换回）。
 inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b) {
     if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
+    // 墙/空格不可参与交换（墙不可动）
+    int va = g[a.y][a.x], vb = g[b.y][b.x];
+    if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
     swap_cells(g, a, b);
     bool found = !find_matches(g).empty();
     swap_cells(g, a, b);
@@ -135,12 +148,16 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
 }
 
 // 构造初始盘：避免开局现成消除，且保证有合法移动。
-inline Grid make_board(int w, int h, const std::vector<int>& species, std::mt19937& rng) {
+// wall_mask（可选）：mask[y][x]!=0 的格放 WALL（异形棋盘），其余填棋子。
+inline Grid make_board(int w, int h, const std::vector<int>& species, std::mt19937& rng,
+                       const std::vector<std::vector<char>>& wall_mask = {}) {
+    bool has_mask = !wall_mask.empty();
     Grid g;
     for (int attempt = 0; attempt < 50; ++attempt) {
         g.assign(h, std::vector<int>(w, EMPTY));
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x) {
+                if (has_mask && wall_mask[y][x]) { g[y][x] = WALL; continue; }
                 std::vector<int> choices = species;
                 if (x >= 2 && g[y][x - 1] == g[y][x - 2])
                     choices.erase(std::remove(choices.begin(), choices.end(), g[y][x - 1]), choices.end());

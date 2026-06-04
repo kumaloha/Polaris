@@ -125,8 +125,52 @@ static void test_make_board() {
     CHECK(g1 == g2, "same seed -> identical board");
 }
 
+// ---- A①：战场切割/异形棋盘（WALL） ----
+
+static void test_find_matches_ignores_walls() {
+    Grid g = {
+        {WALL, WALL, WALL, 0},  // 三面墙连排，绝不能算消除
+        {1, 2, 3, 0},
+        {1, 2, 3, 0},           // 第3列 0,0,0 是真正的竖三连
+    };
+    auto m = find_matches(g);
+    CHECK_EQ((int)m.size(), 3, "only the real match; walls never match");
+    for (const auto& p : m) CHECK(g[p.y][p.x] != WALL, "no wall cell in matches");
+}
+
+static void test_gravity_respects_wall_segments() {
+    Grid g = {{1}, {EMPTY}, {WALL}, {EMPTY}, {2}};  // 单列：墙把列分成上下两段
+    apply_gravity(g);
+    Grid want = {{EMPTY}, {1}, {WALL}, {EMPTY}, {2}};
+    CHECK(g == want, "tiles fall within wall-bounded segments; wall stays put");
+}
+
+static void test_swap_wall_is_illegal() {
+    // 没墙时 (2,0)<->(2,1) 合法；把 (2,0) 变成墙后，即使交换会凑出三连也非法（墙不可动）
+    Grid gw = {{0, 0, WALL}, {1, 2, 0}, {3, 4, 5}};
+    CHECK(!is_legal_swap(gw, {2, 0}, {2, 1}), "moving a WALL is illegal even if tiles would match");
+}
+
+static void test_make_board_with_wall_mask() {
+    int W = 6, H = 6;
+    std::vector<std::vector<char>> mask(H, std::vector<char>(W, 0));
+    mask[0][0] = 1; mask[2][3] = 1; mask[5][5] = 1;  // 3 个洞
+    std::mt19937 rng(7);
+    auto g = make_board(W, H, {0, 1, 2, 3, 4}, rng, mask);
+    CHECK(g[0][0] == WALL && g[2][3] == WALL && g[5][5] == WALL, "walls at masked cells");
+    int walls = 0;
+    for (auto& r : g) for (int v : r) if (v == WALL) walls++;
+    CHECK_EQ(walls, 3, "exactly the masked walls, no others");
+    CHECK(find_matches(g).empty(), "no initial match on the irregular board");
+    CHECK(has_legal_move(g), "irregular board still has a legal move");
+}
+
 int main() {
     test_find_horizontal_three();
+    test_find_matches_ignores_walls();
+    test_gravity_respects_wall_segments();
+    test_swap_wall_is_illegal();
+    test_make_board_with_wall_mask();
     test_gravity_pulls_tiles_down();
     test_refill_fills_within_species();
     test_refill_deterministic();

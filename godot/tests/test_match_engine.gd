@@ -15,6 +15,49 @@ func test_find_horizontal_three() -> void:
 	assert_true(matched.has(Vector2i(1, 0)), "missing (1,0)")
 	assert_true(matched.has(Vector2i(2, 0)), "missing (2,0)")
 
+func test_find_matches_ignores_walls() -> void:
+	var W := ME.WALL
+	var grid := [
+		[W, W, W, 0],
+		[1, 2, 3, 0],
+		[1, 2, 3, 0],
+	]
+	var m: Array = ME.find_matches(grid)
+	assert_eq(m.size(), 3, "only the real match; walls never match")
+	for p in m:
+		assert_true(grid[p.y][p.x] != W, "no wall cell in matches")
+
+func test_gravity_respects_wall_segments() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [[1], [E], [W], [E], [2]]
+	ME.apply_gravity(grid)
+	assert_eq(grid, [[E], [1], [W], [E], [2]], "tiles fall within wall-bounded segments")
+
+func test_swap_wall_is_illegal() -> void:
+	var W := ME.WALL
+	var grid := [[0, 0, W], [1, 2, 0], [3, 4, 5]]
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "moving a WALL is illegal even if tiles would match")
+
+func test_make_board_with_wall_mask() -> void:
+	var W := ME.WALL
+	var mask := []
+	for y in 6:
+		var row := []
+		for x in 6:
+			row.append(false)
+		mask.append(row)
+	mask[0][0] = true
+	mask[2][3] = true
+	mask[5][5] = true
+	var rng := RandomNumberGenerator.new(); rng.seed = 7
+	var g := ME.make_board(6, 6, [0, 1, 2, 3, 4], rng, mask)
+	assert_eq(g[0][0], W, "wall at (0,0)")
+	assert_eq(g[2][3], W, "wall at masked (3,2)")
+	assert_eq(g[5][5], W, "wall at (5,5)")
+	assert_true(ME.find_matches(g).is_empty(), "no initial match on irregular board")
+	assert_true(ME.has_legal_move(g), "irregular board still has a legal move")
+
 func test_gravity_pulls_tiles_down() -> void:
 	var E := ME.EMPTY
 	var grid := [

@@ -13,21 +13,23 @@ var rng: RandomNumberGenerator
 
 var grid: Array
 var fx: Array = []   # 特效层（与 grid 同维），SP_NONE=普通
+var wall_mask: Array = []  # 异形棋盘掩码（可选）
 var score: int
 var moves_left: int
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
 	target_score = target
 	move_limit = moves
+	wall_mask = mask
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	start()
 
 func start() -> void:
-	grid = ME.make_board(width, height, species, rng)
+	grid = ME.make_board(width, height, species, rng, wall_mask)
 	fx = _blank_fx()
 	score = 0
 	moves_left = move_limit

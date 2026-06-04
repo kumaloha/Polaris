@@ -42,10 +42,23 @@ func _ready() -> void:
 
 
 func _new_game() -> void:
-	board = Board.new(W, H, SPECIES, TARGET, MOVES, cur_seed)
+	board = Board.new(W, H, SPECIES, TARGET, MOVES, cur_seed, _demo_wall_mask())
 	selected = Vector2i(-1, -1)
 	input_locked = false
 	_render()
+
+# 演示用异形棋盘：切 4 角 + 中心 2x2 柱
+func _demo_wall_mask() -> Array:
+	var m := []
+	for y in H:
+		var row := []
+		for x in W:
+			row.append(false)
+		m.append(row)
+	for c in [Vector2i(0, 0), Vector2i(W - 1, 0), Vector2i(0, H - 1), Vector2i(W - 1, H - 1),
+			Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4), Vector2i(4, 4)]:
+		m[c.y][c.x] = true
+	return m
 
 
 func _build_hud() -> void:
@@ -118,18 +131,22 @@ func _render() -> void:
 			var p := _cell_pos(x, y)
 			var rect: ColorRect = tiles[y][x]
 			rect.position = p
-			if sp < 0:
-				rect.color = Color(0, 0, 0, 0)
+			if sp == ME.WALL:
+				rect.color = Color("0c0e14")    # 墙=暗格（异形棋盘）
+			elif sp < 0:
+				rect.color = Color(0, 0, 0, 0)  # EMPTY 透明
 			elif f != ME.SP_NONE:
 				rect.color = COLORS[sp].lightened(0.28)  # 特效格提亮
 			else:
 				rect.color = COLORS[sp]
 			var lab: Label = labels[y][x]
 			lab.position = p
-			if f != ME.SP_NONE:
+			if sp == ME.WALL or sp < 0:
+				lab.text = ""
+			elif f != ME.SP_NONE:
 				lab.text = FX_GLYPH[f]      # 特效格显示特效标记
 			else:
-				lab.text = SYMBOLS[sp] if sp >= 0 else ""
+				lab.text = SYMBOLS[sp]
 	score_label.text = "分数 %d / %d" % [board.score, TARGET]
 	moves_label.text = "步数 %d" % board.moves_left
 	if board.is_won():
@@ -160,6 +177,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	var cell := _cell_from(pos)
 	if cell.x < 0:
 		return
+	if board.grid[cell.y][cell.x] == ME.WALL:
+		return  # 墙不可选
 	if selected.x < 0:
 		selected = cell
 		_render()
