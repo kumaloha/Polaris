@@ -53,6 +53,7 @@ var ad_continue_cap: int = 2
 # 铭文/养成喂参（Meta 系统设置，量变/随级成长）：铭文 +步数(开局多几步) / 技能等级
 var extra_moves: int = 0
 var skill_level: int = 1
+var score_mult: float = 1.0   # 铭文 +积分：计分倍率
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -91,6 +92,7 @@ func start() -> void:
 	active_used = false
 	longswap_armed = false
 	ad_continues = 0
+	score_mult = 1.0
 
 func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
@@ -180,7 +182,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
-	score += res["score"]
+	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
@@ -218,12 +220,12 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 		if not locked_set.has(p):
 			to_clear.append(p)   # 锁住格不清（只破锁）；彩球护盾时 cb 已排除
 	var gained := ME.score_for_clear(to_clear.size(), 1)
-	score += gained
+	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
 	ME.apply_gravity(grid, fx, coat)   # coat 感知：锁住格在重力下固定
 	ME.refill(grid, species, rng, fx)
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)   # 结算余下级联
-	score += res["score"]
+	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
@@ -254,12 +256,12 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 		if not locked.has(p):
 			to_clear.append(p)
 	var gained := ME.score_for_clear(to_clear.size(), 1)
-	score += gained
+	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])
 	ME.apply_gravity(grid, fx, coat)
 	ME.refill(grid, species, rng, fx)
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
-	score += res["score"]
+	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
@@ -383,7 +385,7 @@ func skill_clear_species(sp: int) -> bool:
 	for p in cells:
 		if not locked.has(p):
 			to_clear.append(p)
-	score += ME.score_for_clear(to_clear.size(), 1)
+	_gain(ME.score_for_clear(to_clear.size(), 1))
 	ME._apply_clears(grid, fx, to_clear, [])
 	ME.apply_gravity(grid, fx, coat)
 	ME.refill(grid, species, rng, fx)
@@ -415,7 +417,7 @@ func skill_foresight(k: int = 0) -> Array:
 # 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作）。
 func _settle_after_skill() -> void:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
-	score += res.get("score", 0)
+	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
@@ -469,3 +471,35 @@ func result() -> Dictionary:
 		"stars": stars,
 		"fragments": earned_fragments,
 	}
+
+# ───── 铭文计分 / Meta loadout 总入口 / 开局奖励 ─────
+
+# 计分入口：吃铭文 +积分倍率(score_mult)，返回实际加的分。
+func _gain(raw: int) -> int:
+	var g := int(round(raw * score_mult))
+	score += g
+	return g
+
+# Meta 总入口：把 loadout()(技能+等级+铭文聚合) 应用到本局 board。在 level 起始调用。
+func apply_loadout(lo: Dictionary) -> void:
+	skill = String(lo.get("skill", ""))
+	skill_level = int(lo.get("skill_level", 1))
+	score_mult = float(lo.get("score_mult", 1.0))
+	extra_moves = int(lo.get("extra_moves", 0))
+	ad_continue_cap = 2 + int(lo.get("extra_skill_uses", 0))
+	moves_left = move_limit + extra_moves   # 铭文 +步数（level 起始重算）
+	var op := int(lo.get("opening_special", 0))
+	if op != 0:
+		_place_opening(op)
+
+# 开局奖励铭文：在一个普通格放一个特效(kind)。
+func _place_opening(kind: int) -> void:
+	var spots := []
+	for y in height:
+		for x in width:
+			if grid[y][x] >= 0 and fx[y][x] == ME.SP_NONE and (coat.is_empty() or coat[y][x] == 0):
+				spots.append(Vector2i(x, y))
+	if spots.is_empty():
+		return
+	var p: Vector2i = spots[rng.randi() % spots.size()]
+	fx[p.y][p.x] = kind

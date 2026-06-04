@@ -527,3 +527,28 @@ func test_skill_level_scales_break() -> void:
 	b.skill_level = 2
 	b.skill_break()   # 无参 → 用等级 2
 	assert_eq(b.blocker_cleared, 2, "level 2 breaks 2 blockers")
+
+func test_score_mult_gain() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999, 20, 5)
+	b.score = 0
+	b.score_mult = 2.0
+	b._gain(100)
+	assert_eq(b.score, 200, "积分铭文 score_mult 2.0 doubles gain")
+
+func test_apply_loadout() -> void:
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 100, 20, 7)
+	b.apply_loadout({
+		"skill": "breaker", "skill_level": 2, "score_mult": 1.5,
+		"extra_moves": 2, "extra_skill_uses": 1, "opening_special": 1,
+	})
+	assert_eq(b.skill, "breaker", "skill set")
+	assert_eq(b.skill_level, 2, "level set")
+	assert_eq(b.score_mult, 1.5, "score_mult set")
+	assert_eq(b.moves_left, 22, "move_limit 20 + extra_moves 2")
+	assert_eq(b.ad_continue_cap, 3, "2 + extra_skill_uses 1")
+	var cnt := 0
+	for row in b.fx:
+		for f in row:
+			if f == ME.SP_LINE_H:
+				cnt += 1
+	assert_eq(cnt, 1, "one opening special placed")
