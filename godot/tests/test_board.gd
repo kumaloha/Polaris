@@ -271,3 +271,82 @@ func test_unpaid_debt_loses_when_moves_out() -> void:
 	b.moves_left = 0   # 步数耗尽
 	assert_false(b.is_won(), "debt blocks win")
 	assert_true(b.is_lost(), "moves out + unpaid debt -> lost")
+
+# ───────────── 被动技能 #10/#11 + 状态历史 #2/#3 ─────────────
+
+func test_chainbonus_awards_move() -> void:
+	# 连消奖步(#10)：连锁≥阈值奖 1 步。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999, 20, 5)
+	b.skill = "chainbonus"
+	b.chain_threshold = 3
+	b._on_move_resolved(3)
+	assert_eq(b.moves_left, 21, "chain>=threshold awards +1 move (20->21)")
+	assert_eq(b.bonus_moves, 1, "bonus tracked")
+	b._on_move_resolved(2)
+	assert_eq(b.moves_left, 21, "below threshold: no award")
+
+func test_collector_collects_fragments() -> void:
+	# 连击收集(#11)：连击额外攒铭文碎片。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999, 20, 5)
+	b.skill = "collector"
+	b._on_move_resolved(3)
+	assert_eq(b.fragments, 3, "combo collects fragments = cascades")
+	b._on_move_resolved(1)
+	assert_eq(b.fragments, 3, "cascades<2: no extra")
+
+func test_rewind_restores_earlier_state() -> void:
+	# 时间回退(#2)：回到窗口内最早局面，一局一次。
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "timerewind"
+	var start_grid = b.grid.duplicate(true)
+	for i in 2:
+		var mv := _find_legal_move(b.grid)
+		assert_true(mv.size() == 2, "legal move exists")
+		if mv.size() != 2:
+			return
+		b.try_swap(mv[0], mv[1])
+	assert_eq(b.moves_left, 28, "two moves consumed")
+	assert_true(b.skill_rewind(), "rewind ok")
+	assert_eq(b.moves_left, 30, "rewound to opening (within window)")
+	assert_eq(b.grid, start_grid, "board restored to opening")
+	assert_false(b.skill_rewind(), "rewind 一局一次")
+
+func test_snapshot_save_and_load() -> void:
+	# 存档快照(#3)：存当前局面，跳回，存档被消耗。
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "snapshot"
+	assert_true(b.skill_save(), "save ok")
+	var saved_moves := b.moves_left
+	var saved_grid = b.grid.duplicate(true)
+	for i in 3:
+		var mv := _find_legal_move(b.grid)
+		if mv.size() != 2:
+			break
+		b.try_swap(mv[0], mv[1])
+	assert_true(b.moves_left < saved_moves, "state changed by play")
+	assert_true(b.skill_load(), "load ok")
+	assert_eq(b.moves_left, saved_moves, "moves restored")
+	assert_eq(b.grid, saved_grid, "board restored")
+	assert_false(b.skill_load(), "load consumed the save")
+
+func test_colorbomb_shield_preserves_colorbomb() -> void:
+	# 彩球护盾(#6)：引爆时护盾在 → 彩球本体保留、护盾消耗。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1)
+	b.skill = "colorshield"
+	b.grid = [
+		[0, 1, 2, 3],
+		[1, 0, 3, 2],
+		[5, 1, 2, 3],
+		[4, 1, 2, 3],
+	]
+	b.fx = b._blank_fx()
+	b.fx[2][0] = ME.SP_COLORBOMB
+	assert_true(b.skill_shield(), "shield activated")
+	b.try_swap(Vector2i(0, 2), Vector2i(0, 1))  # 引爆彩球
+	var cb_count := 0
+	for row in b.fx:
+		for f in row:
+			if f == ME.SP_COLORBOMB:
+				cb_count += 1
+	assert_true(cb_count >= 1, "colorbomb preserved by shield")
+	assert_eq(b.colorbomb_shield, 0, "shield consumed")
