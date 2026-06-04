@@ -5,6 +5,7 @@ const GameScript := preload("res://view/game.gd")
 const CelestialBg := preload("res://ui/celestial_bg.gd")
 const MetaState := preload("res://meta/meta_state.gd")
 const Enchants := preload("res://meta/enchants.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
 # 占星风配色
 const C_GOLD := Color("e9c97c")
@@ -33,6 +34,7 @@ var meta: MetaState              # Meta 进度(钱包/角色/铭文/历史)，�
 var _played: Dictionary = {}     # 本会话已玩过的库索引(调度优先没玩过的)
 var _cur_level := -1             # 当前对局的库索引(结束后入账)
 var _rng: RandomNumberGenerator  # 抽卡随机源
+var _lib: Array = []             # 关卡库(res://levels.json)，供地图显示关数/难度
 
 
 # 抠白材质(无 alpha 的白底立绘 → 透明)；全 UI 共用一份。
@@ -52,6 +54,7 @@ func _ready() -> void:
 	meta.load_state()
 	_rng = RandomNumberGenerator.new()
 	_rng.randomize()
+	_lib = LevelLibrary.load_file("res://levels.json")
 	_sync_selected_to_equipped()
 	_show_home()
 
@@ -96,8 +99,8 @@ func _show_home() -> void:
 	_add_hero_ribbon(hero, Vector2(360, 566))
 
 	# START：金色发光主按钮
-	var start := _gold_button("开 始", "第 12 关 · 体力 1", Rect2(228, 686, 264, 88))
-	start.pressed.connect(Callable(self, "_show_game"))
+	var start := _gold_button("开 始", "进入魔法小径", Rect2(228, 686, 264, 88))
+	start.pressed.connect(Callable(self, "_show_map"))
 	add_child(start)
 
 	# 底部导航
@@ -154,19 +157,19 @@ func _show_character() -> void:
 	add_child(runes)
 
 
-func _show_game() -> void:
+func _show_game(level_idx: int = -1) -> void:
 	_clear()
 	var game := Node2D.new()
 	game.name = "Game"
 	game.set_script(GameScript)
 	add_child(game)   # _ready 同步：建 HUD/tiles、读关卡库、_new_game(默认关)
 	game.game_over.connect(Callable(self, "_on_game_over"))   # 对局结束→结算屏
-	# Meta 个性化：心流调度选关 + 喂 loadout(技能+铭文)，再按选定关重开
+	# 选关：地图指定(level_idx>=0) 优先；否则心流调度推荐。再喂 loadout(技能+铭文)重开。
 	_cur_level = -1
 	if meta != null:
 		var lib: Array = game.algo_levels
-		var idx := meta.recommend_next(lib, _played)
-		if idx >= 0:
+		var idx := level_idx if level_idx >= 0 else meta.recommend_next(lib, _played)
+		if idx >= 0 and idx < lib.size():
 			game.demo_idx = idx
 			_cur_level = idx
 		game.loadout = meta.loadout()
@@ -190,9 +193,11 @@ func _exit_game() -> void:
 func _on_game_over(result: Dictionary) -> void:
 	if meta != null:
 		meta.bank_result(result)
-		meta.save()
 		if _cur_level >= 0:
 			_played[_cur_level] = true
+			if bool(result.get("won", false)):
+				meta.record_clear(_cur_level, int(result.get("stars", 0)))   # 关卡地图进度
+		meta.save()
 	_show_result(result)
 
 
@@ -241,7 +246,10 @@ func _show_result(result: Dictionary) -> void:
 	# 按钮
 	var primary_text := "下一关 ▸" if won else "再玩一次"
 	var primary := _gold_button(primary_text, "体力 1", Rect2(228, 626, 264, 84))
-	primary.pressed.connect(Callable(self, "_show_game"))   # 重新走调度(过关→新关；失败→大概率同档)
+	if won:
+		primary.pressed.connect(Callable(self, "_show_map"))                       # 过关→回地图挑下一关
+	else:
+		primary.pressed.connect(Callable(self, "_show_game").bind(_cur_level))     # 失败→重开本关
 	add_child(primary)
 	var homebtn := _round_button("‹", Rect2(18, 18, 48, 48))
 	homebtn.z_index = 50
@@ -673,6 +681,92 @@ func _clear_enchants() -> void:
 	meta.enchant_page = ["", "", "", "", "", "", "", "", ""]
 	meta.save()
 	_show_enchants()
+
+
+# 关卡地图(蜿蜒小径)：库内各关按序蜿蜒排布,已过(蓝+星)/当前(金,可玩)/未解锁(灰)。点已解锁→打那关。
+func _show_map() -> void:
+	_clear()
+	_add_gradient_background(false)
+	var n: int = _lib.size() if _lib.size() > 0 else 12
+	var gap_y := 132.0
+	var pad_top := 70.0
+	var content_h := pad_top + n * gap_y + 90.0
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, 96)
+	scroll.size = Vector2(VIEW_W, VIEW_H - 96)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	add_child(scroll)
+	var content := Control.new()
+	content.custom_minimum_size = Vector2(VIEW_W, content_h)
+	scroll.add_child(content)
+	var cur := _current_level(n)
+	var cur_y := 0.0
+	for i in n:
+		var x := VIEW_W * 0.5 + sin(i * 0.95) * 150.0
+		var y := pad_top + (n - 1 - i) * gap_y   # 0 关在最下，越高越上
+		if i == cur:
+			cur_y = y
+		_map_node(content, i, x, y, _level_state(i, cur))
+	scroll.set_deferred("scroll_vertical", int(maxf(0.0, cur_y - 240.0)))   # 开屏滚到当前关
+	# 顶栏
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+	add_child(_label("星辉森林 · 魔法小径", Rect2(88, 36, 420, 40), 22, C_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
+
+
+func _current_level(n: int) -> int:
+	if meta == null:
+		return 0
+	for i in n:
+		if not meta.level_stars.has(str(i)):
+			return i
+	return n - 1   # 全过了 → 停在最后一关
+
+
+func _level_state(i: int, cur: int) -> String:
+	if meta != null and meta.level_stars.has(str(i)):
+		return "cleared"
+	if i <= cur:
+		return "current"
+	return "locked"
+
+
+func _map_node(parent: Control, idx: int, x: float, y: float, state: String) -> void:
+	var sz := 72.0
+	var locked: bool = state == "locked"
+	var cleared: bool = state == "cleared"
+	var is_cur: bool = state == "current"
+	# 深色底衬：让节点色块在中心辉光上也清晰
+	var halo := Panel.new()
+	halo.position = Vector2(x - sz * 0.5 - 6, y - sz * 0.5 - 6)
+	halo.size = Vector2(sz + 12, sz + 12)
+	halo.add_theme_stylebox_override("panel", _style(Color(0.04, 0.07, 0.16, 0.82), 999, C_GOLD if is_cur else Color(1, 1, 1, 0.0), 0))
+	halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(halo)
+	var btn := Button.new()
+	btn.position = Vector2(x - sz * 0.5, y - sz * 0.5)
+	btn.size = Vector2(sz, sz)
+	var fill: Color = Color("a89fce") if locked else (Color("5fb0ff") if cleared else Color("ffce5e"))
+	var border: Color = C_GOLD if is_cur else Color(1, 1, 1, 0.55)
+	var bw: int = 4 if is_cur else 2
+	btn.add_theme_stylebox_override("normal", _style(fill, 999, border, bw))
+	if not locked:
+		btn.add_theme_stylebox_override("hover", _style(fill.lightened(0.10), 999, C_GOLD, bw))
+		btn.add_theme_stylebox_override("pressed", _style(fill.darkened(0.10), 999, C_GOLD, bw))
+		btn.pressed.connect(Callable(self, "_show_game").bind(idx))
+	parent.add_child(btn)
+	btn.add_child(_inner_label(str(idx + 1), Rect2(0, 0, sz, sz), 24, Color(1, 1, 1, 0.5) if locked else Color("3a2600")))
+	# 难度标(节点右侧)
+	if idx < _lib.size():
+		var diff := "挖矿" if bool(_lib[idx].get("is_scrolling", false)) else String(_lib[idx].get("difficulty", ""))
+		parent.add_child(_label(diff, Rect2(x + sz * 0.5 + 4, y - 11, 84, 22), 12, C_INK_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+	# 星级(已过，节点下方)
+	if cleared:
+		var s := int(meta.level_stars.get(str(idx), 0))
+		parent.add_child(_label("★".repeat(s), Rect2(x - 42, y + sz * 0.5 - 2, 84, 18), 14, C_GOLD))
 
 
 func _skill_name(character: Dictionary) -> String:

@@ -14,6 +14,7 @@ var owned: Dictionary = {}  # 角色 id -> 等级
 var enchant_page: Array = []    # 9 格(String，空槽 "")
 var equipped_skill: String = "" # 当前装备的角色 id
 var history: Array = []          # 每局表现 [{won, stars}]，供个性化调度估技能
+var level_stars: Dictionary = {} # 关卡进度：关索引(str) -> 最佳星级，供关卡地图显示进度
 
 func _init() -> void:
 	enchant_page.resize(Enchants.SLOTS)
@@ -31,6 +32,12 @@ func bank_result(r: Dictionary) -> void:
 		"stars": int(r.get("stars", 0)),
 		"kind": ("scroll" if r.get("is_scrolling", false) else "normal"),   # 类型化历史→分类型估技能
 	})
+
+# 记录某关最佳星级(关卡地图进度)。idx=关卡库索引。
+func record_clear(idx: int, stars: int) -> void:
+	var k := str(idx)
+	if stars > int(level_stars.get(k, 0)):
+		level_stars[k] = stars
 
 # 抽卡（消耗水晶）。返回 pull 结果，或 {"error":...}。
 func do_gacha(rng: RandomNumberGenerator, cost: int = 1) -> Dictionary:
@@ -61,7 +68,7 @@ func save() -> void:
 	var d := {
 		"fragments": fragments, "crystals": crystals, "coins": coins,
 		"owned": owned, "enchant_page": enchant_page, "equipped_skill": equipped_skill,
-		"history": history,
+		"history": history, "level_stars": level_stars,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
@@ -87,6 +94,8 @@ func load_state() -> void:
 	enchant_page = page if typeof(page) == TYPE_ARRAY and page.size() == Enchants.SLOTS else _blank_page()
 	var h = d.get("history", [])
 	history = h if typeof(h) == TYPE_ARRAY else []   # 恢复历史→个性化调度跨会话累积(不重置)
+	var ls = d.get("level_stars", {})
+	level_stars = ls if typeof(ls) == TYPE_DICTIONARY else {}
 
 func _blank_page() -> Array:
 	var p := []
