@@ -56,6 +56,7 @@ struct PlayResult {
     bool won = false;
     int score = 0;
     int moves_used = 0;
+    int jelly_cleared = 0;       // 累计清掉的果冻层
     std::vector<int> collected;  // 各 species 累计消除数
 };
 
@@ -105,6 +106,7 @@ inline PlayResult greedy_play(const Level& lv) {
         res.moves_used++;
     }
     res.collected = collected;
+    res.jelly_cleared = jelly_total;
     res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }
@@ -156,6 +158,7 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
         res.moves_used++;
     }
     res.collected = collected;
+    res.jelly_cleared = jelly_total;
     res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }
@@ -180,6 +183,7 @@ inline PlayResult random_play(const Level& lv) {
         res.moves_used++;
     }
     res.collected = collected;
+    res.jelly_cleared = jelly_total;
     res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }

@@ -14,8 +14,10 @@ struct GenConfig {
     double min_gap = 0.10;    // 最低 LFHC 深度（gap 太小=怎么玩都一样 → 弃）
     double frac_lo = 0.35;    // 目标落点下界（floor..ceil 之间）
     double frac_hi = 0.85;    // 目标落点上界
-    double collect_ratio = 0.5;  // 约多少比例关卡发 COLLECT 目标（其余 SCORE）
-    double min_collect = 4.0;    // 某色被天花板平均收集 >= 此值才可作 COLLECT 目标
+    double collect_ratio = 0.35; // 约多少比例发 COLLECT 目标
+    double jelly_ratio = 0.25;   // 约多少比例发 CLEAR_JELLY 目标（其余 SCORE）
+    double min_collect = 4.0;    // 某色被天花板平均收集 >= 此值才可作 COLLECT
+    double min_jelly = 4.0;      // 天花板平均清果冻 >= 此值才可作 JELLY
     uint32_t base_seed = 1;
 };
 
@@ -41,8 +43,16 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
         uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
 
-        // raw 评估：target 设很大 → 玩家走满步 → 测地板/天花板原始分 + 各色收集均值
-        double fsum = 0, csum = 0;
+        // 满果冻层（playable=1, WALL=0）——白挂着测各玩家清多少层（不影响分/步）
+        int H = (int)board.size();
+        int W = (int)board[0].size();
+        std::vector<std::vector<int>> full_jelly(H, std::vector<int>(W, 1));
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                if (board[y][x] == WALL) full_jelly[y][x] = 0;
+
+        // raw 评估：target 设很大 → 走满步 → 测地板/天花板的分、各色收集、果冻清层
+        double fsum = 0, csum = 0, gj = 0, rj = 0;
         std::vector<double> g_col, r_col;
         for (int t = 0; t < cfg.trials; ++t) {
             Level lv;
@@ -51,10 +61,13 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
             lv.move_limit = cfg.move_limit;
             lv.target_score = BIG;
             lv.seed = cand_seed + (uint32_t)t * 1000003u;
+            lv.jelly = full_jelly;
             PlayResult rp = random_play(lv);
             PlayResult gp = greedy_play(lv);
             fsum += rp.score;
             csum += gp.score;
+            rj += rp.jelly_cleared;
+            gj += gp.jelly_cleared;
             if (r_col.size() < rp.collected.size()) r_col.resize(rp.collected.size(), 0.0);
             for (size_t i = 0; i < rp.collected.size(); ++i) r_col[i] += rp.collected[i];
             if (g_col.size() < gp.collected.size()) g_col.resize(gp.collected.size(), 0.0);
@@ -62,6 +75,8 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         }
         double floor_s = fsum / cfg.trials;
         double ceil_s = csum / cfg.trials;
+        double g_jelly = gj / cfg.trials;
+        double r_jelly = rj / cfg.trials;
         if (floor_s < 1.0) continue;
         double gap = (ceil_s - floor_s) / floor_s;
         if (gap < cfg.min_gap) continue;  // 没深度 → 弃
@@ -74,26 +89,34 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         final.move_limit = cfg.move_limit;
         final.seed = cand_seed;
 
-        // 目标类型：约 collect_ratio 发 COLLECT（收集某色），否则 SCORE（冲分）
-        bool made_collect = false;
-        if (fracdist(fracgen) < cfg.collect_ratio) {
+        // 三选一：COLLECT / JELLY / SCORE（u 选型，frac 定甜区位置）
+        double u = fracdist(fracgen);
+        double frac = fracdist(fracgen);
+        bool decided = false;
+        if (u < cfg.collect_ratio) {  // 收集某色
             int best_s = -1;
             double best_gap = 0.0;
             for (size_t s = 0; s < g_col.size(); ++s) {
                 if (g_col[s] < cfg.min_collect) continue;
                 double rp = (s < r_col.size()) ? r_col[s] : 0.0;
-                double d = g_col[s] - rp;  // 技巧玩家比地板多收集多少 = 该色的深度
+                double d = g_col[s] - rp;
                 if (d > best_gap) { best_gap = d; best_s = (int)s; }
             }
             if (best_s >= 0) {
                 double rp = (best_s < (int)r_col.size()) ? r_col[best_s] : 0.0;
-                double ct = rp + fracdist(fracgen) * (g_col[best_s] - rp);  // 甜区
+                double ct = rp + frac * (g_col[best_s] - rp);
                 final.objectives = {{OBJ_COLLECT, best_s, (int)(ct < 1 ? 1 : ct)}};
-                made_collect = true;
+                decided = true;
             }
         }
-        if (!made_collect) {
-            double frac = fracdist(fracgen);
+        if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio && g_jelly >= cfg.min_jelly) {  // 清果冻
+            int ct = (int)(r_jelly + frac * (g_jelly - r_jelly));
+            if (ct < 1) ct = 1;
+            final.jelly = full_jelly;
+            final.objectives = {{OBJ_CLEAR_JELLY, -1, ct}};
+            decided = true;
+        }
+        if (!decided) {  // 冲分
             int target = (int)(floor_s + frac * (ceil_s - floor_s));
             if (target <= (int)floor_s) target = (int)floor_s + 1;
             final.target_score = target;
