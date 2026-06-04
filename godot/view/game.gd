@@ -364,7 +364,7 @@ func _rebuild_tiles() -> void:
 
 			# 宝石立绘(基础/横/竖/彩球)，叠在底色块上、符号/冰锁之下
 			var pr := TextureRect.new()
-			pr.size = Vector2(CELL + GAP + 18, CELL + GAP + 18)   # 加大overlap盖住缝(美术有透明边距)，棋子更挤(CC 式)
+			pr.size = Vector2(CELL + GAP + 4, CELL + GAP + 4)   # 裁边后立绘已贴满，尺寸≈格距+略overlap→棋子真正挨着
 			pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -448,13 +448,20 @@ func _piece_tex(p) -> Texture2D:
 	if p == null or String(p).is_empty():
 		return null
 	var path := String(p)
+	var img: Image = null
 	if ResourceLoader.exists(path):   # 已导入资源(导出可带) 优先
 		var t = load(path)
 		if t is Texture2D:
-			return t
-	var img := Image.new()             # 回退:从源 png 直接读(编辑器/开发)
-	if img.load(ProjectSettings.globalize_path(path) if path.begins_with("res://") else path) != OK:
-		return null
+			img = t.get_image()
+	if img == null:                    # 回退:从源 png 直接读(编辑器/开发)
+		img = Image.new()
+		var fp := ProjectSettings.globalize_path(path) if path.begins_with("res://") else path
+		if img.load(fp) != OK:
+			return null
+	img.convert(Image.FORMAT_RGBA8)
+	var used := img.get_used_rect()    # 裁掉透明边距→立绘贴满格，棋子能真正挨着
+	if used.size.x > 8 and used.size.y > 8:
+		img = img.get_region(used)
 	return ImageTexture.create_from_image(img)
 
 
