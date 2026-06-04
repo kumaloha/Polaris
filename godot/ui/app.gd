@@ -24,7 +24,7 @@ const ENCHANT_INFO := {
 const ENCHANT_CYCLE := ["", "moves", "score", "coins", "skill_uses", "opening"]
 
 const VIEW_W := 720.0
-const VIEW_H := 920.0
+const VIEW_H := 1520.0
 
 var characters: Array = []
 var selected_idx := 0
@@ -74,37 +74,88 @@ func _clear() -> void:
 		child.queue_free()
 
 
+# 高瘦画布(1520)：把本屏内容整体下移 dy 以纵向居中(跳过背景/左上返回键/底栏)。
+# 各非首页屏按为 920 布的版式构建后，调用一次即可贴合高画布。
+func _center_content(dy: float) -> void:
+	for c in get_children():
+		if not (c is Control) or c.get_script() == CelestialBg:
+			continue
+		var ctl := c as Control
+		if ctl is Button and ctl.size.x < 80.0 and ctl.position.y < 80.0:
+			continue   # 左上角圆形返回键，保持在顶
+		if ctl.position.y >= VIEW_H - 100.0:
+			continue   # 底部导航栏
+		ctl.position.y += dy
+
+
 func _show_home() -> void:
 	_clear()
-	_add_gradient_background(true)   # 带魔法阵的占星背景
+	_add_gradient_background(true)   # 带魔法阵的占星背景(阵心默认 y600，对到萌宠)
 	var hero := _selected_character()
 
-	# 顶部：玩家牌(左) + 资源链(右)
-	_add_avatar_chip(hero, Vector2(18, 34))
+	# 顶部：玩家牌(左,带等级条) + 资源链(右) + 设置齿轮(右上角)
+	_add_avatar_chip(hero, Vector2(18, 42))
 	_add_res_chips()
+	var gear := _round_button("⚙", Rect2(662, 96, 46, 46))
+	gear.add_theme_font_size_override("font_size", 22)
+	gear.pressed.connect(Callable(self, "_show_settings"))
+	add_child(gear)
 
 	# 侧边徽章(任务/召唤)
-	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 150), "3", Callable(self, "_show_placeholder").bind("每日任务", "每日任务 + 签到 · 领碎片与水晶"))
-	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 150), "!", Callable(self, "_show_gacha"))
+	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 178), "3", Callable(self, "_show_placeholder").bind("每日任务", "每日任务 + 签到 · 领碎片与水晶"))
+	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 178), "!", Callable(self, "_show_gacha"))
 	summon.tooltip_text = "召唤"
 
-	# 关卡牌(萌宠上方)
-	var lvlpill := _glass_panel(Rect2(296, 214, 128, 38), Color(0.10, 0.16, 0.32, 0.78))
-	lvlpill.add_theme_stylebox_override("panel", _style(Color(0.10, 0.16, 0.32, 0.78), 999, C_GOLD, 1))
-	add_child(lvlpill)
-	lvlpill.add_child(_inner_label("第 12 关", Rect2(0, 0, 128, 38), 18, C_GOLD))
+	var n := _lib.size() if _lib.size() > 0 else 12
+	var cur := _current_level(n)
 
-	# 英雄台：魔法阵(背景已画) + 萌宠立绘
-	_add_character_art(hero, Rect2(196, 250, 328, 330), false)
-	_add_hero_ribbon(hero, Vector2(360, 566))
+	# 关卡牌(萌宠上方)
+	var lvlpill := _dark_panel(Rect2(296, 348, 128, 40), 999, C_GOLD, 1)
+	add_child(lvlpill)
+	lvlpill.add_child(_inner_label("第 %d 关" % (cur + 1), Rect2(0, 0, 128, 40), 18, C_GOLD))
+
+	# 英雄台：魔法阵(背景已画) + 萌宠立绘(画布中部)
+	_add_character_art(hero, Rect2(170, 402, 380, 400), false)
+	_add_hero_ribbon(hero, Vector2(360, 812))
+
+	# 关卡目标预览(对齐 homepage.html 的 collect-items 面板)
+	_add_home_objective(cur, Rect2(130, 918, 460, 168))
 
 	# START：金色发光主按钮
-	var start := _gold_button("开 始", "进入魔法小径", Rect2(228, 686, 264, 88))
+	var start := _gold_button("开 始", "进入魔法小径", Rect2(228, 1168, 264, 96))
 	start.pressed.connect(Callable(self, "_show_map"))
 	add_child(start)
 
 	# 底部导航
 	_add_bottom_nav("home")
+
+
+# 首页关卡目标预览(对齐 homepage.html)：关号·难度 + 收集/奖励三格
+func _add_home_objective(level_idx: int, rect: Rect2) -> void:
+	var panel := _dark_panel(rect, 24, C_GOLD, 1)
+	add_child(panel)
+	var diff := "普通"
+	if level_idx >= 0 and level_idx < _lib.size():
+		diff = "挖矿关" if bool(_lib[level_idx].get("is_scrolling", false)) else String(_lib[level_idx].get("difficulty", "普通"))
+	panel.add_child(_inner_label("第 %d 关 · %s" % [level_idx + 1, diff], Rect2(0, 16, rect.size.x, 26), 18, C_GOLD))
+	panel.add_child(_inner_label("收集星辉 · 点亮魔法小径", Rect2(0, 46, rect.size.x, 22), 14, C_INK_DIM))
+	var chips := [[Color("ff9ec7"), "碎片", "×8"], [Color("c79bff"), "水晶", "×1"], [C_GOLD, "星辉", "★3"]]
+	var cw := 120.0
+	var gap := (rect.size.x - 3.0 * cw) / 4.0
+	for i in 3:
+		var ci: Array = chips[i]
+		var chip := Panel.new()
+		chip.position = Vector2(gap + i * (cw + gap), 86)
+		chip.size = Vector2(cw, 62)
+		chip.add_theme_stylebox_override("panel", _style(Color(0.06, 0.10, 0.22, 0.6), 16, Color(1, 1, 1, 0.12), 1))
+		panel.add_child(chip)
+		var dot := Panel.new()
+		dot.position = Vector2(12, 18)
+		dot.size = Vector2(26, 26)
+		dot.add_theme_stylebox_override("panel", _style(ci[0], 999, Color(1, 1, 1, 0.5), 1))
+		chip.add_child(dot)
+		chip.add_child(_inner_label(String(ci[1]), Rect2(44, 8, cw - 48, 20), 13, C_INK_DIM, HORIZONTAL_ALIGNMENT_LEFT))
+		chip.add_child(_inner_label(String(ci[2]), Rect2(44, 28, cw - 48, 26), 17, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
 
 
 func _show_character() -> void:
@@ -115,7 +166,7 @@ func _show_character() -> void:
 	back.pressed.connect(Callable(self, "_show_home"))
 	add_child(back)
 
-	var title := _label("角色", Rect2(105, 52, 260, 46), 34, Color("2c2350"), HORIZONTAL_ALIGNMENT_LEFT)
+	var title := _label("角色", Rect2(105, 52, 260, 46), 34, C_GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	title.add_theme_font_size_override("font_size", 34)
 	add_child(title)
 
@@ -155,6 +206,7 @@ func _show_character() -> void:
 	runes.add_theme_color_override("font_color", Color("4a2f00"))
 	runes.pressed.connect(Callable(self, "_show_enchants"))
 	add_child(runes)
+	_center_content(280)
 
 
 func _show_game(level_idx: int = -1) -> void:
@@ -258,6 +310,7 @@ func _show_result(result: Dictionary) -> void:
 	var home_wide := _button("回首页", Rect2(270, 728, 180, 52), Color("9d6cf0"), Color("7a3fe0"))
 	home_wide.pressed.connect(Callable(self, "_show_home"))
 	add_child(home_wide)
+	_center_content(320)
 
 
 func _reward_chip(parent: Control, icon_color: Color, label: String, n: int, rect: Rect2) -> void:
@@ -304,19 +357,29 @@ func _dark_panel(rect: Rect2, radius: int, border: Color, bw: int) -> Panel:
 
 
 func _add_avatar_chip(hero: Dictionary, pos: Vector2) -> void:
-	var chip := _dark_panel(Rect2(pos, Vector2(190, 54)), 999, C_GOLD, 1)
+	var chip := _dark_panel(Rect2(pos, Vector2(224, 62)), 999, C_GOLD, 1)
 	add_child(chip)
 	var av := TextureRect.new()
-	av.position = Vector2(5, 5)
-	av.size = Vector2(44, 44)
+	av.position = Vector2(6, 6)
+	av.size = Vector2(50, 50)
 	av.texture = _load_texture(String(hero.get("portrait", "")))
 	av.material = _white_key_material()
 	av.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	av.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	av.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.add_child(av)
-	chip.add_child(_inner_label("星语者", Rect2(58, 7, 126, 24), 17, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
-	chip.add_child(_inner_label("Lv. 27", Rect2(58, 29, 126, 20), 13, C_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
+	chip.add_child(_inner_label("星语者", Rect2(66, 8, 150, 22), 16, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
+	chip.add_child(_inner_label("Lv. 27", Rect2(150, 8, 66, 22), 13, C_GOLD, HORIZONTAL_ALIGNMENT_RIGHT))
+	var track := Panel.new()   # 等级进度条
+	track.position = Vector2(66, 38)
+	track.size = Vector2(150, 9)
+	track.add_theme_stylebox_override("panel", _style(Color(1, 1, 1, 0.14), 999, Color(1, 1, 1, 0.0), 0))
+	chip.add_child(track)
+	var fill := Panel.new()
+	fill.position = Vector2(0, 0)
+	fill.size = Vector2(150 * 0.62, 9)
+	fill.add_theme_stylebox_override("panel", _style(C_GOLD, 999, Color(1, 1, 1, 0.0), 0))
+	track.add_child(fill)
 
 
 func _add_res_chips() -> void:
@@ -406,15 +469,15 @@ func _gold_style(shift: float) -> StyleBoxFlat:
 
 func _add_bottom_nav(active: String) -> void:
 	var bar := Panel.new()
-	bar.position = Vector2(0, 832)
+	bar.position = Vector2(0, VIEW_H - 88)
 	bar.size = Vector2(VIEW_W, 88)
 	bar.add_theme_stylebox_override("panel", _style(Color(0.07, 0.11, 0.24, 0.92), 30, C_GOLD, 1))
 	add_child(bar)
 	var items := [
 		["角色", "character", Callable(self, "_show_character")],
+		["铭文", "enchant", Callable(self, "_show_enchants")],
+		["成就", "achievement", Callable(self, "_show_placeholder").bind("成就", "解锁里程碑 · 凭实力达成,不卖数值")],
 		["商店", "shop", Callable(self, "_show_placeholder").bind("商店", "皮肤 + 水晶 · 纯外观,绝不卖加步数等强度道具")],
-		["排行", "rank", Callable(self, "_show_placeholder").bind("排行榜", "周赛 · 靠高分上榜,凭实力竞技")],
-		["设置", "settings", Callable(self, "_show_settings")],
 	]
 	var n := items.size()
 	var slot := VIEW_W / float(n)
@@ -422,7 +485,7 @@ func _add_bottom_nav(active: String) -> void:
 		var it: Array = items[i]
 		var is_active: bool = String(it[1]) == active
 		var btn := Button.new()
-		btn.position = Vector2(slot * i + slot * 0.5 - 36, 842)
+		btn.position = Vector2(slot * i + slot * 0.5 - 36, VIEW_H - 78)
 		btn.size = Vector2(72, 72)
 		btn.flat = true
 		var border := C_GOLD if is_active else Color(1, 1, 1, 0.28)
@@ -544,6 +607,7 @@ func _show_gacha() -> void:
 	ten.pressed.connect(Callable(self, "_do_pull").bind(10))
 	add_child(ten)
 	add_child(_label("高分对局可获得魔法水晶 · 重复转碎片", Rect2(0, 788, VIEW_W, 24), 14, C_INK_DIM))
+	_center_content(320)
 
 
 func _do_pull(n: int) -> void:
@@ -600,6 +664,7 @@ func _show_gacha_reveal(results: Array) -> void:
 	var ok := _gold_button("确定", "", Rect2(228, 704, 264, 78))
 	ok.pressed.connect(Callable(self, "_show_gacha"))
 	add_child(ok)
+	_center_content(320)
 
 
 # 铭文屏：9 格碎片编辑器(全局页)。点格子循环切 5 种;实时显示聚合加成。
@@ -640,6 +705,7 @@ func _show_enchants() -> void:
 	clear.pressed.connect(Callable(self, "_clear_enchants"))
 	add_child(clear)
 	add_child(_label("点格子循环切换 5 种铭文", Rect2(0, 738, VIEW_W, 22), 13, C_INK_DIM))
+	_center_content(300)
 
 
 func _enchant_page() -> Array:
@@ -786,7 +852,8 @@ func _show_placeholder(title: String, subtitle: String) -> void:
 	add_child(_label("✦", Rect2(0, 366, VIEW_W, 70), 60, C_GOLD))
 	add_child(_label("即将开放", Rect2(0, 448, VIEW_W, 40), 28, C_INK))
 	add_child(_label(subtitle, Rect2(50, 498, VIEW_W - 100, 48), 16, C_INK_DIM))
-	var key := "shop" if title.begins_with("商店") else ("rank" if title.begins_with("排行") else "")
+	var key := "shop" if title.begins_with("商店") else ("achievement" if title.begins_with("成就") else "")
+	_center_content(360)
 	_add_bottom_nav(key)
 
 
@@ -809,6 +876,7 @@ func _show_settings() -> void:
 	var wipe := _button("清除存档", Rect2(210, 512, 300, 56), Color("ff8a8a"), Color("e0556b"))
 	wipe.pressed.connect(Callable(self, "_confirm_wipe"))
 	add_child(wipe)
+	_center_content(300)
 	_add_bottom_nav("settings")
 
 

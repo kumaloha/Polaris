@@ -14,7 +14,7 @@ const H := 8
 const SPECIES := [0, 1, 2, 3, 4]
 const CELL := 78.0
 const GAP := 6.0
-const ORIGIN := Vector2(36.0, 200.0)
+const ORIGIN := Vector2(36.0, 440.0)   # 高瘦画布(1520)里把棋盘下移居中
 const TARGET := 2000
 const MOVES := 25
 
@@ -254,19 +254,19 @@ func _build_hud() -> void:
 	frame.add_theme_stylebox_override("panel", fs)
 	add_child(frame)
 
-	title_label = _mk_label(Vector2(96, 28), 26)
+	title_label = _mk_label(Vector2(96, 268), 26)
 	title_label.add_theme_color_override("font_color", Color("e9c97c"))
-	score_label = _mk_label(Vector2(96, 72), 28)
+	score_label = _mk_label(Vector2(96, 312), 28)
 	score_label.add_theme_color_override("font_color", Color("f3ecff"))
-	moves_label = _mk_label(Vector2(96, 116), 26)
+	moves_label = _mk_label(Vector2(96, 356), 26)
 	moves_label.add_theme_color_override("font_color", Color("c9d4ee"))
-	status_label = _mk_label(Vector2(540, 72), 34)
+	status_label = _mk_label(Vector2(540, 312), 34)
 	status_label.add_theme_color_override("font_color", Color("7dffb0"))
-	hint_label = _mk_label(Vector2(36, 852), 20)
+	hint_label = _mk_label(Vector2(36, 1124), 20)
 	hint_label.add_theme_color_override("font_color", Color(0.72, 0.80, 0.96, 0.66))
 	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换关卡"
 	skill_button = Button.new()
-	skill_button.position = Vector2(36, 150)   # HUD 与棋盘之间的空隙，避开大盘
+	skill_button.position = Vector2(36, 384)   # 棋盘正上方
 	skill_button.size = Vector2(648, 44)
 	skill_button.z_index = 50
 	skill_button.add_theme_font_size_override("font_size", 22)
@@ -326,7 +326,7 @@ func _build_tiles() -> void:
 
 			# 宝石立绘(基础/横/竖/彩球)，叠在底色块上、符号/冰锁之下
 			var pr := TextureRect.new()
-			pr.size = Vector2(CELL + 14, CELL + 14)   # 略溢出格位，宝石更饱满
+			pr.size = Vector2(CELL - 12, CELL - 12)   # 比格位小一圈，棋子之间留缝，星芒不相接(去"毛")
 			pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -444,7 +444,7 @@ func _render_cell(x: int, y: int) -> void:
 	var lab: Label = labels[y][x]
 	var bu = burst_rects[y][x]
 	rect.position = p
-	pr.position = p - Vector2(7, 7)
+	pr.position = p + Vector2(6, 6)   # 居中于格位(留 6px 边)
 	pr.pivot_offset = pr.size * 0.5   # 缩放动画绕中心
 	pr.scale = Vector2.ONE
 	bu.position = p - Vector2(11, 11)

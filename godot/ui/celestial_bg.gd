@@ -3,12 +3,12 @@ extends Control
 # 纯 _draw 绘制，零美术依赖；首页/对局/角色屏共用，保证视觉统一(对齐 resources/board.png 调性)。
 
 const VIEW_W := 720.0
-const VIEW_H := 920.0
+const VIEW_H := 1520.0
 
 @export var show_circle: bool = false
-@export var circle_center: Vector2 = Vector2(360, 410)
-@export var circle_radius: float = 230.0
-@export var glow_center: Vector2 = Vector2(360, 430)
+@export var circle_center: Vector2 = Vector2(360, 600)
+@export var circle_radius: float = 250.0
+@export var glow_center: Vector2 = Vector2(360, 620)
 
 var _stars: Array = []   # [pos:Vector2, r:float, a:float]
 
