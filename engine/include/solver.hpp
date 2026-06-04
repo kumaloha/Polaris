@@ -129,7 +129,11 @@ inline PlayResult greedy_play(const Level& lv) {
     int blocker_total = 0;
     while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;  // 死局（v1 暂不洗牌，罕见；TODO 接 reshuffle）
+        if (moves.empty()) {  // 死局：洗牌续玩（镜像真机 _settle_deadlock），洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         // 在副本上试每个候选，取立即得分最高（rng 也拷贝，保证选中后真实结算一致）
         int best_gain = -1;
         Move best = moves[0];
@@ -173,7 +177,11 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
     int blocker_total = 0;
     while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;
+        if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         // 本步 rollout 的基准种子（独立于真实 rng；同 it 跨候选同随机 = 公平）
         uint32_t step_seed = lv.seed + (uint32_t)(res.moves_used + 1) * 2654435761u;
         double best = -1.0;
@@ -187,7 +195,11 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
                 int s = resolve(gc, lv.species, rc).score;
                 for (int d = 0; d < rollout_depth; ++d) {
                     auto ms = legal_moves(gc);
-                    if (ms.empty()) break;
+                    if (ms.empty()) {  // rollout 内也镜像洗牌（保真）
+                        reshuffle(gc, rc);
+                        ms = legal_moves(gc);
+                        if (ms.empty()) break;
+                    }
                     Move rm = ms[rc() % ms.size()];
                     swap_cells(gc, rm.a, rm.b);
                     s += resolve(gc, lv.species, rc).score;
@@ -230,7 +242,11 @@ inline PlayResult smart_greedy_play(const Level& lv) {
     while (res.moves_used < lv.move_limit
            && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;
+        if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         res.solspace_curve.push_back((int)moves.size());  // 局内节奏：本步可选有效交换数
         double best_v = -1e18;
         Move best = moves[0];
@@ -273,7 +289,11 @@ inline PlayResult random_play(const Level& lv) {
     int blocker_total = 0;
     while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;
+        if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         Move m = moves[rng() % moves.size()];
         swap_cells(g, m.a, m.b);
         ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
@@ -328,7 +348,11 @@ inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
     while (res.moves_used < lv.move_limit
            && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;
+        if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         res.solspace_curve.push_back((int)moves.size());  // 局内节奏：本步可选有效交换数
         double best_v = -1e18;
         Move best = moves[0];
@@ -400,7 +424,11 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
     while (moves_used < lv.move_limit
            && !objectives_met(lv, score, collected, jelly_total, blocker_total)) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
-        if (moves.empty()) break;
+        if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
+            reshuffle(g, rng, coat.empty() ? nullptr : &coat);
+            moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+            if (moves.empty()) break;
+        }
         // 数本步能推进目标的交换 + 同时按 rusher 选最佳步
         int prog = 0;
         double best_v = -1e18;

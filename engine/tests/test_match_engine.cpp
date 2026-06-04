@@ -194,6 +194,49 @@ static void test_make_board_with_wall_mask() {
     CHECK(has_legal_move(g), "irregular board still has a legal move");
 }
 
+static void test_reshuffle_keeps_walls() {
+    // 镜像 GDScript：洗牌只重排可动棋子，墙原地不动、可动多重集不变。
+    Grid g = {
+        {WALL, 1, 2, 3, 0, 1},
+        {0, 1, 2, 3, 0, 1},
+        {2, 3, 0, WALL, 2, 3},
+        {1, 2, 3, 0, 1, 2},
+        {3, 0, 1, 2, 3, 0},
+        {WALL, 1, 2, 3, 0, WALL},
+    };
+    std::vector<int> before;
+    int walls_before = 0;
+    for (auto& r : g) for (int v : r) { if (v == WALL) ++walls_before; else before.push_back(v); }
+    std::sort(before.begin(), before.end());
+    std::mt19937 rng(5);
+    reshuffle(g, rng);
+    CHECK(g[0][0] == WALL && g[2][3] == WALL && g[5][0] == WALL && g[5][5] == WALL,
+          "walls stay put after reshuffle");
+    std::vector<int> after;
+    int walls_after = 0;
+    for (auto& r : g) for (int v : r) { if (v == WALL) ++walls_after; else after.push_back(v); }
+    std::sort(after.begin(), after.end());
+    CHECK_EQ(walls_after, walls_before, "wall count unchanged");
+    CHECK(before == after, "movable tile multiset preserved");
+    CHECK(find_matches(g).empty(), "no ready match after reshuffle");
+}
+
+static void test_reshuffle_coat_aware() {
+    // 洗牌验收须 coat 感知：后置条件 = 无现成消除 且 有 coat 合法步。
+    Grid g;
+    for (int y = 0; y < 6; ++y) {
+        std::vector<int> row;
+        for (int x = 0; x < 6; ++x) row.push_back((x * 2 + y) % 5);
+        g.push_back(row);
+    }
+    std::vector<std::vector<int>> coat(6, std::vector<int>(6, 0));
+    coat[0][0] = 1; coat[2][3] = 1; coat[4][1] = 1; coat[5][5] = 1;
+    std::mt19937 rng(9);
+    reshuffle(g, rng, &coat);
+    CHECK(find_matches(g).empty(), "no ready match after coat-aware reshuffle");
+    CHECK(has_legal_move(g, &coat), "coat-aware legal move exists after reshuffle");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -212,5 +255,7 @@ int main() {
     test_resolve();
     test_resolve_deterministic();
     test_make_board();
+    test_reshuffle_keeps_walls();
+    test_reshuffle_coat_aware();
     return report();
 }

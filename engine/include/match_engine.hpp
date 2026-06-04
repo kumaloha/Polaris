@@ -203,4 +203,34 @@ inline Grid make_board(int w, int h, const std::vector<int>& species, std::mt199
     return g;  // 兜底
 }
 
+// 死局/需要时洗牌：只重排可动棋子（多重集不变），墙(WALL)/空格(EMPTY)固定不动。
+// 验收用 coat 感知的 has_legal_move——忽略冰锁会"看似有步、真实玩家无步"。
+// 镜像 godot/core/match_engine.gd 的 reshuffle（RNG 各端独立，不要求跨语言同序列）。
+inline void reshuffle(Grid& g, std::mt19937& rng,
+                      const std::vector<std::vector<int>>* coat = nullptr) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    std::vector<Vec2> positions;
+    std::vector<int> tiles;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            int v = g[y][x];
+            if (v == WALL || v == EMPTY) continue;  // 墙/空格不参与洗牌
+            positions.push_back({x, y});
+            tiles.push_back(v);
+        }
+    for (int attempt = 0; attempt < 50; ++attempt) {
+        // Fisher-Yates（注入 rng → 可复现）
+        for (int i = (int)tiles.size() - 1; i > 0; --i) {
+            std::uniform_int_distribution<int> d(0, i);
+            std::swap(tiles[(size_t)i], tiles[(size_t)d(rng)]);
+        }
+        for (size_t i = 0; i < positions.size(); ++i)
+            g[positions[i].y][positions[i].x] = tiles[i];
+        if (find_matches(g).empty() && has_legal_move(g, coat)) return;
+    }
+    // 兜底：保留最后一次排列（极罕见）
+}
+
 }  // namespace me

@@ -273,6 +273,26 @@ static void test_greedy_clears_blocker_objective() {
     CHECK(r.won, "greedy breaks 5 coat layers within 40 moves");
 }
 
+static void test_play_reshuffles_on_deadlock() {
+    // 死局开局（6x6 对角条纹 (x+2y)%3：各行各列相邻/隔位均不同色 → 无任何合法交换；
+    // 但每色 12 个，多重集可消 → 洗牌能救活）。修复后求解器应洗牌续玩，而非 0 步即停。
+    Grid deadlock;
+    for (int y = 0; y < 6; ++y) {
+        std::vector<int> row;
+        for (int x = 0; x < 6; ++x) row.push_back((x + 2 * y) % 3);
+        deadlock.push_back(row);
+    }
+    CHECK(!has_legal_move(deadlock), "sanity: crafted board is a real deadlock");
+    Level lv;
+    lv.init_board = deadlock;
+    lv.species = {0, 1, 2};
+    lv.target_score = 100000;  // 大目标 → 不会因分数提前赢
+    lv.move_limit = 5;
+    lv.seed = 3;
+    auto res = greedy_play(lv);
+    CHECK(res.moves_used > 0, "greedy_play reshuffles past opening deadlock and makes moves");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
@@ -296,5 +316,6 @@ int main() {
     test_panel_vote();
     test_archetypes_differ();
     test_evaluate_deterministic();
+    test_play_reshuffles_on_deadlock();
     return report();
 }
