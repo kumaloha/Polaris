@@ -1,0 +1,126 @@
+{
+  "note": "棋子对应表(消除游戏)。每个 species 三形态: basic 基础 / h 横炸(4消横) / v 竖炸(4消竖); colorbomb=5消彩球。文件名原本无对应关系，此清单由视觉匹配确认: 命名件 01-20 为 basic、01-10_horizontal_special 为横炸; ChatGPT 三批按编号顺序对应—20_54=11~20横炸, 20_58=01~10竖炸, 21_0x=11~20竖炸。",
+  "colorbomb": "resources/pieces/extra.png",
+  "species": {
+    "1": {
+      "name": "potion_bottle",
+      "basic": "resources/pieces/01_potion_bottle.png",
+      "h": "resources/pieces/01_potion_bottle_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_28 (1).png"
+    },
+    "2": {
+      "name": "magic_candle",
+      "basic": "resources/pieces/02_magic_candle.png",
+      "h": "resources/pieces/02_magic_candle_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_28 (2).png"
+    },
+    "3": {
+      "name": "star_wand",
+      "basic": "resources/pieces/03_star_wand.png",
+      "h": "resources/pieces/03_star_wand_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_28 (3).png"
+    },
+    "4": {
+      "name": "feather_quill",
+      "basic": "resources/pieces/04_feather_quill.png",
+      "h": "resources/pieces/04_feather_quill_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_29 (4).png"
+    },
+    "5": {
+      "name": "spellbook",
+      "basic": "resources/pieces/05_spellbook.png",
+      "h": "resources/pieces/05_spellbook_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_29 (5).png"
+    },
+    "6": {
+      "name": "rune_tablet",
+      "basic": "resources/pieces/06_rune_tablet.png",
+      "h": "resources/pieces/06_rune_tablet_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_31 (6).png"
+    },
+    "7": {
+      "name": "paper_talisman",
+      "basic": "resources/pieces/07_paper_talisman.png",
+      "h": "resources/pieces/07_paper_talisman_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_32 (7).png"
+    },
+    "8": {
+      "name": "crystal_ball",
+      "basic": "resources/pieces/08_crystal_ball.png",
+      "h": "resources/pieces/08_crystal_ball_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_33 (8).png"
+    },
+    "9": {
+      "name": "magic_orb",
+      "basic": "resources/pieces/09_magic_orb.png",
+      "h": "resources/pieces/09_magic_orb_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_35 (9).png"
+    },
+    "10": {
+      "name": "magic_bell",
+      "basic": "resources/pieces/10_magic_bell.png",
+      "h": "resources/pieces/10_magic_bell_horizontal_special.png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 20_58_36 (10).png"
+    },
+    "11": {
+      "name": "star_shard",
+      "basic": "resources/pieces/11_star_shard.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_39 (1).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_55 (1).png"
+    },
+    "12": {
+      "name": "cut_gemstone",
+      "basic": "resources/pieces/12_cut_gemstone.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_39 (2).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_55 (2).png"
+    },
+    "13": {
+      "name": "ice_crystal",
+      "basic": "resources/pieces/13_ice_crystal.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_40 (3).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_56 (3).png"
+    },
+    "14": {
+      "name": "mushroom",
+      "basic": "resources/pieces/14_mushroom.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_41 (4).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_57 (4).png"
+    },
+    "15": {
+      "name": "bone_charm",
+      "basic": "resources/pieces/15_bone_charm.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_42 (5).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_58 (5).png"
+    },
+    "16": {
+      "name": "rune_stone",
+      "basic": "resources/pieces/16_rune_stone.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_42 (6).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_01_59 (6).png"
+    },
+    "17": {
+      "name": "herb_bundle",
+      "basic": "resources/pieces/17_herb_bundle.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_43 (7).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_02_00 (7).png"
+    },
+    "18": {
+      "name": "alchemy_flask",
+      "basic": "resources/pieces/18_alchemy_flask.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_44 (8).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_02_01 (8).png"
+    },
+    "19": {
+      "name": "lantern",
+      "basic": "resources/pieces/19_lantern.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_45 (9).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_02_02 (9).png"
+    },
+    "20": {
+      "name": "beaded_string",
+      "basic": "resources/pieces/20_beaded_string.png",
+      "h": "resources/pieces/ChatGPT Image 2026年6月4日 20_54_46 (10).png",
+      "v": "resources/pieces/ChatGPT Image 2026年6月4日 21_02_02 (10).png"
+    }
+  }
+}

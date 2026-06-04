@@ -6,6 +6,8 @@ extends Node2D
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const CelestialBg := preload("res://ui/celestial_bg.gd")
+const Burst := preload("res://ui/burst.gd")
 
 const W := 8
 const H := 8
@@ -18,6 +20,10 @@ const MOVES := 25
 
 # 5 种道具：颜色 + 形状符号双重区分（呼应 06：小尺寸靠形状不只靠色）
 var COLORS := [Color("e74c3c"), Color("f5b301"), Color("27ae60"), Color("2e86de"), Color("8e44ad")]
+# 引擎 species 0-4 → pieces.json species id（红切面宝石/金星辰/绿草束/蓝冰晶/紫魔烛，形色最分明）
+const PIECE_SPECIES := [12, 11, 17, 13, 2]
+var piece_tex := []          # piece_tex[0-4] = {SP_NONE:基础, SP_LINE_H:横炸, SP_LINE_V:竖炸}
+var colorbomb_tex: Texture2D
 const SYMBOLS := ["●", "▲", "■", "◆", "✶"]
 # 特效标记：SP_NONE/LINE_H/LINE_V/BOMB/COLORBOMB
 const FX_GLYPH := ["", "▬", "▮", "✸", "◎"]
@@ -34,6 +40,8 @@ var labels := []         # labels[y][x] -> Label（道具符号/特效标记）
 var jelly_rects := []    # jelly_rects[y][x] -> ColorRect（果冻底层标记）
 var coat_rects := []     # coat_rects[y][x] -> ColorRect（冰锁遮罩）
 var coat_labels := []    # coat_labels[y][x] -> Label（冰锁层数指示）
+var piece_rects := []    # piece_rects[y][x] -> TextureRect（宝石立绘：基础/横炸/竖炸/彩球）
+var burst_rects := []    # burst_rects[y][x] -> Burst（爆炸形态的放射能量光环，仅 SP_BOMB 显示）
 var selected := Vector2i(-1, -1)
 var input_locked := false
 
@@ -46,6 +54,7 @@ var sel_frame: ColorRect
 
 
 func _ready() -> void:
+	_load_pieces()
 	_build_hud()
 	_build_tiles()
 	algo_levels = LevelLibrary.load_file("res://levels.json")   # 优先读 C++ 导出的算法关卡库
@@ -209,19 +218,36 @@ func _demo_coat_layer() -> Array:
 
 # ───────────────────────────── HUD / 节点构建 ─────────────────────────────
 func _build_hud() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color("171b26")
-	bg.size = Vector2(2400, 2400)
-	bg.position = Vector2(-200, -200)
+	# 占星背景(深蓝渐变+星点) + 棋盘金框
+	var bg := CelestialBg.new()
+	bg.show_circle = false
 	bg.z_index = -10
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
+	var frame := Panel.new()
+	frame.position = Vector2(ORIGIN.x - 18, ORIGIN.y - 18)
+	frame.size = Vector2(W * CELL + (W - 1) * GAP + 36, H * CELL + (H - 1) * GAP + 36)
+	frame.z_index = -5
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fs := StyleBoxFlat.new()
+	fs.bg_color = Color(0.06, 0.10, 0.22, 0.50)
+	fs.set_corner_radius_all(30)
+	fs.set_border_width_all(2)
+	fs.border_color = Color("e9c97c")
+	fs.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
+	fs.shadow_size = 18
+	frame.add_theme_stylebox_override("panel", fs)
+	add_child(frame)
 
-	title_label = _mk_label(Vector2(36, 28), 26)
-	score_label = _mk_label(Vector2(36, 72), 28)
-	moves_label = _mk_label(Vector2(36, 116), 26)
-	status_label = _mk_label(Vector2(560, 72), 34)
-	hint_label = _mk_label(Vector2(36, 850), 20)
+	title_label = _mk_label(Vector2(96, 28), 26)
+	title_label.add_theme_color_override("font_color", Color("e9c97c"))
+	score_label = _mk_label(Vector2(96, 72), 28)
+	score_label.add_theme_color_override("font_color", Color("f3ecff"))
+	moves_label = _mk_label(Vector2(96, 116), 26)
+	moves_label.add_theme_color_override("font_color", Color("c9d4ee"))
+	status_label = _mk_label(Vector2(540, 72), 34)
+	status_label.add_theme_color_override("font_color", Color("7dffb0"))
+	hint_label = _mk_label(Vector2(36, 852), 20)
+	hint_label.add_theme_color_override("font_color", Color(0.72, 0.80, 0.96, 0.66))
 	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换关卡"
 	skill_button = Button.new()
 	skill_button.position = Vector2(36, 150)   # HUD 与棋盘之间的空隙，避开大盘
@@ -256,12 +282,16 @@ func _build_tiles() -> void:
 	jelly_rects.resize(H)
 	coat_rects.resize(H)
 	coat_labels.resize(H)
+	piece_rects.resize(H)
+	burst_rects.resize(H)
 	for y in H:
 		tiles[y] = []
 		labels[y] = []
 		jelly_rects[y] = []
 		coat_rects[y] = []
 		coat_labels[y] = []
+		piece_rects[y] = []
+		burst_rects[y] = []
 		for x in W:
 			# 果冻底层标记（z 在道具之下，作"底色"露在道具缝隙/边缘外）。
 			var jr := ColorRect.new()
@@ -277,6 +307,24 @@ func _build_tiles() -> void:
 			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(rect)
 			tiles[y].append(rect)
+
+			# 宝石立绘(基础/横/竖/彩球)，叠在底色块上、符号/冰锁之下
+			var pr := TextureRect.new()
+			pr.size = Vector2(CELL + 14, CELL + 14)   # 略溢出格位，宝石更饱满
+			pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(pr)
+			piece_rects[y].append(pr)
+
+			# 爆炸形态光环：叠在宝石之下(z=-1)，仅 SP_BOMB 显示
+			var bu := Burst.new()
+			bu.size = Vector2(CELL + 22, CELL + 22)
+			bu.z_index = -1
+			bu.visible = false
+			bu.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(bu)
+			burst_rects[y].append(bu)
 
 			var lab := Label.new()
 			lab.size = Vector2(CELL, CELL)
@@ -317,6 +365,40 @@ func _cell_pos(x: int, y: int) -> Vector2:
 	return ORIGIN + Vector2(x * (CELL + GAP), y * (CELL + GAP))
 
 
+# 读棋子对应清单(resources/pieces/pieces.json)，为本局 5 个 species 载入 基础/横/竖 + 彩球立绘。
+func _load_pieces() -> void:
+	piece_tex.clear()
+	colorbomb_tex = null
+	var path := _res_abs("resources/pieces/pieces.json")
+	if not FileAccess.file_exists(path):
+		return
+	var m = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(m) != TYPE_DICTIONARY:
+		return
+	colorbomb_tex = _piece_tex(m.get("colorbomb", ""))
+	var sp_map: Dictionary = m.get("species", {})
+	for sid in PIECE_SPECIES:
+		var s: Dictionary = sp_map.get(str(sid), {})
+		piece_tex.append({
+			ME.SP_NONE: _piece_tex(s.get("basic", "")),
+			ME.SP_LINE_H: _piece_tex(s.get("h", "")),
+			ME.SP_LINE_V: _piece_tex(s.get("v", "")),
+		})
+
+
+func _res_abs(p: String) -> String:
+	return ProjectSettings.globalize_path("res://../" + p).simplify_path()
+
+
+func _piece_tex(p) -> Texture2D:
+	if p == null or String(p).is_empty():
+		return null
+	var img := Image.new()
+	if img.load(_res_abs(String(p))) != OK:
+		return null
+	return ImageTexture.create_from_image(img)
+
+
 # ───────────────────────────── 渲染 ─────────────────────────────
 func _render() -> void:
 	for y in H:
@@ -335,30 +417,60 @@ func _render_cell(x: int, y: int) -> void:
 	var co: int = _layer_at(board.coat, x, y)
 	var p := _cell_pos(x, y)
 
-	# 道具底色块
+	# 道具底色块 + 宝石立绘 + 符号
 	var rect: ColorRect = tiles[y][x]
+	var pr: TextureRect = piece_rects[y][x]
+	var lab: Label = labels[y][x]
+	var bu = burst_rects[y][x]
 	rect.position = p
+	pr.position = p - Vector2(7, 7)
+	bu.position = p - Vector2(11, 11)
+	bu.visible = false
+	lab.position = p
+	var has_pieces := not piece_tex.is_empty()
 	if sp == ME.WALL:
 		rect.color = Color("0c0e14")          # 墙=暗格（异形棋盘）
+		pr.visible = false
+		lab.text = ""
 	elif sp < 0:
 		rect.color = Color(0, 0, 0, 0)         # EMPTY 透明
-	elif f != ME.SP_NONE:
-		rect.color = COLORS[sp].lightened(0.28)  # 特效格提亮
+		pr.visible = false
+		lab.text = ""
 	else:
-		rect.color = COLORS[sp]
-	# 冰锁下的道具置灰但仍可见（锁住感；锁下道具看得到）。
+		# 普通棋子：优先宝石立绘；无图(清单/资源缺失)→回退纯色+符号，保证可玩可辨
+		var tex: Texture2D = null
+		if has_pieces and sp < piece_tex.size():
+			if f == ME.SP_COLORBOMB:
+				tex = colorbomb_tex
+			elif f == ME.SP_LINE_H:
+				tex = piece_tex[sp].get(ME.SP_LINE_H)
+			elif f == ME.SP_LINE_V:
+				tex = piece_tex[sp].get(ME.SP_LINE_V)
+			else:
+				tex = piece_tex[sp].get(ME.SP_NONE)   # 普通 + 炸弹用基础宝石
+		if tex != null:
+			rect.color = Color(1, 1, 1, 0.05)         # 极淡格位，让立绘当主体
+			pr.texture = tex
+			pr.visible = true
+			lab.text = ""
+			if f == ME.SP_BOMB:
+				bu.visible = true                     # 炸弹：基础宝石 + 放射爆裂光环(补缺失专属图)
+				bu.queue_redraw()
+		else:
+			# 回退：纯色块 + 符号
+			pr.visible = false
+			if f != ME.SP_NONE:
+				rect.color = COLORS[sp].lightened(0.28)
+				lab.text = FX_GLYPH[f]
+			else:
+				rect.color = COLORS[sp]
+				lab.text = SYMBOLS[sp]
+	# 冰锁下置灰（锁住感）
 	if co > 0 and sp >= 0:
 		rect.color = rect.color.lerp(Color("3a4252"), 0.45)
-
-	# 道具符号 / 特效标记
-	var lab: Label = labels[y][x]
-	lab.position = p
-	if sp == ME.WALL or sp < 0:
-		lab.text = ""
-	elif f != ME.SP_NONE:
-		lab.text = FX_GLYPH[f]
+		pr.modulate = Color(0.62, 0.68, 0.80)
 	else:
-		lab.text = SYMBOLS[sp]
+		pr.modulate = Color(1, 1, 1)
 
 	# 果冻底层标记：半透明青色块，多层叠深（不透明度随层数升高）。
 	var jr: ColorRect = jelly_rects[y][x]

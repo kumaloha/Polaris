@@ -16,3 +16,9 @@ engine/build/
 .vscode/
 .idea/
 *.swp
+
+# 大体量美术资源(pieces/characters ~80MB)先不入库；本地有，日后按需 git-lfs。
+resources/*.png
+resources/*.html
+resources/**/*.png
+resources/**/*.jpg

@@ -1,0 +1,501 @@
+extends Control
+
+const CharacterData := preload("res://ui/character_data.gd")
+const GameScript := preload("res://view/game.gd")
+const CelestialBg := preload("res://ui/celestial_bg.gd")
+
+# 占星风配色
+const C_GOLD := Color("e9c97c")
+const C_GOLD_DEEP := Color("c79a4a")
+const C_INK := Color("f3ecff")
+const C_INK_DIM := Color("b9c4e6")
+
+const VIEW_W := 720.0
+const VIEW_H := 920.0
+
+var characters: Array = []
+var selected_idx := 0
+var body: Control
+var _wkmat: ShaderMaterial
+
+
+# 抠白材质(无 alpha 的白底立绘 → 透明)；全 UI 共用一份。
+func _white_key_material() -> ShaderMaterial:
+	if _wkmat == null:
+		_wkmat = ShaderMaterial.new()
+		_wkmat.shader = load("res://ui/white_key.gdshader")
+	return _wkmat
+
+
+func _ready() -> void:
+	set_anchors_preset(Control.PRESET_FULL_RECT)
+	characters = CharacterData.load_characters()
+	if characters.is_empty():
+		push_warning("No character assets found at %s" % CharacterData.MANIFEST_PATH)
+	_show_home()
+
+
+func _clear() -> void:
+	for child in get_children():
+		child.queue_free()
+
+
+func _show_home() -> void:
+	_clear()
+	_add_gradient_background(true)   # 带魔法阵的占星背景
+	var hero := _selected_character()
+
+	# 顶部：玩家牌(左) + 资源链(右)
+	_add_avatar_chip(hero, Vector2(18, 34))
+	_add_res_chips()
+
+	# 侧边徽章(任务/召唤)
+	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 150), "3", Callable())
+	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 150), "!", Callable(self, "_show_character"))
+	summon.tooltip_text = "召唤"
+
+	# 关卡牌(萌宠上方)
+	var lvlpill := _glass_panel(Rect2(296, 214, 128, 38), Color(0.10, 0.16, 0.32, 0.78))
+	lvlpill.add_theme_stylebox_override("panel", _style(Color(0.10, 0.16, 0.32, 0.78), 999, C_GOLD, 1))
+	add_child(lvlpill)
+	lvlpill.add_child(_inner_label("第 12 关", Rect2(0, 0, 128, 38), 18, C_GOLD))
+
+	# 英雄台：魔法阵(背景已画) + 萌宠立绘
+	_add_character_art(hero, Rect2(196, 250, 328, 330), false)
+	_add_hero_ribbon(hero, Vector2(360, 566))
+
+	# START：金色发光主按钮
+	var start := _gold_button("开 始", "第 12 关 · 体力 1", Rect2(228, 686, 264, 88))
+	start.pressed.connect(Callable(self, "_show_game"))
+	add_child(start)
+
+	# 底部导航
+	_add_bottom_nav("home")
+
+
+func _show_character() -> void:
+	_clear()
+	_add_gradient_background()
+
+	var back := _round_button("‹", Rect2(28, 48, 54, 54))
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+
+	var title := _label("角色", Rect2(105, 52, 260, 46), 34, Color("2c2350"), HORIZONTAL_ALIGNMENT_LEFT)
+	title.add_theme_font_size_override("font_size", 34)
+	add_child(title)
+
+	var shards := _glass_panel(Rect2(500, 52, 170, 42), Color(1, 1, 1, 0.72))
+	add_child(shards)
+	shards.add_child(_inner_label("碎片 24", Rect2(0, 0, 170, 42), 18, Color("7a3fe0")))
+
+	var hero := _selected_character()
+	_add_character_art(hero, Rect2(125, 105, 470, 420), false)
+	_add_character_plate(hero, Vector2(86, 500), Vector2(548, 92))
+
+	var skill := _glass_panel(Rect2(44, 620, 632, 112), Color(1, 1, 1, 0.80))
+	add_child(skill)
+	var skill_name := _skill_name(hero)
+	skill.add_child(_inner_label(skill_name, Rect2(24, 14, 340, 28), 24, Color("2c2350"), HORIZONTAL_ALIGNMENT_LEFT))
+	skill.add_child(_inner_label(_skill_desc(hero), Rect2(24, 48, 580, 48), 17, Color("4a3d7a"), HORIZONTAL_ALIGNMENT_LEFT))
+
+	var strip := HBoxContainer.new()
+	strip.add_theme_constant_override("separation", 10)
+	strip.custom_minimum_size = Vector2(max(644, characters.size() * 108), 112)
+	var strip_scroll := ScrollContainer.new()
+	strip_scroll.position = Vector2(38, 760)
+	strip_scroll.size = Vector2(644, 112)
+	strip_scroll.clip_contents = true
+	add_child(strip_scroll)
+	strip_scroll.add_child(strip)
+	for i in characters.size():
+		strip.add_child(_character_thumb(i))
+
+	var equip_text := "门面角色" if not bool(hero.get("playable", true)) else "设为出战"
+	var equip := _button(equip_text, Rect2(205, 862, 310, 50), Color("9d6cf0"), Color("7a3fe0"))
+	equip.disabled = not bool(hero.get("playable", true))
+	if not equip.disabled:
+		equip.pressed.connect(Callable(self, "_show_home"))
+	add_child(equip)
+
+
+func _show_game() -> void:
+	_clear()
+	var game := Node2D.new()
+	game.name = "Game"
+	game.set_script(GameScript)
+	add_child(game)
+	game.set_skill(String(_selected_character().get("id", "")))   # 把所选角色的技能接进对局
+
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+
+
+func _selected_character() -> Dictionary:
+	if characters.is_empty():
+		return {
+			"id": "missing",
+			"name": "Missing",
+			"subtitle": "No assets loaded",
+			"accent": "#8b54e8",
+			"portrait": "",
+			"card": "",
+		}
+	return characters[clamp(selected_idx, 0, characters.size() - 1)]
+
+
+func _add_gradient_background(show_circle := false) -> void:
+	var bg := CelestialBg.new()
+	bg.show_circle = show_circle
+	add_child(bg)
+
+
+# 占星玻璃面板(深蓝底+金边)
+func _dark_panel(rect: Rect2, radius: int, border: Color, bw: int) -> Panel:
+	var p := Panel.new()
+	p.position = rect.position
+	p.size = rect.size
+	p.add_theme_stylebox_override("panel", _style(Color(0.09, 0.14, 0.30, 0.80), radius, border, bw))
+	return p
+
+
+func _add_avatar_chip(hero: Dictionary, pos: Vector2) -> void:
+	var chip := _dark_panel(Rect2(pos, Vector2(190, 54)), 999, C_GOLD, 1)
+	add_child(chip)
+	var av := TextureRect.new()
+	av.position = Vector2(5, 5)
+	av.size = Vector2(44, 44)
+	av.texture = _load_texture(String(hero.get("portrait", "")))
+	av.material = _white_key_material()
+	av.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	av.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	av.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(av)
+	chip.add_child(_inner_label("星语者", Rect2(58, 7, 126, 24), 17, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
+	chip.add_child(_inner_label("Lv. 27", Rect2(58, 29, 126, 20), 13, C_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
+
+
+func _add_res_chips() -> void:
+	_res_chip(Color("6fe0ff"), "28/30", Rect2(444, 40, 84, 34))   # 体力
+	_res_chip(C_GOLD, "12.4k", Rect2(534, 40, 86, 34))            # 金币
+	_res_chip(Color("c79bff"), "86", Rect2(626, 40, 70, 34))      # 水晶
+
+
+func _res_chip(icon_color: Color, value: String, rect: Rect2) -> void:
+	var chip := _dark_panel(rect, 999, Color(1, 1, 1, 0.20), 1)
+	add_child(chip)
+	var dot := Panel.new()
+	dot.position = Vector2(5, (rect.size.y - 22) * 0.5)
+	dot.size = Vector2(22, 22)
+	dot.add_theme_stylebox_override("panel", _style(icon_color, 999, Color(1, 1, 1, 0.55), 1))
+	chip.add_child(dot)
+	chip.add_child(_inner_label(value, Rect2(31, 0, rect.size.x - 36, rect.size.y), 15, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
+
+
+func _add_side_badge(label: String, color: Color, pos: Vector2, badge: String, cb: Callable) -> Button:
+	var btn := Button.new()
+	btn.position = pos
+	btn.size = Vector2(68, 68)
+	btn.flat = true
+	btn.add_theme_stylebox_override("normal", _style(color.darkened(0.12), 22, C_GOLD, 2))
+	btn.add_theme_stylebox_override("hover", _style(color, 22, C_GOLD, 2))
+	btn.add_theme_stylebox_override("pressed", _style(color.darkened(0.22), 22, C_GOLD, 2))
+	if cb.is_valid():
+		btn.pressed.connect(cb)
+	add_child(btn)
+	btn.add_child(_inner_label(label, Rect2(0, 20, 68, 28), 17, Color.WHITE))
+	if badge != "":
+		var b := Panel.new()
+		b.position = Vector2(48, -6)
+		b.size = Vector2(26, 26)
+		b.add_theme_stylebox_override("panel", _style(Color("ff5577"), 999, Color.WHITE, 2))
+		btn.add_child(b)
+		b.add_child(_inner_label(badge, Rect2(0, 0, 26, 26), 14, Color.WHITE))
+	return btn
+
+
+func _add_hero_ribbon(hero: Dictionary, center: Vector2) -> void:
+	var w := 210.0
+	var ribbon := Panel.new()
+	ribbon.position = Vector2(center.x - w * 0.5, center.y)
+	ribbon.size = Vector2(w, 46)
+	ribbon.add_theme_stylebox_override("panel", _style(Color(0.12, 0.10, 0.24, 0.86), 999, C_GOLD, 2))
+	add_child(ribbon)
+	var dot := Panel.new()
+	dot.position = Vector2(18, 17)
+	dot.size = Vector2(12, 12)
+	dot.add_theme_stylebox_override("panel", _style(Color("7dffb0"), 999, Color.WHITE, 1))
+	ribbon.add_child(dot)
+	ribbon.add_child(_inner_label(String(hero.get("name", "角色")), Rect2(0, 0, w, 46), 22, C_GOLD))
+
+
+func _gold_button(text: String, sub: String, rect: Rect2) -> Button:
+	var btn := Button.new()
+	btn.position = rect.position
+	btn.size = rect.size
+	btn.text = ""
+	btn.add_theme_stylebox_override("normal", _gold_style(0.0))
+	btn.add_theme_stylebox_override("hover", _gold_style(0.08))
+	btn.add_theme_stylebox_override("pressed", _gold_style(-0.08))
+	btn.add_child(_inner_label(text, Rect2(0, 14, rect.size.x, 42), 33, Color("4a2f00")))
+	btn.add_child(_inner_label(sub, Rect2(0, 56, rect.size.x, 24), 14, Color("70491a")))
+	return btn
+
+
+func _gold_style(shift: float) -> StyleBoxFlat:
+	var base := Color("f1c965")
+	var s := _style(base.lightened(shift) if shift >= 0.0 else base.darkened(-shift), 999, Color("fff1c4"), 3)
+	s.shadow_color = Color(0.96, 0.78, 0.32, 0.55)
+	s.shadow_size = 22
+	s.shadow_offset = Vector2(0, 6)
+	return s
+
+
+func _add_bottom_nav(active: String) -> void:
+	var bar := Panel.new()
+	bar.position = Vector2(0, 832)
+	bar.size = Vector2(VIEW_W, 88)
+	bar.add_theme_stylebox_override("panel", _style(Color(0.07, 0.11, 0.24, 0.92), 30, C_GOLD, 1))
+	add_child(bar)
+	var items := [["角色", "character", Callable(self, "_show_character")], ["商店", "shop", Callable()], ["排行", "rank", Callable()], ["设置", "settings", Callable()]]
+	var n := items.size()
+	var slot := VIEW_W / float(n)
+	for i in n:
+		var it: Array = items[i]
+		var is_active: bool = String(it[1]) == active
+		var btn := Button.new()
+		btn.position = Vector2(slot * i + slot * 0.5 - 36, 842)
+		btn.size = Vector2(72, 72)
+		btn.flat = true
+		var border := C_GOLD if is_active else Color(1, 1, 1, 0.28)
+		var fill := C_GOLD if is_active else Color(1, 1, 1, 0.08)
+		btn.add_theme_stylebox_override("normal", _style(fill, 999, border, 2))
+		btn.add_theme_stylebox_override("hover", _style(C_GOLD.darkened(0.12), 999, C_GOLD, 2))
+		btn.add_theme_stylebox_override("pressed", _style(C_GOLD.darkened(0.22), 999, C_GOLD, 2))
+		var cb: Callable = it[2]
+		if cb.is_valid():
+			btn.pressed.connect(cb)
+		add_child(btn)
+		btn.add_child(_inner_label(String(it[0]), Rect2(0, 0, 72, 72), 18, Color("2a1c00") if is_active else C_INK))
+
+
+func _add_character_art(character: Dictionary, rect: Rect2, use_card: bool) -> void:
+	var tex_path := String(character.get("card" if use_card else "portrait", ""))
+	var art := TextureRect.new()
+	art.position = rect.position
+	art.size = rect.size
+	art.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture = _load_texture(tex_path)
+	art.material = _white_key_material()   # 抠白底
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(art)
+
+
+func _add_character_plate(character: Dictionary, pos: Vector2, size: Vector2) -> void:
+	var accent := Color(String(character.get("accent", "#8b54e8")))
+	var plate := _glass_panel(Rect2(pos, size), Color(1, 1, 1, 0.84))
+	add_child(plate)
+	var name := String(character.get("name", "Character"))
+	var subtitle := String(character.get("subtitle", ""))
+	var title := _inner_label(name, Rect2(0, 6, size.x, 38), 26, accent)
+	plate.add_child(title)
+	plate.add_child(_inner_label(subtitle, Rect2(0, 46, size.x, 30), 15, Color("6f63a0")))
+
+
+func _character_thumb(index: int) -> Button:
+	var character: Dictionary = characters[index]
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(98, 108)
+	btn.text = ""
+	btn.flat = true
+	btn.pressed.connect(Callable(self, "_select_character").bind(index))
+	btn.add_theme_stylebox_override("normal", _style(Color(1, 1, 1, 0.62), 22, Color("ffffff"), 1))
+	btn.add_theme_stylebox_override("hover", _style(Color(1, 1, 1, 0.80), 22, Color("ffffff"), 1))
+	btn.add_theme_stylebox_override("pressed", _style(Color("e7defe"), 22, Color("ffffff"), 1))
+	if index == selected_idx:
+		btn.add_theme_stylebox_override("normal", _style(Color(1, 1, 1, 0.95), 22, Color(String(character.get("accent", "#8b54e8"))), 3))
+
+	var art := TextureRect.new()
+	art.position = Vector2(8, 5)
+	art.size = Vector2(82, 70)
+	art.texture = _load_texture(String(character.get("portrait", "")))
+	art.material = _white_key_material()
+	art.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(art)
+
+	var name := Label.new()
+	name.position = Vector2(4, 77)
+	name.size = Vector2(90, 24)
+	name.text = String(character.get("name", ""))
+	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name.add_theme_font_size_override("font_size", 11)
+	name.add_theme_color_override("font_color", Color("2c2350"))
+	name.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	btn.add_child(name)
+	return btn
+
+
+func _select_character(index: int) -> void:
+	selected_idx = index
+	_show_character()
+
+
+func _skill_name(character: Dictionary) -> String:
+	if character.has("skill_name"):
+		return String(character["skill_name"])
+	match String(character.get("id", "")):
+		"borrrower":
+			return "借贷"
+		"breaker":
+			return "破障"
+		"chainbonus":
+			return "连消奖步"
+		"collector":
+			return "连击收集"
+		"colorshield":
+			return "彩球护盾"
+		"foresight":
+			return "预知"
+		"gravityflip":
+			return "重力翻转"
+		"longswap":
+			return "隔位对换"
+		"lucky":
+			return "基础提示"
+		"sametypeclear":
+			return "同类清除"
+		"snapshot":
+			return "盘面快照"
+		"timerewind":
+			return "时间回溯"
+	return "角色技能"
+
+
+func _skill_desc(character: Dictionary) -> String:
+	if character.has("skill_desc"):
+		return String(character["skill_desc"])
+	match String(character.get("id", "")):
+		"borrrower":
+			return "借一个特效，本关内必须还；不还不算过关。"
+		"breaker":
+			return "直接清除场上障碍(冰/锁等)。"
+		"chainbonus":
+			return "打连锁时奖励步数，递进式；始终靠打连锁技巧才给。"
+		"collector":
+			return "打连击时额外收集铭文碎片。"
+		"colorshield":
+			return "这局保彩球一次，被碰只掉护盾，彩球保留。"
+		"foresight":
+			return "高亮接下来最优的几步走法，不剧透掉落。"
+		"gravityflip":
+			return "临时翻转重力方向，改写下落和补充路线。"
+		"longswap":
+			return "能换相邻2步(隔一个)。"
+		"lucky":
+			return "无战斗技能；对局中给基础提示。"
+		"sametypeclear":
+			return "选一种棋子，消除全场所有该种类。"
+		"snapshot":
+			return "存一个局面，可一键跳回。"
+		"timerewind":
+			return "回退最近 5 步。"
+	return "未来接入 Meta 后在对局前注入。"
+
+
+func _button(text: String, rect: Rect2, top: Color, bottom: Color) -> Button:
+	var btn := Button.new()
+	btn.position = rect.position
+	btn.size = rect.size
+	btn.text = text
+	btn.add_theme_font_size_override("font_size", 24)
+	btn.add_theme_color_override("font_color", Color.WHITE)
+	btn.add_theme_color_override("font_disabled_color", Color("6f63a0"))
+	btn.add_theme_stylebox_override("normal", _button_style(top, bottom, 999))
+	btn.add_theme_stylebox_override("hover", _button_style(top.lightened(0.08), bottom.lightened(0.08), 999))
+	btn.add_theme_stylebox_override("pressed", _button_style(top.darkened(0.08), bottom.darkened(0.08), 999))
+	btn.add_theme_stylebox_override("disabled", _style(Color(1, 1, 1, 0.58), 999, Color(1, 1, 1, 0.72), 1))
+	return btn
+
+
+func _round_button(text: String, rect: Rect2) -> Button:
+	var btn := Button.new()
+	btn.position = rect.position
+	btn.size = rect.size
+	btn.text = text
+	btn.flat = true
+	btn.add_theme_font_size_override("font_size", 34)
+	btn.add_theme_color_override("font_color", C_GOLD)
+	btn.add_theme_stylebox_override("normal", _style(Color(0.09, 0.14, 0.30, 0.85), 999, C_GOLD, 2))
+	btn.add_theme_stylebox_override("hover", _style(Color(0.14, 0.20, 0.40, 0.90), 999, C_GOLD, 2))
+	btn.add_theme_stylebox_override("pressed", _style(Color(0.06, 0.10, 0.22, 0.90), 999, C_GOLD, 2))
+	return btn
+
+
+func _label(text: String, rect: Rect2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+	var label := Label.new()
+	label.position = rect.position
+	label.size = rect.size
+	label.text = text
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+func _inner_label(text: String, rect: Rect2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+	return _label(text, rect, font_size, color, align)
+
+
+func _glass_panel(rect: Rect2, color: Color) -> Panel:
+	var panel := Panel.new()
+	panel.position = rect.position
+	panel.size = rect.size
+	panel.add_theme_stylebox_override("panel", _style(color, 26, Color(1, 1, 1, 0.78), 1))
+	return panel
+
+
+func _style(fill: Color, radius: int, border: Color, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = fill
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_left = radius
+	style.corner_radius_bottom_right = radius
+	style.border_color = border
+	style.border_width_left = border_width
+	style.border_width_right = border_width
+	style.border_width_top = border_width
+	style.border_width_bottom = border_width
+	style.shadow_color = Color(0.30, 0.20, 0.55, 0.16)
+	style.shadow_size = 16
+	style.shadow_offset = Vector2(0, 8)
+	return style
+
+
+func _button_style(top: Color, bottom: Color, radius: int) -> StyleBoxFlat:
+	var style := _style(bottom, radius, Color(1, 1, 1, 0.65), 2)
+	style.bg_color = bottom
+	return style
+
+
+func _load_texture(path: String) -> Texture2D:
+	if path.is_empty():
+		return null
+	if ResourceLoader.exists(path):
+		var loaded := ResourceLoader.load(path)
+		if loaded is Texture2D:
+			return loaded
+	path = CharacterData.resolve_file_path(path)
+	var image := Image.new()
+	if image.load(path) != OK:
+		push_warning("Unable to load character texture: %s" % path)
+		return null
+	return ImageTexture.create_from_image(image)
