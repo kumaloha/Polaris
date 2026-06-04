@@ -52,6 +52,7 @@ struct PlayResult {
     bool won = false;
     int score = 0;
     int moves_used = 0;
+    std::vector<int> collected;  // 各 species 累计消除数
 };
 
 // 枚举所有合法交换。
@@ -96,6 +97,7 @@ inline PlayResult greedy_play(const Level& lv) {
         accumulate(collected, rr.by_species);
         res.moves_used++;
     }
+    res.collected = collected;
     res.won = objectives_met(lv, res.score, collected);
     return res;
 }
@@ -143,6 +145,7 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
         accumulate(collected, rr.by_species);
         res.moves_used++;
     }
+    res.collected = collected;
     res.won = objectives_met(lv, res.score, collected);
     return res;
 }
@@ -163,6 +166,7 @@ inline PlayResult random_play(const Level& lv) {
         accumulate(collected, rr.by_species);
         res.moves_used++;
     }
+    res.collected = collected;
     res.won = objectives_met(lv, res.score, collected);
     return res;
 }

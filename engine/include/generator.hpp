@@ -12,8 +12,10 @@ struct GenConfig {
     int move_limit = 16;
     int trials = 4;           // 每个候选评估的重复次数（应对随机补充）
     double min_gap = 0.10;    // 最低 LFHC 深度（gap 太小=怎么玩都一样 → 弃）
-    double frac_lo = 0.35;    // 目标分落点下界（floor..ceil 之间）
-    double frac_hi = 0.85;    // 目标分落点上界
+    double frac_lo = 0.35;    // 目标落点下界（floor..ceil 之间）
+    double frac_hi = 0.85;    // 目标落点上界
+    double collect_ratio = 0.5;  // 约多少比例关卡发 COLLECT 目标（其余 SCORE）
+    double min_collect = 4.0;    // 某色被天花板平均收集 >= 此值才可作 COLLECT 目标
     uint32_t base_seed = 1;
 };
 
@@ -39,8 +41,9 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
         uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
 
-        // raw 评估：target 设很大 → 玩家走满步 → 测地板/天花板原始分
+        // raw 评估：target 设很大 → 玩家走满步 → 测地板/天花板原始分 + 各色收集均值
         double fsum = 0, csum = 0;
+        std::vector<double> g_col, r_col;
         for (int t = 0; t < cfg.trials; ++t) {
             Level lv;
             lv.init_board = board;
@@ -48,26 +51,53 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
             lv.move_limit = cfg.move_limit;
             lv.target_score = BIG;
             lv.seed = cand_seed + (uint32_t)t * 1000003u;
-            fsum += random_play(lv).score;
-            csum += greedy_play(lv).score;
+            PlayResult rp = random_play(lv);
+            PlayResult gp = greedy_play(lv);
+            fsum += rp.score;
+            csum += gp.score;
+            if (r_col.size() < rp.collected.size()) r_col.resize(rp.collected.size(), 0.0);
+            for (size_t i = 0; i < rp.collected.size(); ++i) r_col[i] += rp.collected[i];
+            if (g_col.size() < gp.collected.size()) g_col.resize(gp.collected.size(), 0.0);
+            for (size_t i = 0; i < gp.collected.size(); ++i) g_col[i] += gp.collected[i];
         }
         double floor_s = fsum / cfg.trials;
         double ceil_s = csum / cfg.trials;
         if (floor_s < 1.0) continue;
         double gap = (ceil_s - floor_s) / floor_s;
         if (gap < cfg.min_gap) continue;  // 没深度 → 弃
-
-        // 自动定目标：落在 floor..ceil 甜区 → 地板(均)够不到、天花板够得到
-        double frac = fracdist(fracgen);
-        int target = (int)(floor_s + frac * (ceil_s - floor_s));
-        if (target <= (int)floor_s) target = (int)floor_s + 1;
+        for (double& v : g_col) v /= cfg.trials;
+        for (double& v : r_col) v /= cfg.trials;
 
         Level final;
         final.init_board = board;
         final.species = cfg.species;
         final.move_limit = cfg.move_limit;
-        final.target_score = target;
         final.seed = cand_seed;
+
+        // 目标类型：约 collect_ratio 发 COLLECT（收集某色），否则 SCORE（冲分）
+        bool made_collect = false;
+        if (fracdist(fracgen) < cfg.collect_ratio) {
+            int best_s = -1;
+            double best_gap = 0.0;
+            for (size_t s = 0; s < g_col.size(); ++s) {
+                if (g_col[s] < cfg.min_collect) continue;
+                double rp = (s < r_col.size()) ? r_col[s] : 0.0;
+                double d = g_col[s] - rp;  // 技巧玩家比地板多收集多少 = 该色的深度
+                if (d > best_gap) { best_gap = d; best_s = (int)s; }
+            }
+            if (best_s >= 0) {
+                double rp = (best_s < (int)r_col.size()) ? r_col[best_s] : 0.0;
+                double ct = rp + fracdist(fracgen) * (g_col[best_s] - rp);  // 甜区
+                final.objectives = {{OBJ_COLLECT, best_s, (int)(ct < 1 ? 1 : ct)}};
+                made_collect = true;
+            }
+        }
+        if (!made_collect) {
+            double frac = fracdist(fracgen);
+            int target = (int)(floor_s + frac * (ceil_s - floor_s));
+            if (target <= (int)floor_s) target = (int)floor_s + 1;
+            final.target_score = target;
+        }
         LevelEval fe = evaluate_level(final, cfg.trials);
 
         GeneratedLevel gl;

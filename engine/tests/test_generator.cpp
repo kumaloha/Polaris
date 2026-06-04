@@ -10,18 +10,27 @@ static void test_generate_curates_library() {
     cfg.trials = 4;
     cfg.min_gap = 0.10;
     cfg.base_seed = 1;
-    auto lib = generate_and_test(cfg, 5, 60);
+    auto lib = generate_and_test(cfg, 6, 80);
     CHECK(!lib.empty(), "produced at least one level");
-    CHECK((int)lib.size() <= 5, "no more than requested count");
+    CHECK((int)lib.size() <= 6, "no more than requested count");
+    int n_collect = 0, n_score = 0;
     for (const auto& gl : lib) {
         CHECK(gl.lfhc_gap >= cfg.min_gap, "every kept level meets min depth");
-        CHECK(gl.level.target_score > (int)gl.floor_score, "target above floor (casual struggles)");
-        CHECK(gl.level.target_score <= (int)gl.ceil_score + 1, "target at/below ceil (skilled can pass)");
+        if (gl.level.objectives.empty()) {
+            n_score++;
+            CHECK(gl.level.target_score > (int)gl.floor_score, "SCORE target above floor (casual struggles)");
+            CHECK(gl.level.target_score <= (int)gl.ceil_score + 1, "SCORE target at/below ceil (skilled passes)");
+        } else {
+            n_collect++;
+            CHECK(gl.level.objectives[0].type == OBJ_COLLECT, "objective is COLLECT");
+            CHECK(gl.level.objectives[0].target >= 1, "COLLECT target >= 1");
+        }
     }
+    CHECK(n_collect >= 1, "at least one COLLECT level produced");
     if (!lib.empty()) {
-        std::printf("  [gen] kept=%d/5  sample: gap=%.2f diff=%s target=%d (floor=%.0f ceil=%.0f)\n",
-                    (int)lib.size(), lib[0].lfhc_gap, lib[0].difficulty,
-                    lib[0].level.target_score, lib[0].floor_score, lib[0].ceil_score);
+        const char* kind = lib[0].level.objectives.empty() ? "SCORE" : "COLLECT";
+        std::printf("  [gen] kept=%d (score=%d collect=%d)  sample: %s gap=%.2f diff=%s\n",
+                    (int)lib.size(), n_score, n_collect, kind, lib[0].lfhc_gap, lib[0].difficulty);
     }
 }
 
