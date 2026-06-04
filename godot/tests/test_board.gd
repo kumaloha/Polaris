@@ -450,3 +450,35 @@ func test_longswap_via_board() -> void:
 	b.longswap_armed = true
 	assert_true(b.try_swap(Vector2i(0, 0), Vector2i(2, 0))["ok"], "armed: distance-2 swap ok")
 	assert_false(b.longswap_armed, "armed consumed after use")
+
+# ───────────── 默认提示 / 看广告续用 / 结算数据 ─────────────
+
+func test_hint_returns_moves() -> void:
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	var h := b.hint(2)
+	assert_true(h.size() >= 1 and h.size() <= 2, "hint returns up to k best moves")
+
+func test_ad_continue_resets_skill_with_cap() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 20, 5)
+	b.skill = "timerewind"
+	b.rewind_used = true
+	assert_true(b.ad_continue(), "ad-continue #1 ok")
+	assert_false(b.rewind_used, "skill used-flag reset → reusable")
+	b.rewind_used = true
+	assert_true(b.ad_continue(), "ad-continue #2 ok")
+	b.rewind_used = true
+	assert_false(b.ad_continue(), "over cap(2) → no more")
+	assert_eq(b.ad_continues, 2, "two continues used")
+
+func test_result_summary() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 100, 20, 5)
+	b.score = 250
+	var r := b.result()
+	assert_true(r["won"], "won (250>=100)")
+	assert_true(r["stars"] >= 1 and r["stars"] <= 3, "1-3 stars")
+	assert_eq(r["score"], 250, "score in summary")
+	var b2 := Board.new(4, 4, [0, 1, 2, 3], 100, 1, 5)
+	b2.score = 50
+	b2.moves_left = 0
+	assert_false(b2.result()["won"], "not won")
+	assert_true(b2.result()["lost"], "lost (moves out, below target)")

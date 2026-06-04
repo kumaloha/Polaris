@@ -47,6 +47,9 @@ var shield_used: bool = false
 var active_used: bool = false
 # 隔位对换(#4)：armed 时下一次交换允许隔一格(span=2)，用完消耗
 var longswap_armed: bool = false
+# 看广告续用：重置技能"已用"标志再用一次，有上限（卖机会非强度）
+var ad_continues: int = 0
+var ad_continue_cap: int = 2
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -84,6 +87,7 @@ func start() -> void:
 	shield_used = false
 	active_used = false
 	longswap_armed = false
+	ad_continues = 0
 
 func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
@@ -370,3 +374,52 @@ func _settle_after_skill() -> void:
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
 	_settle_deadlock()
+
+# ───── 默认提示(#0) / 看广告续用 / 结算数据 ─────
+
+# 默认精灵提示(#0)：返回最优 k 步（卡住引路；非战斗，无一局一次约束）。
+func hint(k: int = 1) -> Array:
+	return ME.best_moves(grid, k, coat, objectives)
+
+# 看广告续用：重置当前技能的"已用"标志让它再用一次，有上限。返回是否成功。
+func ad_continue() -> bool:
+	if ad_continues >= ad_continue_cap:
+		return false
+	match skill:
+		"borrow":
+			borrow_used = false
+		"timerewind":
+			rewind_used = false
+		"snapshot":
+			snapshot_used = false
+		"colorshield":
+			shield_used = false
+		"gravityflip", "sametypeclear", "breaker", "foresight":
+			active_used = false
+		_:
+			return false   # 被动技能无需续用
+	ad_continues += 1
+	return true
+
+# 一局结算数据（给 UI 的 result 界面）。星级/碎片是占位公式，数值待策划调。
+func result() -> Dictionary:
+	var won := is_won()
+	var stars := 0
+	if won:
+		stars = 1
+		if moves_left > 0:
+			stars += 1
+		if not objectives.is_empty() and moves_left >= int(move_limit / 3.0):
+			stars += 1
+		elif objectives.is_empty() and score >= target_score * 2:
+			stars += 1
+		stars = clampi(stars, 1, 3)
+	var earned_fragments := fragments + int(score / 100.0)   # 连击收集 + 分数派生（占位）
+	return {
+		"won": won,
+		"lost": is_lost(),
+		"score": score,
+		"moves_left": moves_left,
+		"stars": stars,
+		"fragments": earned_fragments,
+	}
