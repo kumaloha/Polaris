@@ -20,8 +20,8 @@ const MOVES := 25
 
 # 5 种道具：颜色 + 形状符号双重区分（呼应 06：小尺寸靠形状不只靠色）
 var COLORS := [Color("e74c3c"), Color("f5b301"), Color("27ae60"), Color("2e86de"), Color("8e44ad")]
-# 引擎 species 0-4 → pieces.json species id（红药水/金星杖/绿符文板/蓝水晶球/紫魔烛）
-const PIECE_SPECIES := [1, 3, 6, 8, 2]
+# 引擎 species 0-4 → pieces.json species id（红药水/金星杖/绿魔法球/蓝符文板/紫魔烛，五色分明）
+const PIECE_SPECIES := [1, 3, 9, 6, 2]
 var piece_tex := []          # piece_tex[0-4] = {SP_NONE:基础, SP_LINE_H:横炸, SP_LINE_V:竖炸}
 var colorbomb_tex: Texture2D
 const SYMBOLS := ["●", "▲", "■", "◆", "✶"]
