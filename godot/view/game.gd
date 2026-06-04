@@ -364,7 +364,7 @@ func _rebuild_tiles() -> void:
 
 			# 宝石立绘(基础/横/竖/彩球)，叠在底色块上、符号/冰锁之下
 			var pr := TextureRect.new()
-			pr.size = Vector2(CELL - 12, CELL - 12)   # 比格位小一圈，棋子之间留缝，星芒不相接(去"毛")
+			pr.size = Vector2(CELL + GAP + 6, CELL + GAP + 6)   # 填满格距并略overlap，棋子互相挨着(CC 式紧排)
 			pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -482,7 +482,7 @@ func _render_cell(x: int, y: int) -> void:
 	var lab: Label = labels[y][x]
 	var bu = burst_rects[y][x]
 	rect.position = p
-	pr.position = p + Vector2(6, 6)   # 居中于格位(留 6px 边)
+	pr.position = p + Vector2(CELL * 0.5, CELL * 0.5) - pr.size * 0.5   # 居中于格心(立绘大于格→铺满挨着)
 	pr.pivot_offset = pr.size * 0.5   # 缩放动画绕中心
 	pr.scale = Vector2.ONE
 	bu.position = p - Vector2(11, 11)

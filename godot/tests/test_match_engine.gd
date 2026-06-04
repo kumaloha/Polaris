@@ -240,7 +240,7 @@ func test_reshuffle_deterministic_with_seed() -> void:
 
 # ---- v1.1 多连特效：分类 ----
 
-func test_classify_four_in_row_spawns_line_h() -> void:
+func test_classify_four_in_row_spawns_line_v() -> void:
 	var grid := [
 		[0, 0, 0, 0, 1],
 		[1, 2, 3, 2, 3],
@@ -248,7 +248,7 @@ func test_classify_four_in_row_spawns_line_h() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "horizontal 4 -> LINE_H")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "horizontal 4 -> LINE_V (垂直约定:横连生成竖特效)")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_five_in_row_spawns_colorbomb() -> void:
@@ -272,7 +272,7 @@ func test_classify_three_in_row_no_spawn() -> void:
 	assert_eq(c["spawns"].size(), 0, "plain 3-match spawns nothing")
 	assert_eq(c["clear"].size(), 3, "all 3 matched cleared")
 
-func test_classify_four_vertical_spawns_line_v() -> void:
+func test_classify_four_vertical_spawns_line_h() -> void:
 	var grid := [
 		[0, 1, 2],
 		[0, 2, 3],
@@ -281,7 +281,7 @@ func test_classify_four_vertical_spawns_line_v() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "vertical 4 -> LINE_V")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "vertical 4 -> LINE_H (垂直约定:竖连生成横特效)")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_t_shape_spawns_bomb() -> void:
@@ -373,7 +373,7 @@ func test_collect_four_match_marks_line_spawn() -> void:
 	var c := ME.collect_clears(grid, fx)
 	assert_eq(c["to_clear"].size(), 4, "all 4 matched cells in clear set")
 	assert_eq(c["spawns"].size(), 1, "one line spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "h4 -> LINE_H")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "h4 -> LINE_V (垂直约定)")
 
 func test_collect_triggers_line_clears_whole_row() -> void:
 	var grid := [[9, 8, 5, 9, 8], [5, 5, 5, 7, 6], [8, 7, 4, 6, 9]]  # 仅 row1 的 5,5,5 三连
@@ -390,7 +390,7 @@ func test_apply_clears_spawns_line_and_empties_others() -> void:
 	var c := ME.collect_clears(grid, fx)
 	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
 	var sp: Vector2i = c["spawns"][0]["pos"]
-	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_H, "spawn cell becomes LINE_H")
+	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_V, "spawn cell becomes LINE_V (h4→竖特效)")
 	assert_ne(grid[sp.y][sp.x], ME.EMPTY, "spawn cell keeps its species (not emptied)")
 	var empties := 0
 	for x in 5:

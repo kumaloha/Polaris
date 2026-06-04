@@ -445,13 +445,14 @@ static func classify_matches(grid: Array, coat: Array = []) -> Dictionary:
 			spawns.append({"pos": c, "kind": SP_BOMB})  # T/L/+ 交点
 			spawn_at[c] = true
 
+	# 垂直约定(对齐 Candy Crush)：横向4连→竖直特效(清列)、纵向4连→横向特效(清行)。
 	for r in h_runs:
 		if r["len"] == 4 and not _run_intersects(r["cells"], in_v) and not spawn_at.has(r["mid"]):
-			spawns.append({"pos": r["mid"], "kind": SP_LINE_H})
+			spawns.append({"pos": r["mid"], "kind": SP_LINE_V})
 			spawn_at[r["mid"]] = true
 	for r in v_runs:
 		if r["len"] == 4 and not _run_intersects(r["cells"], in_h) and not spawn_at.has(r["mid"]):
-			spawns.append({"pos": r["mid"], "kind": SP_LINE_V})
+			spawns.append({"pos": r["mid"], "kind": SP_LINE_H})
 			spawn_at[r["mid"]] = true
 
 	var clear_list := []
