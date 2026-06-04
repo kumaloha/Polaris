@@ -58,8 +58,31 @@ static void test_generate_deterministic() {
         CHECK(a[0].level.target_score == b[0].level.target_score, "deterministic target");
 }
 
+static void test_generate_for_difficulty() {
+    GenConfig cfg;
+    cfg.move_limit = 16;
+    cfg.trials = 6;
+    cfg.min_gap = 0.10;
+    cfg.base_seed = 1;
+    auto hard = generate_for_difficulty(cfg, band_hard(), 3, 150);
+    CHECK(!hard.empty(), "produced HARD levels on request");
+    for (const auto& gl : hard) {
+        CHECK(gl.skilled_pass >= 0.1 - 1e-9 && gl.skilled_pass <= 0.4 + 1e-9, "HARD: skilled_pass in [0.1,0.4]");
+        CHECK(std::string(gl.difficulty) == "HARD", "labeled HARD");
+    }
+    auto easy = generate_for_difficulty(cfg, band_easy(), 3, 150);
+    CHECK(!easy.empty(), "produced EASY levels on request");
+    for (const auto& gl : easy)
+        CHECK(gl.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+    if (!hard.empty())
+        std::printf("  [gen-target] HARD kept=%d pass=%.2f | EASY kept=%d pass=%.2f\n",
+                    (int)hard.size(), hard[0].skilled_pass, (int)easy.size(),
+                    easy.empty() ? -1.0 : easy[0].skilled_pass);
+}
+
 int main() {
     test_generate_curates_library();
+    test_generate_for_difficulty();
     test_generate_deterministic();
     return report();
 }

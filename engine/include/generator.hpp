@@ -164,4 +164,162 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
     return out;
 }
 
+// ---- 定向难度生成：二分搜索目标值，把 skilled_pass 逼进请求难度带 ----
+
+struct DiffBand {
+    const char* name;
+    double pl, ph;  // skilled_pass 落入 [pl, ph] 即该难度
+};
+inline DiffBand band_easy() { return {"EASY", 0.8, 1.01}; }
+inline DiffBand band_medium() { return {"MEDIUM", 0.4, 0.8}; }
+inline DiffBand band_hard() { return {"HARD", 0.1, 0.4}; }
+inline DiffBand band_expert() { return {"EXPERT", 0.02, 0.1}; }
+
+// 设置关卡的"难度旋钮"：无目标→分数线；有目标→目标数。
+inline void set_level_target(Level& lv, int t) {
+    if (lv.objectives.empty())
+        lv.target_score = t;
+    else
+        lv.objectives[0].target = t;
+}
+
+// 按请求难度直接产关：每个候选盘二分搜索目标值，命中该难度带才留。
+inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg, DiffBand band,
+                                                           int count, int max_attempts) {
+    std::vector<GeneratedLevel> out;
+    std::mt19937 boardgen(cfg.base_seed);
+    std::mt19937 fracgen(cfg.base_seed ^ 0x00abcdefu);
+    std::uniform_real_distribution<double> fracdist(0.0, 1.0);
+    const int BIG = 1 << 30;
+    int attempts = 0;
+    while ((int)out.size() < count && attempts < max_attempts) {
+        ++attempts;
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
+        int H = (int)board.size(), W = (int)board[0].size();
+        std::vector<std::vector<int>> full_jelly(H, std::vector<int>(W, 1));
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                if (board[y][x] == WALL) full_jelly[y][x] = 0;
+
+        // raw 评估（地板/天花板 + 各色收集 + 果冻清层）
+        double fsum = 0, csum = 0, gj = 0, rj = 0;
+        std::vector<double> g_col, r_col;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level lv;
+            lv.init_board = board;
+            lv.species = cfg.species;
+            lv.move_limit = cfg.move_limit;
+            lv.target_score = BIG;
+            lv.seed = cand_seed + (uint32_t)t * 1000003u;
+            lv.jelly = full_jelly;
+            PlayResult rp = random_play(lv), gp = greedy_play(lv);
+            fsum += rp.score;
+            csum += gp.score;
+            rj += rp.jelly_cleared;
+            gj += gp.jelly_cleared;
+            if (r_col.size() < rp.collected.size()) r_col.resize(rp.collected.size(), 0.0);
+            for (size_t i = 0; i < rp.collected.size(); ++i) r_col[i] += rp.collected[i];
+            if (g_col.size() < gp.collected.size()) g_col.resize(gp.collected.size(), 0.0);
+            for (size_t i = 0; i < gp.collected.size(); ++i) g_col[i] += gp.collected[i];
+        }
+        double floor_s = fsum / cfg.trials, ceil_s = csum / cfg.trials;
+        double g_jelly = gj / cfg.trials, r_jelly = rj / cfg.trials;
+        if (floor_s < 1.0) continue;
+        double gap = (ceil_s - floor_s) / floor_s;
+        if (gap < cfg.min_gap) continue;
+        for (double& v : g_col) v /= cfg.trials;
+        for (double& v : r_col) v /= cfg.trials;
+
+        // 决定目标类型 + 布局（不设 target；target 由二分搜索），并定搜索区间 [lo,hi]
+        Level final;
+        final.init_board = board;
+        final.species = cfg.species;
+        final.move_limit = cfg.move_limit;
+        final.seed = cand_seed;
+        int lo = 1, hi = 1;
+        double u = fracdist(fracgen);
+        bool decided = false;
+        if (u < cfg.collect_ratio) {
+            int best_s = -1;
+            double best_gap = 0.0;
+            for (size_t s = 0; s < g_col.size(); ++s) {
+                if (g_col[s] < cfg.min_collect) continue;
+                double rp = (s < r_col.size()) ? r_col[s] : 0.0;
+                double d = g_col[s] - rp;
+                if (d > best_gap) { best_gap = d; best_s = (int)s; }
+            }
+            if (best_s >= 0) {
+                final.objectives = {{OBJ_COLLECT, best_s, 1}};
+                lo = 1;
+                hi = (int)(g_col[best_s] * 2) + 2;
+                decided = true;
+            }
+        }
+        if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio && g_jelly >= cfg.min_jelly) {
+            final.jelly = full_jelly;
+            final.objectives = {{OBJ_CLEAR_JELLY, -1, 1}};
+            int total = 0;
+            for (auto& r : full_jelly) for (int v : r) total += v;
+            lo = 1;
+            hi = total;
+            decided = true;
+        }
+        if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio + cfg.blocker_ratio) {
+            std::mt19937 lr(cand_seed ^ 0x5bd1e995u);
+            std::uniform_real_distribution<double> dd(0.0, 1.0);
+            std::vector<std::vector<int>> coat(H, std::vector<int>(W, 0));
+            int total = 0;
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x)
+                    if (board[y][x] != WALL && dd(lr) < cfg.coat_density) { coat[y][x] = 1; total++; }
+            if (total >= cfg.min_blocker && has_legal_move(board, &coat)) {
+                final.coat = coat;
+                final.objectives = {{OBJ_CLEAR_BLOCKER, -1, 1}};
+                lo = 1;
+                hi = total;
+                decided = true;
+            }
+        }
+        if (!decided) {  // SCORE
+            final.target_score = 0;
+            lo = (int)floor_s;
+            hi = (int)(ceil_s * 2) + 1;
+        }
+
+        // 二分搜索 target 命中难度带（pass 随 target 单调递减）
+        int found = -1;
+        LevelEval fe;
+        int a = lo, b = hi;
+        for (int it = 0; it < 9 && a <= b; ++it) {
+            int mid = a + (b - a) / 2;
+            set_level_target(final, mid);
+            LevelEval e = evaluate_level(final, cfg.trials);
+            if (e.skilled_pass_rate > band.ph) {
+                a = mid + 1;  // 太易 → 提高 target
+            } else if (e.skilled_pass_rate < band.pl) {
+                b = mid - 1;  // 太难 → 降低 target
+            } else {
+                found = mid;
+                fe = e;
+                break;
+            }
+        }
+        if (found < 0) continue;  // 此盘命中不了该难度带
+        set_level_target(final, found);
+        double rhythm = rhythm_quality(objective_progress_curve(final));
+
+        GeneratedLevel gl;
+        gl.level = final;
+        gl.floor_score = floor_s;
+        gl.ceil_score = ceil_s;
+        gl.lfhc_gap = gap;
+        gl.skilled_pass = fe.skilled_pass_rate;
+        gl.rhythm = rhythm;
+        gl.difficulty = band.name;
+        out.push_back(gl);
+    }
+    return out;
+}
+
 }  // namespace me
