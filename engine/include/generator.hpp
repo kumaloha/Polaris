@@ -203,7 +203,7 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
                 if (board[y][x] == WALL) full_jelly[y][x] = 0;
 
         // raw 评估（地板/天花板 + 各色收集 + 果冻清层）
-        double fsum = 0, csum = 0, gj = 0, rj = 0;
+        double fsum = 0, csum = 0, gj = 0;
         std::vector<double> g_col, r_col;
         for (int t = 0; t < cfg.trials; ++t) {
             Level lv;
@@ -216,7 +216,6 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
             PlayResult rp = random_play(lv), gp = greedy_play(lv);
             fsum += rp.score;
             csum += gp.score;
-            rj += rp.jelly_cleared;
             gj += gp.jelly_cleared;
             if (r_col.size() < rp.collected.size()) r_col.resize(rp.collected.size(), 0.0);
             for (size_t i = 0; i < rp.collected.size(); ++i) r_col[i] += rp.collected[i];
@@ -224,7 +223,7 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
             for (size_t i = 0; i < gp.collected.size(); ++i) g_col[i] += gp.collected[i];
         }
         double floor_s = fsum / cfg.trials, ceil_s = csum / cfg.trials;
-        double g_jelly = gj / cfg.trials, r_jelly = rj / cfg.trials;
+        double g_jelly = gj / cfg.trials;
         if (floor_s < 1.0) continue;
         double gap = (ceil_s - floor_s) / floor_s;
         if (gap < cfg.min_gap) continue;
