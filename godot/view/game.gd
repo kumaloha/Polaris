@@ -1,7 +1,7 @@
 extends Node2D
 # game.gd — 消除 Core 表现层（v1：无特效/无障碍）。
 # 只跟 board.gd 打交道：读 grid/score/moves_left，调 try_swap。
-# 操作：点一个水果再点相邻水果 → 交换（滑动动画）。R 重开一局。
+# 操作：点一个道具再点相邻道具 → 交换（滑动动画）。R 重开一局。
 
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
@@ -15,7 +15,7 @@ const ORIGIN := Vector2(36.0, 160.0)
 const TARGET := 2000
 const MOVES := 25
 
-# 5 种水果：颜色 + 形状符号双重区分（呼应 06：小尺寸靠形状不只靠色）
+# 5 种道具：颜色 + 形状符号双重区分（呼应 06：小尺寸靠形状不只靠色）
 var COLORS := [Color("e74c3c"), Color("f5b301"), Color("27ae60"), Color("2e86de"), Color("8e44ad")]
 const SYMBOLS := ["●", "▲", "■", "◆", "✶"]
 # 特效标记：SP_NONE/LINE_H/LINE_V/BOMB/COLORBOMB
@@ -74,7 +74,7 @@ func _build_hud() -> void:
 	moves_label = _mk_label(Vector2(36, 86), 28)
 	status_label = _mk_label(Vector2(360, 40), 34)
 	hint_label = _mk_label(Vector2(36, 850), 20)
-	hint_label.text = "点一个水果，再点相邻水果交换 · 按 R 重开"
+	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 重开"
 
 
 func _mk_label(pos: Vector2, fsize: int) -> Label:
