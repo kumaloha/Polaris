@@ -4,12 +4,23 @@ const CharacterData := preload("res://ui/character_data.gd")
 const GameScript := preload("res://view/game.gd")
 const CelestialBg := preload("res://ui/celestial_bg.gd")
 const MetaState := preload("res://meta/meta_state.gd")
+const Enchants := preload("res://meta/enchants.gd")
 
 # 占星风配色
 const C_GOLD := Color("e9c97c")
 const C_GOLD_DEEP := Color("c79a4a")
 const C_INK := Color("f3ecff")
 const C_INK_DIM := Color("b9c4e6")
+
+# 5 种铭文的展示(名/色/一句话效果)
+const ENCHANT_INFO := {
+	"moves": {"name": "步数", "color": "6db6ff", "eff": "每3格+1步(6格封顶+2)"},
+	"score": {"name": "积分", "color": "f6ad36", "eff": "每格分数+5%"},
+	"coins": {"name": "金币", "color": "ff9f43", "eff": "每格金币+5%"},
+	"skill_uses": {"name": "技能", "color": "9d6cf0", "eff": "每6格技能多用1次"},
+	"opening": {"name": "开局", "color": "ff6fb6", "eff": "3格开局直线/6格彩球"},
+}
+const ENCHANT_CYCLE := ["", "moves", "score", "coins", "skill_uses", "opening"]
 
 const VIEW_W := 720.0
 const VIEW_H := 920.0
@@ -132,11 +143,15 @@ func _show_character() -> void:
 		strip.add_child(_character_thumb(i))
 
 	var equip_text := "门面角色" if not bool(hero.get("playable", true)) else "设为出战"
-	var equip := _button(equip_text, Rect2(205, 862, 310, 50), Color("9d6cf0"), Color("7a3fe0"))
+	var equip := _button(equip_text, Rect2(54, 862, 300, 50), Color("9d6cf0"), Color("7a3fe0"))
 	equip.disabled = not bool(hero.get("playable", true))
 	if not equip.disabled:
 		equip.pressed.connect(Callable(self, "_equip_current"))
 	add_child(equip)
+	var runes := _button("配铭文", Rect2(366, 862, 300, 50), Color("ffd874"), Color("f6ad36"))
+	runes.add_theme_color_override("font_color", Color("4a2f00"))
+	runes.pressed.connect(Callable(self, "_show_enchants"))
+	add_child(runes)
 
 
 func _show_game() -> void:
@@ -572,6 +587,92 @@ func _show_gacha_reveal(results: Array) -> void:
 	var ok := _gold_button("确定", "", Rect2(228, 704, 264, 78))
 	ok.pressed.connect(Callable(self, "_show_gacha"))
 	add_child(ok)
+
+
+# 铭文屏：9 格碎片编辑器(全局页)。点格子循环切 5 种;实时显示聚合加成。
+func _show_enchants() -> void:
+	_clear()
+	_add_gradient_background(false)
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_character"))
+	add_child(back)
+	add_child(_label("铭文 · 9 格碎片", Rect2(0, 30, VIEW_W, 40), 26, C_GOLD))
+	var fz: int = meta.fragments if meta != null else 0
+	_res_chip(Color("ff9ec7"), "碎片 %d" % fz, Rect2(486, 40, 210, 36))
+	add_child(_label("9 格自由分配 · 堆够格数才出效果 · 装了这个就装不了那个", Rect2(0, 84, VIEW_W, 22), 14, C_INK_DIM))
+
+	var page := _enchant_page()
+	var cell := 188.0
+	var ch := 130.0
+	var gap := 16.0
+	var gx := (VIEW_W - 3.0 * cell - 2.0 * gap) / 2.0
+	for i in 9:
+		var col := i % 3
+		var row := i / 3
+		_enchant_slot(i, String(page[i]), Rect2(gx + col * (cell + gap), 148.0 + row * (ch + gap), cell, ch))
+
+	var agg := Enchants.aggregate(page)
+	var op := int(agg.get("opening_special", 0))
+	var op_txt := "彩球" if op == 4 else ("直线" if op == 1 else "无")
+	var summary := "步数+%d    分×%.2f    币×%.2f    技能+%d次    开局:%s" % [
+		int(agg.get("extra_moves", 0)), float(agg.get("score_mult", 1.0)), float(agg.get("coin_mult", 1.0)),
+		int(agg.get("extra_skill_uses", 0)), op_txt]
+	var ap := _dark_panel(Rect2(60, 588, 600, 70), 18, C_GOLD, 1)
+	add_child(ap)
+	ap.add_child(_inner_label("当前加成", Rect2(0, 8, 600, 22), 14, C_GOLD))
+	ap.add_child(_inner_label(summary, Rect2(0, 34, 600, 26), 16, C_INK))
+
+	var clear := _button("清空", Rect2(270, 674, 180, 52), Color("9d6cf0"), Color("7a3fe0"))
+	clear.pressed.connect(Callable(self, "_clear_enchants"))
+	add_child(clear)
+	add_child(_label("点格子循环切换 5 种铭文", Rect2(0, 738, VIEW_W, 22), 13, C_INK_DIM))
+
+
+func _enchant_page() -> Array:
+	if meta == null:
+		return ["", "", "", "", "", "", "", "", ""]
+	while meta.enchant_page.size() < 9:
+		meta.enchant_page.append("")
+	return meta.enchant_page
+
+
+func _enchant_slot(idx: int, type: String, rect: Rect2) -> void:
+	var has: bool = ENCHANT_INFO.has(type)
+	var btn := Button.new()
+	btn.position = rect.position
+	btn.size = rect.size
+	btn.flat = true
+	var fill: Color = Color(ENCHANT_INFO[type]["color"]) if has else Color(0.10, 0.15, 0.30, 0.6)
+	var border: Color = C_GOLD if has else Color(1, 1, 1, 0.18)
+	btn.add_theme_stylebox_override("normal", _style(fill, 18, border, 2))
+	btn.add_theme_stylebox_override("hover", _style(fill.lightened(0.10), 18, C_GOLD, 2))
+	btn.add_theme_stylebox_override("pressed", _style(fill.darkened(0.10), 18, C_GOLD, 2))
+	btn.pressed.connect(Callable(self, "_cycle_enchant").bind(idx))
+	add_child(btn)
+	if has:
+		btn.add_child(_inner_label(String(ENCHANT_INFO[type]["name"]), Rect2(0, 26, rect.size.x, 32), 25, Color("2a1c00")))
+		btn.add_child(_inner_label(String(ENCHANT_INFO[type]["eff"]), Rect2(8, 78, rect.size.x - 16, 36), 12, Color(0.22, 0.16, 0.0, 0.85)))
+	else:
+		btn.add_child(_inner_label("+", Rect2(0, 36, rect.size.x, 44), 40, Color(1, 1, 1, 0.30)))
+
+
+func _cycle_enchant(idx: int) -> void:
+	if meta == null:
+		return
+	var page := _enchant_page()
+	var cur := ENCHANT_CYCLE.find(String(page[idx]))
+	page[idx] = ENCHANT_CYCLE[(maxi(cur, 0) + 1) % ENCHANT_CYCLE.size()]
+	meta.save()
+	_show_enchants()
+
+
+func _clear_enchants() -> void:
+	if meta == null:
+		return
+	meta.enchant_page = ["", "", "", "", "", "", "", "", ""]
+	meta.save()
+	_show_enchants()
 
 
 func _skill_name(character: Dictionary) -> String:
