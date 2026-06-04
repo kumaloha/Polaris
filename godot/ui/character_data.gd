@@ -1,7 +1,7 @@
 extends RefCounted
 
-const MANIFEST_PATH := "resources/characters/characters.json"
-const CHARACTER_DIR := "resources/characters"
+const MANIFEST_PATH := "res://art/characters/characters.json"
+const CHARACTER_DIR := "res://art/characters"
 
 const DISPLAY_NAMES := {
 	"borrrower": "借贷",

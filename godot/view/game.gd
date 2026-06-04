@@ -385,7 +385,7 @@ func _cell_pos(x: int, y: int) -> Vector2:
 func _load_pieces() -> void:
 	piece_tex.clear()
 	colorbomb_tex = null
-	var path := _res_abs("resources/pieces/pieces.json")
+	var path := "res://art/pieces/pieces.json"
 	if not FileAccess.file_exists(path):
 		return
 	var m = JSON.parse_string(FileAccess.get_file_as_string(path))
@@ -409,8 +409,13 @@ func _res_abs(p: String) -> String:
 func _piece_tex(p) -> Texture2D:
 	if p == null or String(p).is_empty():
 		return null
-	var img := Image.new()
-	if img.load(_res_abs(String(p))) != OK:
+	var path := String(p)
+	if ResourceLoader.exists(path):   # 已导入资源(导出可带) 优先
+		var t = load(path)
+		if t is Texture2D:
+			return t
+	var img := Image.new()             # 回退:从源 png 直接读(编辑器/开发)
+	if img.load(ProjectSettings.globalize_path(path) if path.begins_with("res://") else path) != OK:
 		return null
 	return ImageTexture.create_from_image(img)
 

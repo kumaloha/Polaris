@@ -22,3 +22,7 @@ resources/*.png
 resources/*.html
 resources/**/*.png
 resources/**/*.jpg
+
+# 运行时美术挪到 res://art/(Godot 导入→导出可带)；本地有，体量大暂不入库(同 resources 策略)。manifest(.json)入库。
+godot/art/**/*.png
+godot/art/**/*.import

@@ -1,0 +1,66 @@
+{
+  "note": "棋子清单。res:// 路径(Godot 导入)。NN_名_{basic/h/v}.png；extra=彩球。",
+  "colorbomb": "res://art/pieces/extra.png",
+  "species": {
+    "1": {
+      "name": "potion_bottle",
+      "basic": "res://art/pieces/01_potion_bottle_basic.png",
+      "h": "res://art/pieces/01_potion_bottle_horizontal.png",
+      "v": "res://art/pieces/01_potion_bottle_vertical.png"
+    },
+    "2": {
+      "name": "magic_candle",
+      "basic": "res://art/pieces/02_magic_candle_basic.png",
+      "h": "res://art/pieces/02_magic_candle_horizontal.png",
+      "v": "res://art/pieces/02_magic_candle_vertical.png"
+    },
+    "3": {
+      "name": "star_wand",
+      "basic": "res://art/pieces/03_star_wand_basic.png",
+      "h": "res://art/pieces/03_star_wand_horizontal.png",
+      "v": "res://art/pieces/03_star_wand_vertical.png"
+    },
+    "4": {
+      "name": "feather_quill",
+      "basic": "res://art/pieces/04_feather_quill_basic.png",
+      "h": "res://art/pieces/04_feather_quill_horizontal.png",
+      "v": "res://art/pieces/04_feather_quill_vertical.png"
+    },
+    "5": {
+      "name": "spellbook",
+      "basic": "res://art/pieces/05_spellbook_basic.png",
+      "h": "res://art/pieces/05_spellbook_horizontal.png",
+      "v": "res://art/pieces/05_spellbook_vertical.png"
+    },
+    "6": {
+      "name": "rune_tablet",
+      "basic": "res://art/pieces/06_rune_tablet_basic.png",
+      "h": "res://art/pieces/06_rune_tablet_horizontal.png",
+      "v": "res://art/pieces/06_rune_tablet_vertical.png"
+    },
+    "7": {
+      "name": "paper_talisman",
+      "basic": "res://art/pieces/07_paper_talisman_basic.png",
+      "h": "res://art/pieces/07_paper_talisman_horizontal.png",
+      "v": "res://art/pieces/07_paper_talisman_vertical.png"
+    },
+    "8": {
+      "name": "crystal_ball",
+      "basic": "res://art/pieces/08_crystal_ball_basic.png",
+      "h": "res://art/pieces/08_crystal_ball_horizontal.png",
+      "v": "res://art/pieces/08_crystal_ball_vertical.png"
+    },
+    "9": {
+      "name": "magic_orb",
+      "basic": "res://art/pieces/09_magic_orb_basic.png",
+      "h": "res://art/pieces/09_magic_orb_horizontal.png",
+      "v": "res://art/pieces/09_magic_orb_vertical.png"
+    },
+    "10": {
+      "name": "magic_bell",
+      "basic": "res://art/pieces/10_magic_bell_basic.png",
+      "h": "res://art/pieces/10_magic_bell_horizontal.png",
+      "v": "res://art/pieces/10_magic_bell_vertical.png"
+    }
+  }
+}

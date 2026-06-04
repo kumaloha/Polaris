@@ -1011,6 +1011,8 @@ func _load_texture(path: String) -> Texture2D:
 		if loaded is Texture2D:
 			return loaded
 	path = CharacterData.resolve_file_path(path)
+	if path.begins_with("res://"):
+		path = ProjectSettings.globalize_path(path)   # Image.load 需文件系统路径
 	var image := Image.new()
 	if image.load(path) != OK:
 		push_warning("Unable to load character texture: %s" % path)
