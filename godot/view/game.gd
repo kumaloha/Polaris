@@ -12,9 +12,9 @@ const Burst := preload("res://ui/burst.gd")
 const W := 8
 const H := 8
 const SPECIES := [0, 1, 2, 3, 4]
-const CELL := 78.0
+const CELL := 60.0   # 缩小棋格，让金色魔法阵能完整套住 8×8 盘(对齐 board.png)
 const GAP := 6.0
-const ORIGIN := Vector2(36.0, 440.0)   # 高瘦画布(1520)里把棋盘下移居中
+const ORIGIN := Vector2(99.0, 520.0)   # 居中(522 宽盘): 横 (720-522)/2，纵留出顶部 HUD
 const TARGET := 2000
 const MOVES := 25
 
@@ -236,7 +236,14 @@ func _demo_coat_layer() -> Array:
 func _build_hud() -> void:
 	# 占星背景(深蓝渐变+星点) + 棋盘金框
 	var bg := CelestialBg.new()
-	bg.show_circle = false
+	bg.light_mode = true          # 浅蓝通透星空(对齐 board.png)
+	bg.show_circle = true
+	bg.inner_ring = false         # 对局大阵：金环在棋盘外侧，不切棋盘
+	bg.planets = true
+	var bcenter := ORIGIN + Vector2(W * CELL + (W - 1) * GAP, H * CELL + (H - 1) * GAP) * 0.5
+	bg.circle_center = bcenter
+	bg.glow_center = bcenter
+	bg.circle_radius = 356.0
 	bg.z_index = -10
 	add_child(bg)
 	var frame := Panel.new()
@@ -245,7 +252,7 @@ func _build_hud() -> void:
 	frame.z_index = -5
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var fs := StyleBoxFlat.new()
-	fs.bg_color = Color(0.06, 0.10, 0.22, 0.50)
+	fs.bg_color = Color(0.97, 0.94, 0.85, 0.28)   # 奶白软底(对齐 board.png，替掉深框)
 	fs.set_corner_radius_all(30)
 	fs.set_border_width_all(2)
 	fs.border_color = Color("e9c97c")
@@ -255,19 +262,19 @@ func _build_hud() -> void:
 	add_child(frame)
 
 	title_label = _mk_label(Vector2(96, 268), 26)
-	title_label.add_theme_color_override("font_color", Color("e9c97c"))
+	title_label.add_theme_color_override("font_color", Color("6e5520"))   # 浅底用深金
 	score_label = _mk_label(Vector2(96, 312), 28)
-	score_label.add_theme_color_override("font_color", Color("f3ecff"))
+	score_label.add_theme_color_override("font_color", Color("1e2c4e"))   # 浅底用深蓝
 	moves_label = _mk_label(Vector2(96, 356), 26)
-	moves_label.add_theme_color_override("font_color", Color("c9d4ee"))
+	moves_label.add_theme_color_override("font_color", Color("2c3a60"))
 	status_label = _mk_label(Vector2(540, 312), 34)
-	status_label.add_theme_color_override("font_color", Color("7dffb0"))
-	hint_label = _mk_label(Vector2(36, 1124), 20)
-	hint_label.add_theme_color_override("font_color", Color(0.72, 0.80, 0.96, 0.66))
+	status_label.add_theme_color_override("font_color", Color("17744a"))
+	hint_label = _mk_label(Vector2(99, 1058), 18)
+	hint_label.add_theme_color_override("font_color", Color(0.16, 0.24, 0.42, 0.78))
 	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换关卡"
 	skill_button = Button.new()
-	skill_button.position = Vector2(36, 384)   # 棋盘正上方
-	skill_button.size = Vector2(648, 44)
+	skill_button.position = Vector2(99, 462)   # 棋盘正上方
+	skill_button.size = Vector2(522, 42)
 	skill_button.z_index = 50
 	skill_button.add_theme_font_size_override("font_size", 22)
 	skill_button.pressed.connect(_use_skill)
@@ -472,7 +479,7 @@ func _render_cell(x: int, y: int) -> void:
 			else:
 				tex = piece_tex[sp].get(ME.SP_NONE)   # 普通 + 炸弹用基础宝石
 		if tex != null:
-			rect.color = Color(1, 1, 1, 0.05)         # 极淡格位，让立绘当主体
+			rect.color = Color(0.96, 0.93, 0.83, 0.52)   # 奶白格(对齐 board.png)
 			pr.texture = tex
 			pr.visible = true
 			lab.text = ""
