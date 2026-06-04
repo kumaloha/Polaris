@@ -21,6 +21,7 @@ var _wkmat: ShaderMaterial
 var meta: MetaState              # Meta 进度(钱包/角色/铭文/历史)，持久化 user://save.json
 var _played: Dictionary = {}     # 本会话已玩过的库索引(调度优先没玩过的)
 var _cur_level := -1             # 当前对局的库索引(结束后入账)
+var _rng: RandomNumberGenerator  # 抽卡随机源
 
 
 # 抠白材质(无 alpha 的白底立绘 → 透明)；全 UI 共用一份。
@@ -38,6 +39,8 @@ func _ready() -> void:
 		push_warning("No character assets found at %s" % CharacterData.MANIFEST_PATH)
 	meta = MetaState.new()
 	meta.load_state()
+	_rng = RandomNumberGenerator.new()
+	_rng.randomize()
 	_sync_selected_to_equipped()
 	_show_home()
 
@@ -68,7 +71,7 @@ func _show_home() -> void:
 
 	# 侧边徽章(任务/召唤)
 	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 150), "3", Callable())
-	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 150), "!", Callable(self, "_show_character"))
+	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 150), "!", Callable(self, "_show_gacha"))
 	summon.tooltip_text = "召唤"
 
 	# 关卡牌(萌宠上方)
@@ -478,6 +481,97 @@ func _equip_current() -> void:
 		meta.equipped_skill = String(hero.get("id", ""))
 		meta.save()
 	_show_home()
+
+
+func _char_by_id(id: String) -> Dictionary:
+	for c in characters:
+		if String(c.get("id", "")) == id:
+			return c
+	return {}
+
+
+# 召唤屏(占星祭坛)：首抽保底借贷横幅 + 单抽(水晶1)/十连(水晶10)。
+func _show_gacha() -> void:
+	_clear()
+	_add_gradient_background(true)
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+	add_child(_label("魔导师召唤", Rect2(0, 32, VIEW_W, 40), 26, C_GOLD))
+	var cz: int = meta.crystals if meta != null else 0
+	_res_chip(Color("c79bff"), "水晶 %d" % cz, Rect2(470, 40, 226, 36))
+	# 祭坛中央：一只萌宠浮于阵心
+	_add_character_art(_selected_character(), Rect2(206, 252, 308, 318), false)
+	# 首抽保底横幅(仅当还没角色时)
+	if meta != null and meta.owned.is_empty():
+		var banner := _dark_panel(Rect2(168, 214, 384, 42), 999, C_GOLD, 2)
+		add_child(banner)
+		banner.add_child(_inner_label("首次召唤必得「借贷」", Rect2(0, 0, 384, 42), 17, C_GOLD))
+	# 召唤按钮
+	var single := _gold_button("单次召唤", "水晶 1", Rect2(96, 690, 240, 84))
+	single.pressed.connect(Callable(self, "_do_pull").bind(1))
+	add_child(single)
+	var ten := _gold_button("十连召唤", "水晶 10", Rect2(384, 690, 240, 84))
+	ten.pressed.connect(Callable(self, "_do_pull").bind(10))
+	add_child(ten)
+	add_child(_label("高分对局可获得魔法水晶 · 重复转碎片", Rect2(0, 788, VIEW_W, 24), 14, C_INK_DIM))
+
+
+func _do_pull(n: int) -> void:
+	if meta == null or meta.crystals < n:
+		return   # 水晶不足：按钮无效(简版)
+	var results := []
+	for i in n:
+		var r := meta.do_gacha(_rng, 1)
+		if r.has("error"):
+			break
+		results.append(r)
+	meta.save()
+	if not results.is_empty():
+		_show_gacha_reveal(results)
+
+
+# 召唤结果：单抽=大卡，多抽=5列网格。NEW=新精灵；重复→转 +20 碎片。
+func _show_gacha_reveal(results: Array) -> void:
+	_clear()
+	_add_gradient_background(true)
+	add_child(_label("获得精灵!" if results.size() == 1 else "召唤结果", Rect2(0, 66, VIEW_W, 40), 26, C_GOLD))
+	if results.size() == 1:
+		var r: Dictionary = results[0]
+		var c := _char_by_id(String(r.get("id", "")))
+		_add_character_art(c, Rect2(196, 168, 328, 330), false)
+		var plate := _dark_panel(Rect2(170, 504, 380, 112), 22, C_GOLD, 2)
+		add_child(plate)
+		plate.add_child(_inner_label(String(c.get("name", "?")), Rect2(0, 12, 380, 30), 24, C_GOLD))
+		plate.add_child(_inner_label(_skill_name(c), Rect2(0, 46, 380, 24), 16, C_INK))
+		plate.add_child(_inner_label("重复 · 转 +20 碎片" if bool(r.get("dupe", false)) else "全新精灵!", Rect2(0, 76, 380, 24), 14, C_INK_DIM))
+	else:
+		var cols := 5
+		var cw := 124.0
+		var ch := 148.0
+		var gx := (VIEW_W - cols * cw) / (cols + 1)
+		for i in results.size():
+			var r: Dictionary = results[i]
+			var c := _char_by_id(String(r.get("id", "")))
+			var col := i % cols
+			var row := i / cols
+			var card := _dark_panel(Rect2(gx + col * (cw + gx), 168.0 + row * (ch + 16), cw, ch), 16, C_GOLD if not bool(r.get("dupe", false)) else Color(1, 1, 1, 0.22), 2)
+			add_child(card)
+			var art := TextureRect.new()
+			art.position = Vector2(8, 6)
+			art.size = Vector2(cw - 16, 102)
+			art.texture = _load_texture(String(c.get("portrait", "")))
+			art.material = _white_key_material()
+			art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(art)
+			card.add_child(_inner_label(String(c.get("name", "?")), Rect2(0, 110, cw, 20), 13, C_GOLD))
+			card.add_child(_inner_label("重复" if bool(r.get("dupe", false)) else "NEW", Rect2(0, 128, cw, 16), 11, C_INK_DIM))
+	var ok := _gold_button("确定", "", Rect2(228, 704, 264, 78))
+	ok.pressed.connect(Callable(self, "_show_gacha"))
+	add_child(ok)
 
 
 func _skill_name(character: Dictionary) -> String:
