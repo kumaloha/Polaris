@@ -43,6 +43,8 @@ var snapshot_used: bool = false
 # 彩球护盾(#6)：引爆时彩球本体保留，只消耗护盾
 var colorbomb_shield: int = 0
 var shield_used: bool = false
+# 引擎原语类主动技能(重力翻转#5/同类消除#7/破障#9/预知#8)的一局一次标志
+var active_used: bool = false
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -78,6 +80,7 @@ func start() -> void:
 	snapshot_used = false
 	colorbomb_shield = 0
 	shield_used = false
+	active_used = false
 
 func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
@@ -289,3 +292,74 @@ func skill_shield() -> bool:
 	colorbomb_shield += 1
 	shield_used = true
 	return true
+
+# ───── 引擎原语类主动技能（统一走 board，含一局一次 + 结算 + 死局兜底）─────
+
+# 重力翻转(#5)：翻转盘面（行序倒置=上下颠倒），再重排下落。满盘上"反向下落"是 no-op，
+# 故用"翻转盘面+重排"做出可见效果（Flip the World）。
+func skill_gravity_flip() -> bool:
+	if skill != "gravityflip" or active_used or is_over():
+		return false
+	grid.reverse()
+	fx.reverse()
+	if not coat.is_empty():
+		coat.reverse()
+	if not jelly.is_empty():
+		jelly.reverse()
+	ME.apply_gravity(grid, fx, coat)
+	ME.refill(grid, species, rng, fx)
+	_settle_after_skill()
+	active_used = true
+	return true
+
+# 同类消除(#7)：清掉某 species 全场（锁住格只破锁不清，复用经典锁语义）。
+func skill_clear_species(sp: int) -> bool:
+	if skill != "sametypeclear" or active_used or is_over():
+		return false
+	var cells := ME.cells_of_species(grid, sp)
+	if cells.is_empty():
+		return false
+	var acc := ME.account_clears(grid, cells, jelly, coat)
+	_accumulate(acc["by_species"])
+	jelly_cleared += acc["jelly_cleared"]
+	blocker_cleared += acc["blocker_cleared"]
+	var locked := {}
+	for p in acc["locked"]:
+		locked[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked.has(p):
+			to_clear.append(p)
+	score += ME.score_for_clear(to_clear.size(), 1)
+	ME._apply_clears(grid, fx, to_clear, [])
+	ME.apply_gravity(grid, fx, coat)
+	ME.refill(grid, species, rng, fx)
+	_settle_after_skill()
+	active_used = true
+	return true
+
+# 破障(#9)：直接清掉至多 n 个锁住格（n 看等级）。
+func skill_break(n: int) -> bool:
+	if skill != "breaker" or active_used or is_over():
+		return false
+	var broke := ME.break_blockers(coat, n)
+	blocker_cleared += broke
+	active_used = true
+	_settle_deadlock()
+	return broke > 0
+
+# 预知(#8)：返回最优的 k 步走法（不改盘面，供视图高亮）。
+func skill_foresight(k: int) -> Array:
+	if skill != "foresight" or active_used or is_over():
+		return []
+	active_used = true
+	return ME.best_moves(grid, k, coat, objectives)
+
+# 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作）。
+func _settle_after_skill() -> void:
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
+	score += res.get("score", 0)
+	_accumulate(res.get("by_species", {}))
+	jelly_cleared += res.get("jelly_cleared", 0)
+	blocker_cleared += res.get("blocker_cleared", 0)
+	_settle_deadlock()

@@ -383,3 +383,55 @@ func test_level_library_parses_and_builds() -> void:
 	assert_eq(b.grid, [[0, 1], [1, 0]], "board built from json level")
 	assert_eq(b.move_limit, 10, "move_limit from json")
 	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")
+
+# ───────────── 主动技能 board API（#5/#7/#9/#8，一局一次）─────────────
+
+func test_skill_gravity_flip() -> void:
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "gravityflip"
+	assert_true(b.skill_gravity_flip(), "flip ok")
+	assert_true(b.active_used, "active used")
+	assert_false(b.skill_gravity_flip(), "one per game")
+	assert_true(ME.find_matches(b.grid).is_empty(), "board settled after flip")
+	var b2 := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	assert_false(b2.skill_gravity_flip(), "no skill equipped -> rejected")
+
+func test_skill_clear_species() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 30, 1)
+	b.skill = "sametypeclear"
+	b.grid = [
+		[0, 1, 2, 3],
+		[1, 0, 2, 3],
+		[2, 3, 0, 1],
+		[3, 2, 1, 0],
+	]
+	b.fx = b._blank_fx()
+	assert_true(b.skill_clear_species(0), "clear species 0 ok")
+	assert_true(b.score > 0, "scored from clearing 4 cells of species 0")
+	assert_true(b.active_used, "active used")
+	assert_false(b.skill_clear_species(0), "one per game")
+
+func test_skill_break() -> void:
+	var coat_layer := []
+	for y in 4:
+		var row := []
+		for x in 4:
+			row.append(0)
+		coat_layer.append(row)
+	coat_layer[0][0] = 1
+	coat_layer[1][1] = 2
+	coat_layer[2][2] = 1
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 30, 1, [], [], [], coat_layer)
+	b.skill = "breaker"
+	assert_true(b.skill_break(2), "break 2 ok")
+	assert_eq(b.blocker_cleared, 2, "2 blockers broken counted")
+	assert_true(b.active_used, "active used")
+	assert_false(b.skill_break(2), "one per game")
+
+func test_skill_foresight() -> void:
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "foresight"
+	var moves := b.skill_foresight(3)
+	assert_true(moves.size() >= 1 and moves.size() <= 3, "foresight returns up to 3 best moves")
+	assert_true(b.active_used, "active used")
+	assert_eq(b.skill_foresight(3).size(), 0, "one per game -> empty")
