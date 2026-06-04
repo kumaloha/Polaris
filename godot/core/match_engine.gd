@@ -99,17 +99,19 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = []) -> Dictionary:
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng)
-	return _resolve_fx(grid, species_set, rng, fx)
+		return _resolve_plain(grid, species_set, rng, jelly)
+	return _resolve_fx(grid, species_set, rng, fx, jelly)
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator) -> Dictionary:
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}  # species -> 消除数
+	var jelly_cleared := 0
+	var has_jelly := not jelly.is_empty()
 	while true:
 		var matched: Array = find_matches(grid)
 		if matched.is_empty():
@@ -119,12 +121,15 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 			var sp_p: int = grid[pos.y][pos.x]
 			if sp_p >= 0:
 				by_species[sp_p] = by_species.get(sp_p, 0) + 1
+			if has_jelly and jelly[pos.y][pos.x] > 0:
+				jelly[pos.y][pos.x] -= 1
+				jelly_cleared += 1
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
 		apply_gravity(grid)
 		refill(grid, species_set, rng)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -160,11 +165,13 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}
+	var jelly_cleared := 0
+	var has_jelly := not jelly.is_empty()
 	while true:
 		var c := collect_clears(grid, fx)
 		var to_clear: Array = c["to_clear"]
@@ -181,10 +188,13 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				var sp_p: int = grid[pos.y][pos.x]
 				if sp_p >= 0:
 					by_species[sp_p] = by_species.get(sp_p, 0) + 1
+			if has_jelly and jelly[pos.y][pos.x] > 0:
+				jelly[pos.y][pos.x] -= 1
+				jelly_cleared += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
 		apply_gravity(grid, fx)
 		refill(grid, species_set, rng, fx)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。

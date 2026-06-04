@@ -6,7 +6,7 @@
 
 namespace me {
 
-enum ObjType { OBJ_SCORE, OBJ_COLLECT };  // 后续加 CLEAR_BLOCKER / JELLY
+enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY };
 
 struct Objective {
     ObjType type = OBJ_SCORE;
@@ -20,7 +20,8 @@ struct Level {
     int target_score = 0;             // 旧式：objectives 为空时按它判胜（向后兼容）
     int move_limit = 0;
     uint32_t seed = 0;
-    std::vector<Objective> objectives;  // 新式：多目标，全满足即过关
+    std::vector<Objective> objectives;          // 新式：多目标，全满足即过关
+    std::vector<std::vector<int>> jelly;        // 果冻层（底层目标，可选）
 };
 
 // 把一次消除的 by_species 累加进总收集表。
@@ -30,7 +31,8 @@ inline void accumulate(std::vector<int>& acc, const std::vector<int>& add) {
 }
 
 // 是否过关：objectives 为空 → 旧式 score>=target_score；否则全部目标满足。
-inline bool objectives_met(const Level& lv, int score, const std::vector<int>& collected) {
+inline bool objectives_met(const Level& lv, int score, const std::vector<int>& collected,
+                           int jelly_cleared = 0) {
     if (lv.objectives.empty())
         return score >= lv.target_score;
     for (const auto& o : lv.objectives) {
@@ -39,6 +41,8 @@ inline bool objectives_met(const Level& lv, int score, const std::vector<int>& c
         } else if (o.type == OBJ_COLLECT) {
             int got = (o.species >= 0 && o.species < (int)collected.size()) ? collected[o.species] : 0;
             if (got < o.target) return false;
+        } else if (o.type == OBJ_CLEAR_JELLY) {
+            if (jelly_cleared < o.target) return false;
         }
     }
     return true;
@@ -75,7 +79,9 @@ inline PlayResult greedy_play(const Level& lv) {
     std::mt19937 rng(lv.seed);
     PlayResult res;
     std::vector<int> collected;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;  // 死局（v1 暂不洗牌，罕见；TODO 接 reshuffle）
         // 在副本上试每个候选，取立即得分最高（rng 也拷贝，保证选中后真实结算一致）
@@ -92,13 +98,14 @@ inline PlayResult greedy_play(const Level& lv) {
             }
         }
         swap_cells(g, best.a, best.b);
-        ResolveResult rr = resolve(g, lv.species, rng);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
         res.moves_used++;
     }
     res.collected = collected;
-    res.won = objectives_met(lv, res.score, collected);
+    res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }
 
@@ -110,7 +117,9 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
     std::mt19937 rng(lv.seed);  // 真实推进用
     PlayResult res;
     std::vector<int> collected;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;
         // 本步 rollout 的基准种子（独立于真实 rng；同 it 跨候选同随机 = 公平）
@@ -140,13 +149,14 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
             }
         }
         swap_cells(g, bestm.a, bestm.b);
-        ResolveResult rr = resolve(g, lv.species, rng);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
         res.moves_used++;
     }
     res.collected = collected;
-    res.won = objectives_met(lv, res.score, collected);
+    res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }
 
@@ -156,18 +166,21 @@ inline PlayResult random_play(const Level& lv) {
     std::mt19937 rng(lv.seed);
     PlayResult res;
     std::vector<int> collected;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;
         Move m = moves[rng() % moves.size()];
         swap_cells(g, m.a, m.b);
-        ResolveResult rr = resolve(g, lv.species, rng);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
         res.moves_used++;
     }
     res.collected = collected;
-    res.won = objectives_met(lv, res.score, collected);
+    res.won = objectives_met(lv, res.score, collected, jelly_total);
     return res;
 }
 

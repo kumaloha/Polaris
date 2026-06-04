@@ -113,9 +113,31 @@ static void test_greedy_wins_collect_objective() {
     CHECK(r.won, "greedy collects 5 of species 0 within 20 moves");
 }
 
+static void test_objectives_met_jelly() {
+    Level lv;
+    lv.objectives = {{OBJ_CLEAR_JELLY, -1, 10}};
+    CHECK(objectives_met(lv, 0, {}, 10), "jelly target met");
+    CHECK(!objectives_met(lv, 0, {}, 9), "jelly target not met");
+}
+
+static void test_greedy_clears_jelly_objective() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(6, 6, lv.species, gen);
+    lv.jelly.assign(6, std::vector<int>(6, 1));  // 全盘果冻
+    lv.move_limit = 30;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_JELLY, -1, 8}};  // 清 8 层
+    auto r = greedy_play(lv);
+    CHECK(r.won, "greedy clears 8 jelly layers within 30 moves");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
+    test_objectives_met_jelly();
+    test_greedy_clears_jelly_objective();
     test_greedy_plays_out_impossible_target();
     test_greedy_wins_easy_target();
     test_greedy_deterministic();

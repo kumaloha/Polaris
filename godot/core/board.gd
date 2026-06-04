@@ -14,12 +14,15 @@ var rng: RandomNumberGenerator
 var grid: Array
 var fx: Array = []   # 特效层（与 grid 同维），SP_NONE=普通
 var wall_mask: Array = []  # 异形棋盘掩码（可选）
-var objectives: Array = []  # [{type:"SCORE"/"COLLECT", species:int, target:int}]；空=旧式按 target_score
+var objectives: Array = []  # [{type:"SCORE"/"COLLECT"/"CLEAR_JELLY", species:int, target:int}]；空=旧式按 target_score
 var collected: Dictionary = {}  # species -> 累计消除数
+var init_jelly: Array = []  # 初始果冻层（底层目标，可选）
+var jelly: Array = []       # 当前果冻层（随消除递减）
+var jelly_cleared: int = 0  # 累计清掉的果冻层
 var score: int
 var moves_left: int
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
@@ -27,6 +30,7 @@ func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val
 	move_limit = moves
 	wall_mask = mask
 	objectives = objs
+	init_jelly = jelly_layer
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	start()
@@ -35,6 +39,8 @@ func start() -> void:
 	grid = ME.make_board(width, height, species, rng, wall_mask)
 	fx = _blank_fx()
 	collected = {}
+	jelly = init_jelly.duplicate(true)
+	jelly_cleared = 0
 	score = 0
 	moves_left = move_limit
 
@@ -61,6 +67,9 @@ func is_won() -> bool:
 		elif o["type"] == "COLLECT":
 			if collected.get(o["species"], 0) < o["target"]:
 				return false
+		elif o["type"] == "CLEAR_JELLY":
+			if jelly_cleared < o["target"]:
+				return false
 	return true
 
 func is_lost() -> bool:
@@ -83,9 +92,10 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 		return {"ok": false, "reason": "illegal"}
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
-	var res: Dictionary = ME.resolve(grid, species, rng, fx)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly)
 	score += res["score"]
 	_accumulate(res.get("by_species", {}))
+	jelly_cleared += res.get("jelly_cleared", 0)
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
@@ -102,9 +112,10 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._apply_clears(grid, fx, cells, [])   # 无 spawn，纯清除
 	ME.apply_gravity(grid, fx)
 	ME.refill(grid, species, rng, fx)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx)   # 结算余下级联
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly)   # 结算余下级联
 	score += res["score"]
 	_accumulate(res.get("by_species", {}))
+	jelly_cleared += res.get("jelly_cleared", 0)
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}

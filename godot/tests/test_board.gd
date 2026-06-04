@@ -91,6 +91,25 @@ func test_board_wins_collect_objective() -> void:
 	assert_true(b.collected.get(0, 0) >= 5, "collected >= 5 of species 0")
 	assert_true(b.is_won(), "won via COLLECT objective")
 
+func test_board_clears_jelly_objective() -> void:
+	var jelly_layer := []
+	for y in 8:
+		var row := []
+		for x in 8:
+			row.append(1)
+		jelly_layer.append(row)
+	var objs := [{"type": "CLEAR_JELLY", "species": -1, "target": 8}]
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 0, 30, 7, [], objs, jelly_layer)
+	for i in 30:
+		if b.is_over():
+			break
+		var mv := _find_legal_move(b.grid)
+		if mv.size() != 2:
+			break
+		b.try_swap(mv[0], mv[1])
+	assert_true(b.jelly_cleared >= 8, "cleared >= 8 jelly layers")
+	assert_true(b.is_won(), "won via CLEAR_JELLY objective")
+
 func test_colorbomb_swap_detonates_and_consumes_move() -> void:
 	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1)  # 大目标 → 不会胜
 	b.grid = [

@@ -97,9 +97,11 @@ inline int score_for_clear(int count, int cascade_level) {
 
 struct ResolveResult {
     int score = 0, cascades = 0, cleared = 0;
+    int jelly_cleared = 0;        // 本次消除清掉的果冻层数（底层目标）
     std::vector<int> by_species;  // by_species[s] = 本次消除中 species s 的格数（按需增长）
     bool operator==(const ResolveResult& o) const {
-        return score == o.score && cascades == o.cascades && cleared == o.cleared && by_species == o.by_species;
+        return score == o.score && cascades == o.cascades && cleared == o.cleared
+               && jelly_cleared == o.jelly_cleared && by_species == o.by_species;
     }
 };
 
@@ -133,7 +135,8 @@ inline bool has_legal_move(Grid& g) {
 }
 
 // 消除→计分→下落→补充，循环直到稳定。原地修改 g。
-inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng) {
+inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng,
+                             std::vector<std::vector<int>>* jelly = nullptr) {
     ResolveResult r;
     while (true) {
         auto matched = find_matches(g);
@@ -144,6 +147,10 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
             if (s >= 0) {
                 if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
                 r.by_species[s]++;
+            }
+            if (jelly && (*jelly)[p.y][p.x] > 0) {  // 消除覆盖到的格 → 果冻清一层
+                (*jelly)[p.y][p.x]--;
+                r.jelly_cleared++;
             }
             g[p.y][p.x] = EMPTY;
         }
