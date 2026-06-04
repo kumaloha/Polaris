@@ -4,6 +4,7 @@ extends RefCounted
 
 const Gacha := preload("res://meta/gacha.gd")
 const Enchants := preload("res://meta/enchants.gd")
+const Scheduler := preload("res://meta/scheduler.gd")
 const SAVE_PATH := "user://save.json"
 
 var fragments: int = 0      # 铭文碎片
@@ -12,6 +13,7 @@ var coins: int = 0          # 金币
 var owned: Dictionary = {}  # 角色 id -> 等级
 var enchant_page: Array = []    # 9 格(String，空槽 "")
 var equipped_skill: String = "" # 当前装备的角色 id
+var history: Array = []          # 每局表现 [{won, stars}]，供个性化调度估技能
 
 func _init() -> void:
 	enchant_page.resize(Enchants.SLOTS)
@@ -24,6 +26,7 @@ func bank_result(r: Dictionary) -> void:
 	coins += int(int(r.get("score", 0)) / 50.0 * coin_mult)
 	if r.get("won", false):
 		crystals += 1   # 过关给一点抽卡机会
+	history.append({"won": r.get("won", false), "stars": int(r.get("stars", 0))})
 
 # 抽卡（消耗水晶）。返回 pull 结果，或 {"error":...}。
 func do_gacha(rng: RandomNumberGenerator, cost: int = 1) -> Dictionary:
@@ -45,11 +48,16 @@ func loadout() -> Dictionary:
 	agg["skill_level"] = int(owned.get(equipped_skill, 1))
 	return agg
 
+# 个性化推关（09 §5.4 心流）：按玩家表现估技能 → 从库推一关贴合水平的。played=已玩过的库索引集。
+func recommend_next(library: Array, played: Dictionary = {}) -> int:
+	return Scheduler.recommend(library, Scheduler.estimate_skill(history), played)
+
 # ── 持久化 ──
 func save() -> void:
 	var d := {
 		"fragments": fragments, "crystals": crystals, "coins": coins,
 		"owned": owned, "enchant_page": enchant_page, "equipped_skill": equipped_skill,
+		"history": history,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:

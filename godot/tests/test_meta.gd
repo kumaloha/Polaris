@@ -3,6 +3,7 @@ extends "res://tests/test_lib.gd"
 const Enchants := preload("res://meta/enchants.gd")
 const Gacha := preload("res://meta/gacha.gd")
 const MetaState := preload("res://meta/meta_state.gd")
+const Scheduler := preload("res://meta/scheduler.gd")
 
 func _blank_page() -> Array:
 	var p := []
@@ -72,3 +73,26 @@ func test_meta_state_save_load() -> void:
 	assert_eq(int(ms2.owned.get("timerewind", 0)), 2, "owned persisted")
 	assert_eq(ms2.equipped_skill, "timerewind", "equipped persisted")
 	assert_eq(ms2.enchant_page[0], "score", "enchant page persisted")
+
+func test_scheduler_estimate_and_recommend() -> void:
+	assert_eq(Scheduler.estimate_skill([]), 0.4, "empty history -> 0.4 default")
+	var strong := []
+	for i in 5:
+		strong.append({"won": true, "stars": 3})
+	assert_true(Scheduler.estimate_skill(strong) >= 0.75, "all 3-star wins -> high skill")
+	var weak := []
+	for i in 5:
+		weak.append({"won": false, "stars": 0})
+	assert_true(Scheduler.estimate_skill(weak) <= 0.15, "all losses -> low skill")
+	var lib := [{"skilled_pass": 0.9}, {"skilled_pass": 0.5}, {"skilled_pass": 0.2}]
+	assert_eq(Scheduler.recommend(lib, 0.05), 0, "low skill -> easy (high pass)")
+	assert_eq(Scheduler.recommend(lib, 0.95), 2, "high skill -> hard (low pass)")
+	assert_eq(Scheduler.recommend(lib, 0.05, {0: true}), 1, "easy played -> next closest")
+
+func test_meta_recommend_next() -> void:
+	var ms := MetaState.new()
+	for i in 3:
+		ms.bank_result({"won": false, "stars": 0})   # 弱玩家
+	var lib := [{"skilled_pass": 0.9}, {"skilled_pass": 0.3}]
+	assert_eq(ms.recommend_next(lib), 0, "weak player -> easier level")
+	assert_eq(ms.history.size(), 3, "history recorded by bank_result")
