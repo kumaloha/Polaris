@@ -472,20 +472,22 @@ func _render_cell(x: int, y: int) -> void:
 		if has_pieces and sp < piece_tex.size():
 			if f == ME.SP_COLORBOMB:
 				tex = colorbomb_tex
-			elif f == ME.SP_LINE_H:
-				tex = piece_tex[sp].get(ME.SP_LINE_H)
-			elif f == ME.SP_LINE_V:
-				tex = piece_tex[sp].get(ME.SP_LINE_V)
 			else:
-				tex = piece_tex[sp].get(ME.SP_NONE)   # 普通 + 炸弹用基础宝石
+				tex = piece_tex[sp].get(ME.SP_NONE)   # 横/竖/炸/普通都用干净基础宝石；方向由 bu 光条指示(替掉烤死的脏光束)
 		if tex != null:
 			rect.color = Color(0.96, 0.93, 0.83, 0.52)   # 奶白格(对齐 board.png)
 			pr.texture = tex
 			pr.visible = true
 			lab.text = ""
 			if f == ME.SP_BOMB:
-				bu.visible = true                     # 炸弹：基础宝石 + 放射爆裂光环(补缺失专属图)
-				bu.queue_redraw()
+				bu.mode = "burst"; bu.z_index = -1    # 炸弹：宝石下方放射爆裂
+				bu.visible = true; bu.queue_redraw()
+			elif f == ME.SP_LINE_H:
+				bu.mode = "lineh"; bu.z_index = 1     # 横特效：宝石上方利落横光条
+				bu.visible = true; bu.queue_redraw()
+			elif f == ME.SP_LINE_V:
+				bu.mode = "linev"; bu.z_index = 1     # 竖特效：竖光条
+				bu.visible = true; bu.queue_redraw()
 		else:
 			# 回退：纯色块 + 符号
 			pr.visible = false
