@@ -64,6 +64,29 @@ struct PlayResult {
     std::vector<int> collected;  // 各 species 累计消除数
 };
 
+// 一步交换的"价值"：朝当前目标推进多少（目标感知，不是单纯分数）。
+// SCORE→分数；COLLECT→消的目标色数×W；JELLY/BLOCKER→清的层数×W；分数当次要项。
+// 无目标 → 退化为纯分数（与老贪心一致）。
+inline double move_value(const ResolveResult& rr, const Level& lv) {
+    if (lv.objectives.empty()) return (double)rr.score;
+    const double W = 100.0;  // 目标进度远重于分数
+    double v = 0.0;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE) {
+            v += rr.score;
+        } else if (o.type == OBJ_COLLECT) {
+            int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+            v += W * g;
+        } else if (o.type == OBJ_CLEAR_JELLY) {
+            v += W * rr.jelly_cleared;
+        } else if (o.type == OBJ_CLEAR_BLOCKER) {
+            v += W * rr.blocker_cleared;
+        }
+    }
+    v += 0.01 * rr.score;  // 同等目标进度下，分高者优
+    return v;
+}
+
 // 枚举所有合法交换。
 inline std::vector<Move> legal_moves(Grid& g, const std::vector<std::vector<int>>* coat = nullptr) {
     std::vector<Move> out;
@@ -177,6 +200,50 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
     return res;
 }
 
+// 目标感知贪心：每步选"朝目标推进最多"的交换（move_value），而非最大分。
+// 这是真正"会玩这关的高手" = 可信天花板。候选评估带 jelly/coat 拷贝以量出目标进度。
+inline PlayResult smart_greedy_play(const Level& lv) {
+    Grid g = lv.init_board;
+    std::mt19937 rng(lv.seed);
+    PlayResult res;
+    std::vector<int> collected;
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    while (res.moves_used < lv.move_limit
+           && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+        if (moves.empty()) break;
+        double best_v = -1e18;
+        Move best = moves[0];
+        for (const auto& m : moves) {
+            Grid gc = g;
+            std::mt19937 rc = rng;
+            std::vector<std::vector<int>> jc = jelly;
+            std::vector<std::vector<int>> cc = coat;
+            swap_cells(gc, m.a, m.b);
+            ResolveResult rr = resolve(gc, lv.species, rc,
+                                       jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc);
+            double v = move_value(rr, lv);
+            if (v > best_v) { best_v = v; best = m; }
+        }
+        swap_cells(g, best.a, best.b);
+        ResolveResult rr = resolve(g, lv.species, rng,
+                                   jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
+        res.moves_used++;
+    }
+    res.collected = collected;
+    res.jelly_cleared = jelly_total;
+    res.blocker_cleared = blocker_total;
+    res.won = objectives_met(lv, res.score, collected, jelly_total, blocker_total);
+    return res;
+}
+
 // 随机玩家：每步随便选一个合法交换。真正的"无脑休闲玩家" = 地板下沿。
 inline PlayResult random_play(const Level& lv) {
     Grid g = lv.init_board;
@@ -224,7 +291,7 @@ inline LevelEval evaluate_level(const Level& base, int trials = 8) {
         Level lv = base;
         lv.seed = base.seed + (uint32_t)t * 1000003u;  // 每次试不同随机流
         fsum += random_play(lv).score;
-        PlayResult gr = greedy_play(lv);
+        PlayResult gr = smart_greedy_play(lv);  // 目标感知天花板
         csum += gr.score;
         if (gr.won) ++wins;
     }

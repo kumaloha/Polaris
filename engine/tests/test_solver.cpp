@@ -15,6 +15,55 @@ static Level make_level(int target, int moves, uint32_t board_seed, uint32_t pla
     return lv;
 }
 
+static void test_move_value() {
+    ResolveResult rr;
+    rr.score = 50;
+    rr.jelly_cleared = 3;
+    rr.blocker_cleared = 2;
+    rr.by_species = {1, 4};  // species0:1, species1:4
+    Level sc;  // 无目标 → 纯分数
+    CHECK_EQ((int)move_value(rr, sc), 50, "no objective -> score");
+    Level col;
+    col.objectives = {{OBJ_COLLECT, 1, 10}};
+    CHECK((int)move_value(rr, col) >= 400, "COLLECT weights target species (4*100)");
+    Level jel;
+    jel.objectives = {{OBJ_CLEAR_JELLY, -1, 10}};
+    CHECK((int)move_value(rr, jel) >= 300, "JELLY weights jelly_cleared (3*100)");
+    Level blk;
+    blk.objectives = {{OBJ_CLEAR_BLOCKER, -1, 10}};
+    CHECK((int)move_value(rr, blk) >= 200, "BLOCKER weights blocker_cleared (2*100)");
+}
+
+static void test_smart_greedy_pursues_collect() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.move_limit = 15;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_COLLECT, 0, 9999}};  // 不可能 → 走满步、最大化收集 species 0
+    auto smart = smart_greedy_play(lv);
+    auto dumb = greedy_play(lv);  // 只刷分
+    int s0_smart = !smart.collected.empty() ? smart.collected[0] : 0;
+    int s0_dumb = !dumb.collected.empty() ? dumb.collected[0] : 0;
+    CHECK(s0_smart >= s0_dumb, "objective-aware collects >= score-greedy of the target species");
+}
+
+static void test_smart_greedy_pursues_jelly() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.jelly.assign(8, std::vector<int>(8, 0));
+    for (int i = 0; i < 8; ++i) lv.jelly[i][i] = 1;  // 稀疏对角果冻
+    lv.move_limit = 15;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_JELLY, -1, 9999}};  // 不可能 → 最大化清果冻
+    auto smart = smart_greedy_play(lv);
+    auto dumb = greedy_play(lv);
+    CHECK(smart.jelly_cleared >= dumb.jelly_cleared, "objective-aware clears >= jelly than score-greedy");
+}
+
 static void test_greedy_plays_out_impossible_target() {
     Level lv = make_level(100000, 30, 123, 777);  // 不可能的目标 → 走满步
     auto r = greedy_play(lv);
@@ -161,6 +210,9 @@ int main() {
     test_greedy_clears_jelly_objective();
     test_objectives_met_blocker();
     test_greedy_clears_blocker_objective();
+    test_move_value();
+    test_smart_greedy_pursues_collect();
+    test_smart_greedy_pursues_jelly();
     test_greedy_plays_out_impossible_target();
     test_greedy_wins_easy_target();
     test_greedy_deterministic();
