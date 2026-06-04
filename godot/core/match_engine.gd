@@ -247,9 +247,11 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
-static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = []) -> bool:
-	if abs(a.x - b.x) + abs(a.y - b.y) != 1:
-		return false  # 必须正交相邻
+static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = [], span: int = 1) -> bool:
+	# 正交、同行或列、间距=span（span=1 相邻；span=2 隔一格=隔位对换技能 #4，仅 Godot 玩家侧）
+	var in_range: bool = (a.y == b.y and abs(a.x - b.x) == span) or (a.x == b.x and abs(a.y - b.y) == span)
+	if not in_range:
+		return false
 	var va = grid[a.y][a.x]
 	var vb = grid[b.y][b.x]
 	if va == WALL or vb == WALL or va == EMPTY or vb == EMPTY:

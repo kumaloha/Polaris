@@ -632,3 +632,15 @@ func test_best_moves_finds_clearing_swap() -> void:
 		ME._swap_cells(grid, a, b)
 		assert_false(ME.find_matches(grid).is_empty(), "top hinted move creates a match")
 		ME._swap_cells(grid, a, b)
+
+func test_longswap_distance2() -> void:
+	# 隔位对换(#4)：span=2 允许隔一格交换；span=1 时同样的交换不合法。
+	var grid := [
+		[1, 1, 0, 1],
+		[2, 3, 4, 2],
+		[3, 4, 2, 3],
+	]
+	var a := Vector2i(0, 0)
+	var b := Vector2i(2, 0)  # 同行，隔一格(|dx|=2)
+	assert_false(ME.is_legal_swap(grid, a, b), "span=1 默认：距离2交换不合法")
+	assert_true(ME.is_legal_swap(grid, a, b, [], 2), "span=2：隔位交换合法(换后 x=1,2,3 成 1,1,1)")
