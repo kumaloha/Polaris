@@ -51,9 +51,9 @@ static func find_matches(grid: Array, coat: Array = []) -> Array:
 	return matched.keys()
 
 
-# 重力：每列非空格子落到列底，空格升到顶（原地修改 grid）。
+# 重力：每列非空格子落到列底，空格升到顶（原地修改 grid）。up=true 则反向上浮（重力翻转技能 #5）。
 # fx 可选：传入则特效层与棋子层同步下落（保持对齐）。
-static func apply_gravity(grid: Array, fx: Array = [], coat: Array = []) -> void:
+static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
@@ -75,14 +75,17 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = []) -> void
 				var empties := (y - seg_start) - stack.size()
 				for k in range(seg_start, y):
 					var idx := k - seg_start
-					if idx < empties:
+					# 下落(down)：空格在段顶、棋子沉底；上浮(up)：棋子在段顶、空格沉底
+					var is_empty_slot := (idx < empties) if not up else (idx >= stack.size())
+					if is_empty_slot:
 						grid[k][x] = EMPTY
 						if has_fx:
 							fx[k][x] = SP_NONE
 					else:
-						grid[k][x] = stack[idx - empties]
+						var si := (idx - empties) if not up else idx
+						grid[k][x] = stack[si]
 						if has_fx:
-							fx[k][x] = fx_stack[idx - empties]
+							fx[k][x] = fx_stack[si]
 				seg_start = y + 1
 
 
@@ -552,3 +555,66 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 			jelly[pos.y][pos.x] -= 1
 			jelly_cleared += 1
 	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "locked": locked.keys()}
+
+
+# ───────────── Meta 技能原语（玩家侧能力的引擎钩子，见 10 §7；不进 C++ 基准）─────────────
+
+# 同类消除(#7)：返回某 species 的全部格（清除/计目标交给 board 的 account_clears）。
+static func cells_of_species(grid: Array, sp: int) -> Array:
+	var out := []
+	for y in grid.size():
+		for x in grid[y].size():
+			if grid[y][x] == sp:
+				out.append(Vector2i(x, y))
+	return out
+
+# 破障(#9)：清掉至多 n 个锁住格（coat 归 0），返回实际破掉的格数。原地改 coat。
+static func break_blockers(coat: Array, n: int) -> int:
+	var broken := 0
+	for y in coat.size():
+		for x in coat[y].size():
+			if broken >= n:
+				return broken
+			if coat[y][x] > 0:
+				coat[y][x] = 0
+				broken += 1
+	return broken
+
+# 枚举全部合法交换（预知/默认提示用）。返回 [[a:Vector2i, b:Vector2i], ...]，coat 感知。
+static func legal_moves(grid: Array, coat: Array = []) -> Array:
+	var h := grid.size()
+	if h == 0:
+		return []
+	var w: int = grid[0].size()
+	var out := []
+	for y in h:
+		for x in w:
+			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat):
+				out.append([Vector2i(x, y), Vector2i(x + 1, y)])
+			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat):
+				out.append([Vector2i(x, y), Vector2i(x, y + 1)])
+	return out
+
+# 预知(#8)：运行时轻量 1-ply 求解器——按"即时消除格数 + 目标推进"给合法交换打分，返回最优 k 步。
+# 目标感知：objectives 里 COLLECT 的目标色被消到则加权（呼应 C++ move_value）。不跑随机补充（确定性提示，不剧透掉落）。
+static func best_moves(grid: Array, k: int, coat: Array = [], objectives: Array = []) -> Array:
+	var moves := legal_moves(grid, coat)
+	var scored := []
+	for mv in moves:
+		_swap_cells(grid, mv[0], mv[1])
+		var m: Array = find_matches(grid, coat)
+		var val := m.size()
+		if not objectives.is_empty():
+			for o in objectives:
+				if o.get("type", "") == "COLLECT":
+					var sp: int = o.get("species", -1)
+					for p in m:
+						if grid[p.y][p.x] == sp:
+							val += 100
+		_swap_cells(grid, mv[0], mv[1])  # 还原
+		scored.append({"mv": mv, "val": val})
+	scored.sort_custom(func(a, b): return a["val"] > b["val"])
+	var out := []
+	for i in range(min(k, scored.size())):
+		out.append(scored[i]["mv"])
+	return out

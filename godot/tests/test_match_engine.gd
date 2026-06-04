@@ -590,3 +590,45 @@ func test_resolve_locked_broken_by_adjacency() -> void:
 	assert_true(r["blocker_cleared"] >= 1, "adjacent clear breaks >=1 lock layer")
 	assert_true(coat[1][0] < 5 and coat[1][0] > 0, "lock decreased but still locked")
 	assert_eq(grid[1][0], 2, "locked tile preserved (not cleared/moved)")
+
+# ───────────── Meta 技能原语（10 §7 B 第一批）─────────────
+
+func test_apply_gravity_up_flip() -> void:
+	# 重力翻转(#5)：up=true 时非空棋子上浮、空格沉底。
+	var grid := [[0], [ME.EMPTY], [1], [ME.EMPTY]]  # 列：[0, _, 1, _]
+	ME.apply_gravity(grid, [], [], true)
+	assert_eq(grid[0][0], 0, "tile 0 risen to top")
+	assert_eq(grid[1][0], 1, "tile 1 risen below it")
+	assert_eq(grid[2][0], ME.EMPTY, "empty sinks")
+	assert_eq(grid[3][0], ME.EMPTY, "empty at bottom")
+
+func test_cells_of_species() -> void:
+	# 同类消除(#7)：枚举某色全部格。
+	var grid := [[0, 1, 0], [2, 0, 3]]
+	var cells := ME.cells_of_species(grid, 0)
+	assert_eq(cells.size(), 3, "three cells of species 0")
+	assert_true(cells.has(Vector2i(0, 0)) and cells.has(Vector2i(2, 0)) and cells.has(Vector2i(1, 1)), "right cells")
+
+func test_break_blockers() -> void:
+	# 破障(#9)：清至多 n 个锁住格。
+	var coat := [[2, 0], [1, 3]]  # 3 个锁住格
+	var broken := ME.break_blockers(coat, 2)
+	assert_eq(broken, 2, "broke exactly 2 (n cap)")
+	var remaining := 0
+	for row in coat:
+		for v in row:
+			if v > 0:
+				remaining += 1
+	assert_eq(remaining, 1, "one coated cell remains")
+
+func test_best_moves_finds_clearing_swap() -> void:
+	# 预知(#8)：返回最优合法步，top 步必能形成消除。
+	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]
+	var moves := ME.best_moves(grid, 3)
+	assert_true(moves.size() >= 1, "at least one hinted move")
+	if moves.size() >= 1:
+		var a: Vector2i = moves[0][0]
+		var b: Vector2i = moves[0][1]
+		ME._swap_cells(grid, a, b)
+		assert_false(ME.find_matches(grid).is_empty(), "top hinted move creates a match")
+		ME._swap_cells(grid, a, b)
