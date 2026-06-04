@@ -84,7 +84,7 @@ inline void apply_gravity(Grid& g, const std::vector<std::vector<int>>* coat = n
 }
 
 // 随机补充：EMPTY 填成 species 里的随机色（注入的 rng → 可复现）。
-// 滚动关(feed!=nullptr)：补充按列从预设 feed 队列前端出(长盘内容下流)，feed[x] 空则回退随机。
+// 滚动关(feed!=nullptr)：补充【只】按列从预设 feed 队列前端出(长盘内容下流)；feed[x] 空=该列挖穿→留空，不补随机(上面不掉落新棋子)。
 // 行序自上而下 → 同一列上方先补 = feed 前端先入；feed=nullptr 时与旧版逐格 rng 消耗完全一致。
 inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng,
                    std::vector<std::deque<int>>* feed = nullptr) {
@@ -94,11 +94,14 @@ inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng,
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
             if (g[y][x] == EMPTY) {
-                if (feed && x < (int)feed->size() && !(*feed)[x].empty()) {
-                    g[y][x] = (*feed)[x].front();
-                    (*feed)[x].pop_front();
+                if (feed) {  // 滚动关：只从预设 feed 出
+                    if (x < (int)feed->size() && !(*feed)[x].empty()) {
+                        g[y][x] = (*feed)[x].front();
+                        (*feed)[x].pop_front();
+                    }
+                    // feed[x] 空 = 该列已挖穿 → 顶部不生新棋子，留空(EMPTY)
                 } else {
-                    g[y][x] = species[dist(rng)];
+                    g[y][x] = species[dist(rng)];  // 普通关：随机补充
                 }
             }
 }

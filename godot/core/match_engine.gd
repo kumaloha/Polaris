@@ -95,13 +95,15 @@ static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, 
 	var n := species_set.size()
 	var has_fx := not fx.is_empty()
 	var has_feed := not feed.is_empty()
-	# 滚动关：补充按列从预设 feed 队列出(长盘内容自然下流)；feed[x] 空则回退随机。
+	# 滚动关：补充【只】按列从预设 feed 队列出(长盘内容自然下流)；feed[x] 空 = 该列挖穿 → 留空，不补随机(上面不掉落新棋子)。
 	# 行序自上而下遍历 → feed 前端先填进最上方的空格，长盘从顶部下流。
 	for y in grid.size():
 		for x in grid[y].size():
 			if grid[y][x] == EMPTY:
-				if has_feed and x < feed.size() and not feed[x].is_empty():
-					grid[y][x] = feed[x].pop_front()
+				if has_feed:
+					if x < feed.size() and not feed[x].is_empty():
+						grid[y][x] = feed[x].pop_front()
+					# feed[x] 空 → 留空，不补
 				else:
 					grid[y][x] = species_set[rng.randi() % n]
 				if has_fx:

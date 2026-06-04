@@ -585,5 +585,12 @@ func test_scrolling_feed_refill_and_win() -> void:
 	ME.refill(b.grid, b.species, b.rng, b.fx, b.feed)
 	assert_eq(b.grid[0][0], 7, "top empty filled from feed front (not random)")
 	assert_eq(b.feed[0].size(), 1, "col 0 feed consumed one (8 left)")
+	# 挖穿后：feed[x] 空了，顶部不再补新棋子(留空)，不回退随机
+	b.feed = [[], [5], []]      # 列0/列2 已挖穿，列1 还有
+	b.grid[1][0] = ME.EMPTY     # 列0 空格(已挖穿)
+	b.grid[1][1] = ME.EMPTY     # 列1 空格(还有 feed)
+	ME.refill(b.grid, b.species, b.rng, b.fx, b.feed)
+	assert_eq(b.grid[1][0], ME.EMPTY, "exhausted column stays EMPTY (no new piece dropped)")
+	assert_eq(b.grid[1][1], 5, "column with remaining feed still fills from it")
 	b.feed = [[], [], []]
 	assert_true(b.is_won(), "feed exhausted -> scrolling level won")

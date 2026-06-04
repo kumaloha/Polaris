@@ -268,11 +268,11 @@ static void test_refill_from_feed() {
     CHECK_EQ(g[0][0], 7, "refill: feed col0 top = first queued item");
     CHECK_EQ(g[1][0], 8, "refill: feed col0 bottom = second queued item");
     CHECK(feed[0].empty(), "refill: feed col0 drained");
-    CHECK(g[0][1] >= 0 && g[0][1] <= 4, "refill: empty-feed col falls back to random");
-    CHECK(g[1][1] >= 0 && g[1][1] <= 4, "refill: empty-feed col falls back to random");
+    CHECK(g[0][1] == EMPTY, "refill: exhausted-feed col stays EMPTY (no new piece dropped at top)");
+    CHECK(g[1][1] == EMPTY, "refill: exhausted-feed col stays EMPTY (no new piece dropped at top)");
     Grid g2 = {{EMPTY, EMPTY, EMPTY}};
-    refill(g2, species, rng);  // feed=nullptr → 纯随机，全填满(与旧行为一致)
-    CHECK(g2[0][0] != EMPTY && g2[0][2] != EMPTY, "refill: no feed = all random filled");
+    refill(g2, species, rng);  // feed=nullptr → 普通关纯随机，全填满(与旧行为一致)
+    CHECK(g2[0][0] != EMPTY && g2[0][2] != EMPTY, "refill: no feed (normal level) = all random filled");
 }
 
 int main() {
