@@ -502,3 +502,28 @@ func test_special_fusion_line_line() -> void:
 	assert_true(r.get("fusion", false), "fusion activated")
 	assert_eq(b.moves_left, before - 1, "one move consumed")
 	assert_true(b.score > 0, "fusion cleared & scored")
+
+# ───────────── 铭文/养成 喂参（量变 + 技能升级）─────────────
+
+func test_extra_moves_enchant() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 100, 20, 5)
+	assert_eq(b.moves_left, 20, "base moves")
+	b.extra_moves = 3
+	b.start()
+	assert_eq(b.moves_left, 23, "铭文 +步数 applied at start (20+3)")
+
+func test_skill_level_scales_break() -> void:
+	var coat_layer := []
+	for y in 4:
+		var row := []
+		for x in 4:
+			row.append(0)
+		coat_layer.append(row)
+	coat_layer[0][0] = 1
+	coat_layer[1][1] = 1
+	coat_layer[2][2] = 1
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 30, 1, [], [], [], coat_layer)
+	b.skill = "breaker"
+	b.skill_level = 2
+	b.skill_break()   # 无参 → 用等级 2
+	assert_eq(b.blocker_cleared, 2, "level 2 breaks 2 blockers")

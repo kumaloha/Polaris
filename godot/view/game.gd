@@ -574,9 +574,9 @@ func _use_skill() -> void:
 		"gravityflip":
 			board.skill_gravity_flip()
 		"breaker":
-			board.skill_break(2)
+			board.skill_break()
 		"foresight":
-			var mv: Array = board.skill_foresight(3)
+			var mv: Array = board.skill_foresight()
 			if not mv.is_empty():
 				var m = mv[0]
 				hint_label.text = "预知：试试 (%d,%d)↔(%d,%d)" % [m[0].x, m[0].y, m[1].x, m[1].y]

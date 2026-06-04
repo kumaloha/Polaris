@@ -50,6 +50,9 @@ var longswap_armed: bool = false
 # 看广告续用：重置技能"已用"标志再用一次，有上限（卖机会非强度）
 var ad_continues: int = 0
 var ad_continue_cap: int = 2
+# 铭文/养成喂参（Meta 系统设置，量变/随级成长）：铭文 +步数(开局多几步) / 技能等级
+var extra_moves: int = 0
+var skill_level: int = 1
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -74,7 +77,7 @@ func start() -> void:
 	coat = init_coat.duplicate(true)
 	blocker_cleared = 0
 	score = 0
-	moves_left = move_limit
+	moves_left = move_limit + extra_moves   # 铭文 +步数
 	borrow_used = false   # 技能状态随开局重置（skill 装备本身保留）
 	borrow_debt = 0
 	bonus_moves = 0
@@ -389,9 +392,11 @@ func skill_clear_species(sp: int) -> bool:
 	return true
 
 # 破障(#9)：直接清掉至多 n 个锁住格（n 看等级）。
-func skill_break(n: int) -> bool:
+func skill_break(n: int = 0) -> bool:
 	if skill != "breaker" or active_used or is_over():
 		return false
+	if n <= 0:
+		n = skill_level   # 等级越高破越多（1级破1，高级破2-3）
 	var broke := ME.break_blockers(coat, n)
 	blocker_cleared += broke
 	active_used = true
@@ -399,9 +404,11 @@ func skill_break(n: int) -> bool:
 	return broke > 0
 
 # 预知(#8)：返回最优的 k 步走法（不改盘面，供视图高亮）。
-func skill_foresight(k: int) -> Array:
+func skill_foresight(k: int = 0) -> Array:
 	if skill != "foresight" or active_used or is_over():
 		return []
+	if k <= 0:
+		k = maxi(1, skill_level)   # 等级越高亮越多步（1级亮1，高级3-5）
 	active_used = true
 	return ME.best_moves(grid, k, coat, objectives)
 
