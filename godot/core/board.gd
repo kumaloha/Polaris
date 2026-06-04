@@ -141,5 +141,5 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 
 func _settle_deadlock() -> void:
 	if not is_over() and not ME.has_legal_move(grid, coat):
-		ME.reshuffle(grid, rng)
+		ME.reshuffle(grid, rng, coat)   # coat 感知洗牌，避免洗完仍无真实合法步
 		fx = _blank_fx()   # 洗牌后特效重置（极罕见边界）

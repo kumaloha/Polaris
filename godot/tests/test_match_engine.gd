@@ -447,3 +447,104 @@ func test_colorbomb_clear_set_targets_partner_species() -> void:
 	assert_eq(cells.size(), 5, "all four 1-cells + the colorbomb cell")
 	assert_true(cells.has(Vector2i(0, 2)), "colorbomb itself consumed")
 	assert_true(cells.has(Vector2i(1, 0)) and cells.has(Vector2i(1, 2)) and cells.has(Vector2i(1, 3)), "every target-species cell")
+
+# ───────────────── P1: 特效不可清墙（异形棋盘契约闭合）─────────────────
+
+func test_special_effect_cells_spare_wall() -> void:
+	# 直线/爆炸的清除范围必须跳过墙（墙不可消、不可动、不补充）。
+	var grid := [
+		[0, ME.WALL, 2, 3],
+		[4, 5, 6, 7],
+	]
+	var line: Array = ME.special_effect_cells(grid, Vector2i(0, 0), ME.SP_LINE_H)
+	assert_false(line.has(Vector2i(1, 0)), "LINE_H must skip the wall at (1,0)")
+	assert_true(line.has(Vector2i(0, 0)), "LINE_H still clears normal cells")
+	var bomb: Array = ME.special_effect_cells(grid, Vector2i(1, 1), ME.SP_BOMB)
+	assert_false(bomb.has(Vector2i(1, 0)), "BOMB 3x3 must skip the wall in range")
+	assert_true(bomb.has(Vector2i(1, 1)), "BOMB still clears its center")
+
+func test_double_colorbomb_spares_wall() -> void:
+	# 双彩球清"全盘非空"时必须排除墙。
+	var grid := [
+		[0, 1, 2],
+		[1, ME.WALL, 0],
+		[2, 0, 1],
+	]
+	var fx := [
+		[ME.SP_COLORBOMB, ME.SP_NONE, ME.SP_NONE],
+		[ME.SP_NONE, ME.SP_NONE, ME.SP_NONE],
+		[ME.SP_NONE, ME.SP_NONE, ME.SP_COLORBOMB],
+	]
+	var cells: Array = ME.colorbomb_clear_set(grid, fx, Vector2i(0, 0), Vector2i(2, 2))
+	assert_false(cells.has(Vector2i(1, 1)), "double colorbomb must NOT clear the wall")
+
+func test_apply_clears_never_empties_wall() -> void:
+	# 兜底：即便墙混进 to_clear，也绝不置 EMPTY（契约闭合）。
+	var grid := [[0, ME.WALL, 2]]
+	var fx := [[ME.SP_NONE, ME.SP_NONE, ME.SP_NONE]]
+	ME._apply_clears(grid, fx, [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)], [])
+	assert_eq(grid[0][1], ME.WALL, "wall stays WALL even if listed in to_clear")
+	assert_eq(grid[0][0], ME.EMPTY, "normal cell still cleared")
+
+# ───────────────── P2: 死局洗牌须 coat 感知 ─────────────────
+
+func test_reshuffle_coat_aware_leaves_legal_move() -> void:
+	# reshuffle 接 coat 后，验收用 coat 感知的 has_legal_move，避免"忽略冰锁看似有步、真实无步"。
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var grid := []
+	for y in 6:
+		var row := []
+		for x in 6:
+			row.append((x * 2 + y) % 5)
+		grid.append(row)
+	var coat := []
+	for y in 6:
+		var crow := []
+		for x in 6:
+			crow.append(0)
+		coat.append(crow)
+	coat[0][0] = 1
+	coat[2][3] = 1
+	coat[4][1] = 1
+	coat[5][5] = 1
+	ME.reshuffle(grid, rng, coat)
+	assert_true(ME.find_matches(grid).is_empty(), "no ready match after reshuffle")
+	assert_true(ME.has_legal_move(grid, coat), "coat-aware legal move exists after reshuffle")
+
+# ───────────────── P3: 彩球直清的 jelly/coat 计数（account_clears 直测）─────────────────
+
+func test_account_clears_counts_jelly() -> void:
+	var grid := [
+		[0, 1, 2],
+		[3, 4, 5],
+		[6, 7, 8],
+	]
+	var jelly := [
+		[1, 0, 2],
+		[0, 1, 0],
+		[0, 0, 0],
+	]
+	var cells := [Vector2i(0, 0), Vector2i(2, 0), Vector2i(1, 1)]  # 三格均有 jelly
+	var acc: Dictionary = ME.account_clears(grid, cells, jelly, [])
+	assert_eq(acc["jelly_cleared"], 3, "one jelly layer per jellied cleared cell")
+	assert_eq(jelly[0][0], 0, "(0,0) jelly 1->0")
+	assert_eq(jelly[0][2], 1, "(2,0) jelly 2->1")
+	assert_eq(jelly[1][1], 0, "(1,1) jelly 1->0")
+
+func test_account_clears_counts_coat() -> void:
+	var grid := [
+		[0, 1, 2],
+		[3, 4, 5],
+		[6, 7, 8],
+	]
+	var coat := [
+		[1, 0, 0],
+		[0, 2, 0],
+		[0, 0, 0],
+	]
+	var cells := [Vector2i(1, 0)]  # 与 (0,0)[左邻]、(1,1)[上邻] 相邻
+	var acc: Dictionary = ME.account_clears(grid, cells, [], coat)
+	assert_eq(acc["blocker_cleared"], 2, "both adjacent coats damaged once")
+	assert_eq(coat[0][0], 0, "(0,0) coat 1->0")
+	assert_eq(coat[1][1], 1, "(1,1) coat 2->1")

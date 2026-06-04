@@ -150,10 +150,10 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partner_pos: Vector2i) -> Array:
 	var seeds := []
 	if fx[partner_pos.y][partner_pos.x] == SP_COLORBOMB:
-		# 双彩球 → 清全盘非空
+		# 双彩球 → 清全盘非空（排除墙：墙不可消）
 		for y in grid.size():
 			for x in grid[y].size():
-				if grid[y][x] != EMPTY:
+				if grid[y][x] != EMPTY and grid[y][x] != WALL:
 					seeds.append(Vector2i(x, y))
 	else:
 		var target: int = grid[partner_pos.y][partner_pos.x]
@@ -289,7 +289,7 @@ static func make_board(w: int, h: int, species: Array, rng: RandomNumberGenerato
 
 
 # 死局/有现成消除时洗牌：重排现有棋子（多重集不变），直到无现成消除且有合法移动。
-static func reshuffle(grid: Array, rng: RandomNumberGenerator) -> void:
+static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
@@ -309,7 +309,8 @@ static func reshuffle(grid: Array, rng: RandomNumberGenerator) -> void:
 		for i in positions.size():
 			var p: Vector2i = positions[i]
 			grid[p.y][p.x] = tiles[i]
-		if find_matches(grid).is_empty() and has_legal_move(grid):
+		# 验收须 coat 感知：忽略冰锁会"看似有步、真实玩家无步"。
+		if find_matches(grid).is_empty() and has_legal_move(grid, coat):
 			return
 	# 兜底：保留最后一次排列（极罕见）
 
@@ -337,7 +338,7 @@ static func classify_matches(grid: Array) -> Dictionary:
 	for y in h:
 		var x := 0
 		while x < w:
-			if grid[y][x] == EMPTY:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL:
 				x += 1
 				continue
 			var e := x
@@ -353,7 +354,7 @@ static func classify_matches(grid: Array) -> Dictionary:
 	for x in w:
 		var y := 0
 		while y < h:
-			if grid[y][x] == EMPTY:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL:
 				y += 1
 				continue
 			var e := y
@@ -424,16 +425,18 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 	match kind:
 		SP_LINE_H:
 			for x in w:
-				out.append(Vector2i(x, pos.y))
+				if grid[pos.y][x] != WALL and grid[pos.y][x] != EMPTY:
+					out.append(Vector2i(x, pos.y))
 		SP_LINE_V:
 			for y in h:
-				out.append(Vector2i(pos.x, y))
+				if grid[y][pos.x] != WALL and grid[y][pos.x] != EMPTY:
+					out.append(Vector2i(pos.x, y))
 		SP_BOMB:
 			for dy in range(-1, 2):
 				for dx in range(-1, 2):
 					var nx := pos.x + dx
 					var ny := pos.y + dy
-					if nx >= 0 and nx < w and ny >= 0 and ny < h:
+					if nx >= 0 and nx < w and ny >= 0 and ny < h and grid[ny][nx] != WALL and grid[ny][nx] != EMPTY:
 						out.append(Vector2i(nx, ny))
 		SP_COLORBOMB:
 			for y in h:
@@ -476,6 +479,8 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 	for s in spawns:
 		spawn_map[s["pos"]] = s["kind"]
 	for pos in to_clear:
+		if grid[pos.y][pos.x] == WALL:
+			continue  # 兜底：墙绝不被清、不落特效（异形棋盘契约：不可消、不可动）
 		if spawn_map.has(pos):
 			fx[pos.y][pos.x] = spawn_map[pos]  # 落特效，保留 species
 		else:
