@@ -33,6 +33,7 @@ var _wkmat: ShaderMaterial
 var meta: MetaState              # Meta 进度(钱包/角色/铭文/历史)，持久化 user://save.json
 var _played: Dictionary = {}     # 本会话已玩过的库索引(调度优先没玩过的)
 var _cur_level := -1             # 当前对局的库索引(结束后入账)
+var _home_level := -1            # 首页左右箭头选中的关(替代关卡地图页)
 var _rng: RandomNumberGenerator  # 抽卡随机源
 var _lib: Array = []             # 关卡库(res://levels.json)，供地图显示关数/难度
 
@@ -47,6 +48,8 @@ func _white_key_material() -> ShaderMaterial:
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_IGNORE   # 容器不吃鼠标，让点击穿透到对局棋盘(_unhandled_input)；子按钮各自仍可点
+	_fit_window_to_screen()
 	characters = CharacterData.load_characters()
 	if characters.is_empty():
 		push_warning("No character assets found at %s" % CharacterData.MANIFEST_PATH)
@@ -57,6 +60,18 @@ func _ready() -> void:
 	_lib = LevelLibrary.load_file("res://levels.json")
 	_sync_selected_to_equipped()
 	_show_home()
+
+
+# 窗口高度贴合本机屏幕(可用区)，宽度按画布比例(9:19)推导。后续可按收集机型自适应。
+func _fit_window_to_screen() -> void:
+	var s := DisplayServer.window_get_current_screen()
+	var usable := DisplayServer.screen_get_usable_rect(s)
+	var h := int(usable.size.y) - 72   # 预留标题栏，避免底部被裁
+	var w := int(round(float(h) * (VIEW_W / VIEW_H)))
+	DisplayServer.window_set_size(Vector2i(w, h))
+	DisplayServer.window_set_position(Vector2i(
+		int(usable.position.x) + (int(usable.size.x) - w) / 2,
+		int(usable.position.y) + 24))
 
 
 # 把首页出战角色对齐到 Meta 已装备的(新玩家无装备→保持默认)
@@ -107,27 +122,71 @@ func _show_home() -> void:
 	summon.tooltip_text = "召唤"
 
 	var n := _lib.size() if _lib.size() > 0 else 12
-	var cur := _current_level(n)
+	var maxlv := _current_level(n)           # 最远解锁关
+	if _home_level < 0:
+		_home_level = maxlv
+	_home_level = clampi(_home_level, 0, n - 1)
+	var locked := _home_level > maxlv        # 浏览到尚未解锁的关
 
 	# 关卡牌(萌宠上方)
 	var lvlpill := _dark_panel(Rect2(296, 348, 128, 40), 999, C_GOLD, 1)
 	add_child(lvlpill)
-	lvlpill.add_child(_inner_label("第 %d 关" % (cur + 1), Rect2(0, 0, 128, 40), 18, C_GOLD))
+	lvlpill.add_child(_inner_label("第 %d 关" % (_home_level + 1), Rect2(0, 0, 128, 40), 18, C_GOLD))
 
 	# 英雄台：魔法阵(背景已画) + 萌宠立绘(画布中部)
 	_add_character_art(hero, Rect2(170, 402, 380, 400), false)
 	_add_hero_ribbon(hero, Vector2(360, 812))
 
-	# 关卡目标预览(对齐 homepage.html 的 collect-items 面板)
-	_add_home_objective(cur, Rect2(130, 918, 460, 168))
+	# 左右箭头选关(替代关卡地图页)
+	var prev := _arrow_button("‹", 16.0, _home_level > 0)
+	if not prev.disabled:
+		prev.pressed.connect(Callable(self, "_home_pick").bind(-1))
+	add_child(prev)
+	var nextb := _arrow_button("›", 640.0, _home_level < n - 1)
+	if not nextb.disabled:
+		nextb.pressed.connect(Callable(self, "_home_pick").bind(1))
+	add_child(nextb)
 
-	# START：金色发光主按钮
-	var start := _gold_button("开 始", "进入魔法小径", Rect2(228, 1168, 264, 96))
-	start.pressed.connect(Callable(self, "_show_map"))
+	# 关卡目标预览(对齐 homepage.html 的 collect-items 面板)
+	_add_home_objective(_home_level, Rect2(130, 918, 460, 168))
+
+	# START：金色发光主按钮 → 直接打选中的关(未解锁则禁用)
+	var start := _gold_button(
+		"开 始" if not locked else "未 解 锁",
+		("第 %d 关 · 进入" % (_home_level + 1)) if not locked else "通关前面的关来解锁",
+		Rect2(228, 1168, 264, 96))
+	if not locked:
+		start.pressed.connect(Callable(self, "_show_game").bind(_home_level))
+	else:
+		start.disabled = true
 	add_child(start)
 
-	# 底部导航
-	_add_bottom_nav("home")
+	# 底部导航(首页高亮"角色"，对齐 homepage.html 的 Characters tab)
+	_add_bottom_nav("character")
+
+
+# 首页左右箭头切换选中关(clamp 在 _show_home 内)
+func _home_pick(delta: int) -> void:
+	_home_level += delta
+	_show_home()
+
+
+# 选关箭头按钮：浅蓝填充 + 粗金边 + 大箭头，醒目可见。
+func _arrow_button(text: String, x: float, enabled: bool) -> Button:
+	var b := Button.new()
+	b.position = Vector2(x, 540)
+	b.size = Vector2(64, 116)
+	b.text = text
+	b.flat = true
+	b.add_theme_font_size_override("font_size", 48)
+	b.add_theme_color_override("font_color", C_GOLD)
+	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.18))
+	b.add_theme_stylebox_override("normal", _style(Color(0.20, 0.30, 0.56, 0.90), 26, C_GOLD, 3))
+	b.add_theme_stylebox_override("hover", _style(Color(0.28, 0.40, 0.68, 0.95), 26, Color("fff1c4"), 3))
+	b.add_theme_stylebox_override("pressed", _style(Color(0.14, 0.22, 0.44, 0.95), 26, C_GOLD, 3))
+	b.add_theme_stylebox_override("disabled", _style(Color(0.12, 0.16, 0.30, 0.30), 26, Color(1, 1, 1, 0.12), 1))
+	b.disabled = not enabled
+	return b
 
 
 # 首页关卡目标预览(对齐 homepage.html)：关号·难度 + 收集/奖励三格
@@ -248,8 +307,10 @@ func _on_game_over(result: Dictionary) -> void:
 		if _cur_level >= 0:
 			_played[_cur_level] = true
 			if bool(result.get("won", false)):
-				meta.record_clear(_cur_level, int(result.get("stars", 0)))   # 关卡地图进度
+				meta.record_clear(_cur_level, int(result.get("stars", 0)))   # 关卡进度
 		meta.save()
+		if bool(result.get("won", false)):
+			_home_level = -1   # 过关→下次回首页重置到最新解锁关(自动指向下一关)
 	_show_result(result)
 
 
@@ -299,7 +360,7 @@ func _show_result(result: Dictionary) -> void:
 	var primary_text := "下一关 ▸" if won else "再玩一次"
 	var primary := _gold_button(primary_text, "体力 1", Rect2(228, 626, 264, 84))
 	if won:
-		primary.pressed.connect(Callable(self, "_show_map"))                       # 过关→回地图挑下一关
+		primary.pressed.connect(Callable(self, "_show_home"))                      # 过关→回首页(箭头已指向下一关)
 	else:
 		primary.pressed.connect(Callable(self, "_show_game").bind(_cur_level))     # 失败→重开本关
 	add_child(primary)
@@ -469,15 +530,16 @@ func _gold_style(shift: float) -> StyleBoxFlat:
 
 func _add_bottom_nav(active: String) -> void:
 	var bar := Panel.new()
-	bar.position = Vector2(0, VIEW_H - 88)
-	bar.size = Vector2(VIEW_W, 88)
-	bar.add_theme_stylebox_override("panel", _style(Color(0.07, 0.11, 0.24, 0.92), 30, C_GOLD, 1))
+	bar.position = Vector2(0, VIEW_H - 100)
+	bar.size = Vector2(VIEW_W, 100)
+	bar.add_theme_stylebox_override("panel", _style(Color(0.07, 0.11, 0.24, 0.94), 30, Color(1, 1, 1, 0.10), 1))
 	add_child(bar)
+	# 图标+下方标签(对齐 homepage.html 的 tab 样式)；高亮态加金色圆底。
 	var items := [
-		["角色", "character", Callable(self, "_show_character")],
-		["铭文", "enchant", Callable(self, "_show_enchants")],
-		["成就", "achievement", Callable(self, "_show_placeholder").bind("成就", "解锁里程碑 · 凭实力达成,不卖数值")],
-		["商店", "shop", Callable(self, "_show_placeholder").bind("商店", "皮肤 + 水晶 · 纯外观,绝不卖加步数等强度道具")],
+		["角色", "character", "✦", Callable(self, "_show_character")],
+		["铭文", "enchant", "◆", Callable(self, "_show_enchants")],
+		["成就", "achievement", "★", Callable(self, "_show_placeholder").bind("成就", "解锁里程碑 · 凭实力达成,不卖数值")],
+		["商店", "shop", "❖", Callable(self, "_show_placeholder").bind("商店", "皮肤 + 水晶 · 纯外观,绝不卖加步数等强度道具")],
 	]
 	var n := items.size()
 	var slot := VIEW_W / float(n)
@@ -485,19 +547,26 @@ func _add_bottom_nav(active: String) -> void:
 		var it: Array = items[i]
 		var is_active: bool = String(it[1]) == active
 		var btn := Button.new()
-		btn.position = Vector2(slot * i + slot * 0.5 - 36, VIEW_H - 78)
-		btn.size = Vector2(72, 72)
+		btn.position = Vector2(slot * i, VIEW_H - 100)
+		btn.size = Vector2(slot, 100)
 		btn.flat = true
-		var border := C_GOLD if is_active else Color(1, 1, 1, 0.28)
-		var fill := C_GOLD if is_active else Color(1, 1, 1, 0.08)
-		btn.add_theme_stylebox_override("normal", _style(fill, 999, border, 2))
-		btn.add_theme_stylebox_override("hover", _style(C_GOLD.darkened(0.12), 999, C_GOLD, 2))
-		btn.add_theme_stylebox_override("pressed", _style(C_GOLD.darkened(0.22), 999, C_GOLD, 2))
-		var cb: Callable = it[2]
+		btn.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+		btn.add_theme_stylebox_override("hover", _style(Color(1, 1, 1, 0.05), 18, Color(1, 1, 1, 0), 0))
+		btn.add_theme_stylebox_override("pressed", _style(Color(1, 1, 1, 0.10), 18, Color(1, 1, 1, 0), 0))
+		var cb: Callable = it[3]
 		if cb.is_valid():
 			btn.pressed.connect(cb)
 		add_child(btn)
-		btn.add_child(_inner_label(String(it[0]), Rect2(0, 0, 72, 72), 18, Color("2a1c00") if is_active else C_INK))
+		if is_active:   # 高亮态：图标金色圆底
+			var halo := Panel.new()
+			halo.position = Vector2(slot * 0.5 - 27, 12)
+			halo.size = Vector2(54, 54)
+			halo.add_theme_stylebox_override("panel", _style(Color(C_GOLD.r, C_GOLD.g, C_GOLD.b, 0.18), 999, C_GOLD, 2))
+			halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			btn.add_child(halo)
+		var icol: Color = C_GOLD if is_active else Color(0.74, 0.80, 0.96, 0.9)
+		btn.add_child(_inner_label(String(it[2]), Rect2(0, 14, slot, 50), 28, icol))
+		btn.add_child(_inner_label(String(it[0]), Rect2(0, 66, slot, 26), 15, C_GOLD if is_active else C_INK_DIM))
 
 
 func _add_character_art(character: Dictionary, rect: Rect2, use_card: bool) -> void:
