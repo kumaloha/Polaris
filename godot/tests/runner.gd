@@ -7,6 +7,8 @@ func _initialize() -> void:
 	var suites := [
 		preload("res://tests/test_match_engine.gd").new(),
 		preload("res://tests/test_board.gd").new(),
+		preload("res://tests/test_view_smoke.gd").new(),
+		preload("res://tests/test_ui_assets.gd").new(),
 	]
 	var total := 0
 	var failed := 0

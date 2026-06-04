@@ -119,16 +119,23 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 		cb = b
 		partner = a
 	var cells := ME.colorbomb_clear_set(grid, fx, cb, partner)
-	var gained := ME.score_for_clear(cells.size(), 1)
-	score += gained
-	# 彩球直清的格也要计入目标（COLLECT/果冻/涂层），否则目标关白清。
+	# 彩球直清的格计入目标（COLLECT/果冻/涂层）；经典锁语义下锁住格只破锁、不被清。
 	# 须在 _apply_clears 清空 grid 之前结算（account_clears 读取被清格的 species）。
 	var acc := ME.account_clears(grid, cells, jelly, coat)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
-	ME._apply_clears(grid, fx, cells, [])   # 无 spawn，纯清除
-	ME.apply_gravity(grid, fx)
+	var locked_set := {}
+	for p in acc["locked"]:
+		locked_set[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked_set.has(p):
+			to_clear.append(p)   # 锁住格不清（只破锁）
+	var gained := ME.score_for_clear(to_clear.size(), 1)
+	score += gained
+	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
+	ME.apply_gravity(grid, fx, coat)   # coat 感知：锁住格在重力下固定
 	ME.refill(grid, species, rng, fx)
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)   # 结算余下级联
 	score += res["score"]

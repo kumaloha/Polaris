@@ -1,7 +1,7 @@
 extends Node2D
-# game.gd — 消除 Core 表现层（v1：无特效/无障碍）。
-# 只跟 board.gd 打交道：读 grid/score/moves_left，调 try_swap。
-# 操作：点一个道具再点相邻道具 → 交换（滑动动画）。R 重开一局。
+# game.gd — 消除 Core 表现层（v2：目标关 / 果冻 / 冰锁 / 墙 / 特效）。
+# 只跟 board.gd 打交道：读 grid/fx/jelly/coat/objectives/collected/score/moves_left，调 try_swap。
+# 操作：点一个道具再点相邻道具 → 交换（滑动动画）。R 在多个 demo 关之间切换并重开。
 
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
@@ -11,7 +11,7 @@ const H := 8
 const SPECIES := [0, 1, 2, 3, 4]
 const CELL := 78.0
 const GAP := 6.0
-const ORIGIN := Vector2(36.0, 160.0)
+const ORIGIN := Vector2(36.0, 200.0)
 const TARGET := 2000
 const MOVES := 25
 
@@ -23,11 +23,16 @@ const FX_GLYPH := ["", "▬", "▮", "✸", "◎"]
 
 var board: Board
 var cur_seed := 12345
-var tiles := []          # tiles[y][x] -> ColorRect
-var labels := []         # labels[y][x] -> Label
+var demo_idx := 0        # 当前 demo 关索引（按 R 递进）
+var tiles := []          # tiles[y][x] -> ColorRect（道具底色块）
+var labels := []         # labels[y][x] -> Label（道具符号/特效标记）
+var jelly_rects := []    # jelly_rects[y][x] -> ColorRect（果冻底层标记）
+var coat_rects := []     # coat_rects[y][x] -> ColorRect（冰锁遮罩）
+var coat_labels := []    # coat_labels[y][x] -> Label（冰锁层数指示）
 var selected := Vector2i(-1, -1)
 var input_locked := false
 
+var title_label: Label
 var score_label: Label
 var moves_label: Label
 var status_label: Label
@@ -41,26 +46,134 @@ func _ready() -> void:
 	_new_game()
 
 
+# ───────────────────────────── Demo 关定义 ─────────────────────────────
+# 每个 demo 关返回构造 Board 所需的全部参数（按需带 objs/jelly/coat/mask）。
+# 关卡轮播：纯分数关[现状] → COLLECT → CLEAR_JELLY → CLEAR_BLOCKER。
+const DEMO_COUNT := 4
+
+func _demo_level(idx: int) -> Dictionary:
+	match idx:
+		1:
+			# COLLECT 关：收集红色(species 0) 与 蓝色(species 3)，叠加异形墙。
+			return {
+				"name": "Demo 2/4 · 收集关 (COLLECT) + 墙",
+				"target": 0,
+				"moves": 30,
+				"mask": _demo_wall_mask(),
+				"objs": [
+					{"type": "COLLECT", "species": 0, "target": 12},
+					{"type": "COLLECT", "species": 3, "target": 12},
+				],
+				"jelly": [],
+				"coat": [],
+			}
+		2:
+			# CLEAR_JELLY 关：中心 4x4 果冻（内 2x2 双层），清掉 18 层。
+			return {
+				"name": "Demo 3/4 · 果冻关 (CLEAR_JELLY)",
+				"target": 0,
+				"moves": 30,
+				"mask": [],
+				"objs": [{"type": "CLEAR_JELLY", "species": -1, "target": 18}],
+				"jelly": _demo_jelly_layer(),
+				"coat": [],
+			}
+		3:
+			# CLEAR_BLOCKER 关：边框一圈单层冰锁，解锁 12 个；叠加少量墙。
+			return {
+				"name": "Demo 4/4 · 冰锁关 (CLEAR_BLOCKER) + 墙",
+				"target": 0,
+				"moves": 35,
+				"mask": _demo_corner_mask(),
+				"objs": [{"type": "CLEAR_BLOCKER", "species": -1, "target": 12}],
+				"jelly": [],
+				"coat": _demo_coat_layer(),
+			}
+		_:
+			# 纯分数关[现状]：异形墙 + 分数目标（objectives 为空 → 走旧式分数判定）。
+			return {
+				"name": "Demo 1/4 · 分数关 (SCORE) + 墙",
+				"target": TARGET,
+				"moves": MOVES,
+				"mask": _demo_wall_mask(),
+				"objs": [],
+				"jelly": [],
+				"coat": [],
+			}
+
+
 func _new_game() -> void:
-	board = Board.new(W, H, SPECIES, TARGET, MOVES, cur_seed, _demo_wall_mask())
+	var lvl := _demo_level(demo_idx)
+	board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
+			lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"])
+	title_label.text = lvl["name"]
 	selected = Vector2i(-1, -1)
 	input_locked = false
 	_render()
 
-# 演示用异形棋盘：切 4 角 + 中心 2x2 柱
-func _demo_wall_mask() -> Array:
+
+# 全 false 的 H×W 掩码模板。
+func _blank_mask() -> Array:
 	var m := []
 	for y in H:
 		var row := []
 		for x in W:
 			row.append(false)
 		m.append(row)
+	return m
+
+# 演示用异形棋盘：切 4 角 + 中心 2x2 柱。
+func _demo_wall_mask() -> Array:
+	var m := _blank_mask()
 	for c in [Vector2i(0, 0), Vector2i(W - 1, 0), Vector2i(0, H - 1), Vector2i(W - 1, H - 1),
 			Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4), Vector2i(4, 4)]:
 		m[c.y][c.x] = true
 	return m
 
+# 仅切 4 角的轻量墙（冰锁关用，避免墙太多挤占冰锁空间）。
+func _demo_corner_mask() -> Array:
+	var m := _blank_mask()
+	for c in [Vector2i(0, 0), Vector2i(W - 1, 0), Vector2i(0, H - 1), Vector2i(W - 1, H - 1)]:
+		m[c.y][c.x] = true
+	return m
 
+# 全 0 的 H×W 整型层模板（jelly/coat 共用）。
+func _blank_layer() -> Array:
+	var m := []
+	for y in H:
+		var row := []
+		for x in W:
+			row.append(0)
+		m.append(row)
+	return m
+
+# 中心 4x4 区域果冻：外圈 1 层、内 2x2 叠 2 层（演示多层叠深）。
+func _demo_jelly_layer() -> Array:
+	var j := _blank_layer()
+	for y in range(2, 6):
+		for x in range(2, 6):
+			j[y][x] = 1
+	for y in range(3, 5):
+		for x in range(3, 5):
+			j[y][x] = 2
+	return j
+
+# 边框一圈单层冰锁（避开会成为墙的 4 角），内部点缀一颗双层锁演示层数。
+func _demo_coat_layer() -> Array:
+	var c := _blank_layer()
+	for x in W:
+		c[0][x] = 1
+		c[H - 1][x] = 1
+	for y in H:
+		c[y][0] = 1
+		c[y][W - 1] = 1
+	for corner in [Vector2i(0, 0), Vector2i(W - 1, 0), Vector2i(0, H - 1), Vector2i(W - 1, H - 1)]:
+		c[corner.y][corner.x] = 0  # 角是墙，不放锁
+	c[2][2] = 2
+	return c
+
+
+# ───────────────────────────── HUD / 节点构建 ─────────────────────────────
 func _build_hud() -> void:
 	var bg := ColorRect.new()
 	bg.color = Color("171b26")
@@ -70,11 +183,12 @@ func _build_hud() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	score_label = _mk_label(Vector2(36, 40), 32)
-	moves_label = _mk_label(Vector2(36, 86), 28)
-	status_label = _mk_label(Vector2(360, 40), 34)
+	title_label = _mk_label(Vector2(36, 28), 26)
+	score_label = _mk_label(Vector2(36, 72), 28)
+	moves_label = _mk_label(Vector2(36, 116), 26)
+	status_label = _mk_label(Vector2(560, 72), 34)
 	hint_label = _mk_label(Vector2(36, 850), 20)
-	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 重开"
+	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换 demo 关"
 
 
 func _mk_label(pos: Vector2, fsize: int) -> Label:
@@ -97,10 +211,25 @@ func _build_tiles() -> void:
 
 	tiles.resize(H)
 	labels.resize(H)
+	jelly_rects.resize(H)
+	coat_rects.resize(H)
+	coat_labels.resize(H)
 	for y in H:
 		tiles[y] = []
 		labels[y] = []
+		jelly_rects[y] = []
+		coat_rects[y] = []
+		coat_labels[y] = []
 		for x in W:
+			# 果冻底层标记（z 在道具之下，作"底色"露在道具缝隙/边缘外）。
+			var jr := ColorRect.new()
+			jr.size = Vector2(CELL, CELL)
+			jr.visible = false
+			jr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			jr.z_index = -2
+			add_child(jr)
+			jelly_rects[y].append(jr)
+
 			var rect := ColorRect.new()
 			rect.size = Vector2(CELL, CELL)
 			rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -118,50 +247,147 @@ func _build_tiles() -> void:
 			add_child(lab)
 			labels[y].append(lab)
 
+			# 冰锁遮罩：冷色半透明填充，叠在道具之上（暗示"冻住"）。
+			var cr := ColorRect.new()
+			cr.size = Vector2(CELL, CELL)
+			cr.color = Color(0.78, 0.90, 1.0, 0.22)
+			cr.visible = false
+			cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cr.z_index = 2
+			add_child(cr)
+			coat_rects[y].append(cr)
+
+			# 冰锁层数指示：锁图标(单层)/层数(多层)，叠在遮罩之上。
+			var clab := Label.new()
+			clab.size = Vector2(CELL, CELL)
+			clab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			clab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			clab.add_theme_font_size_override("font_size", 30)
+			clab.add_theme_color_override("font_color", Color(0.92, 0.97, 1.0, 0.95))
+			clab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			clab.z_index = 3
+			clab.visible = false
+			add_child(clab)
+			coat_labels[y].append(clab)
+
 
 func _cell_pos(x: int, y: int) -> Vector2:
 	return ORIGIN + Vector2(x * (CELL + GAP), y * (CELL + GAP))
 
 
+# ───────────────────────────── 渲染 ─────────────────────────────
 func _render() -> void:
 	for y in H:
 		for x in W:
-			var sp: int = board.grid[y][x]
-			var f: int = board.fx[y][x]
-			var p := _cell_pos(x, y)
-			var rect: ColorRect = tiles[y][x]
-			rect.position = p
-			if sp == ME.WALL:
-				rect.color = Color("0c0e14")    # 墙=暗格（异形棋盘）
-			elif sp < 0:
-				rect.color = Color(0, 0, 0, 0)  # EMPTY 透明
-			elif f != ME.SP_NONE:
-				rect.color = COLORS[sp].lightened(0.28)  # 特效格提亮
-			else:
-				rect.color = COLORS[sp]
-			var lab: Label = labels[y][x]
-			lab.position = p
-			if sp == ME.WALL or sp < 0:
-				lab.text = ""
-			elif f != ME.SP_NONE:
-				lab.text = FX_GLYPH[f]      # 特效格显示特效标记
-			else:
-				lab.text = SYMBOLS[sp]
-	score_label.text = "分数 %d / %d" % [board.score, TARGET]
-	moves_label.text = "步数 %d" % board.moves_left
-	if board.is_won():
-		status_label.text = "🎉 过关！(R 重开)"
-	elif board.is_lost():
-		status_label.text = "步数耗尽 (R 重开)"
-	else:
-		status_label.text = ""
+			_render_cell(x, y)
+	_render_hud()
 	sel_frame.visible = selected.x >= 0
 	if selected.x >= 0:
 		sel_frame.position = _cell_pos(selected.x, selected.y)
 
 
+func _render_cell(x: int, y: int) -> void:
+	var sp: int = board.grid[y][x]
+	var f: int = board.fx[y][x]
+	var jl: int = _layer_at(board.jelly, x, y)
+	var co: int = _layer_at(board.coat, x, y)
+	var p := _cell_pos(x, y)
+
+	# 道具底色块
+	var rect: ColorRect = tiles[y][x]
+	rect.position = p
+	if sp == ME.WALL:
+		rect.color = Color("0c0e14")          # 墙=暗格（异形棋盘）
+	elif sp < 0:
+		rect.color = Color(0, 0, 0, 0)         # EMPTY 透明
+	elif f != ME.SP_NONE:
+		rect.color = COLORS[sp].lightened(0.28)  # 特效格提亮
+	else:
+		rect.color = COLORS[sp]
+	# 冰锁下的道具置灰但仍可见（锁住感；锁下道具看得到）。
+	if co > 0 and sp >= 0:
+		rect.color = rect.color.lerp(Color("3a4252"), 0.45)
+
+	# 道具符号 / 特效标记
+	var lab: Label = labels[y][x]
+	lab.position = p
+	if sp == ME.WALL or sp < 0:
+		lab.text = ""
+	elif f != ME.SP_NONE:
+		lab.text = FX_GLYPH[f]
+	else:
+		lab.text = SYMBOLS[sp]
+
+	# 果冻底层标记：半透明青色块，多层叠深（不透明度随层数升高）。
+	var jr: ColorRect = jelly_rects[y][x]
+	if jl > 0 and sp != ME.WALL:
+		jr.position = p
+		var a := 0.30 + 0.18 * float(jl - 1)   # 1 层 .30，2 层 .48 …
+		jr.color = Color(0.20, 0.85, 0.80, min(a, 0.75))
+		jr.visible = true
+	else:
+		jr.visible = false
+
+	# 冰锁指示：冷色遮罩 + 锁图标(单层)/层数(多层)。
+	var cr: ColorRect = coat_rects[y][x]
+	var clab: Label = coat_labels[y][x]
+	if co > 0 and sp != ME.WALL:
+		cr.position = p
+		cr.color = Color(0.78, 0.90, 1.0, min(0.20 + 0.14 * float(co - 1), 0.55))
+		cr.visible = true
+		clab.position = p
+		clab.text = "🔒" if co == 1 else "🔒%d" % co
+		clab.visible = true
+	else:
+		cr.visible = false
+		clab.visible = false
+
+
+func _render_hud() -> void:
+	score_label.text = _objectives_text()
+	moves_label.text = "步数 %d" % board.moves_left
+	if board.is_won():
+		status_label.text = "🎉 过关！(R 下一关)"
+	elif board.is_lost():
+		status_label.text = "步数耗尽 (R 重试)"
+	else:
+		status_label.text = ""
+
+
+# 目标 HUD 文案：按 board.objectives 逐条显示进度；为空时回退旧式分数显示。
+func _objectives_text() -> String:
+	if board.objectives.is_empty():
+		return "分数 %d / %d" % [board.score, TARGET]
+	var parts := []
+	for o in board.objectives:
+		var t: String = o["type"]
+		if t == "SCORE":
+			parts.append("分数 %d/%d" % [board.score, o["target"]])
+		elif t == "COLLECT":
+			var sp: int = o["species"]
+			var sym: String = SYMBOLS[sp] if sp >= 0 and sp < SYMBOLS.size() else "?"
+			var got: int = board.collected.get(sp, 0)
+			parts.append("收集 %s %d/%d" % [sym, got, o["target"]])
+		elif t == "CLEAR_JELLY":
+			parts.append("果冻 %d/%d" % [board.jelly_cleared, o["target"]])
+		elif t == "CLEAR_BLOCKER":
+			parts.append("解锁 %d/%d" % [board.blocker_cleared, o["target"]])
+		else:
+			parts.append("%s %d" % [t, o["target"]])
+	return "   ·   ".join(parts)
+
+
+# 安全读取层值：层数组可能为空（该关无 jelly/coat）。
+func _layer_at(layer: Array, x: int, y: int) -> int:
+	if layer.is_empty():
+		return 0
+	return layer[y][x]
+
+
+# ───────────────────────────── 输入 ─────────────────────────────
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
+		demo_idx = (demo_idx + 1) % DEMO_COUNT
 		cur_seed += 1
 		_new_game()
 		return
@@ -179,6 +405,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if board.grid[cell.y][cell.x] == ME.WALL:
 		return  # 墙不可选
+	# 冰锁格：board 会拒绝交换，这里直接给反馈（轻闪 + 不进入选中态）。
+	if _layer_at(board.coat, cell.x, cell.y) > 0:
+		_flash_locked(cell)
+		return
 	if selected.x < 0:
 		selected = cell
 		_render()
@@ -243,3 +473,14 @@ func _pop_flash() -> void:
 	var tw := create_tween()
 	tw.tween_property(self, "modulate", Color(1, 1, 1), 0.14)
 	await tw.finished
+
+
+# 点冰锁格的反馈：该格遮罩快速闪一下（提示"锁住、不可换"）。
+func _flash_locked(cell: Vector2i) -> void:
+	var cr: ColorRect = coat_rects[cell.y][cell.x]
+	if not cr.visible:
+		return
+	var base := cr.color
+	var tw := create_tween()
+	tw.tween_property(cr, "color", Color(1.0, 1.0, 1.0, 0.65), 0.06)
+	tw.tween_property(cr, "color", base, 0.12)

@@ -204,3 +204,25 @@ func test_colorbomb_counts_toward_collect_objective() -> void:
 	b.try_swap(Vector2i(0, 2), Vector2i(0, 1))
 	assert_true(b.collected.get(1, 0) >= 4,
 		"P1#3: colorbomb direct clears must count toward COLLECT (>=4 of species 1), got %d" % b.collected.get(1, 0))
+
+func test_colorbomb_spares_locked_cell() -> void:
+	# 经典锁：彩球清同色时，锁住的同色格只破锁、不被清除。
+	var coat_layer := []
+	for y in 4:
+		var row := []
+		for x in 4:
+			row.append(0)
+		coat_layer.append(row)
+	coat_layer[0][1] = 5  # 锁住 (1,0)=species 1，5 层（确保级联中仍锁住）
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1, [], [], [], coat_layer)
+	b.grid = [
+		[0, 1, 2, 3],
+		[1, 0, 3, 2],
+		[5, 1, 2, 3],  # (0,2)=占位彩球
+		[4, 1, 2, 3],
+	]
+	b.fx = b._blank_fx()
+	b.fx[2][0] = ME.SP_COLORBOMB
+	b.try_swap(Vector2i(0, 2), Vector2i(0, 1))  # 彩球换 species-1 → 目标清 species-1
+	assert_eq(b.grid[0][1], 1, "locked species-1 cell NOT cleared by colorbomb")
+	assert_true(b.coat[0][1] < 5 and b.coat[0][1] > 0, "but its lock was broken (still locked)")

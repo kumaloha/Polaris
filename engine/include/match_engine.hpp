@@ -20,7 +20,8 @@ struct Vec2 {
 using Grid = std::vector<std::vector<int>>;
 
 // 找出所有应被消除的格子（横/竖 >=3 同 species），去重。
-inline std::vector<Vec2> find_matches(const Grid& g) {
+inline std::vector<Vec2> find_matches(const Grid& g,
+                                      const std::vector<std::vector<int>>* coat = nullptr) {
     int h = (int)g.size();
     if (h == 0) return {};
     int w = (int)g[0].size();
@@ -29,9 +30,9 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
     for (int y = 0; y < h; ++y) {
         int x = 0;
         while (x < w) {
-            if (g[y][x] == EMPTY || g[y][x] == WALL) { ++x; continue; }
+            if (g[y][x] == EMPTY || g[y][x] == WALL || (coat && (*coat)[y][x] > 0)) { ++x; continue; }  // 锁住格不可匹配
             int e = x;
-            while (e + 1 < w && g[y][e + 1] == g[y][x]) ++e;
+            while (e + 1 < w && g[y][e + 1] == g[y][x] && !(coat && (*coat)[y][e + 1] > 0)) ++e;
             if (e - x + 1 >= 3)
                 for (int k = x; k <= e; ++k) mark[y][k] = 1;
             x = e + 1;
@@ -41,9 +42,9 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
     for (int x = 0; x < w; ++x) {
         int y = 0;
         while (y < h) {
-            if (g[y][x] == EMPTY || g[y][x] == WALL) { ++y; continue; }
+            if (g[y][x] == EMPTY || g[y][x] == WALL || (coat && (*coat)[y][x] > 0)) { ++y; continue; }  // 锁住格不可匹配
             int e = y;
-            while (e + 1 < h && g[e + 1][x] == g[y][x]) ++e;
+            while (e + 1 < h && g[e + 1][x] == g[y][x] && !(coat && (*coat)[e + 1][x] > 0)) ++e;
             if (e - y + 1 >= 3)
                 for (int k = y; k <= e; ++k) mark[k][x] = 1;
             y = e + 1;
@@ -57,14 +58,15 @@ inline std::vector<Vec2> find_matches(const Grid& g) {
 }
 
 // 重力：每列非空落到列底，空升到顶。墙(WALL)不动，把列切成若干独立段，各段内分别下落。
-inline void apply_gravity(Grid& g) {
+inline void apply_gravity(Grid& g, const std::vector<std::vector<int>>* coat = nullptr) {
     int h = (int)g.size();
     if (h == 0) return;
     int w = (int)g[0].size();
     for (int x = 0; x < w; ++x) {
         int seg_start = 0;
         for (int y = 0; y <= h; ++y) {
-            if (y == h || g[y][x] == WALL) {
+            // 墙 与 锁住格(coat>0) 都不可动：作为段边界，原地保留
+            if (y == h || g[y][x] == WALL || (coat && (*coat)[y][x] > 0)) {
                 std::vector<int> stack;  // 段内非空棋子（段内无墙）
                 for (int k = seg_start; k < y; ++k)
                     if (g[k][x] != EMPTY) stack.push_back(g[k][x]);
@@ -118,7 +120,7 @@ inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b,
     if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
     if (coat && ((*coat)[a.y][a.x] > 0 || (*coat)[b.y][b.x] > 0)) return false;  // 冻住的格不可换
     swap_cells(g, a, b);
-    bool found = !find_matches(g).empty();
+    bool found = !find_matches(g, coat).empty();
     swap_cells(g, a, b);
     return found;
 }
@@ -142,7 +144,7 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
                              std::vector<std::vector<int>>* coat = nullptr) {
     ResolveResult r;
     while (true) {
-        auto matched = find_matches(g);
+        auto matched = find_matches(g, coat);
         if (matched.empty()) break;
         r.cascades++;
         if (coat) {  // 涂层(冰/锁)受损：在消除内 或 与消除正交相邻 的涂层格 -1 层
@@ -172,7 +174,7 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
         }
         r.cleared += (int)matched.size();
         r.score += score_for_clear((int)matched.size(), r.cascades);
-        apply_gravity(g);
+        apply_gravity(g, coat);
         refill(g, species, rng);
     }
     return r;
@@ -228,7 +230,7 @@ inline void reshuffle(Grid& g, std::mt19937& rng,
         }
         for (size_t i = 0; i < positions.size(); ++i)
             g[positions[i].y][positions[i].x] = tiles[i];
-        if (find_matches(g).empty() && has_legal_move(g, coat)) return;
+        if (find_matches(g, coat).empty() && has_legal_move(g, coat)) return;
     }
     // 兜底：保留最后一次排列（极罕见）
 }

@@ -169,15 +169,35 @@ static void test_coat_blocks_swap() {
     CHECK(is_legal_swap(g, {2, 0}, {2, 1}, nullptr), "no coat ptr -> normal legal");
 }
 
-static void test_resolve_damages_coat() {
-    Grid g = {{0, 0, 0, 1}, {1, 2, 3, 2}, {2, 3, 1, 3}};  // 顶行三连
+static void test_find_matches_skips_locked() {
+    // 经典锁：锁住格(coat>0)不可匹配，断开同色串。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    CHECK_EQ((int)find_matches(g).size(), 3, "no coat -> top row is a 3-match");
     std::vector<std::vector<int>> coat(3, std::vector<int>(4, 0));
-    coat[0][0] = 2;  // 在消除内
-    coat[1][0] = 1;  // 与消除相邻
+    coat[0][1] = 1;  // 锁住顶行中间格 -> 0 [L]0 0 断串
+    CHECK(find_matches(g, &coat).empty(), "locked middle breaks the run -> no match");
+}
+
+static void test_gravity_blocks_locked() {
+    // 锁住格在重力下固定：上方棋子不会穿过它下落（段隔离）。
+    Grid col = {{0}, {6}, {EMPTY}};  // 列：[0, 6(锁), EMPTY]
+    std::vector<std::vector<int>> coat = {{0}, {1}, {0}};  // (0,1) 锁住
+    apply_gravity(col, &coat);
+    CHECK_EQ(col[0][0], 0, "tile above lock stays (can't fall through the lock)");
+    CHECK_EQ(col[1][0], 6, "locked cell stays put under gravity");
+    CHECK_EQ(col[2][0], EMPTY, "below-lock empty stays empty");
+}
+
+static void test_resolve_locked_broken_by_adjacency() {
+    // 锁住格不参与消除，靠相邻消除破锁(每次-1)，破锁前 tile 不被清、不下落。
+    Grid g = {{0, 0, 0, 1}, {2, 1, 3, 2}, {3, 4, 2, 3}};
+    std::vector<std::vector<int>> coat(3, std::vector<int>(4, 0));
+    coat[1][0] = 5;  // (0,1) 锁 5 层，紧邻顶行消除（其正下方）
     std::mt19937 rng(1);
     auto r = resolve(g, {0, 1, 2, 3}, rng, nullptr, &coat);
-    CHECK(r.blocker_cleared >= 2, "in-match + adjacent coats damaged");
-    CHECK(coat[0][0] < 2, "the in-match coat lost at least one layer");
+    CHECK(r.blocker_cleared >= 1, "adjacent clear breaks at least one lock layer");
+    CHECK(coat[1][0] < 5 && coat[1][0] > 0, "lock decreased but still locked");
+    CHECK_EQ(g[1][0], 2, "locked tile preserved (never cleared/moved while locked)");
 }
 
 static void test_make_board_with_wall_mask() {
@@ -244,7 +264,9 @@ int main() {
     test_swap_wall_is_illegal();
     test_resolve_reports_by_species();
     test_coat_blocks_swap();
-    test_resolve_damages_coat();
+    test_find_matches_skips_locked();
+    test_gravity_blocks_locked();
+    test_resolve_locked_broken_by_adjacency();
     test_make_board_with_wall_mask();
     test_gravity_pulls_tiles_down();
     test_refill_fills_within_species();

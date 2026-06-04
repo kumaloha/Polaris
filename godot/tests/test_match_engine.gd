@@ -509,7 +509,7 @@ func test_reshuffle_coat_aware_leaves_legal_move() -> void:
 	coat[4][1] = 1
 	coat[5][5] = 1
 	ME.reshuffle(grid, rng, coat)
-	assert_true(ME.find_matches(grid).is_empty(), "no ready match after reshuffle")
+	assert_true(ME.find_matches(grid, coat).is_empty(), "no coat-aware ready match after reshuffle")
 	assert_true(ME.has_legal_move(grid, coat), "coat-aware legal move exists after reshuffle")
 
 # ───────────────── P3: 彩球直清的 jelly/coat 计数（account_clears 直测）─────────────────
@@ -548,3 +548,45 @@ func test_account_clears_counts_coat() -> void:
 	assert_eq(acc["blocker_cleared"], 2, "both adjacent coats damaged once")
 	assert_eq(coat[0][0], 0, "(0,0) coat 1->0")
 	assert_eq(coat[1][1], 1, "(1,1) coat 2->1")
+
+# ───────────────── 经典锁(licorice)语义：锁住格不可消、相邻破锁、重力固定 ─────────────────
+
+func test_find_matches_skips_locked() -> void:
+	var grid := [
+		[0, 0, 0, 1],
+		[2, 3, 4, 2],
+		[3, 4, 2, 3],
+	]
+	assert_eq(ME.find_matches(grid).size(), 3, "no coat -> top row is a 3-match")
+	var coat := [
+		[0, 1, 0, 0],  # 锁住顶行中间格 (1,0)
+		[0, 0, 0, 0],
+		[0, 0, 0, 0],
+	]
+	assert_true(ME.find_matches(grid, coat).is_empty(), "locked middle breaks the run")
+
+func test_gravity_blocks_locked() -> void:
+	var grid := [[0], [6], [ME.EMPTY]]   # 列：[0, 6(锁), EMPTY]
+	var coat := [[0], [1], [0]]          # (0,1) 锁住
+	ME.apply_gravity(grid, [], coat)
+	assert_eq(grid[0][0], 0, "tile above lock stays (can't fall through)")
+	assert_eq(grid[1][0], 6, "locked cell stays put under gravity")
+	assert_eq(grid[2][0], ME.EMPTY, "below-lock empty stays empty")
+
+func test_resolve_locked_broken_by_adjacency() -> void:
+	var grid := [
+		[0, 0, 0, 1],
+		[2, 1, 3, 2],
+		[3, 4, 2, 3],
+	]
+	var coat := [
+		[0, 0, 0, 0],
+		[5, 0, 0, 0],  # (0,1) 锁 5 层，紧邻顶行消除
+		[0, 0, 0, 0],
+	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], coat)
+	assert_true(r["blocker_cleared"] >= 1, "adjacent clear breaks >=1 lock layer")
+	assert_true(coat[1][0] < 5 and coat[1][0] > 0, "lock decreased but still locked")
+	assert_eq(grid[1][0], 2, "locked tile preserved (not cleared/moved)")

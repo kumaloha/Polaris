@@ -13,48 +13,58 @@ const SP_BOMB := 3       # 爆炸：清 3x3（T/L 形生成）
 const SP_COLORBOMB := 4  # 彩球：清某 species 全部（5 连生成）
 
 # 找出所有应被消除的格子（横/竖 >=3 同 species），返回去重的 Array[Vector2i]。
-static func find_matches(grid: Array) -> Array:
+static func find_matches(grid: Array, coat: Array = []) -> Array:
 	var h := grid.size()
 	if h == 0:
 		return []
 	var w: int = grid[0].size()
+	var has_coat := not coat.is_empty()
 	var matched := {}  # Vector2i -> true（当作 set 去重）
-	# 横向扫描（EMPTY 和 WALL 都不参与，墙也不能连成串）
+	# 横向扫描（EMPTY/WALL/锁住格(coat>0) 都不参与，也不能让串连过去）
 	for y in h:
-		var run_start := 0
-		for x in range(1, w + 1):
-			var same: bool = x < w and grid[y][x] != EMPTY and grid[y][x] != WALL and grid[y][x] == grid[y][run_start]
-			if not same:
-				if x - run_start >= 3 and grid[y][run_start] != EMPTY and grid[y][run_start] != WALL:
-					for k in range(run_start, x):
-						matched[Vector2i(k, y)] = true
-				run_start = x
+		var x := 0
+		while x < w:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+				x += 1
+				continue
+			var e := x
+			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0):
+				e += 1
+			if e - x + 1 >= 3:
+				for k in range(x, e + 1):
+					matched[Vector2i(k, y)] = true
+			x = e + 1
 	# 纵向扫描
 	for x in w:
-		var run_start := 0
-		for y in range(1, h + 1):
-			var same: bool = y < h and grid[y][x] != EMPTY and grid[y][x] != WALL and grid[y][x] == grid[run_start][x]
-			if not same:
-				if y - run_start >= 3 and grid[run_start][x] != EMPTY and grid[run_start][x] != WALL:
-					for k in range(run_start, y):
-						matched[Vector2i(x, k)] = true
-				run_start = y
+		var y := 0
+		while y < h:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+				y += 1
+				continue
+			var e := y
+			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0):
+				e += 1
+			if e - y + 1 >= 3:
+				for k in range(y, e + 1):
+					matched[Vector2i(x, k)] = true
+			y = e + 1
 	return matched.keys()
 
 
 # 重力：每列非空格子落到列底，空格升到顶（原地修改 grid）。
 # fx 可选：传入则特效层与棋子层同步下落（保持对齐）。
-static func apply_gravity(grid: Array, fx: Array = []) -> void:
+static func apply_gravity(grid: Array, fx: Array = [], coat: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
 	var w: int = grid[0].size()
 	var has_fx := not fx.is_empty()
+	var has_coat := not coat.is_empty()
 	for x in w:
-		# 墙把列切成独立段，各段内分别下落
+		# 墙 与 锁住格(coat>0) 把列切成独立段、原地固定，各段内分别下落
 		var seg_start := 0
 		for y in range(h + 1):
-			if y == h or grid[y][x] == WALL:
+			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
 				var stack := []     # 段内非空 species（段内无墙）
 				var fx_stack := []
 				for k in range(seg_start, y):
@@ -115,7 +125,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	while true:
-		var matched: Array = find_matches(grid)
+		var matched: Array = find_matches(grid, coat)
 		if matched.is_empty():
 			break
 		cascades += 1
@@ -140,7 +150,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
-		apply_gravity(grid)
+		apply_gravity(grid, [], coat)
 		refill(grid, species_set, rng)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
@@ -188,15 +198,20 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	while true:
-		var c := collect_clears(grid, fx)
-		var to_clear: Array = c["to_clear"]
-		if to_clear.is_empty():
+		var c := collect_clears(grid, fx, coat)
+		var raw: Array = c["to_clear"]
+		if raw.is_empty():
 			break
 		cascades += 1
+		# 锁住格(coat>0)不被清除：记下"开始时就锁住"的格，本回合只破锁、不清（下次才消）
+		var cleared_set := {}
+		var locked_start := {}
+		for p in raw:
+			cleared_set[p] = true
+			if has_coat and coat[p.y][p.x] > 0:
+				locked_start[p] = true
+		# 破锁：被清除格的内/相邻的锁住格 -1（锁住格本身不被清）
 		if has_coat:
-			var cleared_set := {}
-			for p in to_clear:
-				cleared_set[p] = true
 			for cy in grid.size():
 				for cx in grid[cy].size():
 					if coat[cy][cx] <= 0:
@@ -204,6 +219,11 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 					if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
 						coat[cy][cx] -= 1
 						blocker_cleared += 1
+		# 真正清除的 = raw 里"开始时未锁"的格
+		var to_clear := []
+		for p in raw:
+			if not locked_start.has(p):
+				to_clear.append(p)
 		cleared_total += to_clear.size()
 		total_score += score_for_clear(to_clear.size(), cascades)
 		var spawn_set := {}
@@ -218,7 +238,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				jelly[pos.y][pos.x] -= 1
 				jelly_cleared += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
-		apply_gravity(grid, fx)
+		apply_gravity(grid, fx, coat)
 		refill(grid, species_set, rng, fx)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
@@ -234,7 +254,7 @@ static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = [
 	if not coat.is_empty() and (coat[a.y][a.x] > 0 or coat[b.y][b.x] > 0):
 		return false  # 冻住的格不可换
 	_swap_cells(grid, a, b)
-	var found := not find_matches(grid).is_empty()
+	var found := not find_matches(grid, coat).is_empty()
 	_swap_cells(grid, a, b)  # 还原
 	return found
 
@@ -310,7 +330,7 @@ static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = [])
 			var p: Vector2i = positions[i]
 			grid[p.y][p.x] = tiles[i]
 		# 验收须 coat 感知：忽略冰锁会"看似有步、真实玩家无步"。
-		if find_matches(grid).is_empty() and has_legal_move(grid, coat):
+		if find_matches(grid, coat).is_empty() and has_legal_move(grid, coat):
 			return
 	# 兜底：保留最后一次排列（极罕见）
 
@@ -327,22 +347,23 @@ static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
 # 返回 {clear: Array[Vector2i] 要清空的格, spawns: Array[{pos, kind}] 要生成的特效格}。
 # 规则（v1.1 直线串）：>=5 连→彩球；==4 连→直线(横H/竖V)；==3 连→普通清除。
 # （T/L 形爆炸在后续步骤补。spawns 的 pos 不进 clear——它变成特效而非清空。）
-static func classify_matches(grid: Array) -> Dictionary:
+static func classify_matches(grid: Array, coat: Array = []) -> Dictionary:
 	var h := grid.size()
 	if h == 0:
 		return {"clear": [], "spawns": []}
 	var w: int = grid[0].size()
+	var has_coat := not coat.is_empty()
 
 	# 收集所有 >=3 的横/纵直线串：{cells, len, mid}
 	var h_runs := []
 	for y in h:
 		var x := 0
 		while x < w:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
 				x += 1
 				continue
 			var e := x
-			while e + 1 < w and grid[y][e + 1] == grid[y][x]:
+			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0):
 				e += 1
 			if e - x + 1 >= 3:
 				var cells := []
@@ -354,11 +375,11 @@ static func classify_matches(grid: Array) -> Dictionary:
 	for x in w:
 		var y := 0
 		while y < h:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL:
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
 				y += 1
 				continue
 			var e := y
-			while e + 1 < h and grid[e + 1][x] == grid[y][x]:
+			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0):
 				e += 1
 			if e - y + 1 >= 3:
 				var cells := []
@@ -449,9 +470,9 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 # 汇总一次消除要清的全部格：>=3 匹配 + 命中的特效触发链（特效连特效）。
 # 返回 {to_clear: Array[Vector2i], spawns: Array[{pos,kind}]}（spawns 来自匹配形状）。
 # 纯函数，不修改 grid/fx。
-static func collect_clears(grid: Array, fx: Array) -> Dictionary:
-	var to_clear := _expand_triggers(grid, fx, find_matches(grid))
-	var cls := classify_matches(grid)
+static func collect_clears(grid: Array, fx: Array, coat: Array = []) -> Dictionary:
+	var to_clear := _expand_triggers(grid, fx, find_matches(grid, coat))
+	var cls := classify_matches(grid, coat)
 	return {"to_clear": to_clear.keys(), "spawns": cls["spawns"]}
 
 # 从 seed 格出发，沿特效触发链 BFS 展开，返回所有应清的格（Dictionary 当 set）。
@@ -497,7 +518,11 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 	var blocker_cleared := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
+	var locked := {}  # 开始时锁住的格：只破锁，不被清/不计入收集·果冻
 	if has_coat:
+		for p in cells:
+			if coat[p.y][p.x] > 0:
+				locked[p] = true
 		var cleared_set := {}
 		for p in cells:
 			cleared_set[p] = true
@@ -509,10 +534,12 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 					coat[cy][cx] -= 1
 					blocker_cleared += 1
 	for pos in cells:
+		if locked.has(pos):
+			continue  # 锁住格不被清除，不计入收集/果冻（仅上面破锁）
 		var sp_p: int = grid[pos.y][pos.x]
 		if sp_p >= 0:
 			by_species[sp_p] = by_species.get(sp_p, 0) + 1
 		if has_jelly and jelly[pos.y][pos.x] > 0:
 			jelly[pos.y][pos.x] -= 1
 			jelly_cleared += 1
-	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "locked": locked.keys()}
