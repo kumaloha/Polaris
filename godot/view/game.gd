@@ -12,9 +12,9 @@ const Burst := preload("res://ui/burst.gd")
 const W := 8
 const H := 8
 const SPECIES := [0, 1, 2, 3, 4]
-const CELL := 60.0   # 缩小棋格，让金色魔法阵能完整套住 8×8 盘(对齐 board.png)
+const CELL := 80.0   # 大棋格填满宽度；魔法阵改为贴边环绕(8×8 对角线超画布宽，无法整圈套住)
 const GAP := 6.0
-const ORIGIN := Vector2(99.0, 520.0)   # 居中(522 宽盘): 横 (720-522)/2，纵留出顶部 HUD
+const ORIGIN := Vector2(19.0, 420.0)   # 居中(682 宽盘): 横 (720-682)/2，纵向画布居中
 const TARGET := 2000
 const MOVES := 25
 
@@ -243,7 +243,7 @@ func _build_hud() -> void:
 	var bcenter := ORIGIN + Vector2(W * CELL + (W - 1) * GAP, H * CELL + (H - 1) * GAP) * 0.5
 	bg.circle_center = bcenter
 	bg.glow_center = bcenter
-	bg.circle_radius = 356.0
+	bg.circle_radius = (W * CELL + (W - 1) * GAP) * 0.5 + 38.0   # 贴着棋盘外缘环绕
 	bg.z_index = -10
 	add_child(bg)
 	var frame := Panel.new()
@@ -269,12 +269,12 @@ func _build_hud() -> void:
 	moves_label.add_theme_color_override("font_color", Color("2c3a60"))
 	status_label = _mk_label(Vector2(540, 312), 34)
 	status_label.add_theme_color_override("font_color", Color("17744a"))
-	hint_label = _mk_label(Vector2(99, 1058), 18)
+	hint_label = _mk_label(Vector2(19, 1112), 18)
 	hint_label.add_theme_color_override("font_color", Color(0.16, 0.24, 0.42, 0.78))
 	hint_label.text = "点一个道具，再点相邻道具交换 · 按 R 切换关卡"
 	skill_button = Button.new()
-	skill_button.position = Vector2(99, 462)   # 棋盘正上方
-	skill_button.size = Vector2(522, 42)
+	skill_button.position = Vector2(19, 372)   # 棋盘正上方
+	skill_button.size = Vector2(682, 42)
 	skill_button.z_index = 50
 	skill_button.add_theme_font_size_override("font_size", 22)
 	skill_button.pressed.connect(_use_skill)
