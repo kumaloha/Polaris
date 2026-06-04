@@ -254,7 +254,7 @@ func _build_hud() -> void:
 	_frame.z_index = -5
 	_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var fs := StyleBoxFlat.new()
-	fs.bg_color = Color(0.86, 0.92, 1.0, 0.06)   # 淡蓝软底(高透明)
+	fs.bg_color = Color(0.42, 0.64, 1.0, 0.09)   # 淡蓝软底(饱和蓝,高透明)
 	fs.set_corner_radius_all(30)
 	fs.set_border_width_all(2)
 	fs.border_color = Color("e9c97c")
@@ -513,7 +513,7 @@ func _render_cell(x: int, y: int) -> void:
 			else:
 				tex = piece_tex[sp].get(ME.SP_NONE)   # 横/竖/炸/普通都用干净基础宝石；方向由 bu 光条指示(替掉烤死的脏光束)
 		if tex != null:
-			rect.color = Color(0.86, 0.92, 1.0, 0.10)   # 淡蓝格(高透明，几乎融进背景，不抢眼)
+			rect.color = Color(0.42, 0.64, 1.0, 0.16)   # 淡蓝格(饱和蓝,高透明;近白会发灰故用真蓝)
 			pr.texture = tex
 			pr.visible = true
 			lab.text = ""
