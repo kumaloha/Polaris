@@ -6,7 +6,7 @@
 
 namespace me {
 
-enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY };
+enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY, OBJ_CLEAR_BLOCKER };
 
 struct Objective {
     ObjType type = OBJ_SCORE;
@@ -22,6 +22,7 @@ struct Level {
     uint32_t seed = 0;
     std::vector<Objective> objectives;          // 新式：多目标，全满足即过关
     std::vector<std::vector<int>> jelly;        // 果冻层（底层目标，可选）
+    std::vector<std::vector<int>> coat;         // 涂层冰/锁（hp 层，可选）
 };
 
 // 把一次消除的 by_species 累加进总收集表。
@@ -32,7 +33,7 @@ inline void accumulate(std::vector<int>& acc, const std::vector<int>& add) {
 
 // 是否过关：objectives 为空 → 旧式 score>=target_score；否则全部目标满足。
 inline bool objectives_met(const Level& lv, int score, const std::vector<int>& collected,
-                           int jelly_cleared = 0) {
+                           int jelly_cleared = 0, int blocker_cleared = 0) {
     if (lv.objectives.empty())
         return score >= lv.target_score;
     for (const auto& o : lv.objectives) {
@@ -43,6 +44,8 @@ inline bool objectives_met(const Level& lv, int score, const std::vector<int>& c
             if (got < o.target) return false;
         } else if (o.type == OBJ_CLEAR_JELLY) {
             if (jelly_cleared < o.target) return false;
+        } else if (o.type == OBJ_CLEAR_BLOCKER) {
+            if (blocker_cleared < o.target) return false;
         }
     }
     return true;
@@ -57,19 +60,20 @@ struct PlayResult {
     int score = 0;
     int moves_used = 0;
     int jelly_cleared = 0;       // 累计清掉的果冻层
+    int blocker_cleared = 0;     // 累计破掉的涂层(冰/锁)层
     std::vector<int> collected;  // 各 species 累计消除数
 };
 
 // 枚举所有合法交换。
-inline std::vector<Move> legal_moves(Grid& g) {
+inline std::vector<Move> legal_moves(Grid& g, const std::vector<std::vector<int>>* coat = nullptr) {
     std::vector<Move> out;
     int h = (int)g.size();
     if (h == 0) return out;
     int w = (int)g[0].size();
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
-            if (x + 1 < w && is_legal_swap(g, {x, y}, {x + 1, y})) out.push_back({{x, y}, {x + 1, y}});
-            if (y + 1 < h && is_legal_swap(g, {x, y}, {x, y + 1})) out.push_back({{x, y}, {x, y + 1}});
+            if (x + 1 < w && is_legal_swap(g, {x, y}, {x + 1, y}, coat)) out.push_back({{x, y}, {x + 1, y}});
+            if (y + 1 < h && is_legal_swap(g, {x, y}, {x, y + 1}, coat)) out.push_back({{x, y}, {x, y + 1}});
         }
     return out;
 }
@@ -82,8 +86,10 @@ inline PlayResult greedy_play(const Level& lv) {
     std::vector<int> collected;
     std::vector<std::vector<int>> jelly = lv.jelly;
     int jelly_total = 0;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
-        auto moves = legal_moves(g);
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) break;  // 死局（v1 暂不洗牌，罕见；TODO 接 reshuffle）
         // 在副本上试每个候选，取立即得分最高（rng 也拷贝，保证选中后真实结算一致）
         int best_gain = -1;
@@ -99,15 +105,18 @@ inline PlayResult greedy_play(const Level& lv) {
             }
         }
         swap_cells(g, best.a, best.b);
-        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
+                                   coat.empty() ? nullptr : &coat);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
-    res.won = objectives_met(lv, res.score, collected, jelly_total);
+    res.blocker_cleared = blocker_total;
+    res.won = objectives_met(lv, res.score, collected, jelly_total, blocker_total);
     return res;
 }
 
@@ -121,8 +130,10 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
     std::vector<int> collected;
     std::vector<std::vector<int>> jelly = lv.jelly;
     int jelly_total = 0;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
-        auto moves = legal_moves(g);
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) break;
         // 本步 rollout 的基准种子（独立于真实 rng；同 it 跨候选同随机 = 公平）
         uint32_t step_seed = lv.seed + (uint32_t)(res.moves_used + 1) * 2654435761u;
@@ -151,15 +162,18 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
             }
         }
         swap_cells(g, bestm.a, bestm.b);
-        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
+                                   coat.empty() ? nullptr : &coat);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
-    res.won = objectives_met(lv, res.score, collected, jelly_total);
+    res.blocker_cleared = blocker_total;
+    res.won = objectives_met(lv, res.score, collected, jelly_total, blocker_total);
     return res;
 }
 
@@ -171,20 +185,25 @@ inline PlayResult random_play(const Level& lv) {
     std::vector<int> collected;
     std::vector<std::vector<int>> jelly = lv.jelly;
     int jelly_total = 0;
-    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total)) {
-        auto moves = legal_moves(g);
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) break;
         Move m = moves[rng() % moves.size()];
         swap_cells(g, m.a, m.b);
-        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly);
+        ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
+                                   coat.empty() ? nullptr : &coat);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
-    res.won = objectives_met(lv, res.score, collected, jelly_total);
+    res.blocker_cleared = blocker_total;
+    res.won = objectives_met(lv, res.score, collected, jelly_total, blocker_total);
     return res;
 }
 

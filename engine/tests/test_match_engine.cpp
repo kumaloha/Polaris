@@ -161,6 +161,25 @@ static void test_resolve_reports_by_species() {
     CHECK(r.by_species.size() > 0 && r.by_species[0] >= 3, "the three species-0 cells are counted");
 }
 
+static void test_coat_blocks_swap() {
+    Grid g = {{0, 0, 1}, {1, 2, 0}, {3, 4, 5}};  // (2,0)<->(2,1) 本来合法
+    std::vector<std::vector<int>> coat(3, std::vector<int>(3, 0));
+    coat[0][2] = 1;  // (2,0) 被涂层冻住
+    CHECK(!is_legal_swap(g, {2, 0}, {2, 1}, &coat), "coated cell can't be swapped");
+    CHECK(is_legal_swap(g, {2, 0}, {2, 1}, nullptr), "no coat ptr -> normal legal");
+}
+
+static void test_resolve_damages_coat() {
+    Grid g = {{0, 0, 0, 1}, {1, 2, 3, 2}, {2, 3, 1, 3}};  // 顶行三连
+    std::vector<std::vector<int>> coat(3, std::vector<int>(4, 0));
+    coat[0][0] = 2;  // 在消除内
+    coat[1][0] = 1;  // 与消除相邻
+    std::mt19937 rng(1);
+    auto r = resolve(g, {0, 1, 2, 3}, rng, nullptr, &coat);
+    CHECK(r.blocker_cleared >= 2, "in-match + adjacent coats damaged");
+    CHECK(coat[0][0] < 2, "the in-match coat lost at least one layer");
+}
+
 static void test_make_board_with_wall_mask() {
     int W = 6, H = 6;
     std::vector<std::vector<char>> mask(H, std::vector<char>(W, 0));
@@ -181,6 +200,8 @@ int main() {
     test_gravity_respects_wall_segments();
     test_swap_wall_is_illegal();
     test_resolve_reports_by_species();
+    test_coat_blocks_swap();
+    test_resolve_damages_coat();
     test_make_board_with_wall_mask();
     test_gravity_pulls_tiles_down();
     test_refill_fills_within_species();

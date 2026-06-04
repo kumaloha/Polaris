@@ -6,16 +6,16 @@ const ME := preload("res://core/match_engine.gd")
 func _make(target := 100, moves := 20, seed_val := 1) -> Board:
 	return Board.new(8, 8, [0, 1, 2, 3, 4], target, moves, seed_val)
 
-func _find_legal_move(grid: Array) -> Array:
+func _find_legal_move(grid: Array, coat: Array = []) -> Array:
 	if grid.is_empty():
 		return []
 	var h := grid.size()
 	var w: int = grid[0].size()
 	for y in h:
 		for x in w:
-			if x + 1 < w and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y)):
+			if x + 1 < w and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat):
 				return [Vector2i(x, y), Vector2i(x + 1, y)]
-			if y + 1 < h and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1)):
+			if y + 1 < h and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat):
 				return [Vector2i(x, y), Vector2i(x, y + 1)]
 	return []
 
@@ -109,6 +109,27 @@ func test_board_clears_jelly_objective() -> void:
 		b.try_swap(mv[0], mv[1])
 	assert_true(b.jelly_cleared >= 8, "cleared >= 8 jelly layers")
 	assert_true(b.is_won(), "won via CLEAR_JELLY objective")
+
+func test_board_clears_blocker_objective() -> void:
+	var coat_layer := []
+	for y in 8:
+		var row := []
+		for x in 8:
+			row.append(0)
+		coat_layer.append(row)
+	for i in 8:
+		coat_layer[i][i] = 1  # 对角线 8 个锁
+	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 5}]
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 0, 40, 7, [], objs, [], coat_layer)
+	for i in 40:
+		if b.is_over():
+			break
+		var mv := _find_legal_move(b.grid, b.coat)
+		if mv.size() != 2:
+			break
+		b.try_swap(mv[0], mv[1])
+	assert_true(b.blocker_cleared >= 5, "broke >= 5 coat layers")
+	assert_true(b.is_won(), "won via CLEAR_BLOCKER objective")
 
 func test_colorbomb_swap_detonates_and_consumes_move() -> void:
 	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1)  # 大目标 → 不会胜

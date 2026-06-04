@@ -99,24 +99,37 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = []) -> Dictionary:
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly)
-	return _resolve_fx(grid, species_set, rng, fx, jelly)
+		return _resolve_plain(grid, species_set, rng, jelly, coat)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat)
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = []) -> Dictionary:
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}  # species -> 消除数
 	var jelly_cleared := 0
+	var blocker_cleared := 0
 	var has_jelly := not jelly.is_empty()
+	var has_coat := not coat.is_empty()
 	while true:
 		var matched: Array = find_matches(grid)
 		if matched.is_empty():
 			break
 		cascades += 1
+		if has_coat:
+			var matched_set := {}
+			for p in matched:
+				matched_set[p] = true
+			for cy in grid.size():
+				for cx in grid[cy].size():
+					if coat[cy][cx] <= 0:
+						continue
+					if matched_set.has(Vector2i(cx, cy)) or matched_set.has(Vector2i(cx - 1, cy)) or matched_set.has(Vector2i(cx + 1, cy)) or matched_set.has(Vector2i(cx, cy - 1)) or matched_set.has(Vector2i(cx, cy + 1)):
+						coat[cy][cx] -= 1
+						blocker_cleared += 1
 		for pos in matched:
 			var sp_p: int = grid[pos.y][pos.x]
 			if sp_p >= 0:
@@ -129,7 +142,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		total_score += score_for_clear(matched.size(), cascades)
 		apply_gravity(grid)
 		refill(grid, species_set, rng)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -165,19 +178,32 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = []) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}
 	var jelly_cleared := 0
+	var blocker_cleared := 0
 	var has_jelly := not jelly.is_empty()
+	var has_coat := not coat.is_empty()
 	while true:
 		var c := collect_clears(grid, fx)
 		var to_clear: Array = c["to_clear"]
 		if to_clear.is_empty():
 			break
 		cascades += 1
+		if has_coat:
+			var cleared_set := {}
+			for p in to_clear:
+				cleared_set[p] = true
+			for cy in grid.size():
+				for cx in grid[cy].size():
+					if coat[cy][cx] <= 0:
+						continue
+					if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
+						coat[cy][cx] -= 1
+						blocker_cleared += 1
 		cleared_total += to_clear.size()
 		total_score += score_for_clear(to_clear.size(), cascades)
 		var spawn_set := {}
@@ -194,17 +220,19 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		_apply_clears(grid, fx, to_clear, c["spawns"])
 		apply_gravity(grid, fx)
 		refill(grid, species_set, rng, fx)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
-static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i) -> bool:
+static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = []) -> bool:
 	if abs(a.x - b.x) + abs(a.y - b.y) != 1:
 		return false  # 必须正交相邻
 	var va = grid[a.y][a.x]
 	var vb = grid[b.y][b.x]
 	if va == WALL or vb == WALL or va == EMPTY or vb == EMPTY:
 		return false  # 墙/空格不可参与交换（墙不可动）
+	if not coat.is_empty() and (coat[a.y][a.x] > 0 or coat[b.y][b.x] > 0):
+		return false  # 冻住的格不可换
 	_swap_cells(grid, a, b)
 	var found := not find_matches(grid).is_empty()
 	_swap_cells(grid, a, b)  # 还原
@@ -218,16 +246,16 @@ static func _swap_cells(grid: Array, a: Vector2i, b: Vector2i) -> void:
 
 
 # 是否存在任一合法交换（无 → 死局，需洗牌）。
-static func has_legal_move(grid: Array) -> bool:
+static func has_legal_move(grid: Array, coat: Array = []) -> bool:
 	var h := grid.size()
 	if h == 0:
 		return false
 	var w: int = grid[0].size()
 	for y in h:
 		for x in w:
-			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y)):
+			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat):
 				return true
-			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1)):
+			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat):
 				return true
 	return false
 

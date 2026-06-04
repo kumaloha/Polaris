@@ -133,11 +133,34 @@ static void test_greedy_clears_jelly_objective() {
     CHECK(r.won, "greedy clears 8 jelly layers within 30 moves");
 }
 
+static void test_objectives_met_blocker() {
+    Level lv;
+    lv.objectives = {{OBJ_CLEAR_BLOCKER, -1, 10}};
+    CHECK(objectives_met(lv, 0, {}, 0, 10), "blocker target met");
+    CHECK(!objectives_met(lv, 0, {}, 0, 9), "blocker target not met");
+}
+
+static void test_greedy_clears_blocker_objective() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.coat.assign(8, std::vector<int>(8, 0));
+    for (int i = 0; i < 8; ++i) lv.coat[i][i] = 1;  // 对角线散布 8 个锁
+    lv.move_limit = 40;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_BLOCKER, -1, 5}};  // 破 5 层
+    auto r = greedy_play(lv);
+    CHECK(r.won, "greedy breaks 5 coat layers within 40 moves");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
     test_objectives_met_jelly();
     test_greedy_clears_jelly_objective();
+    test_objectives_met_blocker();
+    test_greedy_clears_blocker_objective();
     test_greedy_plays_out_impossible_target();
     test_greedy_wins_easy_target();
     test_greedy_deterministic();

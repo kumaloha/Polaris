@@ -98,10 +98,12 @@ inline int score_for_clear(int count, int cascade_level) {
 struct ResolveResult {
     int score = 0, cascades = 0, cleared = 0;
     int jelly_cleared = 0;        // 本次消除清掉的果冻层数（底层目标）
+    int blocker_cleared = 0;      // 本次消除破掉的涂层(冰/锁)层数
     std::vector<int> by_species;  // by_species[s] = 本次消除中 species s 的格数（按需增长）
     bool operator==(const ResolveResult& o) const {
         return score == o.score && cascades == o.cascades && cleared == o.cleared
-               && jelly_cleared == o.jelly_cleared && by_species == o.by_species;
+               && jelly_cleared == o.jelly_cleared && blocker_cleared == o.blocker_cleared
+               && by_species == o.by_species;
     }
 };
 
@@ -110,11 +112,13 @@ inline void swap_cells(Grid& g, Vec2 a, Vec2 b) {
 }
 
 // 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不改变 g（内部换回）。
-inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b) {
+inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b,
+                          const std::vector<std::vector<int>>* coat = nullptr) {
     if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
     // 墙/空格不可参与交换（墙不可动）
     int va = g[a.y][a.x], vb = g[b.y][b.x];
     if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
+    if (coat && ((*coat)[a.y][a.x] > 0 || (*coat)[b.y][b.x] > 0)) return false;  // 冻住的格不可换
     swap_cells(g, a, b);
     bool found = !find_matches(g).empty();
     swap_cells(g, a, b);
@@ -122,26 +126,40 @@ inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b) {
 }
 
 // 是否存在任一合法交换。
-inline bool has_legal_move(Grid& g) {
+inline bool has_legal_move(Grid& g, const std::vector<std::vector<int>>* coat = nullptr) {
     int h = (int)g.size();
     if (h == 0) return false;
     int w = (int)g[0].size();
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
-            if (x + 1 < w && is_legal_swap(g, {x, y}, {x + 1, y})) return true;
-            if (y + 1 < h && is_legal_swap(g, {x, y}, {x, y + 1})) return true;
+            if (x + 1 < w && is_legal_swap(g, {x, y}, {x + 1, y}, coat)) return true;
+            if (y + 1 < h && is_legal_swap(g, {x, y}, {x, y + 1}, coat)) return true;
         }
     return false;
 }
 
 // 消除→计分→下落→补充，循环直到稳定。原地修改 g。
 inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng,
-                             std::vector<std::vector<int>>* jelly = nullptr) {
+                             std::vector<std::vector<int>>* jelly = nullptr,
+                             std::vector<std::vector<int>>* coat = nullptr) {
     ResolveResult r;
     while (true) {
         auto matched = find_matches(g);
         if (matched.empty()) break;
         r.cascades++;
+        if (coat) {  // 涂层(冰/锁)受损：在消除内 或 与消除正交相邻 的涂层格 -1 层
+            int H = (int)g.size(), W = (int)g[0].size();
+            std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
+            for (auto& p : matched) ism[p.y][p.x] = 1;
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x) {
+                    if ((*coat)[y][x] <= 0) continue;
+                    bool hit = ism[y][x]
+                        || (x > 0 && ism[y][x - 1]) || (x + 1 < W && ism[y][x + 1])
+                        || (y > 0 && ism[y - 1][x]) || (y + 1 < H && ism[y + 1][x]);
+                    if (hit) { (*coat)[y][x]--; r.blocker_cleared++; }
+                }
+        }
         for (auto& p : matched) {
             int s = g[p.y][p.x];
             if (s >= 0) {

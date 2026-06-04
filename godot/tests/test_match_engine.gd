@@ -39,6 +39,12 @@ func test_swap_wall_is_illegal() -> void:
 	var grid := [[0, 0, W], [1, 2, 0], [3, 4, 5]]
 	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "moving a WALL is illegal even if tiles would match")
 
+func test_coat_blocks_swap() -> void:
+	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]  # (2,0)<->(2,1) 本来合法
+	var coat := [[0, 0, 1], [0, 0, 0], [0, 0, 0]]  # (2,0) 被涂层冻住
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), coat), "coated cell can't be swapped")
+	assert_true(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "without coat -> legal")
+
 func test_make_board_with_wall_mask() -> void:
 	var W := ME.WALL
 	var mask := []

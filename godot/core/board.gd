@@ -19,10 +19,13 @@ var collected: Dictionary = {}  # species -> 累计消除数
 var init_jelly: Array = []  # 初始果冻层（底层目标，可选）
 var jelly: Array = []       # 当前果冻层（随消除递减）
 var jelly_cleared: int = 0  # 累计清掉的果冻层
+var init_coat: Array = []   # 初始涂层冰/锁（可选）
+var coat: Array = []        # 当前涂层（随消除破层）
+var blocker_cleared: int = 0  # 累计破掉的涂层
 var score: int
 var moves_left: int
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
@@ -31,6 +34,7 @@ func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val
 	wall_mask = mask
 	objectives = objs
 	init_jelly = jelly_layer
+	init_coat = coat_layer
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	start()
@@ -41,6 +45,8 @@ func start() -> void:
 	collected = {}
 	jelly = init_jelly.duplicate(true)
 	jelly_cleared = 0
+	coat = init_coat.duplicate(true)
+	blocker_cleared = 0
 	score = 0
 	moves_left = move_limit
 
@@ -70,6 +76,9 @@ func is_won() -> bool:
 		elif o["type"] == "CLEAR_JELLY":
 			if jelly_cleared < o["target"]:
 				return false
+		elif o["type"] == "CLEAR_BLOCKER":
+			if blocker_cleared < o["target"]:
+				return false
 	return true
 
 func is_lost() -> bool:
@@ -88,14 +97,15 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	# 彩球交换引爆（无需形成普通消除，始终合法）
 	if fx[a.y][a.x] == ME.SP_COLORBOMB or fx[b.y][b.x] == ME.SP_COLORBOMB:
 		return _activate_colorbomb(a, b)
-	if not ME.is_legal_swap(grid, a, b):
+	if not ME.is_legal_swap(grid, a, b, coat):
 		return {"ok": false, "reason": "illegal"}
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
 	score += res["score"]
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
+	blocker_cleared += res.get("blocker_cleared", 0)
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
@@ -112,15 +122,16 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._apply_clears(grid, fx, cells, [])   # 无 spawn，纯清除
 	ME.apply_gravity(grid, fx)
 	ME.refill(grid, species, rng, fx)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly)   # 结算余下级联
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)   # 结算余下级联
 	score += res["score"]
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
+	blocker_cleared += res.get("blocker_cleared", 0)
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
 
 func _settle_deadlock() -> void:
-	if not is_over() and not ME.has_legal_move(grid):
+	if not is_over() and not ME.has_legal_move(grid, coat):
 		ME.reshuffle(grid, rng)
 		fx = _blank_fx()   # 洗牌后特效重置（极罕见边界）
