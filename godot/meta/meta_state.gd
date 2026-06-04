@@ -26,7 +26,11 @@ func bank_result(r: Dictionary) -> void:
 	coins += int(int(r.get("score", 0)) / 50.0 * coin_mult)
 	if r.get("won", false):
 		crystals += 1   # 过关给一点抽卡机会
-	history.append({"won": r.get("won", false), "stars": int(r.get("stars", 0))})
+	history.append({
+		"won": r.get("won", false),
+		"stars": int(r.get("stars", 0)),
+		"kind": ("scroll" if r.get("is_scrolling", false) else "normal"),   # 类型化历史→分类型估技能
+	})
 
 # 抽卡（消耗水晶）。返回 pull 结果，或 {"error":...}。
 func do_gacha(rng: RandomNumberGenerator, cost: int = 1) -> Dictionary:
@@ -48,9 +52,9 @@ func loadout() -> Dictionary:
 	agg["skill_level"] = int(owned.get(equipped_skill, 1))
 	return agg
 
-# 个性化推关（09 §5.4 心流）：按玩家表现估技能 → 从库推一关贴合水平的。played=已玩过的库索引集。
+# 个性化推关（09 §5.4 心流）：类型感知——挖矿/普通关各按各的水平推。played=已玩过的库索引集。
 func recommend_next(library: Array, played: Dictionary = {}) -> int:
-	return Scheduler.recommend(library, Scheduler.estimate_skill(history), played)
+	return Scheduler.recommend_for(library, history, played)
 
 # ── 持久化 ──
 func save() -> void:

@@ -518,6 +518,7 @@ func result() -> Dictionary:
 		"moves_left": moves_left,
 		"stars": stars,
 		"fragments": earned_fragments,
+		"is_scrolling": is_scrolling,   # 供个性化调度按类型(普通/挖矿)分别估技能
 	}
 
 # ───── 铭文计分 / Meta loadout 总入口 / 开局奖励 ─────

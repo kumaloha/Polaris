@@ -89,6 +89,24 @@ func test_scheduler_estimate_and_recommend() -> void:
 	assert_eq(Scheduler.recommend(lib, 0.95), 2, "high skill -> hard (low pass)")
 	assert_eq(Scheduler.recommend(lib, 0.05, {0: true}), 1, "easy played -> next closest")
 
+func test_scheduler_typed_scroll() -> void:
+	# 类型感知调度：普通关强、挖矿(scroll)弱的玩家 → 挖矿推容易(高pass)、普通推难(低pass)。
+	var hist := []
+	for i in 5:
+		hist.append({"won": true, "stars": 3, "kind": "normal"})    # 普通关：强
+	for i in 5:
+		hist.append({"won": false, "stars": 0, "kind": "scroll"})   # 挖矿：弱
+	assert_true(Scheduler.estimate_skill(hist, "normal") >= 0.75, "normal-type skill estimated high")
+	assert_true(Scheduler.estimate_skill(hist, "scroll") <= 0.15, "scroll-type skill estimated low")
+	var lib_normal := [{"skilled_pass": 0.9}, {"skilled_pass": 0.2}]
+	var lib_scroll := [{"skilled_pass": 0.9, "is_scrolling": true}, {"skilled_pass": 0.2, "is_scrolling": true}]
+	assert_eq(Scheduler.recommend_for(lib_normal, hist), 1, "strong on normal -> harder normal (low pass)")
+	assert_eq(Scheduler.recommend_for(lib_scroll, hist), 0, "weak on scroll -> easier scroll (high pass)")
+	# 混合库：各类型按各自水平挑(普通挑难idx1 / 挖矿挑易idx2)，全局取最贴合
+	var mixed := [{"skilled_pass": 0.9}, {"skilled_pass": 0.2}, {"skilled_pass": 0.9, "is_scrolling": true}]
+	var pick := Scheduler.recommend_for(mixed, hist)
+	assert_true(pick == 1 or pick == 2, "typed pick lands on well-matched level (hard normal or easy scroll)")
+
 func test_meta_recommend_next() -> void:
 	var ms := MetaState.new()
 	for i in 3:
