@@ -20,8 +20,8 @@ const MOVES := 25
 
 # 5 种道具：颜色 + 形状符号双重区分（呼应 06：小尺寸靠形状不只靠色）
 var COLORS := [Color("e74c3c"), Color("f5b301"), Color("27ae60"), Color("2e86de"), Color("8e44ad")]
-# 引擎 species 0-4 → pieces.json species id（红切面宝石/金星辰/绿草束/蓝冰晶/紫魔烛，形色最分明）
-const PIECE_SPECIES := [12, 11, 17, 13, 2]
+# 引擎 species 0-4 → pieces.json species id（红药水/金星杖/绿符文板/蓝水晶球/紫魔烛）
+const PIECE_SPECIES := [1, 3, 6, 8, 2]
 var piece_tex := []          # piece_tex[0-4] = {SP_NONE:基础, SP_LINE_H:横炸, SP_LINE_V:竖炸}
 var colorbomb_tex: Texture2D
 const SYMBOLS := ["●", "▲", "■", "◆", "✶"]
@@ -634,8 +634,11 @@ func _attempt(a: Vector2i, b: Vector2i) -> void:
 		return
 
 	_render()
-	_animate_clear_flash(initial)                # 消除处白光爆闪
-	await _animate_settle(pre)                   # 变动格"落定"(下落+缩放归位)
+	if board.last_cascade_cells.is_empty():
+		_animate_clear_flash(initial)                       # 无级联记录(彩球/融合)→单次闪初始消除
+	else:
+		_animate_cascade_flashes(board.last_cascade_cells)  # 逐级联依次闪,呈现连锁传播
+	await _animate_settle(pre)                              # 变动格"落定"(下落+缩放归位)
 	input_locked = false
 
 
@@ -660,8 +663,14 @@ func _swap_preview_matches(a: Vector2i, b: Vector2i) -> Array:
 	return ME.find_matches(g, board.coat)
 
 
-# 清除闪光：在消除格上快速白闪(看不到旧棋子被清，但给出"这里消除了"的反馈)。
-func _animate_clear_flash(cells: Array) -> void:
+# 逐级联依次闪：第 i 级延迟 0.08*i 起闪，呈现连锁一波波传播。
+func _animate_cascade_flashes(cascades: Array) -> void:
+	for i in cascades.size():
+		_animate_clear_flash(cascades[i], 0.08 * i)
+
+
+# 清除闪光：在消除格上快速白闪(看不到旧棋子被清，但给出"这里消除了"的反馈)。delay 起闪延迟。
+func _animate_clear_flash(cells: Array, delay: float = 0.0) -> void:
 	for c in cells:
 		var fl := ColorRect.new()
 		fl.color = Color(1, 1, 1, 0.0)
@@ -671,8 +680,10 @@ func _animate_clear_flash(cells: Array) -> void:
 		fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(fl)
 		var tw := create_tween()
-		tw.tween_property(fl, "color", Color(1, 1, 1, 0.85), 0.06)
-		tw.tween_property(fl, "color", Color(1, 1, 1, 0.0), 0.18)
+		if delay > 0.0:
+			tw.tween_interval(delay)
+		tw.tween_property(fl, "color", Color(1, 1, 1, 0.85), 0.05)
+		tw.tween_property(fl, "color", Color(1, 1, 1, 0.0), 0.16)
 		tw.tween_callback(fl.queue_free)
 
 

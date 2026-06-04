@@ -120,14 +120,15 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
+	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out)
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true) -> Dictionary:
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -141,6 +142,8 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		if matched.is_empty():
 			break
 		cascades += 1
+		if cascades_out != null:
+			cascades_out.append(matched.duplicate())
 		if has_coat:
 			var matched_set := {}
 			for p in matched:
@@ -201,7 +204,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -216,6 +219,8 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		if raw.is_empty():
 			break
 		cascades += 1
+		if cascades_out != null:
+			cascades_out.append(raw.duplicate())
 		# 锁住格(coat>0)不被清除：记下"开始时就锁住"的格，本回合只破锁、不清（下次才消）
 		var cleared_set := {}
 		var locked_start := {}

@@ -59,6 +59,7 @@ var score_mult: float = 1.0   # 铭文 +积分：计分倍率
 var is_scrolling: bool = false
 var feed: Array = []
 var _dug_through: bool = false   # 滚动关：4页全挖穿标志
+var last_cascade_cells: Array = []   # 最近一次交换的逐级联消除格(供视图逐级联动画)
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -194,7 +195,8 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	_push_history()   # 时间回退#2：记录走子前局面
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling)
+	last_cascade_cells = []   # 捕获本次交换的逐级联消除格
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, last_cascade_cells)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
