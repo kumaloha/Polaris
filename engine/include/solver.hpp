@@ -59,12 +59,29 @@ inline bool feed_drained(const std::vector<std::deque<int>>& feed) {
     return true;
 }
 
-// 统一胜利判定：滚动关看挖穿，否则走常规多目标/分数。
-inline bool won_now(const Level& lv, int score, const std::vector<int>& collected,
-                    int jelly_cleared, int blocker_cleared,
-                    const std::vector<std::deque<int>>& feed) {
-    if (lv.is_scrolling) return feed_drained(feed);
-    return objectives_met(lv, score, collected, jelly_cleared, blocker_cleared);
+// 滚动关：当前页已清到≥70%(空格占非墙格 ≥70%)。
+inline bool scroll_cleared_enough(const Grid& g) {
+    int total = 0, empty = 0;
+    for (const auto& row : g)
+        for (int v : row) {
+            if (v == WALL) continue;
+            total++;
+            if (v == EMPTY) empty++;
+        }
+    return total > 0 && empty * 10 >= 7 * total;
+}
+
+// 滚动关每步收口：清到一页70% → 拉新页(从 feed 批量补满空格) + 结算级联(仍只挖空)。
+// feed 已空又清到70% = 储备挖光 → dug=true(挖穿)。返回拉新页带来的额外结算。
+inline ResolveResult scroll_advance(Grid& g, const std::vector<int>& species, std::mt19937& rng,
+                                    std::vector<std::deque<int>>& feed,
+                                    std::vector<std::vector<int>>* jelly,
+                                    std::vector<std::vector<int>>* coat, bool& dug) {
+    ResolveResult none;
+    if (dug || !scroll_cleared_enough(g)) return none;
+    if (feed_drained(feed)) { dug = true; return none; }   // 储备空+清70% = 挖穿
+    refill(g, species, rng, &feed);                        // 拉新页：批量补满空格(feed 不足列留空)
+    return resolve(g, species, rng, jelly, coat, &feed, false);  // 拉下来只结算级联，不再补
 }
 
 struct Move {
@@ -145,7 +162,8 @@ inline PlayResult greedy_play(const Level& lv) {
     std::vector<std::vector<int>> coat = lv.coat;
     int blocker_total = 0;
     std::vector<std::deque<int>> feed = lv.feed;  // 滚动关：补充队列(本局消耗)
-    while (res.moves_used < lv.move_limit && !won_now(lv, res.score, collected, jelly_total, blocker_total, feed)) {
+    bool dug = false;  // 滚动关：挖穿标志(清到一页70%且储备空)
+    while (res.moves_used < lv.move_limit && !(lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total))) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) {  // 死局：洗牌续玩（镜像真机 _settle_deadlock），洗不出来才真停
             reshuffle(g, rng, coat.empty() ? nullptr : &coat);
@@ -158,9 +176,8 @@ inline PlayResult greedy_play(const Level& lv) {
         for (const auto& m : moves) {
             Grid gc = g;
             std::mt19937 rc = rng;
-            auto fc = feed;
             swap_cells(gc, m.a, m.b);
-            int gain = resolve(gc, lv.species, rc, nullptr, nullptr, lv.is_scrolling ? &fc : nullptr).score;
+            int gain = resolve(gc, lv.species, rc, nullptr, nullptr, nullptr, !lv.is_scrolling).score;
             if (gain > best_gain) {
                 best_gain = gain;
                 best = m;
@@ -168,17 +185,25 @@ inline PlayResult greedy_play(const Level& lv) {
         }
         swap_cells(g, best.a, best.b);
         ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
-                                   coat.empty() ? nullptr : &coat, lv.is_scrolling ? &feed : nullptr);
+                                   coat.empty() ? nullptr : &coat, nullptr, !lv.is_scrolling);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
         blocker_total += rr.blocker_cleared;
+        if (lv.is_scrolling) {  // 每步收口：清到一页70%→拉新页/挖穿
+            ResolveResult pr = scroll_advance(g, lv.species, rng, feed,
+                jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat, dug);
+            res.score += pr.score;
+            accumulate(collected, pr.by_species);
+            jelly_total += pr.jelly_cleared;
+            blocker_total += pr.blocker_cleared;
+        }
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
     res.blocker_cleared = blocker_total;
-    res.won = won_now(lv, res.score, collected, jelly_total, blocker_total, feed);
+    res.won = (lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total));
     return res;
 }
 
@@ -194,8 +219,9 @@ inline PlayResult smart_greedy_play(const Level& lv) {
     std::vector<std::vector<int>> coat = lv.coat;
     int blocker_total = 0;
     std::vector<std::deque<int>> feed = lv.feed;  // 滚动关：补充队列(本局消耗)
+    bool dug = false;  // 滚动关：挖穿标志(清到一页70%且储备空)
     while (res.moves_used < lv.move_limit
-           && !won_now(lv, res.score, collected, jelly_total, blocker_total, feed)) {
+           && !(lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total))) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
             reshuffle(g, rng, coat.empty() ? nullptr : &coat);
@@ -210,28 +236,35 @@ inline PlayResult smart_greedy_play(const Level& lv) {
             std::mt19937 rc = rng;
             std::vector<std::vector<int>> jc = jelly;
             std::vector<std::vector<int>> cc = coat;
-            auto fc = feed;
             swap_cells(gc, m.a, m.b);
             ResolveResult rr = resolve(gc, lv.species, rc,
                                        jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
-                                       lv.is_scrolling ? &fc : nullptr);
+                                       nullptr, !lv.is_scrolling);
             double v = move_value(rr, lv);
             if (v > best_v) { best_v = v; best = m; }
         }
         swap_cells(g, best.a, best.b);
         ResolveResult rr = resolve(g, lv.species, rng,
                                    jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
-                                   lv.is_scrolling ? &feed : nullptr);
+                                   nullptr, !lv.is_scrolling);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
         blocker_total += rr.blocker_cleared;
+        if (lv.is_scrolling) {  // 每步收口：清到一页70%→拉新页/挖穿
+            ResolveResult pr = scroll_advance(g, lv.species, rng, feed,
+                jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat, dug);
+            res.score += pr.score;
+            accumulate(collected, pr.by_species);
+            jelly_total += pr.jelly_cleared;
+            blocker_total += pr.blocker_cleared;
+        }
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
     res.blocker_cleared = blocker_total;
-    res.won = won_now(lv, res.score, collected, jelly_total, blocker_total, feed);
+    res.won = (lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total));
     return res;
 }
 
@@ -246,7 +279,8 @@ inline PlayResult random_play(const Level& lv) {
     std::vector<std::vector<int>> coat = lv.coat;
     int blocker_total = 0;
     std::vector<std::deque<int>> feed = lv.feed;  // 滚动关：补充队列(本局消耗)
-    while (res.moves_used < lv.move_limit && !won_now(lv, res.score, collected, jelly_total, blocker_total, feed)) {
+    bool dug = false;  // 滚动关：挖穿标志(清到一页70%且储备空)
+    while (res.moves_used < lv.move_limit && !(lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total))) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
             reshuffle(g, rng, coat.empty() ? nullptr : &coat);
@@ -256,17 +290,25 @@ inline PlayResult random_play(const Level& lv) {
         Move m = moves[rng() % moves.size()];
         swap_cells(g, m.a, m.b);
         ResolveResult rr = resolve(g, lv.species, rng, jelly.empty() ? nullptr : &jelly,
-                                   coat.empty() ? nullptr : &coat, lv.is_scrolling ? &feed : nullptr);
+                                   coat.empty() ? nullptr : &coat, nullptr, !lv.is_scrolling);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
         blocker_total += rr.blocker_cleared;
+        if (lv.is_scrolling) {  // 每步收口：清到一页70%→拉新页/挖穿
+            ResolveResult pr = scroll_advance(g, lv.species, rng, feed,
+                jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat, dug);
+            res.score += pr.score;
+            accumulate(collected, pr.by_species);
+            jelly_total += pr.jelly_cleared;
+            blocker_total += pr.blocker_cleared;
+        }
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
     res.blocker_cleared = blocker_total;
-    res.won = won_now(lv, res.score, collected, jelly_total, blocker_total, feed);
+    res.won = (lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total));
     return res;
 }
 
@@ -306,8 +348,9 @@ inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
     std::vector<std::vector<int>> coat = lv.coat;
     int blocker_total = 0;
     std::vector<std::deque<int>> feed = lv.feed;  // 滚动关：补充队列(本局消耗)
+    bool dug = false;  // 滚动关：挖穿标志(清到一页70%且储备空)
     while (res.moves_used < lv.move_limit
-           && !won_now(lv, res.score, collected, jelly_total, blocker_total, feed)) {
+           && !(lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total))) {
         auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
         if (moves.empty()) {  // 死局：洗牌续玩，洗不出来才真停
             reshuffle(g, rng, coat.empty() ? nullptr : &coat);
@@ -322,28 +365,35 @@ inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
             std::mt19937 rc = rng;
             std::vector<std::vector<int>> jc = jelly;
             std::vector<std::vector<int>> cc = coat;
-            auto fc = feed;
             swap_cells(gc, m.a, m.b);
             ResolveResult rr = resolve(gc, lv.species, rc,
                                        jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
-                                       lv.is_scrolling ? &fc : nullptr);
+                                       nullptr, !lv.is_scrolling);
             double v = heuristic_value(rr, lv, h);
             if (v > best_v) { best_v = v; best = m; }
         }
         swap_cells(g, best.a, best.b);
         ResolveResult rr = resolve(g, lv.species, rng,
                                    jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
-                                   lv.is_scrolling ? &feed : nullptr);
+                                   nullptr, !lv.is_scrolling);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
         blocker_total += rr.blocker_cleared;
+        if (lv.is_scrolling) {  // 每步收口：清到一页70%→拉新页/挖穿
+            ResolveResult pr = scroll_advance(g, lv.species, rng, feed,
+                jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat, dug);
+            res.score += pr.score;
+            accumulate(collected, pr.by_species);
+            jelly_total += pr.jelly_cleared;
+            blocker_total += pr.blocker_cleared;
+        }
         res.moves_used++;
     }
     res.collected = collected;
     res.jelly_cleared = jelly_total;
     res.blocker_cleared = blocker_total;
-    res.won = won_now(lv, res.score, collected, jelly_total, blocker_total, feed);
+    res.won = (lv.is_scrolling ? dug : objectives_met(lv, res.score, collected, jelly_total, blocker_total));
     return res;
 }
 

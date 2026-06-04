@@ -158,7 +158,8 @@ inline bool has_legal_move(Grid& g, const std::vector<std::vector<int>>* coat = 
 inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng,
                              std::vector<std::vector<int>>* jelly = nullptr,
                              std::vector<std::vector<int>>* coat = nullptr,
-                             std::vector<std::deque<int>>* feed = nullptr) {
+                             std::vector<std::deque<int>>* feed = nullptr,
+                             bool do_refill = true) {  // 滚动关消除时 do_refill=false=只挖空(补充改由"拉新页"批量做)
     ResolveResult r;
     while (true) {
         auto matched = find_matches(g, coat);
@@ -192,7 +193,7 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
         r.cleared += (int)matched.size();
         r.score += score_for_clear((int)matched.size(), r.cascades);
         apply_gravity(g, coat);
-        refill(g, species, rng, feed);
+        if (do_refill) refill(g, species, rng, feed);
     }
     return r;
 }

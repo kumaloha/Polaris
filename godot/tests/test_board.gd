@@ -574,23 +574,38 @@ func test_apply_loadout() -> void:
 				cnt += 1
 	assert_eq(cnt, 1, "one opening special placed")
 
-func test_scrolling_feed_refill_and_win() -> void:
-	# 滚动关(挖矿)：补充从 feed 队列出(非随机)；feed 耗尽 = 挖穿长盘 = 过关。
+func test_scrolling_refill_from_feed() -> void:
+	# refill 单元：滚动补充从 feed 每列前端出(非随机)；feed[x] 空 = 该列挖穿 → 留空，不补随机。
 	var b := Board.new(3, 3, [0, 1, 2], 999999, 30, 1)
 	b.is_scrolling = true
-	b.feed = [[7, 8], [7, 8], [7, 8]]   # 每列预设深层队列(7/8 当标记值)
-	assert_false(b.is_won(), "feed not empty -> not won")
 	b.grid[0][0] = ME.EMPTY
 	b.grid[0][1] = ME.EMPTY
-	ME.refill(b.grid, b.species, b.rng, b.fx, b.feed)
+	ME.refill(b.grid, b.species, b.rng, b.fx, [[7, 8], [7, 8], [7, 8]])
 	assert_eq(b.grid[0][0], 7, "top empty filled from feed front (not random)")
-	assert_eq(b.feed[0].size(), 1, "col 0 feed consumed one (8 left)")
 	# 挖穿后：feed[x] 空了，顶部不再补新棋子(留空)，不回退随机
-	b.feed = [[], [5], []]      # 列0/列2 已挖穿，列1 还有
 	b.grid[1][0] = ME.EMPTY     # 列0 空格(已挖穿)
 	b.grid[1][1] = ME.EMPTY     # 列1 空格(还有 feed)
-	ME.refill(b.grid, b.species, b.rng, b.fx, b.feed)
+	ME.refill(b.grid, b.species, b.rng, b.fx, [[], [5], []])
 	assert_eq(b.grid[1][0], ME.EMPTY, "exhausted column stays EMPTY (no new piece dropped)")
 	assert_eq(b.grid[1][1], 5, "column with remaining feed still fills from it")
-	b.feed = [[], [], []]
-	assert_true(b.is_won(), "feed exhausted -> scrolling level won")
+
+func test_scrolling_dig_pull_and_win() -> void:
+	# 挖矿机制：消除时不补(挖空)；清到一页70%→从 feed 批量拉新页补满；储备空+清70%=挖穿通关。
+	var b := Board.new(4, 4, [0, 1, 2], 999999, 30, 1)
+	b.is_scrolling = true
+	b.feed = [[0], [1], [2], [0]]   # 每列储备1格(顶行拉下来 0,1,2,0 → 不自动消除)
+	assert_false(b.is_won(), "fresh scrolling level not won")
+	# (1) 没清到70% → 不拉新页(feed 原样)
+	b._scroll_advance()
+	assert_eq(b.feed[0].size(), 1, "below 70% cleared -> no pull, feed intact")
+	# (2) 清到≥70%(全清) + feed 有货 → 拉新页：顶部从 feed 补回、feed 消耗
+	for y in b.grid.size():
+		for x in b.grid[y].size():
+			b.grid[y][x] = ME.EMPTY
+	b._scroll_advance()
+	assert_eq(b.feed[0].size(), 0, "cleared 70% with feed -> pulled, feed consumed")
+	assert_eq(b.grid[0][0], 0, "pulled page fills top from feed front")
+	assert_false(b.is_won(), "just pulled a page -> not dug through yet")
+	# (3) 仍≥70%空(只补回4/16) + 储备已空 → 挖穿通关
+	b._scroll_advance()
+	assert_true(b.is_won(), "cleared 70% with empty reserve -> dug through (won)")
