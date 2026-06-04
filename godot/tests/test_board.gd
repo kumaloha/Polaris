@@ -2,6 +2,7 @@ extends "res://tests/test_lib.gd"
 
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
 func _make(target := 100, moves := 20, seed_val := 1) -> Board:
 	return Board.new(8, 8, [0, 1, 2, 3, 4], target, moves, seed_val)
@@ -350,3 +351,35 @@ func test_colorbomb_shield_preserves_colorbomb() -> void:
 				cb_count += 1
 	assert_true(cb_count >= 1, "colorbomb preserved by shield")
 	assert_eq(b.colorbomb_shield, 0, "shield consumed")
+
+# ───────────── 打通两端：关卡库读取（05 数据契约）─────────────
+
+func test_board_from_level_dict() -> void:
+	var d := {
+		"w": 3, "h": 2,
+		"species": [0, 1, 2],
+		"init_board": [[0, 1, 2], [2, 0, 1]],
+		"target_score": 0,
+		"move_limit": 15,
+		"seed": 7,
+		"objectives": [{"type": "COLLECT", "species": 1, "target": 5}],
+		"jelly": [[1, 0, 1], [0, 0, 0]],
+		"coat": [],
+	}
+	var b := LevelLibrary.to_board(d)
+	assert_eq(b.grid, [[0, 1, 2], [2, 0, 1]], "exact board loaded (not regenerated)")
+	assert_eq(b.move_limit, 15, "move_limit loaded")
+	assert_eq(b.objectives.size(), 1, "objective loaded")
+	assert_eq(b.objectives[0]["species"], 1, "objective species loaded")
+	assert_eq(typeof(b.objectives[0]["species"]), TYPE_INT, "species is int (dict-key safe)")
+	assert_eq(b.jelly, [[1, 0, 1], [0, 0, 0]], "jelly layer loaded")
+	assert_eq(b.fx.size(), 2, "fx sized to board height")
+
+func test_level_library_parses_and_builds() -> void:
+	var json := '{"levels":[{"w":2,"h":2,"species":[0,1],"init_board":[[0,1],[1,0]],"move_limit":10,"objectives":[]}]}'
+	var lvls := LevelLibrary.load_string(json)
+	assert_eq(lvls.size(), 1, "one level parsed from json")
+	var b := LevelLibrary.to_board(lvls[0])
+	assert_eq(b.grid, [[0, 1], [1, 0]], "board built from json level")
+	assert_eq(b.move_limit, 10, "move_limit from json")
+	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")

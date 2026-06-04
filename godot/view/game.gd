@@ -5,6 +5,7 @@ extends Node2D
 
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
 const W := 8
 const H := 8
@@ -23,7 +24,8 @@ const FX_GLYPH := ["", "▬", "▮", "✸", "◎"]
 
 var board: Board
 var cur_seed := 12345
-var demo_idx := 0        # 当前 demo 关索引（按 R 递进）
+var demo_idx := 0        # 当前关索引（按 R 递进）
+var algo_levels: Array = []   # 算法生成的关卡库（res://levels.json，C++ 导出）；非空则优先玩它
 var tiles := []          # tiles[y][x] -> ColorRect（道具底色块）
 var labels := []         # labels[y][x] -> Label（道具符号/特效标记）
 var jelly_rects := []    # jelly_rects[y][x] -> ColorRect（果冻底层标记）
@@ -43,6 +45,7 @@ var sel_frame: ColorRect
 func _ready() -> void:
 	_build_hud()
 	_build_tiles()
+	algo_levels = LevelLibrary.load_file("res://levels.json")   # 优先读 C++ 导出的算法关卡库
 	_new_game()
 
 
@@ -103,10 +106,16 @@ func _demo_level(idx: int) -> Dictionary:
 
 
 func _new_game() -> void:
-	var lvl := _demo_level(demo_idx)
-	board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
-			lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"])
-	title_label.text = lvl["name"]
+	if not algo_levels.is_empty():
+		var i: int = demo_idx % algo_levels.size()
+		var ld: Dictionary = algo_levels[i]
+		board = LevelLibrary.to_board(ld)
+		title_label.text = "算法关 %d/%d · %s" % [i + 1, algo_levels.size(), String(ld.get("difficulty", "?"))]
+	else:
+		var lvl := _demo_level(demo_idx)
+		board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"])
+		title_label.text = lvl["name"]
 	selected = Vector2i(-1, -1)
 	input_locked = false
 	_render()
@@ -387,7 +396,8 @@ func _layer_at(layer: Array, x: int, y: int) -> int:
 # ───────────────────────────── 输入 ─────────────────────────────
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
-		demo_idx = (demo_idx + 1) % DEMO_COUNT
+		var n: int = algo_levels.size() if not algo_levels.is_empty() else DEMO_COUNT
+		demo_idx = (demo_idx + 1) % n
 		cur_seed += 1
 		_new_game()
 		return
