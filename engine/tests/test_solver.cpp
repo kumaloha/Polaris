@@ -89,7 +89,33 @@ static void test_evaluate_deterministic() {
     CHECK(e1.skilled_pass_rate == e2.skilled_pass_rate, "evaluate deterministic (pass)");
 }
 
+static void test_objectives_met_helper() {
+    Level lv;
+    lv.objectives = {{OBJ_COLLECT, 0, 3}, {OBJ_SCORE, -1, 100}};
+    CHECK(objectives_met(lv, 100, {5, 0}), "both objectives met");
+    CHECK(!objectives_met(lv, 99, {5, 0}), "score objective not met");
+    CHECK(!objectives_met(lv, 100, {2, 0}), "collect objective not met");
+    Level legacy;  // 无 objectives → 旧式按 target_score
+    legacy.target_score = 50;
+    CHECK(objectives_met(legacy, 50, {}), "legacy: score>=target wins");
+    CHECK(!objectives_met(legacy, 49, {}), "legacy: below target");
+}
+
+static void test_greedy_wins_collect_objective() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.move_limit = 20;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_COLLECT, 0, 5}};  // 收集 5 个 species 0
+    auto r = greedy_play(lv);
+    CHECK(r.won, "greedy collects 5 of species 0 within 20 moves");
+}
+
 int main() {
+    test_objectives_met_helper();
+    test_greedy_wins_collect_objective();
     test_greedy_plays_out_impossible_target();
     test_greedy_wins_easy_target();
     test_greedy_deterministic();

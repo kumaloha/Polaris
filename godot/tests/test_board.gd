@@ -78,6 +78,19 @@ func test_board_deterministic_with_seed() -> void:
 	assert_true(b1.grid.size() > 0, "built (sanity)")
 	assert_eq(b1.grid, b2.grid, "same seed -> identical start board")
 
+func test_board_wins_collect_objective() -> void:
+	var objs := [{"type": "COLLECT", "species": 0, "target": 5}]
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 0, 30, 7, [], objs)
+	for i in 30:
+		if b.is_over():
+			break
+		var mv := _find_legal_move(b.grid)
+		if mv.size() != 2:
+			break
+		b.try_swap(mv[0], mv[1])
+	assert_true(b.collected.get(0, 0) >= 5, "collected >= 5 of species 0")
+	assert_true(b.is_won(), "won via COLLECT objective")
+
 func test_colorbomb_swap_detonates_and_consumes_move() -> void:
 	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 1)  # 大目标 → 不会胜
 	b.grid = [

@@ -151,6 +151,16 @@ static void test_swap_wall_is_illegal() {
     CHECK(!is_legal_swap(gw, {2, 0}, {2, 1}), "moving a WALL is illegal even if tiles would match");
 }
 
+static void test_resolve_reports_by_species() {
+    Grid g = {{0, 0, 0, 1}, {1, 2, 3, 2}, {2, 3, 1, 3}};  // 顶行三个 0
+    std::mt19937 rng(1);
+    auto r = resolve(g, {0, 1, 2, 3}, rng);
+    int sum = 0;
+    for (int c : r.by_species) sum += c;
+    CHECK_EQ(sum, r.cleared, "by_species sums to total cleared");
+    CHECK(r.by_species.size() > 0 && r.by_species[0] >= 3, "the three species-0 cells are counted");
+}
+
 static void test_make_board_with_wall_mask() {
     int W = 6, H = 6;
     std::vector<std::vector<char>> mask(H, std::vector<char>(W, 0));
@@ -170,6 +180,7 @@ int main() {
     test_find_matches_ignores_walls();
     test_gravity_respects_wall_segments();
     test_swap_wall_is_illegal();
+    test_resolve_reports_by_species();
     test_make_board_with_wall_mask();
     test_gravity_pulls_tiles_down();
     test_refill_fills_within_species();

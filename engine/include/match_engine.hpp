@@ -97,8 +97,9 @@ inline int score_for_clear(int count, int cascade_level) {
 
 struct ResolveResult {
     int score = 0, cascades = 0, cleared = 0;
+    std::vector<int> by_species;  // by_species[s] = 本次消除中 species s 的格数（按需增长）
     bool operator==(const ResolveResult& o) const {
-        return score == o.score && cascades == o.cascades && cleared == o.cleared;
+        return score == o.score && cascades == o.cascades && cleared == o.cleared && by_species == o.by_species;
     }
 };
 
@@ -138,7 +139,14 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
         auto matched = find_matches(g);
         if (matched.empty()) break;
         r.cascades++;
-        for (auto& p : matched) g[p.y][p.x] = EMPTY;
+        for (auto& p : matched) {
+            int s = g[p.y][p.x];
+            if (s >= 0) {
+                if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
+                r.by_species[s]++;
+            }
+            g[p.y][p.x] = EMPTY;
+        }
         r.cleared += (int)matched.size();
         r.score += score_for_clear((int)matched.size(), r.cascades);
         apply_gravity(g);

@@ -6,13 +6,43 @@
 
 namespace me {
 
+enum ObjType { OBJ_SCORE, OBJ_COLLECT };  // 后续加 CLEAR_BLOCKER / JELLY
+
+struct Objective {
+    ObjType type = OBJ_SCORE;
+    int species = -1;  // COLLECT 用
+    int target = 0;
+};
+
 struct Level {
     Grid init_board;
     std::vector<int> species;
-    int target_score = 0;
+    int target_score = 0;             // 旧式：objectives 为空时按它判胜（向后兼容）
     int move_limit = 0;
     uint32_t seed = 0;
+    std::vector<Objective> objectives;  // 新式：多目标，全满足即过关
 };
+
+// 把一次消除的 by_species 累加进总收集表。
+inline void accumulate(std::vector<int>& acc, const std::vector<int>& add) {
+    if (acc.size() < add.size()) acc.resize(add.size(), 0);
+    for (size_t i = 0; i < add.size(); ++i) acc[i] += add[i];
+}
+
+// 是否过关：objectives 为空 → 旧式 score>=target_score；否则全部目标满足。
+inline bool objectives_met(const Level& lv, int score, const std::vector<int>& collected) {
+    if (lv.objectives.empty())
+        return score >= lv.target_score;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE) {
+            if (score < o.target) return false;
+        } else if (o.type == OBJ_COLLECT) {
+            int got = (o.species >= 0 && o.species < (int)collected.size()) ? collected[o.species] : 0;
+            if (got < o.target) return false;
+        }
+    }
+    return true;
+}
 
 struct Move {
     Vec2 a, b;
@@ -43,7 +73,8 @@ inline PlayResult greedy_play(const Level& lv) {
     Grid g = lv.init_board;
     std::mt19937 rng(lv.seed);
     PlayResult res;
-    while (res.moves_used < lv.move_limit && res.score < lv.target_score) {
+    std::vector<int> collected;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;  // 死局（v1 暂不洗牌，罕见；TODO 接 reshuffle）
         // 在副本上试每个候选，取立即得分最高（rng 也拷贝，保证选中后真实结算一致）
@@ -60,10 +91,12 @@ inline PlayResult greedy_play(const Level& lv) {
             }
         }
         swap_cells(g, best.a, best.b);
-        res.score += resolve(g, lv.species, rng).score;
+        ResolveResult rr = resolve(g, lv.species, rng);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
         res.moves_used++;
     }
-    res.won = res.score >= lv.target_score;
+    res.won = objectives_met(lv, res.score, collected);
     return res;
 }
 
@@ -74,7 +107,8 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
     Grid g = lv.init_board;
     std::mt19937 rng(lv.seed);  // 真实推进用
     PlayResult res;
-    while (res.moves_used < lv.move_limit && res.score < lv.target_score) {
+    std::vector<int> collected;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;
         // 本步 rollout 的基准种子（独立于真实 rng；同 it 跨候选同随机 = 公平）
@@ -104,10 +138,12 @@ inline PlayResult mc_play(const Level& lv, int rollouts = 8, int rollout_depth =
             }
         }
         swap_cells(g, bestm.a, bestm.b);
-        res.score += resolve(g, lv.species, rng).score;
+        ResolveResult rr = resolve(g, lv.species, rng);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
         res.moves_used++;
     }
-    res.won = res.score >= lv.target_score;
+    res.won = objectives_met(lv, res.score, collected);
     return res;
 }
 
@@ -116,15 +152,18 @@ inline PlayResult random_play(const Level& lv) {
     Grid g = lv.init_board;
     std::mt19937 rng(lv.seed);
     PlayResult res;
-    while (res.moves_used < lv.move_limit && res.score < lv.target_score) {
+    std::vector<int> collected;
+    while (res.moves_used < lv.move_limit && !objectives_met(lv, res.score, collected)) {
         auto moves = legal_moves(g);
         if (moves.empty()) break;
         Move m = moves[rng() % moves.size()];
         swap_cells(g, m.a, m.b);
-        res.score += resolve(g, lv.species, rng).score;
+        ResolveResult rr = resolve(g, lv.species, rng);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
         res.moves_used++;
     }
-    res.won = res.score >= lv.target_score;
+    res.won = objectives_met(lv, res.score, collected);
     return res;
 }
 

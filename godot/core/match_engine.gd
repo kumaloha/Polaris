@@ -109,18 +109,22 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
+	var by_species := {}  # species -> 消除数
 	while true:
 		var matched: Array = find_matches(grid)
 		if matched.is_empty():
 			break
 		cascades += 1
 		for pos in matched:
+			var sp_p: int = grid[pos.y][pos.x]
+			if sp_p >= 0:
+				by_species[sp_p] = by_species.get(sp_p, 0) + 1
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
 		apply_gravity(grid)
 		refill(grid, species_set, rng)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -160,6 +164,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
+	var by_species := {}
 	while true:
 		var c := collect_clears(grid, fx)
 		var to_clear: Array = c["to_clear"]
@@ -168,10 +173,18 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		cascades += 1
 		cleared_total += to_clear.size()
 		total_score += score_for_clear(to_clear.size(), cascades)
+		var spawn_set := {}
+		for s in c["spawns"]:
+			spawn_set[s["pos"]] = true
+		for pos in to_clear:
+			if not spawn_set.has(pos):
+				var sp_p: int = grid[pos.y][pos.x]
+				if sp_p >= 0:
+					by_species[sp_p] = by_species.get(sp_p, 0) + 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
 		apply_gravity(grid, fx)
 		refill(grid, species_set, rng, fx)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。

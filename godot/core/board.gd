@@ -14,16 +14,19 @@ var rng: RandomNumberGenerator
 var grid: Array
 var fx: Array = []   # 特效层（与 grid 同维），SP_NONE=普通
 var wall_mask: Array = []  # 异形棋盘掩码（可选）
+var objectives: Array = []  # [{type:"SCORE"/"COLLECT", species:int, target:int}]；空=旧式按 target_score
+var collected: Dictionary = {}  # species -> 累计消除数
 var score: int
 var moves_left: int
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
 	target_score = target
 	move_limit = moves
 	wall_mask = mask
+	objectives = objs
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	start()
@@ -31,8 +34,13 @@ func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val
 func start() -> void:
 	grid = ME.make_board(width, height, species, rng, wall_mask)
 	fx = _blank_fx()
+	collected = {}
 	score = 0
 	moves_left = move_limit
+
+func _accumulate(by_species: Dictionary) -> void:
+	for k in by_species:
+		collected[k] = collected.get(k, 0) + by_species[k]
 
 func _blank_fx() -> Array:
 	var f := []
@@ -44,7 +52,16 @@ func _blank_fx() -> Array:
 	return f
 
 func is_won() -> bool:
-	return score >= target_score
+	if objectives.is_empty():
+		return score >= target_score  # 旧式
+	for o in objectives:
+		if o["type"] == "SCORE":
+			if score < o["target"]:
+				return false
+		elif o["type"] == "COLLECT":
+			if collected.get(o["species"], 0) < o["target"]:
+				return false
+	return true
 
 func is_lost() -> bool:
 	return moves_left <= 0 and score < target_score
@@ -68,6 +85,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	var res: Dictionary = ME.resolve(grid, species, rng, fx)
 	score += res["score"]
+	_accumulate(res.get("by_species", {}))
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
@@ -86,6 +104,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME.refill(grid, species, rng, fx)
 	var res: Dictionary = ME.resolve(grid, species, rng, fx)   # 结算余下级联
 	score += res["score"]
+	_accumulate(res.get("by_species", {}))
 	moves_left -= 1
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}

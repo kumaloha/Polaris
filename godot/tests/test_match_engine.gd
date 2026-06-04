@@ -139,6 +139,15 @@ func test_resolve_scores_initial_match() -> void:
 	assert_true(r["score"] >= 30, "clearing a 3-match scores at least 30")
 	assert_true(r["cascades"] >= 1, "at least one cascade happened")
 
+func test_resolve_reports_by_species() -> void:
+	var grid := _GRID_WITH_MATCH.duplicate(true)
+	var rng := RandomNumberGenerator.new(); rng.seed = 42
+	var r: Dictionary = ME.resolve(grid, _SPECIES, rng)
+	var sum := 0
+	for k in r["by_species"]:
+		sum += r["by_species"][k]
+	assert_eq(sum, r["cleared"], "by_species sums to total cleared")
+
 func test_resolve_deterministic_with_seed() -> void:
 	var g1 := _GRID_WITH_MATCH.duplicate(true)
 	var g2 := _GRID_WITH_MATCH.duplicate(true)
