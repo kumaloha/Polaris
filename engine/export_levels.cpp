@@ -5,6 +5,7 @@
 #include "include/generator.hpp"
 #include <cstdio>
 #include <cstdlib>
+#include <future>
 #include <sstream>
 #include <string>
 using namespace me;
@@ -77,14 +78,22 @@ int main(int argc, char** argv) {
     cfg.move_limit = 25;
     cfg.trials = 12;
 
-    // 多难度库：每档若干关，由易到难（= 关卡进度/地图节奏的素材；二分目标命中难度带）
-    std::vector<GeneratedLevel> levels;
+    // 多难度库：每档若干关，由易到难。三档【并行】生成——各档独立、各自 seed，
+    // 结果与串行完全一致（确定性），只是更快（09 §6 候选并行）。
     DiffBand bands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<std::vector<GeneratedLevel>>> futs;
     for (int bi = 0; bi < 3; ++bi) {
-        cfg.base_seed = 12345u + (uint32_t)bi * 2654435761u;  // 各档用不同盘
-        auto got = generate_for_difficulty(cfg, bands[bi], per_band, 800);
-        for (auto& gl : got) levels.push_back(gl);
+        GenConfig c = cfg;
+        c.base_seed = 12345u + (uint32_t)bi * 2654435761u;  // 各档用不同盘
+        DiffBand band = bands[bi];
+        futs.push_back(std::async(std::launch::async, [c, band, per_band]() {
+            return generate_for_difficulty(c, band, per_band, 800);
+        }));
     }
+    std::vector<GeneratedLevel> levels;
+    for (auto& f : futs)
+        for (auto& gl : f.get())
+            levels.push_back(gl);
 
     std::ostringstream o;
     o << "{\"levels\":[";
