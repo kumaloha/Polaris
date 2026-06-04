@@ -226,3 +226,48 @@ func test_colorbomb_spares_locked_cell() -> void:
 	b.try_swap(Vector2i(0, 2), Vector2i(0, 1))  # 彩球换 species-1 → 目标清 species-1
 	assert_eq(b.grid[0][1], 1, "locked species-1 cell NOT cleared by colorbomb")
 	assert_true(b.coat[0][1] < 5 and b.coat[0][1] > 0, "but its lock was broken (still locked)")
+
+# ───────────── Meta 技能：借贷(#1) 垂直切片（10 §7）─────────────
+
+func test_borrow_once_per_game() -> void:
+	# 借贷一局一次：第二次借被拒。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999, 20, 5)
+	b.skill = "borrow"
+	b.grid[0][0] = 0; b.fx[0][0] = ME.SP_NONE
+	b.grid[1][1] = 0; b.fx[1][1] = ME.SP_NONE
+	assert_true(b.skill_borrow(Vector2i(0, 0), ME.SP_BOMB), "first borrow ok")
+	assert_eq(b.fx[0][0], ME.SP_BOMB, "special placed on the cell")
+	assert_eq(b.borrow_debt, 1, "one debt incurred")
+	assert_false(b.skill_borrow(Vector2i(1, 1), ME.SP_BOMB), "second borrow rejected (一局一次)")
+	assert_eq(b.borrow_debt, 1, "still one debt")
+
+func test_borrow_requires_equipped_skill() -> void:
+	# 没装借贷技能 → 借不了（裸 Core 无技能）。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999, 20, 5)
+	b.grid[0][0] = 0; b.fx[0][0] = ME.SP_NONE
+	assert_false(b.skill_borrow(Vector2i(0, 0), ME.SP_LINE_H), "no skill equipped -> borrow rejected")
+
+func test_unpaid_debt_blocks_then_repay_wins() -> void:
+	# 借贷铁律：欠债未还不过关，即使目标达成；还债后才算过关。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 1, 20, 5)  # target_score=1（易胜）
+	b.skill = "borrow"
+	b.grid[0][0] = 0; b.fx[0][0] = ME.SP_NONE
+	assert_true(b.skill_borrow(Vector2i(0, 0), ME.SP_LINE_H), "borrow at start")
+	b.score = 100  # 模拟达成目标
+	assert_false(b.is_won(), "objective met but unpaid debt -> NOT won")
+	assert_false(b.is_over(), "not over: must repay (moves remain)")
+	assert_true(b.skill_repay(Vector2i(0, 0)), "repay: downgrade the special")
+	assert_eq(b.borrow_debt, 0, "debt cleared")
+	assert_eq(b.fx[0][0], ME.SP_NONE, "special downgraded to normal")
+	assert_true(b.is_won(), "after repay -> won")
+
+func test_unpaid_debt_loses_when_moves_out() -> void:
+	# 欠债 + 步数耗尽 → 判负（不算过关）。
+	var b := Board.new(4, 4, [0, 1, 2, 3], 1, 5, 5)
+	b.skill = "borrow"
+	b.grid[0][0] = 0; b.fx[0][0] = ME.SP_NONE
+	b.skill_borrow(Vector2i(0, 0), ME.SP_COLORBOMB)
+	b.score = 100      # 目标达成
+	b.moves_left = 0   # 步数耗尽
+	assert_false(b.is_won(), "debt blocks win")
+	assert_true(b.is_lost(), "moves out + unpaid debt -> lost")

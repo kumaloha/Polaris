@@ -25,6 +25,12 @@ var blocker_cleared: int = 0  # 累计破掉的涂层
 var score: int
 var moves_left: int
 
+# ───── Meta 技能层（见 02/10 §7）。框架模式：技能 = 一个 id + 自己的状态 + 自己的方法 + 在 is_won 挂钩。 ─────
+var skill: String = ""          # 本局所带技能 id（""=裸 Core 无技能；锦上添花非雪中送炭）
+# 借贷(#1)：一局一次借一个特效（生债），本关内必须还（降格一个特效），欠债未还不过关。
+var borrow_used: bool = false
+var borrow_debt: int = 0
+
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
 	height = h
@@ -49,6 +55,8 @@ func start() -> void:
 	blocker_cleared = 0
 	score = 0
 	moves_left = move_limit
+	borrow_used = false   # 技能状态随开局重置（skill 装备本身保留）
+	borrow_debt = 0
 
 func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
@@ -64,6 +72,8 @@ func _blank_fx() -> Array:
 	return f
 
 func is_won() -> bool:
+	if borrow_debt > 0:
+		return false  # 借贷铁律：欠债未还 → 不算过关（即使分数/目标已达成）
 	if objectives.is_empty():
 		return score >= target_score  # 旧式
 	for o in objectives:
@@ -88,6 +98,30 @@ func is_lost() -> bool:
 
 func is_over() -> bool:
 	return is_won() or is_lost()
+
+# ───── 借贷(#1) 技能方法 ─────
+# 借：在一个普通棋子格放一个特效(kind)，生一笔债。一局一次（看广告续用留作后续）。
+func skill_borrow(cell: Vector2i, kind: int) -> bool:
+	if skill != "borrow" or borrow_used or is_over():
+		return false
+	if kind == ME.SP_NONE:
+		return false
+	if grid[cell.y][cell.x] < 0 or fx[cell.y][cell.x] != ME.SP_NONE:
+		return false  # 须落在普通棋子格（非墙/空/已有特效）
+	fx[cell.y][cell.x] = kind
+	borrow_debt += 1
+	borrow_used = true
+	return true
+
+# 还：把某个特效降格成普通棋子（玩家自选牺牲哪个，借来的或自然形成的都行），还一笔债。
+func skill_repay(cell: Vector2i) -> bool:
+	if borrow_debt <= 0:
+		return false
+	if fx[cell.y][cell.x] == ME.SP_NONE:
+		return false  # 该格无特效可还
+	fx[cell.y][cell.x] = ME.SP_NONE
+	borrow_debt -= 1
+	return true
 
 # 尝试交换 a,b：非法/已结束则不消耗。合法则交换→级联结算→扣 1 步→死局兜底洗牌。
 # 返回 {ok, gained?, cascades?, reason?}。
