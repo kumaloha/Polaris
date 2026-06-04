@@ -322,4 +322,191 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
     return out;
 }
 
+// ---- FI2Pop：可行-不可行双种群遗传生成（09 §2.3）----
+
+// 基因型：可进化的关卡设计旋钮（不含具体棋子，棋子由 board_seed 生成）。
+struct Genotype {
+    uint32_t board_seed = 1;
+    uint32_t wall_seed = 1;
+    double wall_density = 0.0;   // 0..0.15
+    int obj_type = 0;            // 0 SCORE / 1 COLLECT / 2 JELLY / 3 BLOCKER
+    int obj_species = 0;         // COLLECT 用
+    int obj_target = 100;        // 难度旋钮
+    uint32_t coat_seed = 1;
+    double coat_density = 0.15;  // BLOCKER 用
+    int move_limit = 16;
+    double fitness = -1e9;
+    bool feasible = false;
+};
+
+inline std::vector<std::vector<char>> _mask_from(uint32_t seed, double density, int W, int H) {
+    std::mt19937 r(seed);
+    std::uniform_real_distribution<double> d(0.0, 1.0);
+    std::vector<std::vector<char>> m(H, std::vector<char>(W, 0));
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (d(r) < density) m[y][x] = 1;
+    return m;
+}
+
+inline Level decode_genotype(const Genotype& g, const GenConfig& cfg) {
+    int W = cfg.w, H = cfg.h;
+    auto wm = _mask_from(g.wall_seed, g.wall_density, W, H);
+    std::mt19937 br(g.board_seed);
+    Grid board = make_board(W, H, cfg.species, br, wm);
+    Level lv;
+    lv.init_board = board;
+    lv.species = cfg.species;
+    lv.move_limit = g.move_limit;
+    lv.seed = g.board_seed;
+    if (g.obj_type == 1) {
+        lv.objectives = {{OBJ_COLLECT, g.obj_species % (int)cfg.species.size(), g.obj_target}};
+    } else if (g.obj_type == 2) {
+        std::vector<std::vector<int>> j(H, std::vector<int>(W, 1));
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                if (board[y][x] == WALL) j[y][x] = 0;
+        lv.jelly = j;
+        lv.objectives = {{OBJ_CLEAR_JELLY, -1, g.obj_target}};
+    } else if (g.obj_type == 3) {
+        std::mt19937 cr(g.coat_seed);
+        std::uniform_real_distribution<double> dd(0.0, 1.0);
+        std::vector<std::vector<int>> c(H, std::vector<int>(W, 0));
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                if (board[y][x] != WALL && dd(cr) < g.coat_density) c[y][x] = 1;
+        lv.coat = c;
+        lv.objectives = {{OBJ_CLEAR_BLOCKER, -1, g.obj_target}};
+    } else {
+        lv.target_score = g.obj_target;
+    }
+    return lv;
+}
+
+// 一次算出违反度 + 适应度，写回 g。可行(违反=0)→软适应度；不可行→ -违反度。
+inline void score_genotype(Genotype& g, const GenConfig& cfg, DiffBand band, int trials) {
+    Level lv = decode_genotype(g, cfg);
+    double v = 0.0;
+    Grid b = lv.init_board;
+    const std::vector<std::vector<int>>* coat = lv.coat.empty() ? nullptr : &lv.coat;
+    if (!has_legal_move(b, coat)) v += 1.0;  // 硬约束：得有合法移动
+    LevelEval e = evaluate_level(lv, trials);
+    if (e.skilled_pass_rate <= 0.0) v += 1.0;  // 硬约束：目标可解
+    if (v > 0.0) {
+        g.feasible = false;
+        g.fitness = -v;
+        return;
+    }
+    g.feasible = true;
+    double target_pass = (band.pl + (band.ph < 1.0 ? band.ph : 1.0)) / 2.0;
+    double closeness = 1.0 - std::abs(e.skilled_pass_rate - target_pass);  // 难度贴近
+    double depth = (e.lfhc_gap < 3.0 ? e.lfhc_gap : 3.0) / 3.0;            // 深度
+    double rhythm = rhythm_quality(objective_progress_curve(lv));          // 节奏
+    g.fitness = 2.0 * closeness + 0.5 * depth + 0.3 * rhythm;
+}
+
+inline Genotype random_genotype(const GenConfig& cfg, std::mt19937& rng) {
+    std::uniform_real_distribution<double> u(0.0, 1.0);
+    Genotype g;
+    g.board_seed = rng();
+    g.wall_seed = rng();
+    g.wall_density = u(rng) * 0.15;
+    g.obj_type = (int)(rng() % 4);
+    g.obj_species = (int)(rng() % cfg.species.size());
+    g.obj_target = 1 + (int)(rng() % 60);
+    g.coat_seed = rng();
+    g.coat_density = 0.1 + u(rng) * 0.15;
+    g.move_limit = cfg.move_limit;
+    return g;
+}
+
+inline Genotype mutate_genotype(const Genotype& src, const GenConfig& cfg, std::mt19937& rng) {
+    Genotype g = src;
+    std::uniform_real_distribution<double> u(0.0, 1.0);
+    switch (rng() % 6) {
+        case 0: g.board_seed = rng(); break;
+        case 1: g.wall_seed = rng(); g.wall_density = std::clamp(g.wall_density + (u(rng) - 0.5) * 0.1, 0.0, 0.15); break;
+        case 2: g.obj_type = (int)(rng() % 4); g.obj_species = (int)(rng() % cfg.species.size()); break;
+        case 3: g.obj_target = std::clamp(g.obj_target + (int)(rng() % 21) - 10, 1, 100000); break;
+        case 4: g.coat_seed = rng(); g.coat_density = std::clamp(g.coat_density + (u(rng) - 0.5) * 0.1, 0.05, 0.3); break;
+        default: g.move_limit = std::clamp(g.move_limit + (int)(rng() % 7) - 3, 8, 40); break;
+    }
+    return g;
+}
+
+inline Genotype crossover_genotype(const Genotype& a, const Genotype& b, std::mt19937& rng) {
+    Genotype c;
+    c.board_seed = (rng() & 1) ? a.board_seed : b.board_seed;
+    c.wall_seed = (rng() & 1) ? a.wall_seed : b.wall_seed;
+    c.wall_density = (rng() & 1) ? a.wall_density : b.wall_density;
+    c.obj_type = (rng() & 1) ? a.obj_type : b.obj_type;
+    c.obj_species = (rng() & 1) ? a.obj_species : b.obj_species;
+    c.obj_target = (rng() & 1) ? a.obj_target : b.obj_target;
+    c.coat_seed = (rng() & 1) ? a.coat_seed : b.coat_seed;
+    c.coat_density = (rng() & 1) ? a.coat_density : b.coat_density;
+    c.move_limit = (rng() & 1) ? a.move_limit : b.move_limit;
+    return c;
+}
+
+// 一个种群进化一代：精英保留 + 锦标赛选择 + 交叉 + 变异（按各自 fitness）。
+inline std::vector<Genotype> _evolve_pop(std::vector<Genotype>& pop, const GenConfig& cfg,
+                                         std::mt19937& rng, int target_size) {
+    std::vector<Genotype> next;
+    if (pop.empty() || target_size <= 0) return next;
+    std::sort(pop.begin(), pop.end(), [](const Genotype& a, const Genotype& b) { return a.fitness > b.fitness; });
+    int elite = std::max(1, target_size / 4);
+    for (int i = 0; i < elite && i < (int)pop.size(); ++i) next.push_back(pop[i]);
+    auto tournament = [&]() -> const Genotype& {
+        const Genotype& x = pop[rng() % pop.size()];
+        const Genotype& y = pop[rng() % pop.size()];
+        return x.fitness >= y.fitness ? x : y;
+    };
+    while ((int)next.size() < target_size) {
+        Genotype child = crossover_genotype(tournament(), tournament(), rng);
+        child = mutate_genotype(child, cfg, rng);
+        next.push_back(child);
+    }
+    return next;
+}
+
+// FI2Pop 主循环：可行/不可行双种群各自进化，后代下一代自动重分类(迁移)。返回最优可行关。
+inline std::vector<GeneratedLevel> generate_fi2pop(const GenConfig& cfg, DiffBand band, int count,
+                                                   int pop_size, int generations) {
+    std::mt19937 rng(cfg.base_seed ^ 0x00f12b0bu);
+    std::vector<Genotype> pop;
+    for (int i = 0; i < pop_size; ++i) pop.push_back(random_genotype(cfg, rng));
+    for (auto& g : pop) score_genotype(g, cfg, band, cfg.trials);
+
+    for (int gen = 0; gen < generations; ++gen) {
+        std::vector<Genotype> feasible, infeasible;
+        for (auto& g : pop) (g.feasible ? feasible : infeasible).push_back(g);
+        auto fe = _evolve_pop(feasible, cfg, rng, pop_size / 2);
+        auto inf = _evolve_pop(infeasible, cfg, rng, pop_size - (int)fe.size());
+        pop.clear();
+        for (auto& g : fe) pop.push_back(g);
+        for (auto& g : inf) pop.push_back(g);
+        while ((int)pop.size() < pop_size) pop.push_back(random_genotype(cfg, rng));
+        for (auto& g : pop) score_genotype(g, cfg, band, cfg.trials);  // 后代重新分类(迁移)
+    }
+
+    std::vector<Genotype> feasible;
+    for (auto& g : pop) if (g.feasible) feasible.push_back(g);
+    std::sort(feasible.begin(), feasible.end(), [](const Genotype& a, const Genotype& b) { return a.fitness > b.fitness; });
+    std::vector<GeneratedLevel> out;
+    for (int i = 0; i < (int)feasible.size() && (int)out.size() < count; ++i) {
+        Level lv = decode_genotype(feasible[i], cfg);
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        GeneratedLevel gl;
+        gl.level = lv;
+        gl.floor_score = e.floor_score;
+        gl.ceil_score = e.ceil_score;
+        gl.lfhc_gap = e.lfhc_gap;
+        gl.skilled_pass = e.skilled_pass_rate;
+        gl.rhythm = rhythm_quality(objective_progress_curve(lv));
+        gl.difficulty = e.difficulty;
+        out.push_back(gl);
+    }
+    return out;
+}
+
 }  // namespace me

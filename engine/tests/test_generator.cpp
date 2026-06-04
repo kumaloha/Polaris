@@ -80,9 +80,29 @@ static void test_generate_for_difficulty() {
                     easy.empty() ? -1.0 : easy[0].skilled_pass);
 }
 
+static void test_fi2pop() {
+    GenConfig cfg;
+    cfg.move_limit = 16;
+    cfg.trials = 4;
+    cfg.min_gap = 0.10;
+    cfg.base_seed = 1;
+    auto lib = generate_fi2pop(cfg, band_medium(), 3, 8, 4);
+    CHECK(!lib.empty(), "FI2Pop produced feasible levels");
+    for (const auto& gl : lib) {
+        Grid b = gl.level.init_board;
+        const std::vector<std::vector<int>>* coat = gl.level.coat.empty() ? nullptr : &gl.level.coat;
+        CHECK(has_legal_move(b, coat), "FI2Pop output has a legal move (feasible)");
+        CHECK(gl.skilled_pass > 0.0, "FI2Pop output is objective-solvable (feasible)");
+    }
+    if (!lib.empty())
+        std::printf("  [fi2pop] kept=%d sample diff=%s pass=%.2f gap=%.2f\n",
+                    (int)lib.size(), lib[0].difficulty, lib[0].skilled_pass, lib[0].lfhc_gap);
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
+    test_fi2pop();
     test_generate_deterministic();
     return report();
 }
