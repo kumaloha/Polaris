@@ -597,6 +597,46 @@ static func legal_moves(grid: Array, coat: Array = []) -> Array:
 				out.append([Vector2i(x, y), Vector2i(x, y + 1)])
 	return out
 
+# 特效主动融合：两个特效相邻交换时的合并清除几何（排除墙）。pos=融合点。
+# 直线×直线 → 十字(整行+整列)；爆炸×爆炸 → 5x5；直线×爆炸 → 粗十字(3行+3列)。
+static func special_fusion_cells(grid: Array, pos: Vector2i, ka: int, kb: int) -> Array:
+	var h := grid.size()
+	var w: int = grid[0].size()
+	var cset := {}
+	var a_line := ka == SP_LINE_H or ka == SP_LINE_V
+	var b_line := kb == SP_LINE_H or kb == SP_LINE_V
+	var a_bomb := ka == SP_BOMB
+	var b_bomb := kb == SP_BOMB
+	if a_line and b_line:
+		for x in w:
+			cset[Vector2i(x, pos.y)] = true
+		for y in h:
+			cset[Vector2i(pos.x, y)] = true
+	elif a_bomb and b_bomb:
+		for dy in range(-2, 3):
+			for dx in range(-2, 3):
+				var nx := pos.x + dx
+				var ny := pos.y + dy
+				if nx >= 0 and nx < w and ny >= 0 and ny < h:
+					cset[Vector2i(nx, ny)] = true
+	else:  # 直线 + 爆炸 → 粗十字(3 行 + 3 列)
+		for dy in range(-1, 2):
+			var ry := pos.y + dy
+			if ry >= 0 and ry < h:
+				for x in w:
+					cset[Vector2i(x, ry)] = true
+		for dx in range(-1, 2):
+			var rx := pos.x + dx
+			if rx >= 0 and rx < w:
+				for y in h:
+					cset[Vector2i(rx, y)] = true
+	var out := []
+	for c in cset:
+		if grid[c.y][c.x] != WALL:
+			out.append(c)
+	return out
+
+
 # 预知(#8)：运行时轻量 1-ply 求解器——按"即时消除格数 + 目标推进"给合法交换打分，返回最优 k 步。
 # 目标感知：objectives 里 COLLECT 的目标色被消到则加权（呼应 C++ move_value）。不跑随机补充（确定性提示，不剧透掉落）。
 static func best_moves(grid: Array, k: int, coat: Array = [], objectives: Array = []) -> Array:

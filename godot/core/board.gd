@@ -166,6 +166,9 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	# 彩球交换引爆（仅相邻；隔位不引爆彩球）
 	if span == 1 and (fx[a.y][a.x] == ME.SP_COLORBOMB or fx[b.y][b.x] == ME.SP_COLORBOMB):
 		return _activate_colorbomb(a, b)
+	# 两个(非彩球)特效相邻交换 → 主动融合（始终合法，无需形成普通消除）
+	if span == 1 and fx[a.y][a.x] != ME.SP_NONE and fx[b.y][b.x] != ME.SP_NONE:
+		return _activate_fusion(a, b)
 	if not ME.is_legal_swap(grid, a, b, coat, span):
 		return {"ok": false, "reason": "illegal"}
 	if longswap_armed:
@@ -225,6 +228,42 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
+
+# 两个特效融合引爆：按几何(十字/粗十字/5x5)清除 + 链式展开被卷入的特效，锁住格只破锁不清。
+func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
+	var ka: int = fx[a.y][a.x]
+	var kb: int = fx[b.y][b.x]
+	var seeds := ME.special_fusion_cells(grid, b, ka, kb)
+	seeds.append(a)
+	seeds.append(b)
+	_push_history()
+	var to_set := ME._expand_triggers(grid, fx, seeds)   # 链式展开被卷入的直线/爆炸
+	var cells: Array = to_set.keys()
+	var acc := ME.account_clears(grid, cells, jelly, coat)
+	_accumulate(acc["by_species"])
+	jelly_cleared += acc["jelly_cleared"]
+	blocker_cleared += acc["blocker_cleared"]
+	var locked := {}
+	for p in acc["locked"]:
+		locked[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked.has(p):
+			to_clear.append(p)
+	var gained := ME.score_for_clear(to_clear.size(), 1)
+	score += gained
+	ME._apply_clears(grid, fx, to_clear, [])
+	ME.apply_gravity(grid, fx, coat)
+	ME.refill(grid, species, rng, fx)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
+	score += res["score"]
+	_accumulate(res.get("by_species", {}))
+	jelly_cleared += res.get("jelly_cleared", 0)
+	blocker_cleared += res.get("blocker_cleared", 0)
+	moves_left -= 1
+	_on_move_resolved(res["cascades"])
+	_settle_deadlock()
+	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "fusion": true}
 
 func _settle_deadlock() -> void:
 	if not is_over() and not ME.has_legal_move(grid, coat):

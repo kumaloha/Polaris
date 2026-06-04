@@ -482,3 +482,23 @@ func test_result_summary() -> void:
 	b2.moves_left = 0
 	assert_false(b2.result()["won"], "not won")
 	assert_true(b2.result()["lost"], "lost (moves out, below target)")
+
+func test_special_fusion_line_line() -> void:
+	# 两个直线特效相邻交换 → 融合（十字），始终合法、无需普通消除。
+	var b := Board.new(5, 5, [0, 1, 2, 3, 4], 999999, 10, 1)
+	b.grid = [
+		[0, 1, 2, 3, 4],
+		[1, 2, 3, 4, 0],
+		[2, 3, 4, 0, 1],
+		[3, 4, 0, 1, 2],
+		[4, 0, 1, 2, 3],
+	]  # 对角拉丁方：无现成消除、无普通合法交换
+	b.fx = b._blank_fx()
+	b.fx[2][2] = ME.SP_LINE_H
+	b.fx[2][3] = ME.SP_LINE_V
+	var before := b.moves_left
+	var r := b.try_swap(Vector2i(2, 2), Vector2i(3, 2))
+	assert_true(r["ok"], "two specials swap always legal (fusion)")
+	assert_true(r.get("fusion", false), "fusion activated")
+	assert_eq(b.moves_left, before - 1, "one move consumed")
+	assert_true(b.score > 0, "fusion cleared & scored")
