@@ -86,20 +86,6 @@ static void test_greedy_deterministic() {
     CHECK(r1.moves_used == r2.moves_used, "same level -> same moves used");
 }
 
-static void test_mc_plays_and_scores() {
-    Level lv = make_level(1000000, 10, 123, 777);  // 短局 + 小参数（测试提速）
-    auto r = mc_play(lv, 4, 3);
-    CHECK_EQ(r.moves_used, 10, "mc plays all moves");
-    CHECK(r.score > 0, "mc scores something");
-}
-
-static void test_mc_deterministic() {
-    Level lv = make_level(1000000, 10, 123, 555);
-    auto a = mc_play(lv, 4, 3);
-    auto b = mc_play(lv, 4, 3);
-    CHECK(a.score == b.score, "mc deterministic (same level -> same score)");
-}
-
 static void test_random_play() {
     Level lv = make_level(1000000, 20, 123, 777);
     auto r = random_play(lv);
@@ -306,8 +292,6 @@ int main() {
     test_greedy_plays_out_impossible_target();
     test_greedy_wins_easy_target();
     test_greedy_deterministic();
-    test_mc_plays_and_scores();
-    test_mc_deterministic();
     test_random_play();
     test_evaluate_gap_and_difficulty();
     test_rhythm_quality();

@@ -222,7 +222,9 @@ inline void reshuffle(Grid& g, std::mt19937& rng,
             positions.push_back({x, y});
             tiles.push_back(v);
         }
-    for (int attempt = 0; attempt < 50; ++attempt) {
+    bool have_safe = false;       // 见过的"至少无现成消除"排列（兜底用，避免开局即级联）
+    std::vector<int> safe_tiles;
+    for (int attempt = 0; attempt < 100; ++attempt) {
         // Fisher-Yates（注入 rng → 可复现）
         for (int i = (int)tiles.size() - 1; i > 0; --i) {
             std::uniform_int_distribution<int> d(0, i);
@@ -230,9 +232,16 @@ inline void reshuffle(Grid& g, std::mt19937& rng,
         }
         for (size_t i = 0; i < positions.size(); ++i)
             g[positions[i].y][positions[i].x] = tiles[i];
-        if (find_matches(g, coat).empty() && has_legal_move(g, coat)) return;
+        bool no_match = find_matches(g, coat).empty();
+        if (no_match && has_legal_move(g, coat)) return;          // 理想：无消除 + 有合法步
+        if (no_match && !have_safe) { have_safe = true; safe_tiles = tiles; }
     }
-    // 兜底：保留最后一次排列（极罕见）
+    // 没凑出理想排列：退而求其次用"至少无现成消除"的（可能无合法步=真死局，罕见）
+    if (have_safe) {
+        for (size_t i = 0; i < positions.size(); ++i)
+            g[positions[i].y][positions[i].x] = safe_tiles[i];
+    }
+    // 否则保留最后一次（极端病态，几乎不可达）
 }
 
 }  // namespace me

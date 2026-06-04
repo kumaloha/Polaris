@@ -324,15 +324,24 @@ static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = [])
 				continue
 			positions.append(Vector2i(x, y))
 			tiles.append(v)
-	for _attempt in 50:
+	var safe_tiles := []   # 记一个"至少无现成消除"的排列作兜底（避免开局即级联）
+	for _attempt in 100:
 		_shuffle(tiles, rng)
 		for i in positions.size():
 			var p: Vector2i = positions[i]
 			grid[p.y][p.x] = tiles[i]
 		# 验收须 coat 感知：忽略冰锁会"看似有步、真实玩家无步"。
-		if find_matches(grid, coat).is_empty() and has_legal_move(grid, coat):
-			return
-	# 兜底：保留最后一次排列（极罕见）
+		var no_match := find_matches(grid, coat).is_empty()
+		if no_match and has_legal_move(grid, coat):
+			return   # 理想：无现成消除 + 有合法步
+		if no_match and safe_tiles.is_empty():
+			safe_tiles = tiles.duplicate()
+	# 没凑出理想排列：退而求其次用"至少无现成消除"的（可能无合法步=真死局，罕见）
+	if not safe_tiles.is_empty():
+		for i in positions.size():
+			var p: Vector2i = positions[i]
+			grid[p.y][p.x] = safe_tiles[i]
+	# 否则保留最后一次（极端病态，几乎不可达）
 
 # Fisher-Yates 洗牌（用注入的 rng → 可复现；Array.shuffle 用全局 RNG 不可 seed）。
 static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:

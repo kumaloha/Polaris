@@ -107,14 +107,43 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
                 if (d > best_gap) { best_gap = d; best_s = (int)s; }
             }
             if (best_s >= 0) {
+                // 目标导向标定：用 smart_greedy 真去追这个目标，量它实际能收多少（而非刷分顺带量 g_col）
+                double gd = 0.0;
+                for (int t = 0; t < cfg.trials; ++t) {
+                    Level probe;
+                    probe.init_board = board;
+                    probe.species = cfg.species;
+                    probe.move_limit = cfg.move_limit;
+                    probe.seed = cand_seed + (uint32_t)t * 1000003u;
+                    probe.objectives = {{OBJ_COLLECT, best_s, BIG}};  // 大目标 → 走满步、全力追
+                    PlayResult sp = smart_greedy_play(probe);
+                    gd += (best_s < (int)sp.collected.size()) ? sp.collected[best_s] : 0;
+                }
+                gd /= cfg.trials;
                 double rp = (best_s < (int)r_col.size()) ? r_col[best_s] : 0.0;
-                double ct = rp + frac * (g_col[best_s] - rp);
+                if (gd < rp) gd = rp;  // 安全：目标导向天花板不应低于随机地板
+                double ct = rp + frac * (gd - rp);
                 final.objectives = {{OBJ_COLLECT, best_s, (int)(ct < 1 ? 1 : ct)}};
                 decided = true;
             }
         }
         if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio && g_jelly >= cfg.min_jelly) {  // 清果冻
-            int ct = (int)(r_jelly + frac * (g_jelly - r_jelly));
+            // 目标导向标定：smart_greedy 全力清果冻，量它能清多少层（而非刷分顺带量 g_jelly）
+            double gd = 0.0;
+            for (int t = 0; t < cfg.trials; ++t) {
+                Level probe;
+                probe.init_board = board;
+                probe.species = cfg.species;
+                probe.move_limit = cfg.move_limit;
+                probe.seed = cand_seed + (uint32_t)t * 1000003u;
+                probe.jelly = full_jelly;
+                probe.objectives = {{OBJ_CLEAR_JELLY, -1, BIG}};
+                PlayResult sp = smart_greedy_play(probe);
+                gd += sp.jelly_cleared;
+            }
+            gd /= cfg.trials;
+            if (gd < r_jelly) gd = r_jelly;
+            int ct = (int)(r_jelly + frac * (gd - r_jelly));
             if (ct < 1) ct = 1;
             final.jelly = full_jelly;
             final.objectives = {{OBJ_CLEAR_JELLY, -1, ct}};
@@ -249,9 +278,22 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
                 if (d > best_gap) { best_gap = d; best_s = (int)s; }
             }
             if (best_s >= 0) {
+                // 二分上界用目标导向天花板（smart_greedy 真追该目标），而非刷分顺带量 g_col*2
+                double gd = 0.0;
+                for (int t = 0; t < cfg.trials; ++t) {
+                    Level probe;
+                    probe.init_board = board;
+                    probe.species = cfg.species;
+                    probe.move_limit = cfg.move_limit;
+                    probe.seed = cand_seed + (uint32_t)t * 1000003u;
+                    probe.objectives = {{OBJ_COLLECT, best_s, BIG}};
+                    PlayResult sp = smart_greedy_play(probe);
+                    gd += (best_s < (int)sp.collected.size()) ? sp.collected[best_s] : 0;
+                }
+                gd /= cfg.trials;
                 final.objectives = {{OBJ_COLLECT, best_s, 1}};
                 lo = 1;
-                hi = (int)(g_col[best_s] * 2) + 2;
+                hi = (int)gd + 2;
                 decided = true;
             }
         }
