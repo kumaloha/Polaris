@@ -124,6 +124,37 @@ static void test_evaluate_gap_and_difficulty() {
     CHECK(e.skilled_pass_rate >= 0.0 && e.skilled_pass_rate <= 1.0, "pass rate in [0,1]");
 }
 
+static void test_panel_vote() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.move_limit = 20;
+    lv.target_score = 2000;
+    lv.seed = 1;
+    auto e = evaluate_level(lv, 4);
+    CHECK(e.panel_pass >= 0.0 && e.panel_pass <= 1.0, "panel_pass in [0,1]");
+    CHECK(e.skilled_pass_rate >= e.panel_pass - 1e-9, "best archetype pass >= panel average");
+    CHECK(e.ceil_score >= e.floor_score, "best archetype >= random floor");
+}
+
+static void test_archetypes_differ() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.move_limit = 15;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_COLLECT, 0, 9999}};
+    Heuristic rusher{"r", 100, 0.01, 0};
+    Heuristic scorer{"s", 0, 1, 0};
+    auto r = heuristic_play(lv, rusher);
+    auto s = heuristic_play(lv, scorer);
+    int r0 = !r.collected.empty() ? r.collected[0] : 0;
+    int s0 = !s.collected.empty() ? s.collected[0] : 0;
+    CHECK(r0 >= s0, "objective-rusher collects >= score-blind scorer of target species");
+}
+
 static void test_evaluate_deterministic() {
     std::mt19937 gen(123);
     Level lv;
@@ -220,6 +251,8 @@ int main() {
     test_mc_deterministic();
     test_random_play();
     test_evaluate_gap_and_difficulty();
+    test_panel_vote();
+    test_archetypes_differ();
     test_evaluate_deterministic();
     return report();
 }

@@ -276,30 +276,119 @@ inline PlayResult random_play(const Level& lv) {
 
 // 关卡评估（09 §4 投票精神简化版）：一组不同水平玩家各跑 trials 次（不同 seed）取平均，
 // 由"地板(random) vs 天花板(greedy)"的差距得 LFHC，由技巧玩家通过率得难度档。
+// 玩家画像：一套 move_value 权重 = 一类玩家（09 §3.5 启发权重 / §4.1 选民）。
+struct Heuristic {
+    const char* name = "?";
+    double w_obj = 100.0;    // 目标进度权重
+    double w_score = 0.01;   // 分数权重
+    double w_cascade = 0.0;  // 连锁权重
+};
+
+// 按某画像给一步打分（目标进度统一折算成"件数"，分数/连锁另计）。
+inline double heuristic_value(const ResolveResult& rr, const Level& lv, const Heuristic& h) {
+    double prog = 0.0;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE) prog += rr.score / 100.0;
+        else if (o.type == OBJ_COLLECT) {
+            int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+            prog += g;
+        } else if (o.type == OBJ_CLEAR_JELLY) prog += rr.jelly_cleared;
+        else if (o.type == OBJ_CLEAR_BLOCKER) prog += rr.blocker_cleared;
+    }
+    return h.w_obj * prog + h.w_score * (double)rr.score + h.w_cascade * (double)rr.cascades;
+}
+
+// 按某画像玩一局（结构同 smart_greedy，选步用 heuristic_value(., h)）。
+inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
+    Grid g = lv.init_board;
+    std::mt19937 rng(lv.seed);
+    PlayResult res;
+    std::vector<int> collected;
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    while (res.moves_used < lv.move_limit
+           && !objectives_met(lv, res.score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+        if (moves.empty()) break;
+        double best_v = -1e18;
+        Move best = moves[0];
+        for (const auto& m : moves) {
+            Grid gc = g;
+            std::mt19937 rc = rng;
+            std::vector<std::vector<int>> jc = jelly;
+            std::vector<std::vector<int>> cc = coat;
+            swap_cells(gc, m.a, m.b);
+            ResolveResult rr = resolve(gc, lv.species, rc,
+                                       jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc);
+            double v = heuristic_value(rr, lv, h);
+            if (v > best_v) { best_v = v; best = m; }
+        }
+        swap_cells(g, best.a, best.b);
+        ResolveResult rr = resolve(g, lv.species, rng,
+                                   jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
+        res.moves_used++;
+    }
+    res.collected = collected;
+    res.jelly_cleared = jelly_total;
+    res.blocker_cleared = blocker_total;
+    res.won = objectives_met(lv, res.score, collected, jelly_total, blocker_total);
+    return res;
+}
+
+// 求解器组（选民）：几类不同画像的玩家。
+inline std::vector<Heuristic> solver_panel() {
+    return {
+        {"rusher",   100.0, 0.01, 0.0},  // 目标至上
+        {"scorer",   0.0,   1.0,  0.0},  // 只刷分（目标盲）
+        {"cascader", 30.0,  0.5,  5.0},  // 爱连锁 + 兼顾目标
+    };
+}
+
 struct LevelEval {
-    double floor_score = 0;       // 随机玩家平均分
-    double ceil_score = 0;        // 贪心玩家平均分
-    double lfhc_gap = 0;          // (ceil-floor)/floor：越大越有规划回报 = 天花板越高
-    double skilled_pass_rate = 0; // 贪心通过率（难度反指标）
+    double floor_score = 0;       // 随机玩家(地板)平均分
+    double ceil_score = 0;        // 最强画像(天花板)平均分
+    double lfhc_gap = 0;          // (ceil-floor)/floor
+    double skilled_pass_rate = 0; // 最强画像通过率（可解性/难度反指标）
+    double panel_pass = 0;        // 面板平均通过率（多档里多少能过=有多宽容）
     const char* difficulty = "?";
 };
 
+// 投票评估：地板(random) + 一组画像玩家各跑 trials 次，取均值投票。
 inline LevelEval evaluate_level(const Level& base, int trials = 8) {
-    double fsum = 0, csum = 0;
-    int wins = 0;
+    auto panel = solver_panel();
+    double floor_sum = 0;
+    std::vector<double> a_score(panel.size(), 0.0);
+    std::vector<int> a_wins(panel.size(), 0);
     for (int t = 0; t < trials; ++t) {
         Level lv = base;
         lv.seed = base.seed + (uint32_t)t * 1000003u;  // 每次试不同随机流
-        fsum += random_play(lv).score;
-        PlayResult gr = smart_greedy_play(lv);  // 目标感知天花板
-        csum += gr.score;
-        if (gr.won) ++wins;
+        floor_sum += random_play(lv).score;
+        for (size_t i = 0; i < panel.size(); ++i) {
+            PlayResult r = heuristic_play(lv, panel[i]);
+            a_score[i] += r.score;
+            if (r.won) a_wins[i]++;
+        }
     }
     LevelEval e;
-    e.floor_score = fsum / trials;
-    e.ceil_score = csum / trials;
+    e.floor_score = floor_sum / trials;
+    double best_score = 0, best_pass = 0, pass_sum = 0;
+    for (size_t i = 0; i < panel.size(); ++i) {
+        double sc = a_score[i] / trials;
+        double pa = (double)a_wins[i] / trials;
+        if (sc > best_score) best_score = sc;
+        if (pa > best_pass) best_pass = pa;
+        pass_sum += pa;
+    }
+    e.ceil_score = best_score;
     e.lfhc_gap = (e.ceil_score - e.floor_score) / (e.floor_score < 1.0 ? 1.0 : e.floor_score);
-    e.skilled_pass_rate = (double)wins / trials;
+    e.skilled_pass_rate = best_pass;
+    e.panel_pass = pass_sum / panel.size();
     double p = e.skilled_pass_rate;
     e.difficulty = p > 0.8 ? "EASY" : p > 0.4 ? "MEDIUM" : p > 0.1 ? "HARD" : "EXPERT";
     return e;
