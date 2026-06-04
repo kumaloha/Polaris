@@ -3,6 +3,7 @@ extends Control
 const CharacterData := preload("res://ui/character_data.gd")
 const GameScript := preload("res://view/game.gd")
 const CelestialBg := preload("res://ui/celestial_bg.gd")
+const MetaState := preload("res://meta/meta_state.gd")
 
 # 占星风配色
 const C_GOLD := Color("e9c97c")
@@ -17,6 +18,9 @@ var characters: Array = []
 var selected_idx := 0
 var body: Control
 var _wkmat: ShaderMaterial
+var meta: MetaState              # Meta 进度(钱包/角色/铭文/历史)，持久化 user://save.json
+var _played: Dictionary = {}     # 本会话已玩过的库索引(调度优先没玩过的)
+var _cur_level := -1             # 当前对局的库索引(结束后入账)
 
 
 # 抠白材质(无 alpha 的白底立绘 → 透明)；全 UI 共用一份。
@@ -32,7 +36,20 @@ func _ready() -> void:
 	characters = CharacterData.load_characters()
 	if characters.is_empty():
 		push_warning("No character assets found at %s" % CharacterData.MANIFEST_PATH)
+	meta = MetaState.new()
+	meta.load_state()
+	_sync_selected_to_equipped()
 	_show_home()
+
+
+# 把首页出战角色对齐到 Meta 已装备的(新玩家无装备→保持默认)
+func _sync_selected_to_equipped() -> void:
+	if meta == null or String(meta.equipped_skill).is_empty():
+		return
+	for i in characters.size():
+		if String(characters[i].get("id", "")) == meta.equipped_skill:
+			selected_idx = i
+			return
 
 
 func _clear() -> void:
@@ -115,7 +132,7 @@ func _show_character() -> void:
 	var equip := _button(equip_text, Rect2(205, 862, 310, 50), Color("9d6cf0"), Color("7a3fe0"))
 	equip.disabled = not bool(hero.get("playable", true))
 	if not equip.disabled:
-		equip.pressed.connect(Callable(self, "_show_home"))
+		equip.pressed.connect(Callable(self, "_equip_current"))
 	add_child(equip)
 
 
@@ -124,13 +141,36 @@ func _show_game() -> void:
 	var game := Node2D.new()
 	game.name = "Game"
 	game.set_script(GameScript)
-	add_child(game)
-	game.set_skill(String(_selected_character().get("id", "")))   # 把所选角色的技能接进对局
+	add_child(game)   # _ready 同步：建 HUD/tiles、读关卡库、_new_game(默认关)
+	# Meta 个性化：心流调度选关 + 喂 loadout(技能+铭文)，再按选定关重开
+	_cur_level = -1
+	if meta != null:
+		var lib: Array = game.algo_levels
+		var idx := meta.recommend_next(lib, _played)
+		if idx >= 0:
+			game.demo_idx = idx
+			_cur_level = idx
+		game.loadout = meta.loadout()
+		game.equipped_skill = String(meta.equipped_skill)
+		game._new_game()
+	else:
+		game.set_skill(String(_selected_character().get("id", "")))
 
 	var back := _round_button("‹", Rect2(18, 18, 48, 48))
 	back.z_index = 50
-	back.pressed.connect(Callable(self, "_show_home"))
+	back.pressed.connect(Callable(self, "_exit_game"))
 	add_child(back)
+
+
+# 离开对局：若本局已结束(过关/失败)→结果入账 Meta + 存档，再回首页
+func _exit_game() -> void:
+	var game = get_node_or_null("Game")
+	if meta != null and game != null and game.board != null and game.board.is_over():
+		meta.bank_result(game.board.result())
+		meta.save()
+		if _cur_level >= 0:
+			_played[_cur_level] = true
+	_show_home()
 
 
 func _selected_character() -> Dictionary:
@@ -178,9 +218,18 @@ func _add_avatar_chip(hero: Dictionary, pos: Vector2) -> void:
 
 
 func _add_res_chips() -> void:
-	_res_chip(Color("6fe0ff"), "28/30", Rect2(444, 40, 84, 34))   # 体力
-	_res_chip(C_GOLD, "12.4k", Rect2(534, 40, 86, 34))            # 金币
-	_res_chip(Color("c79bff"), "86", Rect2(626, 40, 70, 34))      # 水晶
+	var coins: int = meta.coins if meta != null else 0
+	var crystals: int = meta.crystals if meta != null else 0
+	var frags: int = meta.fragments if meta != null else 0
+	_res_chip(C_GOLD, _fmt(coins), Rect2(444, 40, 92, 34))           # 金币
+	_res_chip(Color("c79bff"), str(crystals), Rect2(542, 40, 68, 34))  # 水晶
+	_res_chip(Color("ff9ec7"), str(frags), Rect2(616, 40, 80, 34))     # 碎片
+
+
+func _fmt(n: int) -> String:
+	if n >= 1000:
+		return "%.1fk" % (n / 1000.0)
+	return str(n)
 
 
 func _res_chip(icon_color: Color, value: String, rect: Rect2) -> void:
@@ -344,6 +393,15 @@ func _character_thumb(index: int) -> Button:
 func _select_character(index: int) -> void:
 	selected_idx = index
 	_show_character()
+
+
+# 设为出战：写入 Meta 装备 + 存档，回首页(首页/对局都会用这个角色技能)
+func _equip_current() -> void:
+	var hero := _selected_character()
+	if meta != null and bool(hero.get("playable", true)):
+		meta.equipped_skill = String(hero.get("id", ""))
+		meta.save()
+	_show_home()
 
 
 func _skill_name(character: Dictionary) -> String:

@@ -85,6 +85,8 @@ func load_state() -> void:
 	equipped_skill = String(d.get("equipped_skill", ""))
 	var page = d.get("enchant_page", [])
 	enchant_page = page if typeof(page) == TYPE_ARRAY and page.size() == Enchants.SLOTS else _blank_page()
+	var h = d.get("history", [])
+	history = h if typeof(h) == TYPE_ARRAY else []   # 恢复历史→个性化调度跨会话累积(不重置)
 
 func _blank_page() -> Array:
 	var p := []

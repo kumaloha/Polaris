@@ -33,6 +33,7 @@ var cur_seed := 12345
 var demo_idx := 0        # 当前关索引（按 R 递进）
 var algo_levels: Array = []   # 算法生成的关卡库（res://levels.json，C++ 导出）；非空则优先玩它
 var equipped_skill: String = ""   # 本局所带技能 id（角色 id 归一）
+var loadout: Dictionary = {}       # Meta 喂参（技能+铭文：步数/倍率/开局特效）；空则只按 equipped_skill
 var _skill_aim: String = ""       # 技能瞄准模式: ""/"borrow"/"repay"/"sametypeclear"
 var skill_button: Button
 var tiles := []          # tiles[y][x] -> ColorRect（道具底色块）
@@ -147,7 +148,12 @@ func _new_game() -> void:
 		board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
 				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"])
 		title_label.text = lvl["name"]
-	board.skill = equipped_skill
+	if not loadout.is_empty():
+		board.apply_loadout(loadout)
+		board.skill = SKILL_ID.get(board.skill, board.skill)   # 角色 id → 技能 id 归一
+		equipped_skill = board.skill                           # 同步给技能按钮逻辑
+	else:
+		board.skill = equipped_skill
 	_skill_aim = ""
 	selected = Vector2i(-1, -1)
 	input_locked = false
