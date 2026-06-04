@@ -99,10 +99,32 @@ static void test_fi2pop() {
                     (int)lib.size(), lib[0].difficulty, lib[0].skilled_pass, lib[0].lfhc_gap);
 }
 
+// 滚动关生成：按难度带二分步数，产出带 feed 的可解滚动关 + 确定性。
+static void test_generate_scroll_difficulty() {
+    ScrollConfig cfg;
+    cfg.depth_pages = 3;
+    cfg.trials = 4;
+    cfg.base_seed = 1;
+    GeneratedLevel gl = generate_scroll_for_difficulty(cfg, band_medium(), 123);
+    CHECK(gl.level.is_scrolling, "scroll gen: level flagged is_scrolling");
+    CHECK_EQ((int)gl.level.feed.size(), 8, "scroll gen: one feed queue per column");
+    int total = 0;
+    for (auto& c : gl.level.feed) total += (int)c.size();
+    CHECK_EQ(total, 8 * 3 * 8, "scroll gen: feed depth = w * depth_pages * h");
+    CHECK(gl.level.move_limit > 0, "scroll gen: calibrated a positive move_limit");
+    CHECK(gl.skilled_pass >= 0.0 && gl.skilled_pass <= 1.0, "scroll gen: skilled_pass is a rate");
+    GeneratedLevel gl2 = generate_scroll_for_difficulty(cfg, band_medium(), 123);
+    CHECK_EQ(gl2.level.move_limit, gl.level.move_limit, "scroll gen deterministic (move_limit)");
+    CHECK(gl2.skilled_pass == gl.skilled_pass, "scroll gen deterministic (pass)");
+    std::printf("  [scroll] diff=%s moves=%d pass=%.2f feed=%d/col\n",
+                gl.difficulty, gl.level.move_limit, gl.skilled_pass, 3 * 8);
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
     test_fi2pop();
     test_generate_deterministic();
+    test_generate_scroll_difficulty();
     return report();
 }

@@ -257,6 +257,24 @@ static void test_reshuffle_coat_aware() {
     CHECK(has_legal_move(g, &coat), "coat-aware legal move exists after reshuffle");
 }
 
+// 滚动补充：refill 从 feed 每列前端取(自上而下)，feed 随之缩短；feed 空的列回退随机。
+static void test_refill_from_feed() {
+    Grid g = {{EMPTY, EMPTY}, {EMPTY, EMPTY}};
+    std::vector<int> species = {0, 1, 2, 3, 4};
+    std::vector<std::deque<int>> feed(2);
+    feed[0] = {7, 8};   // 列0：先 7(上行) 后 8(下行)；用越界值 7/8 证明 feed 原样穿过
+    std::mt19937 rng(1);
+    refill(g, species, rng, &feed);
+    CHECK_EQ(g[0][0], 7, "refill: feed col0 top = first queued item");
+    CHECK_EQ(g[1][0], 8, "refill: feed col0 bottom = second queued item");
+    CHECK(feed[0].empty(), "refill: feed col0 drained");
+    CHECK(g[0][1] >= 0 && g[0][1] <= 4, "refill: empty-feed col falls back to random");
+    CHECK(g[1][1] >= 0 && g[1][1] <= 4, "refill: empty-feed col falls back to random");
+    Grid g2 = {{EMPTY, EMPTY, EMPTY}};
+    refill(g2, species, rng);  // feed=nullptr → 纯随机，全填满(与旧行为一致)
+    CHECK(g2[0][0] != EMPTY && g2[0][2] != EMPTY, "refill: no feed = all random filled");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -271,6 +289,7 @@ int main() {
     test_gravity_pulls_tiles_down();
     test_refill_fills_within_species();
     test_refill_deterministic();
+    test_refill_from_feed();
     test_score_escalates();
     test_legal_swap();
     test_has_legal_move();

@@ -37,6 +37,15 @@ static func to_board(d: Dictionary) -> Board:
 	if d.has("init_board"):
 		b.grid = _int_grid(d["init_board"])   # 用导出盘面覆盖随机生成的 make_board 结果
 		b.fx = b._blank_fx()
+	if bool(d.get("is_scrolling", false)):   # 滚动/挖矿关：补充从预设 feed 出，挖穿通关
+		b.is_scrolling = true
+		var fd := []
+		for col in d.get("feed", []):
+			var q := []
+			for v in col:
+				q.append(int(v))
+			fd.append(q)
+		b.feed = fd
 	return b
 
 # JSON 数字解析成 float；grid 值转回 int。

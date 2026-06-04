@@ -384,6 +384,27 @@ func test_level_library_parses_and_builds() -> void:
 	assert_eq(b.move_limit, 10, "move_limit from json")
 	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")
 
+func test_level_library_reads_scrolling() -> void:
+	# C++ 导出的滚动关：is_scrolling + 每列 feed 队列 → Board
+	var d := {
+		"w": 2, "h": 2,
+		"species": [0, 1, 2],
+		"init_board": [[0, 1], [1, 0]],
+		"move_limit": 30,
+		"objectives": [],
+		"is_scrolling": true,
+		"feed": [[7, 8], [9]],
+	}
+	var b := LevelLibrary.to_board(d)
+	assert_eq(b.is_scrolling, true, "scroll flag loaded from json")
+	assert_eq(b.feed.size(), 2, "feed has one queue per column")
+	assert_eq(b.feed[0], [7, 8], "feed col0 loaded front-first")
+	assert_eq(b.feed[1], [9], "feed col1 loaded")
+	# 普通关默认非滚动
+	var d2 := {"w": 2, "h": 2, "species": [0, 1], "init_board": [[0, 1], [1, 0]], "move_limit": 10, "objectives": []}
+	var b2 := LevelLibrary.to_board(d2)
+	assert_eq(b2.is_scrolling, false, "non-scroll level defaults is_scrolling=false")
+
 # ───────────── 主动技能 board API（#5/#7/#9/#8，一局一次）─────────────
 
 func test_skill_gravity_flip() -> void:

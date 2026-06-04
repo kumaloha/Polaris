@@ -212,6 +212,62 @@ inline void set_level_target(Level& lv, int t) {
         lv.objectives[0].target = t;
 }
 
+// ---- 滚动/挖矿关生成（难度旋钮=步数：feed 深度固定，步多→易挖穿→skilled_pass 单调↑→可二分）----
+struct ScrollConfig {
+    int w = 8, h = 8;
+    std::vector<int> species = {0, 1, 2, 3, 4};
+    int depth_pages = 4;       // feed 深度(页)，1 页 = h 行；一开始只见首页，往下约 depth_pages 页
+    int trials = 6;            // 评估重复次数（feed 固定，变 reshuffle/挖穿后随机流以测稳健）
+    uint32_t base_seed = 1;
+};
+
+// 造一关滚动关：初盘(无开局消除+有合法步) + 每列 depth_pages*h 格预设 feed(长盘深层内容)。
+inline Level make_scroll_level(const ScrollConfig& cfg, int move_limit, uint32_t seed) {
+    Level lv;
+    lv.species = cfg.species;
+    lv.move_limit = move_limit;
+    lv.seed = seed;
+    lv.is_scrolling = true;
+    std::mt19937 rng(seed);
+    lv.init_board = make_board(cfg.w, cfg.h, cfg.species, rng);
+    int depth = cfg.depth_pages * cfg.h;
+    std::uniform_int_distribution<int> dist(0, (int)cfg.species.size() - 1);
+    lv.feed.assign(cfg.w, {});
+    for (int x = 0; x < cfg.w; ++x)
+        for (int i = 0; i < depth; ++i)
+            lv.feed[x].push_back(cfg.species[dist(rng)]);
+    return lv;
+}
+
+// 按难度带产滚动关：二分 move_limit，使技巧玩家"挖穿率"落入 band，取最贴带中心者。
+inline GeneratedLevel generate_scroll_for_difficulty(const ScrollConfig& cfg, DiffBand band, uint32_t seed) {
+    int lo = 1, hi = cfg.depth_pages * cfg.h * 3;  // 上界宽松：远多于挖穿所需
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    double best_dist = 1e9;
+    double center = (band.pl + (band.ph < 1.0 ? band.ph : 1.0)) / 2.0;
+    for (int iter = 0; iter < 12 && lo <= hi; ++iter) {
+        int mid = (lo + hi) / 2;
+        Level lv = make_scroll_level(cfg, mid, seed);
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        double p = e.skilled_pass_rate;
+        double d = std::abs(p - center);
+        if (d < best_dist) {  // 记录最贴近带中心的步数配置
+            best_dist = d;
+            chosen.level = lv;
+            chosen.floor_score = e.floor_score;
+            chosen.ceil_score = e.ceil_score;
+            chosen.lfhc_gap = e.lfhc_gap;
+            chosen.skilled_pass = p;
+            chosen.difficulty = band.name;
+        }
+        if (p < band.pl) lo = mid + 1;        // 太难(挖不穿) → 加步数
+        else if (p >= band.ph) hi = mid - 1;  // 太易 → 减步数
+        else break;                           // 命中带
+    }
+    return chosen;
+}
+
 // 按请求难度直接产关：每个候选盘二分搜索目标值，命中该难度带才留。
 inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg, DiffBand band,
                                                            int count, int max_attempts) {

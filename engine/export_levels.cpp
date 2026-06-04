@@ -26,6 +26,24 @@ static std::string grid_json(const std::vector<std::vector<int>>& g) {
     return s;
 }
 
+// 滚动关 feed：每列一队列(front=最先浮上来的)。序列化成 JSON 数组的数组。
+static std::string feed_json(const std::vector<std::deque<int>>& feed) {
+    std::string s = "[";
+    for (size_t x = 0; x < feed.size(); ++x) {
+        if (x) s += ",";
+        s += "[";
+        bool first = true;
+        for (int v : feed[x]) {
+            if (!first) s += ",";
+            first = false;
+            s += std::to_string(v);
+        }
+        s += "]";
+    }
+    s += "]";
+    return s;
+}
+
 static const char* obj_type_str(ObjType t) {
     switch (t) {
         case OBJ_COLLECT: return "COLLECT";
@@ -63,6 +81,10 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     o << "\"difficulty\":\"" << gl.difficulty << "\",";
     o << "\"lfhc_gap\":" << gl.lfhc_gap << ",";
     o << "\"skilled_pass\":" << gl.skilled_pass;
+    if (lv.is_scrolling) {  // 滚动关专属字段（普通关不带→老 Godot 读法不受影响）
+        o << ",\"is_scrolling\":true";
+        o << ",\"feed\":" << feed_json(lv.feed);
+    }
     o << "}";
     return o.str();
 }
@@ -95,6 +117,25 @@ int main(int argc, char** argv) {
         for (auto& gl : f.get())
             levels.push_back(gl);
 
+    // 滚动/挖矿关：每档一关，难度旋钮=步数(feed 深度固定)。同样三档【并行】二分校准。
+    ScrollConfig sc;
+    sc.w = 8;
+    sc.h = 8;
+    sc.species = {0, 1, 2, 3, 4};
+    sc.depth_pages = 4;   // 约 4 页深（首页可见，往下 3 页）
+    sc.trials = 8;
+    DiffBand sbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> sfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        DiffBand band = sbands[bi];
+        uint32_t seed = 999000u + (uint32_t)bi * 2654435761u;
+        sfuts.push_back(std::async(std::launch::async, [sc, band, seed]() {
+            return generate_scroll_for_difficulty(sc, band, seed);
+        }));
+    }
+    for (auto& f : sfuts)
+        levels.push_back(f.get());
+
     std::ostringstream o;
     o << "{\"levels\":[";
     for (size_t i = 0; i < levels.size(); ++i) {
@@ -108,9 +149,17 @@ int main(int argc, char** argv) {
     std::fputs(o.str().c_str(), f);
     std::fclose(f);
     std::fprintf(stderr, "exported %zu levels -> %s\n", levels.size(), out_path);
-    for (size_t i = 0; i < levels.size(); ++i)
-        std::fprintf(stderr, "  lvl_%zu: diff=%s pass=%.2f gap=%.2f objs=%zu\n",
-                     i, levels[i].difficulty, levels[i].skilled_pass,
-                     levels[i].lfhc_gap, levels[i].level.objectives.size());
+    for (size_t i = 0; i < levels.size(); ++i) {
+        const Level& lv = levels[i].level;
+        if (lv.is_scrolling) {
+            int depth = lv.feed.empty() ? 0 : (int)lv.feed[0].size();
+            std::fprintf(stderr, "  lvl_%zu: [SCROLL] diff=%s pass=%.2f moves=%d feed=%d/col\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, lv.move_limit, depth);
+        } else {
+            std::fprintf(stderr, "  lvl_%zu: diff=%s pass=%.2f gap=%.2f objs=%zu\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass,
+                         levels[i].lfhc_gap, lv.objectives.size());
+        }
+    }
     return 0;
 }

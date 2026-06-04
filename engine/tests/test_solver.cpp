@@ -279,6 +279,48 @@ static void test_play_reshuffles_on_deadlock() {
     CHECK(res.moves_used > 0, "greedy_play reshuffles past opening deadlock and makes moves");
 }
 
+// 滚动关：feed 全空=挖穿。
+static void test_feed_drained_helper() {
+    std::vector<std::deque<int>> none;
+    CHECK(feed_drained(none), "no columns counts as drained");
+    std::vector<std::deque<int>> f(2);
+    f[0] = {1};
+    CHECK(!feed_drained(f), "a non-empty column = not drained");
+    f[0].clear();
+    CHECK(feed_drained(f), "all columns empty = drained");
+}
+
+// 造滚动关：8x8 初盘 + 每列 depth 格随机 feed。
+static Level make_scroll(int move_limit, int depth, uint32_t seed) {
+    std::mt19937 gen(seed);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.is_scrolling = true;
+    lv.move_limit = move_limit;
+    lv.seed = seed;
+    std::uniform_int_distribution<int> dist(0, 4);
+    lv.feed.assign(8, {});
+    for (int x = 0; x < 8; ++x)
+        for (int i = 0; i < depth; ++i)
+            lv.feed[x].push_back(lv.species[dist(gen)]);
+    return lv;
+}
+
+// 浅 feed + 步数足 → 技巧玩家挖穿(won=feed 清空)。
+static void test_scroll_dig_through() {
+    Level lv = make_scroll(300, 3, 42);  // 每列3格=24总，300步绰绰有余
+    PlayResult r = smart_greedy_play(lv);
+    CHECK(r.won, "scroll: skilled player digs through shallow feed");
+}
+
+// 深 feed + 步数极少 → 挖不穿(未胜)。
+static void test_scroll_too_deep_few_moves() {
+    Level lv = make_scroll(2, 40, 7);  // 每列40格(5页)，仅2步
+    PlayResult r = smart_greedy_play(lv);
+    CHECK(!r.won, "scroll: 2 moves cannot drain a 5-page feed");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
@@ -301,5 +343,8 @@ int main() {
     test_archetypes_differ();
     test_evaluate_deterministic();
     test_play_reshuffles_on_deadlock();
+    test_feed_drained_helper();
+    test_scroll_dig_through();
+    test_scroll_too_deep_few_moves();
     return report();
 }

@@ -3,6 +3,7 @@
 // 这是 09 护城河的地基：求解器/生成器都基于这套规则。grid[y][x]，坐标 Vec2{x,y}。
 #include <vector>
 #include <random>
+#include <deque>
 #include <cstdlib>
 #include <algorithm>
 
@@ -83,11 +84,23 @@ inline void apply_gravity(Grid& g, const std::vector<std::vector<int>>* coat = n
 }
 
 // 随机补充：EMPTY 填成 species 里的随机色（注入的 rng → 可复现）。
-inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng) {
+// 滚动关(feed!=nullptr)：补充按列从预设 feed 队列前端出(长盘内容下流)，feed[x] 空则回退随机。
+// 行序自上而下 → 同一列上方先补 = feed 前端先入；feed=nullptr 时与旧版逐格 rng 消耗完全一致。
+inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng,
+                   std::vector<std::deque<int>>* feed = nullptr) {
     std::uniform_int_distribution<int> dist(0, (int)species.size() - 1);
-    for (auto& row : g)
-        for (int& v : row)
-            if (v == EMPTY) v = species[dist(rng)];
+    int h = (int)g.size();
+    int w = h ? (int)g[0].size() : 0;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (g[y][x] == EMPTY) {
+                if (feed && x < (int)feed->size() && !(*feed)[x].empty()) {
+                    g[y][x] = (*feed)[x].front();
+                    (*feed)[x].pop_front();
+                } else {
+                    g[y][x] = species[dist(rng)];
+                }
+            }
 }
 
 // 一次消除得分 = 格数 × 基础分(10) × 连锁档。
@@ -141,7 +154,8 @@ inline bool has_legal_move(Grid& g, const std::vector<std::vector<int>>* coat = 
 // 消除→计分→下落→补充，循环直到稳定。原地修改 g。
 inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng,
                              std::vector<std::vector<int>>* jelly = nullptr,
-                             std::vector<std::vector<int>>* coat = nullptr) {
+                             std::vector<std::vector<int>>* coat = nullptr,
+                             std::vector<std::deque<int>>* feed = nullptr) {
     ResolveResult r;
     while (true) {
         auto matched = find_matches(g, coat);
@@ -175,7 +189,7 @@ inline ResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19
         r.cleared += (int)matched.size();
         r.score += score_for_clear((int)matched.size(), r.cascades);
         apply_gravity(g, coat);
-        refill(g, species, rng);
+        refill(g, species, rng, feed);
     }
     return r;
 }
