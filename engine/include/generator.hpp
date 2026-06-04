@@ -144,6 +144,8 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
             final.target_score = target;
         }
         LevelEval fe = evaluate_level(final, cfg.trials);
+        // 目标关的"可解性"：目标感知天花板多次一次都赢不了 → 不可解，丢掉
+        if (fe.skilled_pass_rate <= 0.0) continue;
 
         GeneratedLevel gl;
         gl.level = final;

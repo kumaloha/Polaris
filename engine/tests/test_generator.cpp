@@ -16,6 +16,7 @@ static void test_generate_curates_library() {
     int n_collect = 0, n_score = 0, n_jelly = 0, n_blocker = 0;
     for (const auto& gl : lib) {
         CHECK(gl.lfhc_gap >= cfg.min_gap, "every kept level meets min depth");
+        CHECK(gl.skilled_pass > 0.0, "every kept level is solvable by the goal-directed ceiling");
         if (gl.level.objectives.empty()) {
             n_score++;
             CHECK(gl.level.target_score > (int)gl.floor_score, "SCORE target above floor (casual struggles)");
