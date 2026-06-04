@@ -364,7 +364,7 @@ func _rebuild_tiles() -> void:
 
 			# 宝石立绘(基础/横/竖/彩球)，叠在底色块上、符号/冰锁之下
 			var pr := TextureRect.new()
-			pr.size = Vector2(CELL + GAP + 6, CELL + GAP + 6)   # 填满格距并略overlap，棋子互相挨着(CC 式紧排)
+			pr.size = Vector2(CELL + GAP + 18, CELL + GAP + 18)   # 加大overlap盖住缝(美术有透明边距)，棋子更挤(CC 式)
 			pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 			pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
