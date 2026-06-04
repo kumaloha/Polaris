@@ -84,7 +84,7 @@ func _show_home() -> void:
 	_add_res_chips()
 
 	# 侧边徽章(任务/召唤)
-	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 150), "3", Callable())
+	_add_side_badge("任务", Color("ff7eb0"), Vector2(20, 150), "3", Callable(self, "_show_placeholder").bind("每日任务", "每日任务 + 签到 · 领碎片与水晶"))
 	var summon := _add_side_badge("召唤", Color("b88cf5"), Vector2(632, 150), "!", Callable(self, "_show_gacha"))
 	summon.tooltip_text = "召唤"
 
@@ -410,7 +410,12 @@ func _add_bottom_nav(active: String) -> void:
 	bar.size = Vector2(VIEW_W, 88)
 	bar.add_theme_stylebox_override("panel", _style(Color(0.07, 0.11, 0.24, 0.92), 30, C_GOLD, 1))
 	add_child(bar)
-	var items := [["角色", "character", Callable(self, "_show_character")], ["商店", "shop", Callable()], ["排行", "rank", Callable()], ["设置", "settings", Callable()]]
+	var items := [
+		["角色", "character", Callable(self, "_show_character")],
+		["商店", "shop", Callable(self, "_show_placeholder").bind("商店", "皮肤 + 水晶 · 纯外观,绝不卖加步数等强度道具")],
+		["排行", "rank", Callable(self, "_show_placeholder").bind("排行榜", "周赛 · 靠高分上榜,凭实力竞技")],
+		["设置", "settings", Callable(self, "_show_settings")],
+	]
 	var n := items.size()
 	var slot := VIEW_W / float(n)
 	for i in n:
@@ -767,6 +772,95 @@ func _map_node(parent: Control, idx: int, x: float, y: float, state: String) -> 
 	if cleared:
 		var s := int(meta.level_stars.get(str(idx), 0))
 		parent.add_child(_label("★".repeat(s), Rect2(x - 42, y + sz * 0.5 - 2, 84, 18), 14, C_GOLD))
+
+
+# 占位屏(即将开放)：商店/排行/任务用，含底部导航可继续切换。
+func _show_placeholder(title: String, subtitle: String) -> void:
+	_clear()
+	_add_gradient_background(true)
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+	add_child(_label(title, Rect2(0, 32, VIEW_W, 40), 26, C_GOLD))
+	add_child(_label("✦", Rect2(0, 366, VIEW_W, 70), 60, C_GOLD))
+	add_child(_label("即将开放", Rect2(0, 448, VIEW_W, 40), 28, C_INK))
+	add_child(_label(subtitle, Rect2(50, 498, VIEW_W - 100, 48), 16, C_INK_DIM))
+	var key := "shop" if title.begins_with("商店") else ("rank" if title.begins_with("排行") else "")
+	_add_bottom_nav(key)
+
+
+# 设置屏：音乐/音效偏好(持久化) + 语言(暂中文) + 版本 + 清除存档。
+func _show_settings() -> void:
+	_clear()
+	_add_gradient_background(false)
+	var back := _round_button("‹", Rect2(18, 18, 48, 48))
+	back.z_index = 50
+	back.pressed.connect(Callable(self, "_show_home"))
+	add_child(back)
+	add_child(_label("设置", Rect2(0, 32, VIEW_W, 40), 26, C_GOLD))
+	_setting_row("音乐", "music", 168.0)
+	_setting_row("音效", "sfx", 248.0)
+	var lang := _dark_panel(Rect2(80, 328, 560, 64), 16, Color(1, 1, 1, 0.12), 1)
+	add_child(lang)
+	lang.add_child(_inner_label("语言", Rect2(22, 0, 200, 64), 19, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
+	lang.add_child(_inner_label("中文(英文待接入)", Rect2(0, 0, 538, 64), 16, C_INK_DIM, HORIZONTAL_ALIGNMENT_RIGHT))
+	add_child(_label("魔法消除 · 开发版 v0.1", Rect2(0, 432, VIEW_W, 26), 15, C_INK_DIM))
+	var wipe := _button("清除存档", Rect2(210, 512, 300, 56), Color("ff8a8a"), Color("e0556b"))
+	wipe.pressed.connect(Callable(self, "_confirm_wipe"))
+	add_child(wipe)
+	_add_bottom_nav("settings")
+
+
+func _setting_row(label: String, key: String, y: float) -> void:
+	var row := _dark_panel(Rect2(80, y, 560, 64), 16, Color(1, 1, 1, 0.12), 1)
+	add_child(row)
+	row.add_child(_inner_label(label, Rect2(22, 0, 200, 64), 19, C_INK, HORIZONTAL_ALIGNMENT_LEFT))
+	var on: bool = bool(meta.settings.get(key, true)) if meta != null else true
+	var tog := Button.new()
+	tog.position = Vector2(456, 14)
+	tog.size = Vector2(84, 36)
+	tog.text = "开" if on else "关"
+	tog.add_theme_font_size_override("font_size", 16)
+	tog.add_theme_color_override("font_color", Color("2a1c00") if on else C_INK_DIM)
+	tog.add_theme_stylebox_override("normal", _style(C_GOLD if on else Color(1, 1, 1, 0.12), 999, C_GOLD if on else Color(1, 1, 1, 0.25), 2))
+	tog.pressed.connect(Callable(self, "_toggle_setting").bind(key))
+	row.add_child(tog)
+
+
+func _toggle_setting(key: String) -> void:
+	if meta == null:
+		return
+	meta.settings[key] = not bool(meta.settings.get(key, true))
+	meta.save()
+	_show_settings()
+
+
+func _confirm_wipe() -> void:
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.62)
+	add_child(dim)
+	var panel := _dark_panel(Rect2(150, 358, 420, 200), 22, C_GOLD, 2)
+	add_child(panel)
+	panel.add_child(_inner_label("确认清除全部存档?", Rect2(0, 26, 420, 30), 20, C_INK))
+	panel.add_child(_inner_label("角色 / 铭文 / 进度将重置,不可恢复", Rect2(0, 62, 420, 24), 14, C_INK_DIM))
+	var yes := _button("确认清除", Rect2(40, 122, 150, 52), Color("ff8a8a"), Color("e0556b"))
+	yes.pressed.connect(Callable(self, "_wipe_save"))
+	panel.add_child(yes)
+	var no := _button("取消", Rect2(230, 122, 150, 52), Color("9d6cf0"), Color("7a3fe0"))
+	no.pressed.connect(Callable(self, "_show_settings"))
+	panel.add_child(no)
+
+
+func _wipe_save() -> void:
+	var p := ProjectSettings.globalize_path("user://save.json")
+	if FileAccess.file_exists(p):
+		DirAccess.remove_absolute(p)
+	meta = MetaState.new()
+	_played = {}
+	_sync_selected_to_equipped()
+	_show_home()
 
 
 func _skill_name(character: Dictionary) -> String:

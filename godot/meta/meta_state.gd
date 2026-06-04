@@ -15,6 +15,7 @@ var enchant_page: Array = []    # 9 格(String，空槽 "")
 var equipped_skill: String = "" # 当前装备的角色 id
 var history: Array = []          # 每局表现 [{won, stars}]，供个性化调度估技能
 var level_stars: Dictionary = {} # 关卡进度：关索引(str) -> 最佳星级，供关卡地图显示进度
+var settings: Dictionary = {"music": true, "sfx": true}   # 设置偏好(音频接入后生效)
 
 func _init() -> void:
 	enchant_page.resize(Enchants.SLOTS)
@@ -68,7 +69,7 @@ func save() -> void:
 	var d := {
 		"fragments": fragments, "crystals": crystals, "coins": coins,
 		"owned": owned, "enchant_page": enchant_page, "equipped_skill": equipped_skill,
-		"history": history, "level_stars": level_stars,
+		"history": history, "level_stars": level_stars, "settings": settings,
 	}
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
@@ -96,6 +97,10 @@ func load_state() -> void:
 	history = h if typeof(h) == TYPE_ARRAY else []   # 恢复历史→个性化调度跨会话累积(不重置)
 	var ls = d.get("level_stars", {})
 	level_stars = ls if typeof(ls) == TYPE_DICTIONARY else {}
+	var st = d.get("settings", {})
+	if typeof(st) == TYPE_DICTIONARY:
+		for k in st:
+			settings[k] = st[k]
 
 func _blank_page() -> Array:
 	var p := []
