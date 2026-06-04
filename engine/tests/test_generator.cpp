@@ -13,7 +13,7 @@ static void test_generate_curates_library() {
     auto lib = generate_and_test(cfg, 8, 120);
     CHECK(!lib.empty(), "produced at least one level");
     CHECK((int)lib.size() <= 8, "no more than requested count");
-    int n_collect = 0, n_score = 0, n_jelly = 0;
+    int n_collect = 0, n_score = 0, n_jelly = 0, n_blocker = 0;
     for (const auto& gl : lib) {
         CHECK(gl.lfhc_gap >= cfg.min_gap, "every kept level meets min depth");
         if (gl.level.objectives.empty()) {
@@ -28,16 +28,19 @@ static void test_generate_curates_library() {
             } else if (o.type == OBJ_CLEAR_JELLY) {
                 n_jelly++;
                 CHECK(!gl.level.jelly.empty(), "JELLY level carries a jelly layer");
+            } else if (o.type == OBJ_CLEAR_BLOCKER) {
+                n_blocker++;
+                CHECK(!gl.level.coat.empty(), "BLOCKER level carries a coat layer");
             }
         }
     }
-    CHECK(n_collect + n_jelly >= 1, "at least one non-SCORE (variety) level produced");
+    CHECK(n_collect + n_jelly + n_blocker >= 1, "at least one non-SCORE (variety) level produced");
     if (!lib.empty()) {
-        const char* kinds[] = {"SCORE", "COLLECT", "JELLY"};  // 按 ObjType 序
+        const char* kinds[] = {"SCORE", "COLLECT", "JELLY", "BLOCKER"};  // 按 ObjType 序
         const auto& s = lib[0].level;
         const char* kind = s.objectives.empty() ? "SCORE" : kinds[s.objectives[0].type];
-        std::printf("  [gen] kept=%d (score=%d collect=%d jelly=%d)  sample: %s gap=%.2f diff=%s\n",
-                    (int)lib.size(), n_score, n_collect, n_jelly, kind, lib[0].lfhc_gap, lib[0].difficulty);
+        std::printf("  [gen] kept=%d (score=%d collect=%d jelly=%d blocker=%d)  sample: %s gap=%.2f diff=%s\n",
+                    (int)lib.size(), n_score, n_collect, n_jelly, n_blocker, kind, lib[0].lfhc_gap, lib[0].difficulty);
     }
 }
 

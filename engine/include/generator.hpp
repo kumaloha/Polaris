@@ -14,10 +14,13 @@ struct GenConfig {
     double min_gap = 0.10;    // 最低 LFHC 深度（gap 太小=怎么玩都一样 → 弃）
     double frac_lo = 0.35;    // 目标落点下界（floor..ceil 之间）
     double frac_hi = 0.85;    // 目标落点上界
-    double collect_ratio = 0.35; // 约多少比例发 COLLECT 目标
-    double jelly_ratio = 0.25;   // 约多少比例发 CLEAR_JELLY 目标（其余 SCORE）
+    double collect_ratio = 0.3;  // 约多少比例发 COLLECT 目标
+    double jelly_ratio = 0.2;    // 约多少比例发 CLEAR_JELLY 目标
+    double blocker_ratio = 0.2;  // 约多少比例发 CLEAR_BLOCKER 目标（其余 SCORE）
     double min_collect = 4.0;    // 某色被天花板平均收集 >= 此值才可作 COLLECT
     double min_jelly = 4.0;      // 天花板平均清果冻 >= 此值才可作 JELLY
+    double coat_density = 0.18;  // 冰/锁关里涂层格占比
+    int min_blocker = 3;         // 涂层格数 >= 此值才可作 BLOCKER
     uint32_t base_seed = 1;
 };
 
@@ -115,6 +118,25 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
             final.jelly = full_jelly;
             final.objectives = {{OBJ_CLEAR_JELLY, -1, ct}};
             decided = true;
+        }
+        if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio + cfg.blocker_ratio) {  // 冰/锁
+            std::mt19937 layoutrng(cand_seed ^ 0x5bd1e995u);
+            std::uniform_real_distribution<double> dd(0.0, 1.0);
+            std::vector<std::vector<int>> coat(H, std::vector<int>(W, 0));
+            int total = 0;
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x)
+                    if (board[y][x] != WALL && dd(layoutrng) < cfg.coat_density) {
+                        coat[y][x] = 1;
+                        total++;
+                    }
+            if (total >= cfg.min_blocker && has_legal_move(board, &coat)) {
+                int ct = (int)(frac * total);
+                if (ct < 1) ct = 1;
+                final.coat = coat;
+                final.objectives = {{OBJ_CLEAR_BLOCKER, -1, ct}};
+                decided = true;
+            }
         }
         if (!decided) {  // 冲分
             int target = (int)(floor_s + frac * (ceil_s - floor_s));
