@@ -148,9 +148,8 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
         // 目标关的"可解性"：目标感知天花板多次一次都赢不了 → 不可解，丢掉
         if (fe.skilled_pass_rate <= 0.0) continue;
 
-        // 局内节奏：用"目标至上"画像跑一局，量其解空间曲线
-        PlayResult rep = heuristic_play(final, solver_panel()[0]);
-        double rhythm = rhythm_quality(rep.solspace_curve);
+        // 局内节奏（精炼版）：量"能推进目标的交换数"曲线（目标关随障碍耗尽前松后紧）
+        double rhythm = rhythm_quality(objective_progress_curve(final));
 
         GeneratedLevel gl;
         gl.level = final;

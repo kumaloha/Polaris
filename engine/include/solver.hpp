@@ -368,6 +368,68 @@ inline std::vector<Heuristic> solver_panel() {
     };
 }
 
+// 一步是否"推进了当前目标"（任一目标有进展即算）。无目标 → 任何消除都算。
+inline bool move_progresses(const ResolveResult& rr, const Level& lv) {
+    if (lv.objectives.empty()) return rr.cleared > 0;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE && rr.score > 0) return true;
+        if (o.type == OBJ_COLLECT) {
+            int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+            if (g > 0) return true;
+        }
+        if (o.type == OBJ_CLEAR_JELLY && rr.jelly_cleared > 0) return true;
+        if (o.type == OBJ_CLEAR_BLOCKER && rr.blocker_cleared > 0) return true;
+    }
+    return false;
+}
+
+// 精炼版局内节奏：用 rusher 玩一局，每步记录"能推进目标的合法交换数"。
+// 目标关随障碍/果冻耗尽 → 该数自然递减(前松后紧)；冲分关 → 平。生成器分析用，不在热循环。
+inline std::vector<int> objective_progress_curve(const Level& lv) {
+    Heuristic h = solver_panel()[0];  // rusher
+    Grid g = lv.init_board;
+    std::mt19937 rng(lv.seed);
+    std::vector<int> collected;
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    int jelly_total = 0;
+    std::vector<std::vector<int>> coat = lv.coat;
+    int blocker_total = 0;
+    std::vector<int> curve;
+    int moves_used = 0;
+    int score = 0;
+    while (moves_used < lv.move_limit
+           && !objectives_met(lv, score, collected, jelly_total, blocker_total)) {
+        auto moves = legal_moves(g, coat.empty() ? nullptr : &coat);
+        if (moves.empty()) break;
+        // 数本步能推进目标的交换 + 同时按 rusher 选最佳步
+        int prog = 0;
+        double best_v = -1e18;
+        Move best = moves[0];
+        for (const auto& m : moves) {
+            Grid gc = g;
+            std::mt19937 rc = rng;
+            std::vector<std::vector<int>> jc = jelly;
+            std::vector<std::vector<int>> cc = coat;
+            swap_cells(gc, m.a, m.b);
+            ResolveResult rr = resolve(gc, lv.species, rc,
+                                       jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc);
+            if (move_progresses(rr, lv)) prog++;
+            double v = heuristic_value(rr, lv, h);
+            if (v > best_v) { best_v = v; best = m; }
+        }
+        curve.push_back(prog);
+        swap_cells(g, best.a, best.b);
+        ResolveResult rr = resolve(g, lv.species, rng,
+                                   jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat);
+        score += rr.score;
+        accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
+        moves_used++;
+    }
+    return curve;
+}
+
 struct LevelEval {
     double floor_score = 0;       // 随机玩家(地板)平均分
     double ceil_score = 0;        // 最强画像(天花板)平均分

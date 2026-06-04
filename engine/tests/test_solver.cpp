@@ -146,6 +146,23 @@ static void test_solspace_curve_recorded() {
     CHECK(r.solspace_curve.size() > 0, "curve recorded");
 }
 
+static void test_objective_progress_rhythm_on_jelly() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.jelly.assign(8, std::vector<int>(8, 0));
+    for (int i = 0; i < 8; ++i)
+        for (int j = 0; j < 8; ++j)
+            if ((i + j) % 3 == 0) lv.jelly[i][j] = 1;  // ~1/3 稀疏果冻
+    lv.move_limit = 30;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_JELLY, -1, 9999}};  // 不可能 → 走满步、果冻耗尽
+    auto curve = objective_progress_curve(lv);
+    CHECK((int)curve.size() >= 4, "progress curve recorded");
+    CHECK(rhythm_quality(curve) > 0.0, "jelly progress-moves decrease as jelly depletes -> positive rhythm");
+}
+
 static void test_panel_vote() {
     std::mt19937 gen(123);
     Level lv;
@@ -275,6 +292,7 @@ int main() {
     test_evaluate_gap_and_difficulty();
     test_rhythm_quality();
     test_solspace_curve_recorded();
+    test_objective_progress_rhythm_on_jelly();
     test_panel_vote();
     test_archetypes_differ();
     test_evaluate_deterministic();
