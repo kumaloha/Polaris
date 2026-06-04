@@ -552,3 +552,17 @@ func test_apply_loadout() -> void:
 			if f == ME.SP_LINE_H:
 				cnt += 1
 	assert_eq(cnt, 1, "one opening special placed")
+
+func test_scrolling_feed_refill_and_win() -> void:
+	# 滚动关(挖矿)：补充从 feed 队列出(非随机)；feed 耗尽 = 挖穿长盘 = 过关。
+	var b := Board.new(3, 3, [0, 1, 2], 999999, 30, 1)
+	b.is_scrolling = true
+	b.feed = [[7, 8], [7, 8], [7, 8]]   # 每列预设深层队列(7/8 当标记值)
+	assert_false(b.is_won(), "feed not empty -> not won")
+	b.grid[0][0] = ME.EMPTY
+	b.grid[0][1] = ME.EMPTY
+	ME.refill(b.grid, b.species, b.rng, b.fx, b.feed)
+	assert_eq(b.grid[0][0], 7, "top empty filled from feed front (not random)")
+	assert_eq(b.feed[0].size(), 1, "col 0 feed consumed one (8 left)")
+	b.feed = [[], [], []]
+	assert_true(b.is_won(), "feed exhausted -> scrolling level won")

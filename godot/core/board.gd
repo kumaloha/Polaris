@@ -54,6 +54,9 @@ var ad_continue_cap: int = 2
 var extra_moves: int = 0
 var skill_level: int = 1
 var score_mult: float = 1.0   # 铭文 +积分：计分倍率
+# 滚动关(挖矿)：补充从 feed 出而非随机；feed[x]=列 x 的预设深层队列。is_scrolling 时通关=feed 耗尽(挖穿长盘)。
+var is_scrolling: bool = false
+var feed: Array = []
 
 func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
 	width = w
@@ -110,6 +113,8 @@ func _blank_fx() -> Array:
 func is_won() -> bool:
 	if borrow_debt > 0:
 		return false  # 借贷铁律：欠债未还 → 不算过关（即使分数/目标已达成）
+	if is_scrolling:
+		return _feed_empty()  # 滚动关：挖穿长盘（feed 耗尽）= 过关
 	if objectives.is_empty():
 		return score >= target_score  # 旧式
 	for o in objectives:
@@ -125,6 +130,12 @@ func is_won() -> bool:
 		elif o["type"] == "CLEAR_BLOCKER":
 			if blocker_cleared < o["target"]:
 				return false
+	return true
+
+func _feed_empty() -> bool:
+	for col in feed:
+		if not col.is_empty():
+			return false
 	return true
 
 func is_lost() -> bool:
@@ -181,7 +192,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	_push_history()   # 时间回退#2：记录走子前局面
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -223,8 +234,8 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
 	ME.apply_gravity(grid, fx, coat)   # coat 感知：锁住格在重力下固定
-	ME.refill(grid, species, rng, fx)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)   # 结算余下级联
+	ME.refill(grid, species, rng, fx, feed)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed)   # 结算余下级联
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -259,8 +270,8 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])
 	ME.apply_gravity(grid, fx, coat)
-	ME.refill(grid, species, rng, fx)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
+	ME.refill(grid, species, rng, fx, feed)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -362,7 +373,7 @@ func skill_gravity_flip() -> bool:
 	if not jelly.is_empty():
 		jelly.reverse()
 	ME.apply_gravity(grid, fx, coat)
-	ME.refill(grid, species, rng, fx)
+	ME.refill(grid, species, rng, fx, feed)
 	_settle_after_skill()
 	active_used = true
 	return true
@@ -388,7 +399,7 @@ func skill_clear_species(sp: int) -> bool:
 	_gain(ME.score_for_clear(to_clear.size(), 1))
 	ME._apply_clears(grid, fx, to_clear, [])
 	ME.apply_gravity(grid, fx, coat)
-	ME.refill(grid, species, rng, fx)
+	ME.refill(grid, species, rng, fx, feed)
 	_settle_after_skill()
 	active_used = true
 	return true
@@ -416,7 +427,7 @@ func skill_foresight(k: int = 0) -> Array:
 
 # 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作）。
 func _settle_after_skill() -> void:
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed)
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)

@@ -91,13 +91,19 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 
 # 随机补充：把所有 EMPTY 填成 species_set 里的随机 species（用注入的 rng → 可复现）。
 # fx 可选：传入则新补的棋子特效置 SP_NONE（新棋子无特效）。
-static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = []) -> void:
+static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = []) -> void:
 	var n := species_set.size()
 	var has_fx := not fx.is_empty()
+	var has_feed := not feed.is_empty()
+	# 滚动关：补充按列从预设 feed 队列出(长盘内容自然下流)；feed[x] 空则回退随机。
+	# 行序自上而下遍历 → feed 前端先填进最上方的空格，长盘从顶部下流。
 	for y in grid.size():
 		for x in grid[y].size():
 			if grid[y][x] == EMPTY:
-				grid[y][x] = species_set[rng.randi() % n]
+				if has_feed and x < feed.size() and not feed[x].is_empty():
+					grid[y][x] = feed[x].pop_front()
+				else:
+					grid[y][x] = species_set[rng.randi() % n]
 				if has_fx:
 					fx[y][x] = SP_NONE
 
@@ -112,13 +118,13 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = []) -> Dictionary:
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed)
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = []) -> Dictionary:
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -154,7 +160,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
 		apply_gravity(grid, [], coat)
-		refill(grid, species_set, rng)
+		refill(grid, species_set, rng, [], feed)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
 
@@ -191,7 +197,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = []) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -242,7 +248,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				jelly_cleared += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
 		apply_gravity(grid, fx, coat)
-		refill(grid, species_set, rng, fx)
+		refill(grid, species_set, rng, fx, feed)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
 
 

@@ -108,12 +108,31 @@ func _demo_level(idx: int) -> Dictionary:
 			}
 
 
+# 滚动挖矿 demo：可见 1 页(8x8) + 每列 3 页深的预设 feed（v1 纯随机长盘）。挖穿 feed=通关。
+func _make_scroll_demo() -> Board:
+	var b := Board.new(W, H, SPECIES, 999999, 60, cur_seed)
+	b.is_scrolling = true
+	var rng := RandomNumberGenerator.new()
+	rng.seed = cur_seed + 777
+	var fd := []
+	for x in W:
+		var col := []
+		for i in (3 * H):   # 下方 3 页的深层内容
+			col.append(SPECIES[rng.randi() % SPECIES.size()])
+		fd.append(col)
+	b.feed = fd
+	return b
+
 func _new_game() -> void:
 	if not algo_levels.is_empty():
-		var i: int = demo_idx % algo_levels.size()
-		var ld: Dictionary = algo_levels[i]
-		board = LevelLibrary.to_board(ld)
-		title_label.text = "算法关 %d/%d · %s" % [i + 1, algo_levels.size(), String(ld.get("difficulty", "?"))]
+		if demo_idx >= algo_levels.size():
+			board = _make_scroll_demo()
+			title_label.text = "滚动挖矿关 · 长盘 feed 下流，挖穿通关"
+		else:
+			var i: int = demo_idx % algo_levels.size()
+			var ld: Dictionary = algo_levels[i]
+			board = LevelLibrary.to_board(ld)
+			title_label.text = "算法关 %d/%d · %s" % [i + 1, algo_levels.size(), String(ld.get("difficulty", "?"))]
 	else:
 		var lvl := _demo_level(demo_idx)
 		board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
@@ -410,7 +429,7 @@ func _layer_at(layer: Array, x: int, y: int) -> int:
 # ───────────────────────────── 输入 ─────────────────────────────
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and event.keycode == KEY_R:
-		var n: int = algo_levels.size() if not algo_levels.is_empty() else DEMO_COUNT
+		var n: int = (algo_levels.size() + 1) if not algo_levels.is_empty() else DEMO_COUNT
 		demo_idx = (demo_idx + 1) % n
 		cur_seed += 1
 		_new_game()
