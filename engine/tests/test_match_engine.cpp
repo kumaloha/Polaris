@@ -727,6 +727,177 @@ static void test_popcorn_deterministic_gravity() {
     CHECK(p1 == p2, "same input -> identical popcorn layer after gravity");
 }
 
+// ───────────── 蛋糕炸弹（Cake Bomb）镜像断言 ─────────────
+
+static void test_cake_cell_is_wall_not_matchable() {
+    // 蛋糕格 grid=WALL → 永不进 find_matches（镜像 GDScript test_cake_cell_is_wall_not_matchable）。
+    Grid g = {{WALL, 0, 0, 0}, {1, 2, 3, 4}, {2, 3, 4, 1}};
+    auto m = find_matches(g);
+    CHECK_EQ((int)m.size(), 3, "WALL cake cell never matches; the three 0s still form a run");
+    for (const auto& p : m) CHECK(g[p.y][p.x] != WALL, "no WALL cake cell in a match set");
+}
+
+static void test_cake_cell_is_wall_not_swappable() {
+    // 蛋糕格 grid=WALL → is_legal_swap 拒绝（墙不可动）。
+    Grid g = {{WALL, 0, 1, 2}, {0, 3, 4, 5}, {2, 3, 4, 1}};
+    CHECK(!is_legal_swap(g, {0, 0}, {1, 0}), "WALL cake cell cannot be swapped");
+}
+
+static void test_cake_cell_does_not_fall() {
+    // 蛋糕格 grid=WALL → apply_gravity 处切段、原地固定（墙不下落）。
+    Grid g = {{WALL}, {5}, {EMPTY}};
+    apply_gravity(g);
+    CHECK_EQ(g[0][0], WALL, "WALL cake cell stays put (does not fall)");
+    CHECK_EQ(g[2][0], 5, "piece below the cake sank to the segment bottom");
+    CHECK_EQ(g[1][0], EMPTY, "cell vacated by the sunk piece is now empty");
+}
+
+static void test_square_cells_3x3_geometry() {
+    // square_cells r=1 = 以 center 为心 3x3 的非 WALL/非 EMPTY 普通格（中心是蛋糕墙不计、空格不计）。
+    Grid g = {
+        {0, 1, 2, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, WALL, 3, 4},   // (2,2)=蛋糕墙
+        {5, 6, 7, 8, 0},
+        {1, 2, 3, 4, 5},
+    };
+    auto cells = square_cells(g, {2, 2}, 1);
+    // 3x3 共9格，去掉中心蛋糕墙(1格) → 8 个普通格。
+    CHECK_EQ((int)cells.size(), 8, "3x3 ring minus the WALL center = 8 normal cells");
+    bool has_center = false, out_of_ring = false;
+    for (const auto& c : cells) {
+        if (c.x == 2 && c.y == 2) has_center = true;
+        if (c.x < 1 || c.x > 3 || c.y < 1 || c.y > 3) out_of_ring = true;
+    }
+    CHECK(!has_center, "the WALL cake center is not in the ring");
+    CHECK(!out_of_ring, "all ring cells are within x in [1,3], y in [1,3]");
+}
+
+static void test_square_cells_5x5_big_blast() {
+    // square_cells r=2 = 5x5 大爆炸几何（归0时用）。蛋糕在 (2,2)，5x5 覆盖整 5x5 盘减去中心墙。
+    Grid g = {
+        {0, 1, 2, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, WALL, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, 3, 4, 5},
+    };
+    auto cells = square_cells(g, {2, 2}, CAKE_BLAST_RADIUS);
+    CHECK_EQ((int)cells.size(), 24, "5x5 big blast minus the WALL center = 24 normal cells");
+    bool has_corner_00 = false, has_corner_44 = false;
+    for (const auto& c : cells) {
+        if (c.x == 0 && c.y == 0) has_corner_00 = true;
+        if (c.x == 4 && c.y == 4) has_corner_44 = true;
+    }
+    CHECK(has_corner_00, "5x5 big blast reaches corner (0,0)");
+    CHECK(has_corner_44, "5x5 big blast reaches corner (4,4)");
+}
+
+static void test_blast_cakes_decrements_and_blasts_ring() {
+    // 相邻被清的蛋糕 cake-1 + 引爆 3x3。蛋糕在 (2,2) 血量 3，清除集含其邻格 (2,1) → -1(→2,存活) + 3x3 引爆。
+    Grid g = {
+        {0, 1, 2, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, WALL, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, 3, 4, 5},
+    };
+    std::vector<std::vector<int>> cake(5, std::vector<int>(5, 0));
+    cake[2][2] = 3;
+    std::vector<Vec2> blast;
+    int destroyed = blast_cakes(g, cake, {{2, 1}}, &blast);
+    CHECK_EQ(destroyed, 0, "cake alive (HP 2) -> not destroyed");
+    CHECK_EQ(cake[2][2], 2, "cake adjacent to a cleared cell lost exactly 1 HP (3 -> 2)");
+    CHECK_EQ(g[2][2], WALL, "alive cake stays a WALL (not removed)");
+    // 3x3 引爆集含四角（(1,1)(3,1)(1,3)(3,3)），不含中心蛋糕墙。
+    bool c11 = false, c33 = false, center = false;
+    for (const auto& b : blast) {
+        if (b.x == 1 && b.y == 1) c11 = true;
+        if (b.x == 3 && b.y == 3) c33 = true;
+        if (b.x == 2 && b.y == 2) center = true;
+    }
+    CHECK(c11 && c33, "3x3 ring blast includes the corners");
+    CHECK(!center, "the cake WALL cell itself is not in the blast set");
+}
+
+static void test_blast_cakes_zero_removes_and_big_blast() {
+    // 血量 1 的蛋糕相邻被清 → 归0 → 移除(WALL→EMPTY) + 5x5 大爆炸。
+    Grid g = {
+        {0, 1, 2, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, WALL, 3, 4},
+        {5, 6, 7, 8, 0},
+        {1, 2, 3, 4, 5},
+    };
+    std::vector<std::vector<int>> cake(5, std::vector<int>(5, 0));
+    cake[2][2] = 1;
+    std::vector<Vec2> blast;
+    int destroyed = blast_cakes(g, cake, {{2, 3}}, &blast);
+    CHECK_EQ(destroyed, 1, "exactly one cake destroyed (HP reached 0)");
+    CHECK_EQ(cake[2][2], 0, "destroyed cake HP is 0");
+    CHECK_EQ(g[2][2], EMPTY, "destroyed cake removed: WALL -> EMPTY");
+    bool corner00 = false, corner44 = false;
+    for (const auto& b : blast) {
+        if (b.x == 0 && b.y == 0) corner00 = true;
+        if (b.x == 4 && b.y == 4) corner44 = true;
+    }
+    CHECK(corner00 && corner44, "5x5 big blast reaches the far corners on destroy");
+}
+
+static void test_blast_cakes_max_one_per_round() {
+    // 每轮最多-1：蛋糕同时正交相邻多个被清格(上下左右)，本轮也只 -1。
+    Grid g = {
+        {0, 1, 2, 3, 4},
+        {5, 6, 9, 8, 0},
+        {7, 9, WALL, 9, 4},   // (2,1)(2,3)? 这里给四邻全普通格
+        {5, 6, 9, 8, 0},
+        {1, 2, 3, 4, 5},
+    };
+    std::vector<std::vector<int>> cake(5, std::vector<int>(5, 0));
+    cake[2][2] = 5;
+    // 清除集 = 蛋糕四个正交邻格。
+    int destroyed = blast_cakes(g, cake, {{2, 1}, {2, 3}, {1, 2}, {3, 2}}, nullptr);
+    CHECK_EQ(destroyed, 0, "cake not destroyed (still has HP)");
+    CHECK_EQ(cake[2][2], 4, "cake adjacent to 4 cleared cells in one round loses only 1 HP (5 -> 4)");
+}
+
+static void test_blast_cakes_no_adjacency_no_change() {
+    // 蛋糕周围无被清格 → 不掉血、不引爆（blast 为空）。
+    Grid g = {
+        {0, 1, 2},
+        {3, WALL, 4},
+        {5, 6, 7},
+    };
+    std::vector<std::vector<int>> cake(3, std::vector<int>(3, 0));
+    cake[1][1] = 2;
+    std::vector<Vec2> blast;
+    // 清除集是远离蛋糕的角 (0,0)（与 (1,1) 不正交相邻）。
+    int destroyed = blast_cakes(g, cake, {{0, 0}}, &blast);
+    CHECK_EQ(destroyed, 0, "no adjacency -> no cake destroyed");
+    CHECK_EQ(cake[1][1], 2, "no adjacency -> cake HP unchanged");
+    CHECK(blast.empty(), "no adjacency -> no blast cells");
+}
+
+static void test_count_cakes() {
+    std::vector<std::vector<int>> cake = {{3, 0, 1}, {0, 0, 0}, {0, 2, 0}};
+    CHECK_EQ(count_cakes(cake), 3, "three cake cells counted");
+}
+
+static void test_cake_deterministic_geometry() {
+    // 同输入两次 blast → 盘面/cake 层/destroyed 一致（纯几何无 rng）。
+    auto mkg = []() { return Grid{{0, 1, 2}, {3, WALL, 4}, {5, 6, 7}}; };
+    auto mkc = []() { return std::vector<std::vector<int>>{{0, 0, 0}, {0, 1, 0}, {0, 0, 0}}; };
+    Grid g1 = mkg(), g2 = mkg();
+    auto c1 = mkc(), c2 = mkc();
+    std::vector<Vec2> b1, b2;
+    int d1 = blast_cakes(g1, c1, {{1, 0}}, &b1);
+    int d2 = blast_cakes(g2, c2, {{1, 0}}, &b2);
+    CHECK_EQ(d1, d2, "same input -> identical destroyed count");
+    CHECK(g1 == g2, "same input -> identical grid after cake blast");
+    CHECK(c1 == c2, "same input -> identical cake layer after blast");
+    CHECK(b1 == b2, "same input -> identical blast cells");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -793,5 +964,17 @@ int main() {
     test_hit_popcorn_to_zero();
     test_count_popcorn();
     test_popcorn_deterministic_gravity();
+    // 蛋糕炸弹（Cake Bomb）镜像断言
+    test_cake_cell_is_wall_not_matchable();
+    test_cake_cell_is_wall_not_swappable();
+    test_cake_cell_does_not_fall();
+    test_square_cells_3x3_geometry();
+    test_square_cells_5x5_big_blast();
+    test_blast_cakes_decrements_and_blasts_ring();
+    test_blast_cakes_zero_removes_and_big_blast();
+    test_blast_cakes_max_one_per_round();
+    test_blast_cakes_no_adjacency_no_change();
+    test_count_cakes();
+    test_cake_deterministic_geometry();
     return report();
 }

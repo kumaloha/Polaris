@@ -1005,4 +1005,81 @@ inline int count_popcorn(const std::vector<std::vector<int>>& popcorn) {
     return n;
 }
 
+// ───────────── 蛋糕炸弹（Cake Bomb）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 蛋糕语义（与 godot/core/match_engine.gd 一一对应）—— 复用 WALL，故 find_matches/apply_gravity/is_legal_swap 全不感知 cake：
+//   蛋糕格的 grid 是【WALL(-2)】（不可消/不可动/不下落/切段），cake[y][x]=N 只是叠加的剩余血量(0=无蛋糕)。
+//   ① 相邻被清-1+引爆一圈：每轮消除结算里，正交相邻有格被清的蛋糕 cake-1（本轮最多-1），引爆它为心的 3x3 普通格。
+//   ② 归0大爆炸：cake 减到 0 → 蛋糕移除(WALL→EMPTY, cake=0) + 大爆炸(以蛋糕为心的 5x5 普通格)。
+// 说明：引爆"清除波及格继续连锁特效"是 Godot 侧专属（C++ 裸 Core 不实现特效，已在文件头声明），
+//   故 C++ 镜像只覆盖【不依赖特效的机械原语】：方形引爆几何(square_cells)、相邻判定+递减+移除+大爆炸(blast_cakes)、计数(count_cakes)。
+//   蛋糕格 grid=WALL → 匹配/重力/交换均沿用现有 WALL 逻辑，无需 *_cake 的匹配/交换/重力版本（与 cannon 同构）。
+
+constexpr int CAKE_BLAST_RADIUS = 2;  // 归0大爆炸半径：以蛋糕为心的 (2r+1)x(2r+1)=5x5
+
+// 半径 r 的方形几何（以 center 为心），仅收非 WALL/非 EMPTY 的普通格（镜像 GDScript _square_cells）。
+inline std::vector<Vec2> square_cells(const Grid& g, Vec2 center, int r) {
+    int h = (int)g.size();
+    if (h == 0) return {};
+    int w = (int)g[0].size();
+    std::vector<Vec2> out;
+    for (int dy = -r; dy <= r; ++dy)
+        for (int dx = -r; dx <= r; ++dx) {
+            int nx = center.x + dx, ny = center.y + dy;
+            if (nx >= 0 && nx < w && ny >= 0 && ny < h && g[ny][nx] != WALL && g[ny][nx] != EMPTY)
+                out.push_back({nx, ny});
+        }
+    return out;
+}
+
+// 蛋糕结算：被清除集(cleared)正交相邻的蛋糕 cake-1（每轮最多-1），并引爆。
+//   血量>0：引爆一圈(3x3=square_cells r=1)；血量减到 0：移除(grid→EMPTY, cake=0) + 大爆炸(5x5)。
+//   blast_out（可选）：把本轮所有引爆/大爆炸要清的普通格【去重】写入（供上层并入清除集）。
+//   返回本轮炸毁(归0)的蛋糕数。原地改 cake/g（归0蛋糕 WALL→EMPTY）。镜像 GDScript _blast_cakes。
+inline int blast_cakes(Grid& g, std::vector<std::vector<int>>& cake,
+                       const std::vector<Vec2>& cleared,
+                       std::vector<Vec2>* blast_out = nullptr) {
+    int h = (int)cake.size();
+    if (h == 0) return 0;
+    int w = (int)cake[0].size();
+    // 清除集标记（含越界保护）。
+    std::vector<std::vector<char>> cs(h, std::vector<char>(w, 0));
+    for (const auto& p : cleared)
+        if (p.x >= 0 && p.x < w && p.y >= 0 && p.y < h) cs[p.y][p.x] = 1;
+    // 先快照本轮要 -1 的蛋糕（避免边减边改 grid 影响后续相邻判定）。
+    std::vector<Vec2> hit;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            if (cake[y][x] <= 0) continue;
+            bool adj = cs[y][x]
+                || (x > 0 && cs[y][x - 1]) || (x + 1 < w && cs[y][x + 1])
+                || (y > 0 && cs[y - 1][x]) || (y + 1 < h && cs[y + 1][x]);
+            if (adj) hit.push_back({x, y});
+        }
+    std::vector<std::vector<char>> seen(h, std::vector<char>(w, 0));  // blast 去重
+    int destroyed = 0;
+    for (const auto& c : hit) {
+        cake[c.y][c.x] -= 1;  // 本轮 -1（最多一次）
+        int r = (cake[c.y][c.x] <= 0) ? CAKE_BLAST_RADIUS : 1;  // 归0=5x5、存活=3x3
+        if (cake[c.y][c.x] <= 0) {
+            cake[c.y][c.x] = 0;
+            g[c.y][c.x] = EMPTY;  // 移除蛋糕
+            ++destroyed;
+        }
+        if (blast_out) {
+            for (const auto& e : square_cells(g, c, r))
+                if (!seen[e.y][e.x]) { seen[e.y][e.x] = 1; blast_out->push_back(e); }
+        }
+    }
+    return destroyed;
+}
+
+// 数盘上还有血量的蛋糕格总数（炸毁的格 cake=0 不计）。
+inline int count_cakes(const std::vector<std::vector<int>>& cake) {
+    int n = 0;
+    for (const auto& row : cake)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
 }  // namespace me

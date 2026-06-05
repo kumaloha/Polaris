@@ -159,7 +159,7 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
@@ -168,8 +168,8 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 	# popcorn 可选：爆米花层。被【特效】清除波及的爆米花格 popcorn-1(不清)，归0变彩球(SP_COLORBOMB)；普通三消不碰它。
 	#   结果里附带 popcorn_hit = 本步被特效命中递减的爆米花次数。仅特效路径(_resolve_fx)有意义；纯三消(_resolve_plain)不触发。
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake)
 
 
 # 原料下沉收集循环：消除稳定后，原料可能仍悬在出口上方（或刚补充落下）。
@@ -223,7 +223,75 @@ static func _hit_popcorn(grid: Array, fx: Array, popcorn: Array, cleared_set: Di
 	return hits
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = []) -> Dictionary:
+# ───────────── 蛋糕炸弹（Cake Bomb）：逐层炸开的大障碍（对标 Candy Crush 的 Cake Bomb）─────────────
+# 蛋糕语义 —— 复用 WALL，故 find_matches/apply_gravity/is_legal_swap 等全不感知 cake：
+#   蛋糕格的 grid 是【WALL(-2)】（不可消/不可动/不下落/切段），cake[y][x]=N 只是叠加的剩余血量(0=无蛋糕)。
+#   ① 被攻击-1+引爆一圈：每轮消除结算里，若某蛋糕格【正交相邻】有格被清除(普通三消 or 特效波及)，
+#      则该蛋糕 cake-1（本轮最多-1，与 coat 破锁同节奏），并引爆它周围一圈（清蛋糕为心的 3x3 内非 WALL 普通格）。
+#   ② 归0大爆炸：cake 减到 0 → 蛋糕移除(grid WALL→EMPTY, cake=0)，触发大爆炸(清以蛋糕为心的 5x5 非 WALL 格)。
+#   ③ 引爆/大爆炸波及的特效格继续连锁（由调用方把返回的清除集并入 to_clear，沿特效链展开）。
+# 引爆几何确定性（纯几何，无 rng）：一圈=SP_BOMB(3x3)、大爆炸=5x5；其它蛋糕在 3x3/5x5 内【不】被波及直减
+#   （蛋糕只靠"相邻被清"递减，避免一次级联多个蛋糕连环掉血——与 coat 破锁的"每轮最多破一层"一致）。
+
+const CAKE_BLAST_RADIUS := 2   # 归0大爆炸半径：以蛋糕为心的 (2*r+1)x(2*r+1)=5x5
+
+# 半径 r 的方形几何（以 center 为心），仅收非 WALL/非 EMPTY 的普通格（蛋糕引爆不波及别的墙/蛋糕，不清空格）。
+static func _square_cells(grid: Array, center: Vector2i, r: int) -> Array:
+	var h := grid.size()
+	var w: int = grid[0].size()
+	var out := []
+	for dy in range(-r, r + 1):
+		for dx in range(-r, r + 1):
+			var nx := center.x + dx
+			var ny := center.y + dy
+			if nx >= 0 and nx < w and ny >= 0 and ny < h and grid[ny][nx] != WALL and grid[ny][nx] != EMPTY:
+				out.append(Vector2i(nx, ny))
+	return out
+
+# 蛋糕结算：本轮被清除集(cleared_set)正交相邻的蛋糕 cake-1（每轮最多-1），并按规则引爆。
+#   血量>0 的蛋糕：引爆一圈(3x3)；血量减到 0 的蛋糕：移除(grid→EMPTY, cake=0) + 大爆炸(5x5)。
+#   返回 {blast: Array[Vector2i] 本轮所有引爆/大爆炸要清的普通格(供调用方并入 to_clear 沿特效链展开),
+#         destroyed: int 本轮炸毁(归0)的蛋糕数}。原地改 cake/grid（归0蛋糕的 WALL→EMPTY）。
+# 镜像 coat 破锁的相邻判定（cleared_set 内/正交相邻），但蛋糕走自己的引爆几何。
+static func _blast_cakes(grid: Array, cake: Array, cleared_set: Dictionary) -> Dictionary:
+	var blast := {}      # Vector2i -> true（去重的引爆清除格）
+	var destroyed := 0
+	# 先收集本轮要 -1 的蛋糕（快照命中判定）：避免边减边引爆改 grid 影响后续相邻判定。
+	var hit_cakes := []
+	for cy in cake.size():
+		for cx in cake[cy].size():
+			if cake[cy][cx] <= 0:
+				continue
+			var here := Vector2i(cx, cy)
+			# 正交相邻(或自身，虽蛋糕格是 WALL 不会进 cleared_set)被清 → 本蛋糕受击
+			if cleared_set.has(here) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
+				hit_cakes.append(here)
+	for c in hit_cakes:
+		cake[c.y][c.x] -= 1   # 本轮 -1（最多一次）
+		if cake[c.y][c.x] <= 0:
+			# 归0：移除蛋糕(WALL→EMPTY) + 大爆炸 5x5
+			cake[c.y][c.x] = 0
+			grid[c.y][c.x] = EMPTY
+			destroyed += 1
+			for e in _square_cells(grid, c, CAKE_BLAST_RADIUS):
+				blast[e] = true
+		else:
+			# 血量仍 >0：引爆一圈 3x3（复用 SP_BOMB 几何）
+			for e in special_effect_cells(grid, c, SP_BOMB):
+				blast[e] = true
+	return {"blast": blast.keys(), "destroyed": destroyed}
+
+# 数盘上还有血量的蛋糕格总数（供 board/测试断言；炸毁的格 cake=0 不计）。
+static func count_cakes(cake: Array) -> int:
+	var n := 0
+	for row in cake:
+		for v in row:
+			if v > 0:
+				n += 1
+	return n
+
+
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -233,11 +301,13 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 	var choco_cleared := 0
 	var ingredient_collected := 0
 	var bomb_defused := 0
+	var cake_destroyed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
 	var has_bomb := not bomb.is_empty()
+	var has_cake := not cake.is_empty()
 	# 纯三消路径无特效 → 爆米花永不被命中（爆米花只认特效）；此处仅让它【跳过匹配 + 随重力下落】，故透传给 find_matches/apply_gravity。
 	while true:
 		var matched: Array = find_matches(grid, coat, choco, ing, popcorn)
@@ -272,6 +342,22 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
+		# 蛋糕：本轮三消相邻的蛋糕 cake-1 + 引爆一圈/归0大爆炸（引爆波及的普通格本轮一并清掉，随后下落级联）。
+		if has_cake:
+			var cb := _blast_cakes(grid, cake, matched_set)
+			cake_destroyed += cb["destroyed"]
+			for bp in cb["blast"]:
+				var sp_b: int = grid[bp.y][bp.x]
+				if sp_b >= 0:
+					by_species[sp_b] = by_species.get(sp_b, 0) + 1
+				if has_jelly and jelly[bp.y][bp.x] > 0:
+					jelly[bp.y][bp.x] -= 1
+					jelly_cleared += 1
+				if has_bomb and bomb[bp.y][bp.x] > 0:
+					bomb[bp.y][bp.x] = 0   # 蛋糕引爆波及炸弹格 → 拆弹
+					bomb_defused += 1
+				grid[bp.y][bp.x] = EMPTY
+				cleared_total += 1
 		apply_gravity(grid, [], coat, false, choco, ing, bomb, popcorn)   # 原料/炸弹/爆米花随重力下落（随 grid 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)  # 落到出口的原料即收
@@ -282,7 +368,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		ingredient_collected += _drain_ingredients(grid, [], coat, choco, ing, exit_cols, false, bomb, popcorn)
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": 0}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": 0, "cake_destroyed": cake_destroyed}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -348,7 +434,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = []) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -359,12 +445,14 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var ingredient_collected := 0
 	var bomb_defused := 0
 	var popcorn_hit := 0
+	var cake_destroyed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
+	var has_cake := not cake.is_empty()
 	while true:
 		var c := collect_clears(grid, fx, coat, choco, ing, popcorn)
 		var raw: Array = c["to_clear"]
@@ -421,6 +509,31 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 			if has_jelly and jelly[pos.y][pos.x] > 0:
 				jelly[pos.y][pos.x] -= 1
 				jelly_cleared += 1
+		# 蛋糕：本轮特效清除波及相邻的蛋糕 cake-1 + 引爆一圈/归0大爆炸。引爆波及的普通格沿特效链展开后并入 to_clear。
+		# 须在 _apply_clears 前结算（蛋糕格 grid=WALL 不会进 to_clear；归0蛋糕已在 _blast_cakes 里 WALL→EMPTY）。
+		if has_cake:
+			var cb := _blast_cakes(grid, cake, cleared_set)
+			cake_destroyed += cb["destroyed"]
+			if not cb["blast"].is_empty():
+				var blast_set: Dictionary = _expand_triggers(grid, fx, cb["blast"])  # 引爆卷入的条纹/爆炸继续连锁
+				for bp in blast_set:
+					if cleared_set.has(bp):
+						continue   # 已在本轮清除集里，避免重复计账
+					cleared_set[bp] = true
+					# 蛋糕引爆同样尊重锁住/巧克力/原料/爆米花：这些格只破层/啃食/命中、不被引爆直清。
+					if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_ing and ing[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
+						continue
+					var sp_b: int = grid[bp.y][bp.x]
+					if sp_b >= 0:
+						by_species[sp_b] = by_species.get(sp_b, 0) + 1
+					if has_bomb and bomb[bp.y][bp.x] > 0:
+						bomb[bp.y][bp.x] = 0   # 蛋糕引爆波及炸弹格 → 拆弹
+						bomb_defused += 1
+					if has_jelly and jelly[bp.y][bp.x] > 0:
+						jelly[bp.y][bp.x] -= 1
+						jelly_cleared += 1
+					to_clear.append(bp)
+					cleared_total += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
 		apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)   # 原料/炸弹/爆米花随重力下落（随 grid/fx 同步移动）
 		if has_ing:
@@ -432,7 +545,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		ingredient_collected += _drain_ingredients(grid, fx, coat, choco, ing, exit_cols, false, bomb, popcorn)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
@@ -738,18 +851,20 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 # 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
 # popcorn 可选：彩球/融合等直清路径波及的爆米花格 -1(不清、记 locked)，归0变彩球(fx=SP_COLORBOMB)。
 #   结果里附带 popcorn_hit；爆米花格须 fx 才能落彩球，故 fx 也作为可选参数透传（不传则只递减不变彩球——退化兜底）。
-static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = [], bomb: Array = [], popcorn: Array = [], fx: Array = []) -> Dictionary:
+static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = [], bomb: Array = [], popcorn: Array = [], fx: Array = [], cake: Array = []) -> Dictionary:
 	var by_species := {}
 	var jelly_cleared := 0
 	var blocker_cleared := 0
 	var choco_cleared := 0
 	var bomb_defused := 0
 	var popcorn_hit := 0
+	var cake_destroyed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
+	var has_cake := not cake.is_empty()
 	var locked := {}  # 开始时锁住/巧克力/爆米花的格：只破层啃食/命中，不被清/不计入收集·果冻
 	var cleared_set := {}
 	for p in cells:
@@ -788,7 +903,30 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 		if has_bomb and bomb[pos.y][pos.x] > 0:
 			bomb[pos.y][pos.x] = 0   # 炸弹格被特效(彩球/融合/同类消除)波及清除 → 拆弹
 			bomb_defused += 1
-	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "locked": locked.keys()}
+	# 蛋糕：直清(彩球/融合/同类消除)波及相邻的蛋糕 cake-1 + 引爆一圈/归0大爆炸。
+	# 返回 cake_blast（引爆要清的普通格）供调用方并入 to_clear 一并清除（蛋糕格 grid=WALL 不会在 cells 里）。
+	var cake_blast := []
+	if has_cake:
+		var cb := _blast_cakes(grid, cake, cleared_set)
+		cake_destroyed += cb["destroyed"]
+		for bp in cb["blast"]:
+			if cleared_set.has(bp):
+				continue   # 已在直清集里，避免重复计账
+			cleared_set[bp] = true
+			# 蛋糕引爆同样尊重锁住/巧克力/爆米花：这些格只破层/啃食/命中、不被引爆直清。
+			if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
+				continue
+			var sp_b: int = grid[bp.y][bp.x]
+			if sp_b >= 0:
+				by_species[sp_b] = by_species.get(sp_b, 0) + 1
+			if has_jelly and jelly[bp.y][bp.x] > 0:
+				jelly[bp.y][bp.x] -= 1
+				jelly_cleared += 1
+			if has_bomb and bomb[bp.y][bp.x] > 0:
+				bomb[bp.y][bp.x] = 0   # 蛋糕引爆波及炸弹格 → 拆弹
+				bomb_defused += 1
+			cake_blast.append(bp)
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed, "cake_blast": cake_blast, "locked": locked.keys()}
 
 
 # ───────────── Meta 技能原语（玩家侧能力的引擎钩子，见 10 §7；不进 C++ 基准）─────────────
