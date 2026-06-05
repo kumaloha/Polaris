@@ -437,6 +437,73 @@ static void test_choco_play_deterministic() {
     CHECK_EQ(a.moves_used, b.moves_used, "choco play deterministic (moves)");
 }
 
+// ───── 倒计时炸弹关（OBJ_DEFUSE_BOMB）：回合机制 + 紧迫度可解性 ─────
+
+// 测试辅助：在 make_board 盘的普通棋子格按 seed 撒 n 个炸弹，初始倒计时统一 ttl。返回实际撒的格数。
+static int seed_bombs(std::vector<std::vector<int>>& bomb, const Grid& board, int n, int ttl, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    bomb.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    int placed = 0;
+    while (placed < n) {
+        int y = (int)(rng() % H), x = (int)(rng() % W);
+        if (board[y][x] >= 0 && bomb[y][x] == 0) { bomb[y][x] = ttl; placed++; }
+        if (rng() % 1000 == 0 && placed == 0) break;  // 防御：极端无可放格(几乎不发生)
+    }
+    return placed;
+}
+
+static void test_objectives_met_bomb() {
+    Level lv;
+    lv.objectives = {{OBJ_DEFUSE_BOMB, -1, 3}};
+    CHECK(objectives_met(lv, 0, {}, 0, 0, 0, 0, 3), "bomb defuse target met");
+    CHECK(!objectives_met(lv, 0, {}, 0, 0, 0, 0, 2), "bomb defuse target not met");
+}
+
+// 倒计时归零判负：ttl=1 的多个炸弹，玩家一步拆不完 → tick 把存活的递减到 0 → 引爆 → won=false。
+static void test_bomb_explodes_loses() {
+    std::mt19937 boardgen(424242u);
+    Grid board = make_board(9, 9, {0, 1, 2, 3, 4, 5}, boardgen);
+    Level lv;
+    lv.init_board = board;
+    lv.species = {0, 1, 2, 3, 4, 5};
+    lv.move_limit = 20;
+    lv.seed = 1;
+    std::vector<std::vector<int>> bomb;
+    int n = seed_bombs(bomb, board, 8, 1, 0xbeefu);  // 8 个炸弹，倒计时仅 1 步
+    CHECK(n >= 2, "seeded multiple ttl=1 bombs");
+    lv.bomb = bomb;
+    lv.objectives = {{OBJ_DEFUSE_BOMB, -1, n}};  // 要求全拆(够大) → 一步内不可能 → 必有炸弹归零引爆
+    PlayResult r = random_play(lv);
+    CHECK(r.bomb_exploded, "a ttl=1 bomb left undefused detonates after the move");
+    CHECK(!r.won, "explosion makes the level a loss regardless of defuses");
+}
+
+// 紧迫度可解性：宽裕倒计时 + 少量炸弹 + 充裕步，smart_greedy(紧迫度牵引)能拆够 target 且全程不爆地赢。
+//   这是"裸 Core 标定能产出可解炸弹关"的机制级证明：没有紧迫度激励，画像玩家不会主动拆弹→无法清盘取胜。
+static void test_smart_greedy_defuses_reachable_bomb() {
+    std::mt19937 boardgen(135791u);
+    Grid board = make_board(9, 9, {0, 1, 2, 3, 4, 5}, boardgen);
+    Level lv;
+    lv.init_board = board;
+    lv.species = {0, 1, 2, 3, 4, 5};
+    lv.move_limit = 40;
+    lv.seed = 5;
+    std::vector<std::vector<int>> bomb;
+    int n = seed_bombs(bomb, board, 4, 30, 0xd00du);  // 4 个炸弹，倒计时宽裕(30 步)
+    CHECK(n >= 3, "seeded a few long-fuse bombs");
+    lv.bomb = bomb;
+    lv.objectives = {{OBJ_DEFUSE_BOMB, -1, 2}};  // 只要拆够 2 个(可达)
+    PlayResult r = smart_greedy_play(lv);
+    CHECK(r.bomb_defused >= 2, "smart_greedy defuses at least the target (urgency steers it to bombs)");
+    CHECK(!r.bomb_exploded, "long fuse + skilled play => no explosion");
+    CHECK(r.won, "reachable bomb target is won cleanly");
+    // 确定性：同盘同 seed 两次 → 同拆弹数 + 同胜负
+    PlayResult r2 = smart_greedy_play(lv);
+    CHECK_EQ(r.bomb_defused, r2.bomb_defused, "bomb play deterministic (defused)");
+    CHECK(r.won == r2.won, "bomb play deterministic (won)");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
@@ -469,5 +536,8 @@ int main() {
     test_choco_player_spreads_when_untouched();
     test_smart_greedy_wins_reachable_choco();
     test_choco_play_deterministic();
+    test_objectives_met_bomb();
+    test_bomb_explodes_loses();
+    test_smart_greedy_defuses_reachable_bomb();
     return report();
 }

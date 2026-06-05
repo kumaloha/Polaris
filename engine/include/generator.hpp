@@ -26,6 +26,8 @@ struct GenConfig {
     int ing_rows = 2;            // 运料关：在顶部多少行内撒原料（原料从高处往下运）
     double ing_density = 0.18;   // 运料关：顶部行里每个普通棋子格放原料的概率
     int min_ingredient = 3;      // 初始原料格数 >= 此值才可作 COLLECT_INGREDIENT
+    double bomb_density = 0.12;  // 炸弹关：普通棋子格里撒炸弹的概率（撒 N 个倒计时炸弹）
+    int min_bomb = 3;            // 初始炸弹格数 >= 此值才可作 OBJ_DEFUSE_BOMB
     uint32_t base_seed = 1;
 };
 
@@ -700,6 +702,102 @@ inline GeneratedLevel generate_ingredient_for_difficulty(const GenConfig& cfg, D
         chosen.difficulty = band.name;
     }
     return chosen;
+}
+
+// ---- 倒计时炸弹关生成（OBJ_DEFUSE_BOMB）：撒 N 个倒计时炸弹 + 二分 target(拆弹数) 命中难度带 ----
+
+// 炸弹布点：在普通棋子格(非 WALL/EMPTY)按 density 随机撒炸弹，初始倒计时统一设 ttl。返回撒的炸弹数。
+//   炸弹格的 grid 仍是普通棋子（可消可换随重力落），bomb[y][x]=ttl 只是叠加的倒计时——故撒在哪都不破坏可玩性。
+inline int place_bombs(std::vector<std::vector<int>>& bomb, const Grid& board,
+                       double density, int ttl, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    bomb.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int total = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                bomb[y][x] = ttl;
+                total++;
+            }
+    return total;
+}
+
+// 按请求难度产炸弹关：每候选盘撒倒计时炸弹 + OBJ_DEFUSE_BOMB 目标，二分 target(拆弹数) 命中难度带。
+//   难度旋钮 = target：拆得越多越难（pass 随 target 单调递减）→ 可二分。move_limit 固定充裕，倒计时设宽裕。
+//   命门：裸 Core 玩家无"拆弹"动机 → 不加引导必让炸弹全爆 → pass≡0（标不出可解关）。解法 = play_bomb 框架
+//     的"紧迫度势能"牵引（候选评估减残留紧迫，倒计时越低越优先消）→ 画像玩家会主动拆将爆的炸弹，
+//     故 skilled_pass 真实反映"高手能否在不爆的前提下拆够 target 个"。倒计时给宽(随步数/炸弹数放大)留拆弹窗口。
+inline std::vector<GeneratedLevel> generate_bomb_for_difficulty(const GenConfig& cfg, DiffBand band,
+                                                                int count, int max_attempts) {
+    std::vector<GeneratedLevel> out;
+    std::mt19937 boardgen(cfg.base_seed ^ 0xb0b0a11du);  // 与其它批不同盘流
+    const int BIG = 1 << 30;
+    int attempts = 0;
+    while ((int)out.size() < count && attempts < max_attempts) {
+        ++attempts;
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
+        Level final;
+        final.init_board = board;
+        final.species = cfg.species;
+        final.seed = cand_seed;
+        // 充裕步数：让 target 成为唯一难度旋钮（步太少→拆不够 → 连 EASY 都标不出）。
+        final.move_limit = std::max(cfg.move_limit, cfg.h * 3);
+
+        // 撒炸弹（先按密度数个数，再据"步数/炸弹数"定宽裕倒计时）：倒计时太低→必爆标不出，故给足拆弹窗口。
+        std::vector<std::vector<int>> probe_bomb;
+        int total = place_bombs(probe_bomb, board, cfg.bomb_density, 1, cand_seed ^ 0xb0dbcafeu);  // 先探个数
+        if (total < cfg.min_bomb) continue;
+        if (!has_legal_move(board, nullptr)) continue;
+        // 宽裕倒计时：步数 60% 与 (炸弹数 + 盘高) 取大 → 天花板有足够回合逐个拆将爆的（不会一开局就全爆）。
+        int ttl = std::max((int)(final.move_limit * 0.6), total + cfg.h);
+        std::vector<std::vector<int>> bomb;
+        place_bombs(bomb, board, cfg.bomb_density, ttl, cand_seed ^ 0xb0dbcafeu);  // 同 seed 同布点，赋宽裕倒计时
+        final.bomb = bomb;
+        final.objectives = {{OBJ_DEFUSE_BOMB, -1, 1}};
+
+        // 二分上界：smart_greedy 全力拆(带紧迫度牵引)实测平均能拆几个【不爆】（目标导向天花板）
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level pr = final;
+            pr.seed = cand_seed + (uint32_t)t * 1000003u;
+            pr.objectives = {{OBJ_DEFUSE_BOMB, -1, BIG}};  // 大目标 → 走满步、最大化拆弹
+            PlayResult sp = smart_greedy_play(pr);
+            gd += sp.bomb_defused;
+        }
+        gd /= cfg.trials;
+        int lo = 1, hi = (int)gd + 1;
+        if (hi < lo) continue;   // 天花板一个都拆不动（倒计时仍太紧）→ 弃此盘
+
+        // 二分 target 命中难度带（pass 随 target 单调递减）
+        int found = -1;
+        LevelEval fe;
+        int a = lo, b = hi;
+        for (int it = 0; it < 9 && a <= b; ++it) {
+            int mid = a + (b - a) / 2;
+            set_level_target(final, mid);
+            LevelEval e = evaluate_level(final, cfg.trials);
+            if (e.skilled_pass_rate > band.ph) a = mid + 1;       // 太易 → 提高 target
+            else if (e.skilled_pass_rate < band.pl) b = mid - 1;   // 太难 → 降低 target
+            else { found = mid; fe = e; break; }
+        }
+        if (found < 0) continue;
+        set_level_target(final, found);
+        double rhythm = rhythm_quality(objective_progress_curve(final));
+
+        GeneratedLevel gl;
+        gl.level = final;
+        gl.floor_score = fe.floor_score;
+        gl.ceil_score = fe.ceil_score;
+        gl.lfhc_gap = fe.lfhc_gap;
+        gl.skilled_pass = fe.skilled_pass_rate;
+        gl.rhythm = rhythm;
+        gl.difficulty = band.name;
+        out.push_back(gl);
+    }
+    return out;
 }
 
 // ---- FI2Pop：可行-不可行双种群遗传生成（09 §2.3）----

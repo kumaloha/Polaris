@@ -255,7 +255,7 @@ inline void reshuffle(Grid& g, std::mt19937& rng,
 
 }  // namespace gen_choco
 
-enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY, OBJ_CLEAR_BLOCKER, OBJ_CLEAR_CHOCO, OBJ_COLLECT_INGREDIENT };
+enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY, OBJ_CLEAR_BLOCKER, OBJ_CLEAR_CHOCO, OBJ_COLLECT_INGREDIENT, OBJ_DEFUSE_BOMB };
 
 struct Objective {
     ObjType type = OBJ_SCORE;
@@ -275,6 +275,7 @@ struct Level {
     std::vector<std::vector<int>> choco;        // 巧克力层（蔓延压力源，choco[y][x]=1=巧克力格，可选）
     std::vector<std::vector<int>> ing;          // 原料层（运料关，ing[y][x]=1=原料格，随重力下落、不可消不可换，可选）
     std::vector<int> exit_cols;                 // 出口列（运料关，物理最底行这些列为出口，原料沉到出口被收集）
+    std::vector<std::vector<int>> bomb;         // 炸弹层（倒计时炸弹关，bomb[y][x]=N=该格剩余 N 步倒计时，0=无炸弹，可选）
     bool is_scrolling = false;                  // 滚动/挖矿关：胜利=挖穿 feed（非分数/目标）
     std::vector<std::deque<int>> feed;          // 每列预设补充队列（长盘深层内容，refill 从前端出）
 };
@@ -288,7 +289,7 @@ inline void accumulate(std::vector<int>& acc, const std::vector<int>& add) {
 // 是否过关：objectives 为空 → 旧式 score>=target_score；否则全部目标满足。
 inline bool objectives_met(const Level& lv, int score, const std::vector<int>& collected,
                            int jelly_cleared = 0, int blocker_cleared = 0, int choco_cleared = 0,
-                           int ingredient_collected = 0) {
+                           int ingredient_collected = 0, int bomb_defused = 0) {
     if (lv.objectives.empty())
         return score >= lv.target_score;
     for (const auto& o : lv.objectives) {
@@ -305,6 +306,8 @@ inline bool objectives_met(const Level& lv, int score, const std::vector<int>& c
             if (choco_cleared < o.target) return false;
         } else if (o.type == OBJ_COLLECT_INGREDIENT) {
             if (ingredient_collected < o.target) return false;
+        } else if (o.type == OBJ_DEFUSE_BOMB) {
+            if (bomb_defused < o.target) return false;  // 拆够 N 个炸弹（"全程无爆"铁律由 play_bomb 的 won 另判）
         }
     }
     return true;
@@ -353,6 +356,8 @@ struct PlayResult {
     int blocker_cleared = 0;     // 累计破掉的涂层(冰/锁)层
     int choco_cleared = 0;       // 累计啃掉的巧克力格
     int ingredient_collected = 0;  // 累计落到出口被收的原料数（运料关）
+    int bomb_defused = 0;        // 累计因消除而拆掉的炸弹数（炸弹关）
+    bool bomb_exploded = false;  // 是否有炸弹倒计时归零引爆（炸弹关：任一爆 → 本局判负）
     std::vector<int> collected;  // 各 species 累计消除数
     std::vector<int> solspace_curve;  // 每步"能产生消除的有效交换数"（局内节奏）
 };
@@ -585,6 +590,59 @@ inline bool move_progresses_ingredient(const IngResolveResult& rr, const Level& 
     return false;
 }
 
+// ───────────── 倒计时炸弹关：标定辅助（紧迫度激励让裸 Core 画像玩家会主动拆弹）─────────────
+// 命门：炸弹关进度信号天然稀疏（拆弹=消除炸弹格才计 bomb_defused），且裸 Core 玩家无"拆弹"动机——
+//   贪心/画像只追分数/目标，会无视炸弹格 → 倒计时一路递减 → 必有炸弹归零引爆 → pass≡0（标不出可解关）。
+//   故仿运料下沉势能加"紧迫度势能"：盘上每个存活炸弹按 (CAP - 倒计时) 计势能（倒计时越低势能越高=越该先拆）。
+//   候选评估里【减去】结算后的残留紧迫势能 → 消掉炸弹(尤其将爆的低倒计时格)使势能骤降 = 该步价值升高，
+//   于是画像玩家被牵引去优先消除快爆的炸弹格。权重远小于"拆一个"(value W=100)：拆净收益恒正，不会卡着不拆。
+inline double bomb_urgency_bonus(const std::vector<std::vector<int>>& bomb) {
+    if (bomb.empty()) return 0.0;
+    const double CAP = 12.0;  // 紧迫度封顶：倒计时 >= CAP 的炸弹视作"还不急"(势能 0)
+    double pot = 0.0;
+    for (const auto& row : bomb)
+        for (int v : row)
+            if (v > 0) {
+                double ttl = (v < (int)CAP) ? (double)v : CAP;
+                pot += (CAP - ttl);  // 倒计时越低 → 势能越高 → 越该先消掉它
+            }
+    return 2.0 * pot;
+}
+
+// 一步交换的"价值"（炸弹关）：OBJ_DEFUSE_BOMB → 本步拆掉的炸弹数×W；其余目标同 move_value 口径。
+inline double move_value_bomb(const BombResolveResult& rr, const Level& lv) {
+    if (lv.objectives.empty()) return (double)rr.score;
+    const double W = 100.0;
+    double v = 0.0;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE) v += rr.score;
+        else if (o.type == OBJ_COLLECT) {
+            int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+            v += W * g;
+        } else if (o.type == OBJ_CLEAR_JELLY) v += W * rr.jelly_cleared;
+        else if (o.type == OBJ_CLEAR_BLOCKER) v += W * rr.blocker_cleared;
+        else if (o.type == OBJ_DEFUSE_BOMB) v += W * rr.bomb_defused;
+    }
+    v += 0.01 * rr.score;
+    return v;
+}
+
+// 一步是否"推进炸弹目标"（炸弹关 progress 曲线用）。
+inline bool move_progresses_bomb(const BombResolveResult& rr, const Level& lv) {
+    if (lv.objectives.empty()) return rr.cleared > 0;
+    for (const auto& o : lv.objectives) {
+        if (o.type == OBJ_SCORE && rr.score > 0) return true;
+        if (o.type == OBJ_COLLECT) {
+            int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+            if (g > 0) return true;
+        }
+        if (o.type == OBJ_CLEAR_JELLY && rr.jelly_cleared > 0) return true;
+        if (o.type == OBJ_CLEAR_BLOCKER && rr.blocker_cleared > 0) return true;
+        if (o.type == OBJ_DEFUSE_BOMB && rr.bomb_defused > 0) return true;
+    }
+    return false;
+}
+
 // ───────────── choco 关统一玩家循环（5 类玩家共享回合骨架，选步策略由 value_fn 注入）─────────────
 // 镜像 board.gd：换子 → resolve_choco(整步啃食) → 整步零啃食则 spread_chocolate 蔓延一格 → 死局 choco 感知洗牌。
 // value_fn(ChocoResolveResult, Level) → 该步价值；record_curve=true 时记录"能推进目标的交换数"曲线。
@@ -702,8 +760,78 @@ inline PlayResult play_ingredient(const Level& lv, ValueFn value_fn, bool record
     return res;
 }
 
+// ───────────── 倒计时炸弹关统一玩家循环（各类玩家共享回合骨架，选步策略由 value_fn 注入）─────────────
+// 镜像 board.gd 回合顺序：换子 → resolve_bomb(消除→拆弹 bomb_defused→炸弹随重力落) → tick_bombs(存活 -1，
+//   某格归零未消即引爆→本局立即判负) → 死局洗牌续玩。炸弹格是普通棋子(不切段/不阻断匹配/交换)，
+//   故枚举/洗牌用基础 legal_moves/reshuffle(仅 coat 感知；bomb 不感知)，与 match_engine 注释一致。
+//   value_fn(BombResolveResult, Level) → 该步价值（已含 move_value_bomb 的拆弹权重）；
+//   候选循环额外【减去】结算后残留紧迫势能(bomb_urgency_bonus)→ 牵引玩家优先消除快爆的炸弹格。
+//   胜利铁律：全程无引爆(!bomb_exploded) 且 拆够目标数(objectives_met 的 OBJ_DEFUSE_BOMB)。
+template <typename ValueFn>
+inline PlayResult play_bomb(const Level& lv, ValueFn value_fn, bool record_curve) {
+    Grid g = lv.init_board;
+    std::mt19937 rng(lv.seed);
+    PlayResult res;
+    std::vector<int> collected;
+    std::vector<std::vector<int>> jelly = lv.jelly;
+    std::vector<std::vector<int>> coat = lv.coat;
+    std::vector<std::vector<int>> bomb = lv.bomb;
+    int jelly_total = 0, blocker_total = 0, bomb_total = 0;
+    auto coatp = [&]() { return coat.empty() ? nullptr : &coat; };
+    while (res.moves_used < lv.move_limit
+           && !objectives_met(lv, res.score, collected, jelly_total, blocker_total, 0, 0, bomb_total)) {
+        auto moves = legal_moves(g, coatp());
+        if (moves.empty()) {  // 死局：coat 感知洗牌续玩（炸弹不感知枚举/洗牌）
+            reshuffle(g, rng, coatp());
+            moves = legal_moves(g, coatp());
+            if (moves.empty()) break;
+        }
+        if (record_curve) res.solspace_curve.push_back((int)moves.size());
+        double best_v = -1e18;
+        Move best = moves[0];
+        for (const auto& m : moves) {
+            Grid gc = g;
+            std::mt19937 rc = rng;
+            std::vector<std::vector<int>> jc = jelly, cc = coat, bc = bomb;
+            swap_cells(gc, m.a, m.b);
+            BombResolveResult rr = resolve_bomb(
+                gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
+                bc.empty() ? nullptr : &bc, nullptr, true);
+            // 拆弹价值 − 结算后残留紧迫势能（消掉快爆炸弹使势能骤降 → 该步价值高 → 优先拆将爆的）
+            double v = value_fn(rr, lv) - bomb_urgency_bonus(bc);
+            if (v > best_v) { best_v = v; best = m; }
+        }
+        swap_cells(g, best.a, best.b);
+        BombResolveResult rr = resolve_bomb(
+            g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
+            bomb.empty() ? nullptr : &bomb, nullptr, true);
+        res.score += rr.score;
+        accumulate(collected, rr.by_species);
+        jelly_total += rr.jelly_cleared;
+        blocker_total += rr.blocker_cleared;
+        bomb_total += rr.bomb_defused;
+        res.moves_used++;
+        // 有效交换消耗一步 → 存活炸弹倒计时 -1；某格归零未消即引爆 → 立即判负（镜像 _tick_bombs_after_move + is_over）
+        if (!bomb.empty() && tick_bombs(bomb) > 0) {
+            res.bomb_exploded = true;
+            break;
+        }
+    }
+    res.collected = collected;
+    res.jelly_cleared = jelly_total;
+    res.blocker_cleared = blocker_total;
+    res.bomb_defused = bomb_total;
+    // 胜利：全程无引爆 且 拆够目标数（任一炸弹爆 → 直接判负，核心张力）
+    res.won = !res.bomb_exploded
+              && objectives_met(lv, res.score, collected, jelly_total, blocker_total, 0, 0, bomb_total);
+    return res;
+}
+
 // 贪心玩家：每步选"立即得分最高"的交换。代表不规划的休闲玩家=地板。
 inline PlayResult greedy_play(const Level& lv) {
+    if (!lv.bomb.empty())  // 炸弹关：走 bomb 回合骨架，选步仍按立即分数（休闲玩家=地板，不主动拆弹→炸弹多半爆）
+        return play_bomb(lv, [](const BombResolveResult& rr, const Level&) {
+            return (double)rr.score; }, false);
     if (!lv.ing.empty())  // 运料关：走 ing 回合骨架，选步仍按立即分数（休闲玩家=地板，不主动运料）
         return play_ingredient(lv, [](const IngResolveResult& rr, const Level&) {
             return (double)rr.score; }, false);
@@ -767,6 +895,8 @@ inline PlayResult greedy_play(const Level& lv) {
 // 目标感知贪心：每步选"朝目标推进最多"的交换（move_value），而非最大分。
 // 这是真正"会玩这关的高手" = 可信天花板。候选评估带 jelly/coat 拷贝以量出目标进度。
 inline PlayResult smart_greedy_play(const Level& lv) {
+    if (!lv.bomb.empty())  // 炸弹关：bomb 回合骨架 + 目标感知选步（DEFUSE_BOMB 追拆弹 + 紧迫度优先拆将爆的）
+        return play_bomb(lv, move_value_bomb, true);
     if (!lv.ing.empty())  // 运料关：ing 回合骨架 + 目标感知选步（COLLECT_INGREDIENT 追运料下沉收集）
         return play_ingredient(lv, move_value_ingredient, true);
     if (!lv.choco.empty())  // 巧克力关：choco 回合骨架 + 目标感知选步（CLEAR_CHOCO 追啃食）
@@ -831,6 +961,43 @@ inline PlayResult smart_greedy_play(const Level& lv) {
 
 // 随机玩家：每步随便选一个合法交换。真正的"无脑休闲玩家" = 地板下沿。
 inline PlayResult random_play(const Level& lv) {
+    if (!lv.bomb.empty()) {  // 炸弹关：随机选步 + bomb 回合（地板下沿，不主动拆弹→炸弹基本全爆）
+        Grid g = lv.init_board;
+        std::mt19937 rng(lv.seed);
+        PlayResult res;
+        std::vector<int> collected;
+        std::vector<std::vector<int>> jelly = lv.jelly, coat = lv.coat, bomb = lv.bomb;
+        int jelly_total = 0, blocker_total = 0, bomb_total = 0;
+        auto coatp = [&]() { return coat.empty() ? nullptr : &coat; };
+        while (res.moves_used < lv.move_limit
+               && !objectives_met(lv, res.score, collected, jelly_total, blocker_total, 0, 0, bomb_total)) {
+            auto moves = legal_moves(g, coatp());
+            if (moves.empty()) {
+                reshuffle(g, rng, coatp());
+                moves = legal_moves(g, coatp());
+                if (moves.empty()) break;
+            }
+            Move m = moves[rng() % moves.size()];
+            swap_cells(g, m.a, m.b);
+            BombResolveResult rr = resolve_bomb(
+                g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
+                bomb.empty() ? nullptr : &bomb, nullptr, true);
+            res.score += rr.score;
+            accumulate(collected, rr.by_species);
+            jelly_total += rr.jelly_cleared;
+            blocker_total += rr.blocker_cleared;
+            bomb_total += rr.bomb_defused;
+            res.moves_used++;
+            if (!bomb.empty() && tick_bombs(bomb) > 0) { res.bomb_exploded = true; break; }
+        }
+        res.collected = collected;
+        res.jelly_cleared = jelly_total;
+        res.blocker_cleared = blocker_total;
+        res.bomb_defused = bomb_total;
+        res.won = !res.bomb_exploded
+                  && objectives_met(lv, res.score, collected, jelly_total, blocker_total, 0, 0, bomb_total);
+        return res;
+    }
     if (!lv.ing.empty()) {  // 运料关：ing 回合骨架 + 随机选步（地板代言人，靠运气运料）
         Grid g = lv.init_board;
         std::mt19937 rng(lv.seed);
@@ -975,6 +1142,20 @@ inline double heuristic_value(const ResolveResult& rr, const Level& lv, const He
 
 // 按某画像玩一局（结构同 smart_greedy，选步用 heuristic_value(., h)）。
 inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
+    if (!lv.bomb.empty())  // 炸弹关：bomb 回合骨架 + 画像选步（目标进度含 bomb_defused；紧迫度牵引由 play_bomb 统一注入）
+        return play_bomb(lv, [&h](const BombResolveResult& rr, const Level& l) {
+            double prog = 0.0;
+            for (const auto& o : l.objectives) {
+                if (o.type == OBJ_SCORE) prog += rr.score / 100.0;
+                else if (o.type == OBJ_COLLECT) {
+                    int g = (o.species >= 0 && o.species < (int)rr.by_species.size()) ? rr.by_species[o.species] : 0;
+                    prog += g;
+                } else if (o.type == OBJ_CLEAR_JELLY) prog += rr.jelly_cleared;
+                else if (o.type == OBJ_CLEAR_BLOCKER) prog += rr.blocker_cleared;
+                else if (o.type == OBJ_DEFUSE_BOMB) prog += rr.bomb_defused;
+            }
+            return h.w_obj * prog + h.w_score * (double)rr.score + h.w_cascade * (double)rr.cascades;
+        }, true);
     if (!lv.ing.empty())  // 运料关：ing 回合骨架 + 画像选步（目标进度含 ingredient_collected）
         return play_ingredient(lv, [&h](const IngResolveResult& rr, const Level& l) {
             double prog = 0.0;
@@ -1187,6 +1368,55 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
             if (!choco.empty() && rr.choco_cleared == 0)
                 gen_choco::spread_chocolate(choco, g, rng);
             moves_used++;
+        }
+        return curve;
+    }
+    if (!lv.bomb.empty()) {  // 炸弹关：rusher 选步(紧迫度牵引)，记录每步"能推进拆弹目标的交换数"
+        Grid g = lv.init_board;
+        std::mt19937 rng(lv.seed);
+        std::vector<int> collected;
+        std::vector<std::vector<int>> jelly = lv.jelly, coat = lv.coat, bomb = lv.bomb;
+        int jelly_total = 0, blocker_total = 0, bomb_total = 0, score = 0, moves_used = 0;
+        std::vector<int> curve;
+        auto coatp = [&]() { return coat.empty() ? nullptr : &coat; };
+        while (moves_used < lv.move_limit
+               && !objectives_met(lv, score, collected, jelly_total, blocker_total, 0, 0, bomb_total)) {
+            auto moves = legal_moves(g, coatp());
+            if (moves.empty()) {
+                reshuffle(g, rng, coatp());
+                moves = legal_moves(g, coatp());
+                if (moves.empty()) break;
+            }
+            int prog = 0;
+            double best_v = -1e18;
+            Move best = moves[0];
+            for (const auto& m : moves) {
+                Grid gc = g;
+                std::mt19937 rc = rng;
+                std::vector<std::vector<int>> jc = jelly, cc = coat, bc = bomb;
+                swap_cells(gc, m.a, m.b);
+                BombResolveResult rr = resolve_bomb(
+                    gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
+                    bc.empty() ? nullptr : &bc, nullptr, true);
+                if (move_progresses_bomb(rr, lv)) prog++;
+                double prog_h = 0.0;
+                for (const auto& o : lv.objectives)
+                    if (o.type == OBJ_DEFUSE_BOMB) prog_h += rr.bomb_defused;
+                double v = h.w_obj * prog_h + h.w_score * (double)rr.score - bomb_urgency_bonus(bc);
+                if (v > best_v) { best_v = v; best = m; }
+            }
+            curve.push_back(prog);
+            swap_cells(g, best.a, best.b);
+            BombResolveResult rr = resolve_bomb(
+                g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
+                bomb.empty() ? nullptr : &bomb, nullptr, true);
+            score += rr.score;
+            accumulate(collected, rr.by_species);
+            jelly_total += rr.jelly_cleared;
+            blocker_total += rr.blocker_cleared;
+            bomb_total += rr.bomb_defused;
+            moves_used++;
+            if (!bomb.empty() && tick_bombs(bomb) > 0) break;  // 引爆 → 局终
         }
         return curve;
     }

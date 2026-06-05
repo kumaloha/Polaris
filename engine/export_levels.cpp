@@ -62,6 +62,7 @@ static const char* obj_type_str(ObjType t) {
         case OBJ_CLEAR_BLOCKER: return "CLEAR_BLOCKER";
         case OBJ_CLEAR_CHOCO: return "CLEAR_CHOCO";
         case OBJ_COLLECT_INGREDIENT: return "COLLECT_INGREDIENT";
+        case OBJ_DEFUSE_BOMB: return "DEFUSE_BOMB";
         default: return "SCORE";
     }
 }
@@ -94,6 +95,7 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     o << "\"choco\":" << grid_json(lv.choco) << ",";
     o << "\"ing\":" << grid_json(lv.ing) << ",";          // 运料关原料层(非运料关=空[])
     o << "\"exits\":" << int_vec_json(lv.exit_cols) << ",";  // 运料关出口列号数组(非运料关=空[])
+    o << "\"bomb\":" << grid_json(lv.bomb) << ",";        // 炸弹关倒计时层(非炸弹关=空[]；bomb[y][x]=剩余步数)
     o << "\"difficulty\":\"" << gl.difficulty << "\",";
     o << "\"lfhc_gap\":" << gl.lfhc_gap << ",";
     o << "\"skilled_pass\":" << gl.skilled_pass;
@@ -229,6 +231,26 @@ int main(int argc, char** argv) {
         if (!gl.level.ing.empty()) levels.push_back(gl);  // 防御：极端凑不出可用盘时跳过(几乎不发生)
     }
 
+    // 炸弹关：每档 per_band 关（OBJ_DEFUSE_BOMB：限步内拆够 N 个倒计时炸弹且全程不爆）。撒倒计时炸弹 +
+    // 二分 target 校准难度。倒计时给宽(留拆弹窗口)，紧迫度激励让画像玩家主动拆将爆的弹→可解关标得出。
+    // 与其它档同盘维度(9×9/10/11)、不同 seed 流。三档全部【并行】生成。
+    DiffBand bbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<std::vector<GeneratedLevel>>> bfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        GenConfig c = cfg;
+        c.h = 9 + bi;                                       // 各档盘高 9/10/11
+        c.base_seed = 660000u + (uint32_t)bi * 2654435761u; // 各档不同盘流
+        c.bomb_density = 0.12;                              // 普通棋子格 ~12% 撒炸弹
+        c.min_bomb = 3;
+        DiffBand band = bbands[bi];
+        bfuts.push_back(std::async(std::launch::async, [c, band, per_band]() {
+            return generate_bomb_for_difficulty(c, band, per_band, 800);
+        }));
+    }
+    for (auto& f : bfuts)
+        for (auto& gl : f.get())
+            levels.push_back(gl);
+
     std::ostringstream o;
     o << "{\"levels\":[";
     for (size_t i = 0; i < levels.size(); ++i) {
@@ -260,6 +282,12 @@ int main(int argc, char** argv) {
             int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
             std::fprintf(stderr, "  lvl_%zu: [ING] diff=%s pass=%.2f target=%d initial_ing=%d exits=%zu moves=%d\n",
                          i, levels[i].difficulty, levels[i].skilled_pass, tgt, ic, lv.exit_cols.size(), lv.move_limit);
+        } else if (!lv.bomb.empty()) {
+            int bc = 0, ttl = 0;
+            for (const auto& row : lv.bomb) for (int v : row) if (v > 0) { bc++; ttl = v; }
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [BOMB] diff=%s pass=%.2f target=%d bombs=%d ttl=%d moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, bc, ttl, lv.move_limit);
         } else {
             std::fprintf(stderr, "  lvl_%zu: diff=%s pass=%.2f gap=%.2f objs=%zu\n",
                          i, levels[i].difficulty, levels[i].skilled_pass,

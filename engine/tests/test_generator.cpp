@@ -208,11 +208,78 @@ static void test_generate_ingredient_difficulty() {
                 hard.skilled_pass, hard.level.objectives[0].target);
 }
 
+// 倒计时炸弹关生成：按难度带产 OBJ_DEFUSE_BOMB 关，带初始炸弹层(倒计时) + 标定分化 + 可解 + 确定性。
+//   命门验证：裸 Core 玩家无拆弹动机，靠 play_bomb 的"紧迫度激励"牵引才会主动拆将爆的弹。故核心断言 =
+//   "目标导向天花板(smart_greedy)能在不爆前提下拆够 target"——证明标定真产出可解炸弹关(而非 pass≡0 的死关)。
+static void test_generate_bomb_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.bomb_density = 0.12; cfg.min_bomb = 3;
+
+    auto easy = generate_bomb_for_difficulty(cfg, band_easy(), 2, 600);
+    CHECK(!easy.empty(), "produced EASY bomb levels on request");
+    for (const auto& gl : easy) {
+        CHECK(!gl.level.bomb.empty(), "BOMB level carries a bomb (countdown) layer");
+        CHECK_EQ((int)gl.level.objectives.size(), 1, "exactly one objective");
+        CHECK(gl.level.objectives[0].type == OBJ_DEFUSE_BOMB, "objective is DEFUSE_BOMB");
+        CHECK(gl.level.objectives[0].target >= 1, "bomb target >= 1");
+        int init_bomb = 0, max_ttl = 0;
+        for (const auto& row : gl.level.bomb)
+            for (int v : row) if (v > 0) { init_bomb++; if (v > max_ttl) max_ttl = v; }
+        CHECK(init_bomb >= cfg.min_bomb, "initial bomb count >= min_bomb");
+        CHECK(max_ttl > 0, "bombs carry a positive countdown");
+        CHECK(gl.level.move_limit > 0, "BOMB level has positive move_limit");
+        CHECK(gl.skilled_pass > 0.0, "BOMB level is solvable by the goal-directed ceiling (pass>0)");
+        CHECK(gl.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+        CHECK(std::string(gl.difficulty) == "EASY", "labeled EASY");
+        CHECK_EQ((int)gl.level.bomb.size(), (int)gl.level.init_board.size(), "bomb layer height matches board");
+        // 可解性铁证：目标导向天花板至少一次"拆够 target 且全程不爆"地赢下来（否则=不可解死关）。
+        bool any_clean_win = false;
+        for (int t = 0; t < 12 && !any_clean_win; ++t) {
+            Level lv = gl.level;
+            lv.seed = gl.level.seed + (uint32_t)t * 1000003u;
+            PlayResult sp = smart_greedy_play(lv);
+            if (sp.won && !sp.bomb_exploded && sp.bomb_defused >= gl.level.objectives[0].target)
+                any_clean_win = true;
+        }
+        CHECK(any_clean_win, "ceiling can defuse target bombs without any explosion (real solvability)");
+    }
+
+    auto hard = generate_bomb_for_difficulty(cfg, band_hard(), 2, 600);
+    CHECK(!hard.empty(), "produced HARD bomb levels on request");
+    for (const auto& gl : hard) {
+        CHECK(gl.level.objectives[0].type == OBJ_DEFUSE_BOMB, "HARD objective is DEFUSE_BOMB");
+        CHECK(gl.skilled_pass >= 0.1 - 1e-9 && gl.skilled_pass <= 0.4 + 1e-9, "HARD: skilled_pass in [0.1,0.4]");
+    }
+    // 标定分化：EASY 通过率应 >= HARD（同旋钮二分，target 越高越难）。
+    if (!easy.empty() && !hard.empty())
+        CHECK(easy[0].skilled_pass >= hard[0].skilled_pass - 1e-9, "EASY pass >= HARD pass (difficulty separates)");
+
+    // 确定性：同配置两次生成 → 同 target + 同 pass。
+    auto a = generate_bomb_for_difficulty(cfg, band_medium(), 1, 600);
+    auto b = generate_bomb_for_difficulty(cfg, band_medium(), 1, 600);
+    CHECK(a.size() == b.size(), "bomb gen deterministic count");
+    if (!a.empty() && !b.empty()) {
+        CHECK_EQ(a[0].level.objectives[0].target, b[0].level.objectives[0].target, "bomb gen deterministic target");
+        CHECK(a[0].skilled_pass == b[0].skilled_pass, "bomb gen deterministic pass");
+    }
+
+    if (!easy.empty()) {
+        int ib = 0, ttl = 0;
+        for (const auto& row : easy[0].level.bomb) for (int v : row) if (v > 0) { ib++; ttl = v; }
+        std::printf("  [gen-bomb] EASY kept=%d pass=%.2f target=%d bombs=%d ttl=%d moves=%d | HARD kept=%d pass=%.2f\n",
+                    (int)easy.size(), easy[0].skilled_pass, easy[0].level.objectives[0].target, ib, ttl,
+                    easy[0].level.move_limit, (int)hard.size(), hard.empty() ? -1.0 : hard[0].skilled_pass);
+    }
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
     test_generate_choco_difficulty();
     test_generate_ingredient_difficulty();
+    test_generate_bomb_difficulty();
     test_fi2pop();
     test_generate_deterministic();
     test_generate_scroll_difficulty();
