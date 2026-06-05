@@ -200,6 +200,134 @@ func test_cake_big_blast_count_is_destroyed() -> void:
 	assert_eq(ME.count_cakes(cake), 1, "one cake remains after the other is destroyed")
 
 
+# ───────────── 断言⑦(回归)：蛋糕引爆/大爆炸波及爆米花 → 当作特效命中(-1/归0变彩球)，不被跳过 ─────────────
+# 此前的真 bug：蛋糕引爆/大爆炸新卷入的爆米花格被 continue 直接跳过——既不 _hit_popcorn 递减、也不计 popcorn_hit。
+# 后果：蛋糕成了唯一打不动爆米花的特效（条纹/爆炸/彩球都能命中），违反"大爆炸最猛"，且漏算 POP_POPCORN。
+# 修复后：蛋糕引爆波及的爆米花格命中行为应与条纹/爆炸/彩球命中爆米花完全一致。
+# 用直清路径(account_clears 返回 cake_blast)隔离单次、坐标稳定，且把爆米花放在【只能被蛋糕引爆波及、不在原始清除集】的格 → 精确锁定本 bug。
+
+func test_cake_ring_blast_hits_popcorn_decrements() -> void:
+	# 蛋糕在 (2,2) 血量 2，清其正上邻 (2,1) → cake-1(→1,存活) + 引爆 3x3 (x∈[1,3],y∈[1,3])。
+	# 爆米花放 (1,1)(3x3 角，popcorn=3)：它【不在】原始清除集 cells=[(2,1)]，仅被蛋糕引爆波及 → 命中 -1(3→2)、不清空。
+	var W := ME.WALL
+	var grid := [
+		[9, 8, 7, 6, 5],
+		[1, 5, 6, 7, 4],   # (1,1)=5 爆米花占位（3x3 角）
+		[2, 6, W, 5, 3],   # (2,2)=蛋糕墙；正上邻 (2,1) 在 cells 里
+		[3, 7, 1, 5, 2],
+		[4, 8, 2, 6, 1],
+	]
+	var fx := _none_fx(5, 5)
+	var cake := _blank(5, 5)
+	cake[2][2] = 2
+	var pop := _blank(5, 5)
+	pop[1][1] = 3   # 爆米花在 3x3 引爆角，剩 3 次命中
+	# 直清集仅含蛋糕正上邻 (2,1)（普通格）→ 蛋糕受击 -1 → 引爆 3x3，波及 (1,1) 爆米花。
+	# 关键：(1,1) 不在 cells，故首轮 _hit_popcorn(对 cleared_set={(2,1)}) 不会命中它——只有蛋糕引爆分支会。
+	var acc := ME.account_clears(grid, [Vector2i(2, 1)], fx, null, [], {"cake": cake, "popcorn": pop})
+	assert_eq(cake[2][2], 1, "cake lost 1 HP from the adjacent cleared cell (2 -> 1, still alive)")
+	assert_eq(acc.get("cake_destroyed", -1), 0, "cake alive (HP 1) -> not destroyed")
+	# 核心断言：蛋糕引爆波及的爆米花被当作特效命中 -1（修复前会被 continue 跳过，pop 仍 3、popcorn_hit=0）。
+	assert_eq(acc.get("popcorn_hit", -1), 1, "cake ring blast hit the popcorn exactly once (was skipped before the fix)")
+	assert_eq(pop[1][1], 2, "popcorn decremented from 3 to 2 by the cake ring blast (NOT cleared)")
+	assert_eq(ME.count_popcorn(pop), 1, "popcorn still on board (hit, not destroyed)")
+	# 爆米花格不被引爆直清：grid species 保留、不进 cake_blast（清除集）。
+	assert_eq(grid[1][1], 5, "popcorn-covered tile NOT cleared by the cake blast (species 5 preserved)")
+	var blast := {}
+	for bp in acc.get("cake_blast", []):
+		blast[bp] = true
+	assert_false(blast.has(Vector2i(1, 1)), "popcorn cell is NOT in the cake_blast clear set (only hit, not cleared)")
+
+func test_cake_big_blast_hits_popcorn_converts_to_colorbomb() -> void:
+	# 蛋糕在 (2,2) 血量 1，清其正下邻 (2,3) → cake 归0 → 移除(WALL→EMPTY) + 大爆炸 5x5(全盘普通格)。
+	# 爆米花放 (0,0)(popcorn=1，在 5x5 内但不在 cells)：被大爆炸波及 → 命中归0 → 变彩球(fx=SP_COLORBOMB)、不清空。
+	var W := ME.WALL
+	var grid := [
+		[5, 1, 2, 3, 4],   # (0,0)=5 爆米花占位（5x5 角）
+		[6, 7, 8, 1, 2],
+		[1, 2, W, 3, 4],   # (2,2)=蛋糕墙，血量 1；正下邻 (2,3) 在 cells
+		[5, 6, 7, 8, 1],
+		[2, 3, 4, 5, 6],
+	]
+	var fx := _none_fx(5, 5)
+	var cake := _blank(5, 5)
+	cake[2][2] = 1
+	var pop := _blank(5, 5)
+	pop[0][0] = 1   # 爆米花剩 1 次命中 → 这次大爆炸命中即归0变彩球
+	# 直清集仅含蛋糕正下邻 (2,3) → 蛋糕归0 → 5x5 大爆炸波及 (0,0) 爆米花。
+	# (0,0) 不在 cells，首轮 _hit_popcorn 不命中它——只有大爆炸分支会。
+	var acc := ME.account_clears(grid, [Vector2i(2, 3)], fx, null, [], {"cake": cake, "popcorn": pop})
+	assert_eq(cake[2][2], 0, "cake HP reached 0 (destroyed)")
+	assert_eq(acc.get("cake_destroyed", -1), 1, "exactly one cake destroyed")
+	assert_eq(grid[2][2], ME.EMPTY, "destroyed cake removed: WALL -> EMPTY")
+	# 核心断言：大爆炸波及的爆米花被当作特效命中、归0变彩球（修复前会被 continue 跳过 → pop 仍 1、无彩球）。
+	assert_eq(acc.get("popcorn_hit", -1), 1, "cake big blast hit the popcorn once (was skipped before the fix)")
+	assert_eq(pop[0][0], 0, "popcorn reached 0 from the cake big blast")
+	assert_eq(fx[0][0], ME.SP_COLORBOMB, "popcorn converted to a color bomb in place (fx=SP_COLORBOMB)")
+	assert_eq(grid[0][0], 5, "grid species preserved as the color bomb's base (still 5)")
+	assert_eq(ME.count_popcorn(pop), 0, "popcorn gone (converted to color bomb)")
+	# 爆米花格不并入 cake_blast（不被清空，它变彩球了）。
+	var blast := {}
+	for bp in acc.get("cake_blast", []):
+		blast[bp] = true
+	assert_false(blast.has(Vector2i(0, 0)), "converted popcorn cell is NOT in cake_blast (not cleared)")
+
+func test_cake_blast_popcorn_hit_counts_for_objective() -> void:
+	# POP_POPCORN 计数正确含蛋糕命中：一次大爆炸同时波及【两个】各剩 1 次的爆米花 → popcorn_hit=2（两个都归0变彩球）。
+	# 验证蛋糕引爆贡献的命中数确实计入返回的 popcorn_hit（board 据此推进 POP_POPCORN 目标）。
+	var W := ME.WALL
+	var grid := [
+		[5, 1, 2, 3, 6],   # (0,0) 与 (4,0) 两个爆米花占位（均在 5x5 内、均不在 cells）
+		[6, 7, 8, 1, 2],
+		[1, 2, W, 3, 4],   # (2,2)=蛋糕墙血量 1；正下邻 (2,3) 在 cells
+		[5, 6, 7, 8, 1],
+		[2, 3, 4, 5, 6],
+	]
+	var fx := _none_fx(5, 5)
+	var cake := _blank(5, 5)
+	cake[2][2] = 1
+	var pop := _blank(5, 5)
+	pop[0][0] = 1   # 爆米花 A，剩 1 次
+	pop[0][4] = 1   # 爆米花 B，剩 1 次（5x5 另一角）
+	var acc := ME.account_clears(grid, [Vector2i(2, 3)], fx, null, [], {"cake": cake, "popcorn": pop})
+	assert_eq(acc.get("cake_destroyed", -1), 1, "cake destroyed by the adjacent clear")
+	# 核心断言：两个爆米花都被大爆炸命中 → popcorn_hit=2（修复前为 0，POP_POPCORN 漏算）。
+	assert_eq(acc.get("popcorn_hit", -1), 2, "big blast hit BOTH popcorn cells -> popcorn_hit counts 2 for POP_POPCORN")
+	assert_eq(ME.count_popcorn(pop), 0, "both popcorn cells converted (count 0)")
+	var cb := 0
+	for y in 5:
+		for x in 5:
+			if fx[y][x] == ME.SP_COLORBOMB:
+				cb += 1
+	assert_eq(cb, 2, "both popcorn cells became color bombs (2x SP_COLORBOMB)")
+
+func test_cake_blast_popcorn_via_resolve_fx_path() -> void:
+	# 同样的修复也覆盖 resolve 的特效路径(_resolve_fx)：用条纹触发蛋糕受击，引爆波及爆米花 → 命中 -1。
+	# 列0 三连 8,8,8 触发 (0,0) 条纹清行0；行0 的 (3,0) 是蛋糕(3,1) 的正上邻 → 蛋糕受击 -1 + 引爆 3x3。
+	# 爆米花放 (4,2)：是蛋糕(3,1) 引爆 3x3(x∈[2,4],y∈[0,2]) 的角，且【不在】条纹清的行0、不在原始清除集 → 仅被蛋糕引爆命中。
+	var W := ME.WALL
+	var grid := [
+		[8, 1, 2, 7, 5, 6],   # (0,0)=8 条纹；(3,0)=7 是蛋糕(3,1) 正上邻 → 被条纹清行0 → 蛋糕受击
+		[8, 2, 3, W, 6, 1],   # (3,1)=蛋糕墙
+		[8, 3, 4, 5, 7, 2],   # (4,2)=7 爆米花占位（蛋糕 3x3 引爆角，不在行0）
+		[2, 4, 5, 6, 1, 3],
+	]
+	var fx := _none_fx(6, 4)
+	fx[0][0] = ME.SP_LINE_H   # 横条纹在 (0,0)：列0 三连触发后清行0
+	var cake := _blank(6, 4)
+	cake[1][3] = 2   # 蛋糕血量 2
+	var pop := _blank(6, 4)
+	pop[2][4] = 3   # 爆米花在 (4,2)，剩 3 次命中
+	var rng := RandomNumberGenerator.new(); rng.seed = 1
+	# do_refill=false 隔离单轮；popcorn+cake 同 layers。
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8], rng, fx, [], false, null, {"cake": cake, "popcorn": pop})
+	assert_eq(cake[1][3], 1, "stripe cleared row 0; cake just below (3,0) lost 1 HP (2 -> 1)")
+	assert_eq(r.get("cake_destroyed", -1), 0, "cake alive -> not destroyed")
+	# 核心断言：蛋糕 3x3 引爆波及的爆米花在 _resolve_fx 路径同样被命中 -1（修复前被 continue 跳过）。
+	assert_eq(r.get("popcorn_hit", -1), 1, "cake ring blast hit the popcorn once via the _resolve_fx path too")
+	assert_eq(ME.count_popcorn(pop), 1, "popcorn decremented (3 -> 2), still on board")
+
+
 # ───────────── 断言①(特效路径)：特效命中相邻蛋糕 → cake-1 + 引爆 ─────────────
 
 func test_cake_hit_by_stripe_effect_decrements() -> void:

@@ -673,7 +673,12 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 						continue   # 已在本轮清除集里，避免重复计账
 					cleared_set[bp] = true
 					# 蛋糕引爆同样尊重锁住/巧克力/原料/爆米花/神秘糖：这些格只破层/啃食/命中/揭开、不被引爆直清。
-					if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_ing and ing[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
+					if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_ing and ing[bp.y][bp.x] > 0):
+						continue
+					if has_pop and popcorn[bp.y][bp.x] > 0:
+						# 蛋糕引爆/大爆炸波及的爆米花格 → 当作特效命中：popcorn-1、归0变彩球(SP_COLORBOMB)、不清空。
+						# 与上方原始匹配格的 _hit_popcorn 同口径（条纹/爆炸/彩球命中爆米花完全一致），漏此分支即"蛋糕打不动爆米花"。
+						popcorn_hit += _hit_popcorn(grid, fx, popcorn, {bp: true})
 						continue
 					if has_mystery and mystery[bp.y][bp.x] > 0:
 						# 蛋糕引爆波及的神秘糖格 → 揭开为随机内容(mystery→0)、不清空（与上面波及揭开同口径）。
@@ -1101,8 +1106,14 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 				continue   # 已在直清集里，避免重复计账
 			cleared_set[bp] = true
 			# 蛋糕引爆同样尊重锁住/巧克力/爆米花：这些格只破层/啃食/命中、不被引爆直清。
-			if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
+			if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0):
 				continue
+			if has_pop and popcorn[bp.y][bp.x] > 0:
+				# 蛋糕引爆/大爆炸波及的爆米花格 → 当作特效命中：popcorn-1、归0变彩球(SP_COLORBOMB)、不清空。
+				# 与上方直清波及格的 _hit_popcorn 同口径（彩球/融合命中爆米花一致），漏此分支即"蛋糕打不动爆米花"。
+				if not fx.is_empty():
+					popcorn_hit += _hit_popcorn(grid, fx, popcorn, {bp: true})
+				continue   # 爆米花格永不被引爆直清（无 fx 层时退化为只 continue，不递减不变彩球）
 			if has_mystery and mystery[bp.y][bp.x] > 0:
 				# 蛋糕引爆波及的神秘糖格 → 揭开(mystery→0)、不并入 cake_blast（不清空）。
 				var rvb := _reveal_mysteries_in_clear(grid, fx, ing, mystery, [bp], rng, species_set)
