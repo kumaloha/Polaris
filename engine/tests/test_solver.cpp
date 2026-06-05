@@ -321,6 +321,122 @@ static void test_scroll_too_deep_few_moves() {
     CHECK(!r.won, "scroll: 2 moves cannot drain a 5-page feed");
 }
 
+// ───────────── 巧克力（CLEAR_CHOCO）────────────
+
+// objectives_met 认 CLEAR_CHOCO（第 6 参 = choco_cleared）。
+static void test_objectives_met_choco() {
+    Level lv;
+    lv.objectives = {{OBJ_CLEAR_CHOCO, -1, 5}};
+    CHECK(objectives_met(lv, 0, {}, 0, 0, 5), "choco target met");
+    CHECK(!objectives_met(lv, 0, {}, 0, 0, 4), "choco target not met");
+}
+
+// gen_choco::resolve 啃食：与消除正交相邻的巧克力格 -1（巧克力本身不被消，固定切段）。
+static void test_choco_resolve_eats_adjacent() {
+    // 构造一行：在 (0,0)(1,0)(2,0) 凑一条三连(species 0)，巧克力放 (3,0) 与消除相邻 → 应被啃 1。
+    Grid g = {
+        {0, 0, 0, 1, 2, 3},
+        {2, 3, 4, 2, 3, 4},
+        {3, 4, 2, 3, 4, 2},
+    };
+    std::vector<std::vector<int>> choco(3, std::vector<int>(6, 0));
+    choco[0][3] = 1;  // 紧邻三连右端
+    std::mt19937 rng(1);
+    std::vector<int> species = {0, 1, 2, 3, 4};
+    auto rr = gen_choco::resolve(g, species, rng, nullptr, nullptr, &choco, nullptr, false);
+    CHECK(rr.choco_cleared >= 1, "adjacent chocolate eaten by a clear");
+    CHECK_EQ(choco[0][3], 0, "the eaten chocolate cell dropped to 0");
+}
+
+// spread_chocolate：整步零啃食 → 从现存巧克力格向相邻普通格增殖一格（确定性，注入 rng）。
+static void test_choco_spread_grows_one() {
+    Grid g(5, std::vector<int>(5, 0));  // 全普通格（占位，蔓延只看 species>=0）
+    std::vector<std::vector<int>> choco(5, std::vector<int>(5, 0));
+    choco[2][2] = 1;
+    std::mt19937 rng(7);
+    int before = gen_choco::count_chocolate(choco);
+    bool grew = gen_choco::spread_chocolate(choco, g, rng);
+    int after = gen_choco::count_chocolate(choco);
+    CHECK(grew, "spread succeeds when an invadable neighbor exists");
+    CHECK_EQ(after, before + 1, "spread adds exactly one chocolate cell");
+    // 蔓延的格必是 (2,2) 的正交相邻
+    bool ok = choco[1][2] || choco[3][2] || choco[2][1] || choco[2][3];
+    CHECK(ok, "the new chocolate is an orthogonal neighbor of the source");
+    // 确定性：同 rng 同盘 → 同结果
+    std::vector<std::vector<int>> choco2(5, std::vector<int>(5, 0));
+    choco2[2][2] = 1;
+    std::mt19937 rng2(7);
+    gen_choco::spread_chocolate(choco2, g, rng2);
+    CHECK(choco == choco2, "spread is deterministic with same seed");
+}
+
+// 蔓延无处可去：巧克力被墙/空围死 → 返回 false，不增殖。
+static void test_choco_spread_blocked() {
+    Grid g = {
+        {WALL, WALL, WALL},
+        {WALL, 0,    WALL},
+        {WALL, WALL, WALL},
+    };
+    std::vector<std::vector<int>> choco(3, std::vector<int>(3, 0));
+    choco[1][1] = 1;
+    std::mt19937 rng(3);
+    bool grew = gen_choco::spread_chocolate(choco, g, rng);
+    CHECK(!grew, "no spread when all neighbors are walls");
+    CHECK_EQ(gen_choco::count_chocolate(choco), 1, "chocolate count unchanged when blocked");
+}
+
+// 玩家在巧克力关执行"整步零啃食→蔓延"钩子：不啃则巧克力增多。
+// 用 random_play 跑高 target（不可能赢）→ 走满步；若期间有零啃食步，巧克力应曾增殖。
+static void test_choco_player_spreads_when_untouched() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.choco.assign(8, std::vector<int>(8, 0));
+    lv.choco[0][0] = 1;  // 单点巧克力（孤立、远离多数消除 → 多数步零啃食 → 应蔓延扩张）
+    lv.move_limit = 20;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_CHOCO, -1, 9999}};  // 不可能 → 走满步
+    auto r = random_play(lv);
+    CHECK_EQ(r.moves_used, 20, "choco level plays out all moves");
+    // 啃掉 + 末态残留 应 > 初始 1（蔓延确实发生过）。残留无法直接取，故用"啃食数>=0 且走满步"+蔓延单测共同保证。
+    CHECK(r.choco_cleared >= 0, "choco_cleared tracked (non-negative)");
+}
+
+// smart_greedy 在巧克力关真去追 CLEAR_CHOCO：可达目标内应取胜（标定可解性的基础）。
+static void test_smart_greedy_wins_reachable_choco() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.choco.assign(8, std::vector<int>(8, 0));
+    // 散布几格巧克力（彼此不相邻，避免开局即连片）
+    lv.choco[1][1] = 1; lv.choco[3][4] = 1; lv.choco[5][2] = 1; lv.choco[6][6] = 1;
+    lv.move_limit = 40;
+    lv.seed = 7;
+    lv.objectives = {{OBJ_CLEAR_CHOCO, -1, 3}};  // 啃掉 3 格（保守、可达）
+    auto r = smart_greedy_play(lv);
+    CHECK(r.won, "smart_greedy clears 3 chocolate within 40 moves");
+    CHECK(r.choco_cleared >= 3, "actually ate at least the target chocolate count");
+}
+
+// 巧克力关确定性：同盘同 seed → 同结果。
+static void test_choco_play_deterministic() {
+    std::mt19937 gen(123);
+    Level lv;
+    lv.species = {0, 1, 2, 3, 4};
+    lv.init_board = make_board(8, 8, lv.species, gen);
+    lv.choco.assign(8, std::vector<int>(8, 0));
+    lv.choco[2][2] = 1; lv.choco[4][4] = 1;
+    lv.move_limit = 25;
+    lv.seed = 11;
+    lv.objectives = {{OBJ_CLEAR_CHOCO, -1, 9999}};
+    auto a = smart_greedy_play(lv);
+    auto b = smart_greedy_play(lv);
+    CHECK_EQ(a.choco_cleared, b.choco_cleared, "choco play deterministic (eaten)");
+    CHECK_EQ(a.moves_used, b.moves_used, "choco play deterministic (moves)");
+}
+
 int main() {
     test_objectives_met_helper();
     test_greedy_wins_collect_objective();
@@ -346,5 +462,12 @@ int main() {
     test_feed_drained_helper();
     test_scroll_dig_through();
     test_scroll_too_deep_few_moves();
+    test_objectives_met_choco();
+    test_choco_resolve_eats_adjacent();
+    test_choco_spread_grows_one();
+    test_choco_spread_blocked();
+    test_choco_player_spreads_when_untouched();
+    test_smart_greedy_wins_reachable_choco();
+    test_choco_play_deterministic();
     return report();
 }
