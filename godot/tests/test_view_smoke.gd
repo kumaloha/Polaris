@@ -12,7 +12,7 @@ const Board := preload("res://core/board.gd")
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
 	assert_true(v != null, "game.gd instantiates (compiles clean)")
-	assert_eq(v.DEMO_COUNT, 7, "seven demo levels declared")
+	assert_eq(v.DEMO_COUNT, 8, "eight demo levels declared (added POP_POPCORN)")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:
@@ -20,9 +20,9 @@ func test_all_demo_levels_build_valid_board() -> void:
 	for idx in v.DEMO_COUNT:
 		var lvl: Dictionary = v._demo_level(idx)
 		assert_true(lvl.has("name") and not String(lvl["name"]).is_empty(), "level %d has a name" % idx)
-		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits、炸弹层 bomb、糖果炮层 cannon）。
+		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits、炸弹层 bomb、糖果炮层 cannon、爆米花层 popcorn）。
 		var b := Board.new(v.W, v.H, v.SPECIES, lvl["target"], lvl["moves"], 99,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []), lvl.get("cannon", []))
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []), lvl.get("cannon", []), lvl.get("popcorn", []))
 		assert_eq(b.grid.size(), v.H, "level %d board height" % idx)
 		assert_eq(b.grid[0].size(), v.W, "level %d board width" % idx)
 		assert_false(b.is_over(), "level %d not already over at start" % idx)
@@ -43,6 +43,7 @@ func test_demo_levels_cover_all_objective_types() -> void:
 	assert_true(types.has("CLEAR_BLOCKER"), "has a CLEAR_BLOCKER level")
 	assert_true(types.has("COLLECT_INGREDIENT"), "has a COLLECT_INGREDIENT (运料) level")
 	assert_true(types.has("DEFUSE_BOMB"), "has a DEFUSE_BOMB (拆弹) level")
+	assert_true(types.has("POP_POPCORN"), "has a POP_POPCORN (爆米花) level")
 	v.free()
 
 func test_demo_jelly_layer_shape() -> void:
@@ -119,4 +120,19 @@ func test_demo_ingredient_layer_shape() -> void:
 		for val in row:
 			total += val
 	assert_eq(total, 4, "exactly 4 ingredients (matches target)")
+	v.free()
+
+func test_demo_popcorn_layer_shape() -> void:
+	var v: Game = Game.new()
+	var g: Array = v._demo_popcorn_layer()
+	assert_eq(g.size(), v.H, "popcorn layer height")
+	assert_eq(g[0].size(), v.W, "popcorn layer width")
+	# 三颗爆米花各带命中数（与 _demo_popcorn_layer 一致）：(2,3)=2、(5,4)=3、(3,5)=2。
+	assert_eq(g[3][2], 2, "popcorn at (2,3) needs 2 hits")
+	assert_eq(g[4][5], 3, "popcorn at (5,4) needs 3 hits")
+	assert_eq(g[5][3], 2, "popcorn at (3,5) needs 2 hits")
+	assert_eq(g[0][0], 0, "no popcorn where not seeded")
+	# 计数：盘上 3 颗爆米花格。
+	var Engine := preload("res://core/match_engine.gd")
+	assert_eq(Engine.count_popcorn(g), 3, "exactly 3 popcorn cells")
 	v.free()

@@ -867,4 +867,142 @@ inline int count_cannons(const std::vector<std::vector<int>>& cannon) {
     return n;
 }
 
+// ───────────── 爆米花（Popcorn）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 爆米花语义（与 godot/core/match_engine.gd 一一对应）—— 与 coat/choco 不同：普通三消【完全不碰】它，只有特效命中才递减：
+//   爆米花格 grid 是普通 species(占位)、popcorn[y][x]=N(剩余命中数)；不参与匹配/不可交换/随重力下落；
+//   被【特效清除波及】(格自身在清除集)时 popcorn-1(不清)，归0变彩球。
+// 说明：特效(条纹/爆炸/彩球)与"归0变彩球"是 Godot 侧专属（C++ 裸 Core 不实现特效，已在文件头声明），
+//   故 C++ 镜像只覆盖【不依赖特效的机械原语】：匹配跳过(find_matches_popcorn)、不可换(is_legal_swap_popcorn)、
+//   随重力下落(apply_gravity_popcorn)、命中递减(hit_popcorn，按"格在清除集"减一，归0不在此层变彩球)、计数(count_popcorn)。
+// 障碍判定沿用 coat>0/choco>0/ing>0 表达"不可消/不可换"，爆米花再叠一层 popcorn>0；提供独立 *_popcorn 版本。
+
+// popcorn 感知的匹配：爆米花格(popcorn>0)与锁住/巧克力/原料格一样不参与匹配、断开同色串。
+inline std::vector<Vec2> find_matches_popcorn(const Grid& g,
+                                              const std::vector<std::vector<int>>* coat,
+                                              const std::vector<std::vector<int>>* choco,
+                                              const std::vector<std::vector<int>>* ing,
+                                              const std::vector<std::vector<int>>* popcorn) {
+    int h = (int)g.size();
+    if (h == 0) return {};
+    int w = (int)g[0].size();
+    auto blocked = [&](int x, int y) -> bool {
+        return g[y][x] == EMPTY || g[y][x] == WALL
+            || (coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0)
+            || (ing && (*ing)[y][x] > 0) || (popcorn && (*popcorn)[y][x] > 0);
+    };
+    std::vector<std::vector<char>> mark(h, std::vector<char>(w, 0));
+    for (int y = 0; y < h; ++y) {
+        int x = 0;
+        while (x < w) {
+            if (blocked(x, y)) { ++x; continue; }
+            int e = x;
+            while (e + 1 < w && g[y][e + 1] == g[y][x] && !blocked(e + 1, y)) ++e;
+            if (e - x + 1 >= 3)
+                for (int k = x; k <= e; ++k) mark[y][k] = 1;
+            x = e + 1;
+        }
+    }
+    for (int x = 0; x < w; ++x) {
+        int y = 0;
+        while (y < h) {
+            if (blocked(x, y)) { ++y; continue; }
+            int e = y;
+            while (e + 1 < h && g[e + 1][x] == g[y][x] && !blocked(x, e + 1)) ++e;
+            if (e - y + 1 >= 3)
+                for (int k = y; k <= e; ++k) mark[k][x] = 1;
+            y = e + 1;
+        }
+    }
+    std::vector<Vec2> out;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (mark[y][x]) out.push_back({x, y});
+    return out;
+}
+
+// popcorn 感知的重力：爆米花格(popcorn>0)【随重力下落】——作为段内可动元素和 grid 一起搬运，popcorn 层与 grid 同步重排。
+//   与 apply_gravity_ingredient/apply_gravity_bomb 同构（标记跟随）：仅墙/锁住/巧克力切段，爆米花自身不切段。
+inline void apply_gravity_popcorn(Grid& g, const std::vector<std::vector<int>>* coat,
+                                  const std::vector<std::vector<int>>* choco,
+                                  std::vector<std::vector<int>>* popcorn) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    for (int x = 0; x < w; ++x) {
+        int seg_start = 0;
+        for (int y = 0; y <= h; ++y) {
+            bool fixed = (y < h) && ((coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0));
+            if (y == h || g[y][x] == WALL || fixed) {
+                std::vector<int> stack;          // 段内非空 species
+                std::vector<int> pop_stack;      // 段内每个可动格的爆米花命中数，随 stack 同序搬运
+                for (int k = seg_start; k < y; ++k)
+                    if (g[k][x] != EMPTY) {
+                        stack.push_back(g[k][x]);
+                        if (popcorn) pop_stack.push_back((*popcorn)[k][x]);
+                    }
+                int seg_len = y - seg_start;
+                int empties = seg_len - (int)stack.size();
+                for (int k = seg_start; k < y; ++k) {
+                    int idx = k - seg_start;
+                    if (idx < empties) {
+                        g[k][x] = EMPTY;
+                        if (popcorn) (*popcorn)[k][x] = 0;            // 空格无爆米花
+                    } else {
+                        g[k][x] = stack[idx - empties];
+                        if (popcorn) (*popcorn)[k][x] = pop_stack[idx - empties];  // 爆米花命中数随该格内容一起落
+                    }
+                }
+                seg_start = y + 1;
+            }
+        }
+    }
+}
+
+// popcorn 感知的合法交换：爆米花格(popcorn>0)与锁住/巧克力/原料格一样不可参与交换。
+inline bool is_legal_swap_popcorn(Grid& g, Vec2 a, Vec2 b,
+                                  const std::vector<std::vector<int>>* coat,
+                                  const std::vector<std::vector<int>>* choco,
+                                  const std::vector<std::vector<int>>* ing,
+                                  const std::vector<std::vector<int>>* popcorn) {
+    if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
+    int va = g[a.y][a.x], vb = g[b.y][b.x];
+    if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
+    if (coat && ((*coat)[a.y][a.x] > 0 || (*coat)[b.y][b.x] > 0)) return false;
+    if (choco && ((*choco)[a.y][a.x] > 0 || (*choco)[b.y][b.x] > 0)) return false;
+    if (ing && ((*ing)[a.y][a.x] > 0 || (*ing)[b.y][b.x] > 0)) return false;
+    if (popcorn && ((*popcorn)[a.y][a.x] > 0 || (*popcorn)[b.y][b.x] > 0)) return false;  // 爆米花格不可换
+    swap_cells(g, a, b);
+    bool found = !find_matches_popcorn(g, coat, choco, ing, popcorn).empty();
+    swap_cells(g, a, b);
+    return found;
+}
+
+// 特效命中爆米花：被特效清除波及(cleared 列表里的格【自身】)的爆米花格 popcorn-1（爆米花本身不被清）。原地改 popcorn，返回命中次数。
+//   镜像 GDScript _hit_popcorn 的递减部分；归0变彩球(SP_COLORBOMB)是 Godot 特效层专属，C++ 裸 Core 不在此实现（归0后 popcorn=0 即可）。
+//   与 eat_chocolate 的关键区别：只认"格自身在清除集"（巧克力认正交相邻）。
+inline int hit_popcorn(std::vector<std::vector<int>>& popcorn,
+                       const std::vector<Vec2>& cleared) {
+    int h = (int)popcorn.size();
+    if (h == 0) return 0;
+    int w = (int)popcorn[0].size();
+    int hits = 0;
+    for (const auto& p : cleared) {
+        if (p.x < 0 || p.x >= w || p.y < 0 || p.y >= h) continue;
+        if (popcorn[p.y][p.x] > 0) {
+            popcorn[p.y][p.x]--;
+            ++hits;
+        }
+    }
+    return hits;
+}
+
+// 数盘上还剩命中数的爆米花格总数（归0已变彩球的格 popcorn=0 不计）。
+inline int count_popcorn(const std::vector<std::vector<int>>& popcorn) {
+    int n = 0;
+    for (const auto& row : popcorn)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
 }  // namespace me

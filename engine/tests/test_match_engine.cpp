@@ -633,6 +633,100 @@ static void test_cannon_deterministic_same_seed() {
     CHECK(g1 == g2, "same seed -> identical grid after cannon spawn");
 }
 
+// ───────────── 爆米花（Popcorn）镜像断言 ─────────────
+
+static void test_popcorn_not_matched() {
+    // 爆米花格(popcorn>0)不参与匹配、断开同色串（镜像 GDScript test_popcorn_not_matched）。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    CHECK_EQ((int)find_matches_popcorn(g, nullptr, nullptr, nullptr, nullptr).size(), 3, "no popcorn -> top row is a 3-match");
+    std::vector<std::vector<int>> pop(3, std::vector<int>(4, 0));
+    pop[0][1] = 2;  // 中间格爆米花
+    CHECK(find_matches_popcorn(g, nullptr, nullptr, nullptr, &pop).empty(), "popcorn cell breaks the run -> no match");
+}
+
+static void test_popcorn_blocks_swap() {
+    // 爆米花格不可交换；无 popcorn 指针时退化为正常合法。
+    Grid g = {{5, 5, 0, 5}, {1, 2, 3, 4}, {2, 3, 4, 1}};
+    std::vector<std::vector<int>> pop(3, std::vector<int>(4, 0));
+    pop[0][2] = 1;  // (2,0) 是爆米花
+    CHECK(!is_legal_swap_popcorn(g, {2, 0}, {3, 0}, nullptr, nullptr, nullptr, &pop), "popcorn cell can't be swapped");
+    CHECK(is_legal_swap_popcorn(g, {2, 0}, {3, 0}, nullptr, nullptr, nullptr, nullptr), "no popcorn ptr -> normal legal swap");
+}
+
+static void test_popcorn_falls_under_gravity() {
+    // 爆米花随重力下落：popcorn 作为标记随 grid 搬运（与 ingredient/bomb 同构）。列 [爆米花,空,空] → 沉到列底。
+    Grid col = {{5}, {EMPTY}, {EMPTY}};
+    std::vector<std::vector<int>> pop = {{2}, {0}, {0}};
+    apply_gravity_popcorn(col, nullptr, nullptr, &pop);
+    CHECK_EQ(col[2][0], 5, "popcorn tile fell to the column bottom");
+    CHECK_EQ(pop[2][0], 2, "popcorn count moved with the tile (now at bottom)");
+    CHECK_EQ(col[0][0], EMPTY, "top is now empty");
+    CHECK_EQ(pop[0][0], 0, "popcorn layer cleared at the old top cell");
+}
+
+static void test_popcorn_sinks_when_tile_below_cleared() {
+    // 爆米花格正下方棋子被消除 → 爆米花格(占位棋子)随重力下沉一格，popcorn 标记跟随。
+    // 用 apply_gravity_popcorn 直接验证（C++ 裸 Core 不跑特效 resolve，但重力跟随机械原语须一致）。
+    // 列0: [占位8, 空, 7] —— 下方 (0,1) 空 → 爆米花占位 8 沉一格到 (0,1)，popcorn 跟随。
+    Grid col = {{8}, {EMPTY}, {7}};
+    std::vector<std::vector<int>> pop = {{3}, {0}, {0}};
+    apply_gravity_popcorn(col, nullptr, nullptr, &pop);
+    CHECK_EQ(col[1][0], 8, "popcorn-covered tile sank exactly one row (y=0 -> y=1)");
+    CHECK_EQ(pop[1][0], 3, "popcorn count followed the tile down");
+    CHECK_EQ(pop[0][0], 0, "old popcorn cell cleared");
+    CHECK_EQ(col[2][0], 7, "the tile below (7) stayed put at the bottom");
+}
+
+static void test_hit_popcorn_decrements_on_cleared_set() {
+    // 特效命中（格在清除集）→ popcorn-1；不在清除集的爆米花不变。镜像 GDScript _hit_popcorn 的递减部分。
+    std::vector<std::vector<int>> pop = {{2, 0, 1}, {0, 3, 0}, {0, 0, 1}};
+    // 清除集波及 (0,0) 与 (1,1)（两格爆米花），不波及 (2,0)/(2,2)。
+    std::vector<Vec2> cleared = {{0, 0}, {1, 1}, {2, 1}};  // (2,1)=普通格(popcorn=0)不计
+    int hits = hit_popcorn(pop, cleared);
+    CHECK_EQ(hits, 2, "two popcorn cells in the cleared set were hit");
+    CHECK_EQ(pop[0][0], 1, "popcorn (0,0) decremented 2 -> 1");
+    CHECK_EQ(pop[1][1], 2, "popcorn (1,1) decremented 3 -> 2");
+    CHECK_EQ(pop[0][2], 1, "popcorn (2,0) untouched (not in cleared set)");
+    CHECK_EQ(pop[2][2], 1, "popcorn (2,2) untouched (not in cleared set)");
+}
+
+static void test_hit_popcorn_only_self_not_adjacent() {
+    // 关键区别于巧克力：只认"格自身在清除集"，正交相邻【不】命中。
+    std::vector<std::vector<int>> pop(3, std::vector<int>(3, 0));
+    pop[1][1] = 2;  // 中心爆米花
+    std::vector<Vec2> adjacent_only = {{0, 1}, {2, 1}, {1, 0}, {1, 2}};  // 四个正交相邻，均不含中心
+    int hits = hit_popcorn(pop, adjacent_only);
+    CHECK_EQ(hits, 0, "adjacency does NOT hit popcorn (only the cell itself counts)");
+    CHECK_EQ(pop[1][1], 2, "center popcorn unchanged by adjacent clears");
+}
+
+static void test_hit_popcorn_to_zero() {
+    // popcorn=1 被命中 → 归0（C++ 裸 Core 不在此变彩球，只递减到 0）。
+    std::vector<std::vector<int>> pop(2, std::vector<int>(2, 0));
+    pop[0][0] = 1;
+    int hits = hit_popcorn(pop, {{0, 0}});
+    CHECK_EQ(hits, 1, "the single-hit popcorn was hit");
+    CHECK_EQ(pop[0][0], 0, "popcorn reached 0 (Godot side converts to color bomb; C++ leaves it at 0)");
+    CHECK_EQ(count_popcorn(pop), 0, "no popcorn remains after reaching 0");
+}
+
+static void test_count_popcorn() {
+    std::vector<std::vector<int>> pop = {{2, 0, 1}, {0, 0, 0}, {0, 3, 0}};
+    CHECK_EQ(count_popcorn(pop), 3, "three popcorn cells counted");
+}
+
+static void test_popcorn_deterministic_gravity() {
+    // 同输入两次重力下落 → 盘面/popcorn 层一致（确定性；apply_gravity_popcorn 纯函数无 rng）。
+    auto mkg = []() { return Grid{{8, 1}, {EMPTY, 2}, {EMPTY, 3}}; };
+    auto mkp = []() { return std::vector<std::vector<int>>{{2, 0}, {0, 0}, {0, 0}}; };
+    Grid g1 = mkg(), g2 = mkg();
+    auto p1 = mkp(), p2 = mkp();
+    apply_gravity_popcorn(g1, nullptr, nullptr, &p1);
+    apply_gravity_popcorn(g2, nullptr, nullptr, &p2);
+    CHECK(g1 == g2, "same input -> identical grid after popcorn gravity");
+    CHECK(p1 == p2, "same input -> identical popcorn layer after gravity");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -689,5 +783,15 @@ int main() {
     test_cannon_no_spawn_at_bottom_row();
     test_count_cannons();
     test_cannon_deterministic_same_seed();
+    // 爆米花（Popcorn）镜像断言
+    test_popcorn_not_matched();
+    test_popcorn_blocks_swap();
+    test_popcorn_falls_under_gravity();
+    test_popcorn_sinks_when_tile_below_cleared();
+    test_hit_popcorn_decrements_on_cleared_set();
+    test_hit_popcorn_only_self_not_adjacent();
+    test_hit_popcorn_to_zero();
+    test_count_popcorn();
+    test_popcorn_deterministic_gravity();
     return report();
 }
