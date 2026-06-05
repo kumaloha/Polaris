@@ -23,6 +23,9 @@ struct GenConfig {
     int min_blocker = 3;         // 涂层格数 >= 此值才可作 BLOCKER
     double choco_density = 0.10; // 巧克力关里初始巧克力格占普通棋子格比例（0.08~0.12 甜区）
     int min_choco = 3;           // 初始巧克力格数 >= 此值才可作 CLEAR_CHOCO
+    int ing_rows = 2;            // 运料关：在顶部多少行内撒原料（原料从高处往下运）
+    double ing_density = 0.18;   // 运料关：顶部行里每个普通棋子格放原料的概率
+    int min_ingredient = 3;      // 初始原料格数 >= 此值才可作 COLLECT_INGREDIENT
     uint32_t base_seed = 1;
 };
 
@@ -572,6 +575,131 @@ inline std::vector<GeneratedLevel> generate_choco_for_difficulty(const GenConfig
         out.push_back(gl);
     }
     return out;
+}
+
+// ---- 运料关生成（COLLECT_INGREDIENT）：顶部撒原料 + 底行出口 + 二分 move_limit 命中难度带 ----
+
+// 原料布点：在顶部 rows 行的普通棋子格(非 WALL/EMPTY)按 density 随机铺 ing=1。返回布的格数。
+//   原料放高处 → 玩家靠消除其下方棋子让原料一路下沉到底行出口（与巧克力固定不同：原料随重力可动）。
+inline int place_ingredients(std::vector<std::vector<int>>& ing, const Grid& board,
+                             int rows, double density, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    ing.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int top = std::min(rows, H);
+    int total = 0;
+    for (int y = 0; y < top; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                ing[y][x] = 1;
+                total++;
+            }
+    return total;
+}
+
+// 出口列：物理最底行(y=H-1)所有非墙列皆为出口。
+inline std::vector<int> bottom_exit_cols(const Grid& board) {
+    std::vector<int> cols;
+    int H = (int)board.size();
+    if (H == 0) return cols;
+    int W = (int)board[0].size();
+    int by = H - 1;
+    for (int x = 0; x < W; ++x)
+        if (board[by][x] != WALL) cols.push_back(x);
+    return cols;
+}
+
+// 按请求难度产运料关：每候选盘强制布原料 + COLLECT_INGREDIENT 目标(target=原料总数=全运完)，
+//   底行全列为出口。难度旋钮=move_limit：步多→更易把原料运到底→skilled_pass 单调↑→可二分。
+//   标定核心：evaluate_level 内的画像玩家在 ing 关自动执行"消除→原料随重力下落→沉到出口收集"，
+//   故 skilled_pass 真实反映"高手能否在限步内把全部原料运下来"。取最贴带中心的 move_limit。
+inline GeneratedLevel generate_ingredient_for_difficulty(const GenConfig& cfg, DiffBand band,
+                                                         uint32_t seed) {
+    std::mt19937 boardgen(seed ^ 0x149c0de5u);   // 与其它批不同盘流
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    double best_dist = 1e9;
+    double center = (band.pl + (band.ph < 1.0 ? band.ph : 1.0)) / 2.0;
+    const int MAX_BOARD_TRIES = 200;
+    // 找一个能布够原料、布完仍有合法步的盘
+    Grid board;
+    std::vector<std::vector<int>> ing;
+    std::vector<int> exits;
+    int ing_total = 0;
+    bool ok = false;
+    for (int bt = 0; bt < MAX_BOARD_TRIES && !ok; ++bt) {
+        board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = seed + (uint32_t)bt * 7919u;
+        ing_total = place_ingredients(ing, board, cfg.ing_rows, cfg.ing_density, cand_seed ^ 0x1a9e1u);
+        if (ing_total < cfg.min_ingredient) continue;
+        exits = bottom_exit_cols(board);
+        if (exits.empty()) continue;
+        if (!has_legal_move_ingredient(board, nullptr, nullptr, &ing)) continue;
+        ok = true;
+    }
+    if (!ok) return chosen;  // 此 seed 没凑出可用盘
+
+    Level base;
+    base.init_board = board;
+    base.species = cfg.species;
+    base.seed = seed;
+    base.ing = ing;
+    base.exit_cols = exits;
+    // 充裕步数：让 target 成为唯一难度旋钮（步太少则连 EASY 都标不出）。裸 Core 无特效，运料慢，给宽步。
+    base.move_limit = std::max(cfg.move_limit, ing_total * 6 + cfg.h);
+    base.objectives = {{OBJ_COLLECT_INGREDIENT, -1, 1}};
+
+    // 二分上界：smart_greedy 全力追 COLLECT_INGREDIENT 实测能运下来多少（目标导向天花板，带下沉势能引导）。
+    const int BIG = 1 << 30;
+    double gd = 0.0;
+    for (int t = 0; t < cfg.trials; ++t) {
+        Level probe = base;
+        probe.seed = seed + (uint32_t)t * 1000003u;
+        probe.objectives = {{OBJ_COLLECT_INGREDIENT, -1, BIG}};  // 大目标 → 走满步、最大化运料
+        gd += smart_greedy_play(probe).ingredient_collected;
+    }
+    gd /= cfg.trials;
+    int hi = (int)gd + 1;
+    if (hi < 1) hi = 1;   // 至少标到 target=1（保证每档都产得出关）
+
+    // 二分 target 命中难度带（pass 随 target 单调递减）；命不中精确带则取最贴带中心者（保证有产出）。
+    int lo = 1;
+    for (int iter = 0; iter < 9 && lo <= hi; ++iter) {
+        int mid = (lo + hi) / 2;
+        Level lv = base;
+        lv.objectives[0].target = mid;
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        double p = e.skilled_pass_rate;
+        double d = std::abs(p - center);
+        if (d < best_dist) {  // 记录最贴带中心的 target 配置
+            best_dist = d;
+            chosen.level = lv;
+            chosen.floor_score = e.floor_score;
+            chosen.ceil_score = e.ceil_score;
+            chosen.lfhc_gap = e.lfhc_gap;
+            chosen.skilled_pass = p;
+            chosen.rhythm = rhythm_quality(objective_progress_curve(lv));
+            chosen.difficulty = band.name;
+        }
+        if (p > band.ph) lo = mid + 1;        // 太易 → 提高 target
+        else if (p < band.pl) hi = mid - 1;   // 太难 → 降低 target
+        else break;                           // 命中带
+    }
+    // 兜底：若上面一次都没记录（hi<lo 边界），至少用 target=1 标一关，确保每档有产出。
+    if (best_dist > 1e8) {
+        Level lv = base;
+        lv.objectives[0].target = 1;
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        chosen.level = lv;
+        chosen.floor_score = e.floor_score;
+        chosen.ceil_score = e.ceil_score;
+        chosen.lfhc_gap = e.lfhc_gap;
+        chosen.skilled_pass = e.skilled_pass_rate;
+        chosen.rhythm = rhythm_quality(objective_progress_curve(lv));
+        chosen.difficulty = band.name;
+    }
+    return chosen;
 }
 
 // ---- FI2Pop：可行-不可行双种群遗传生成（09 §2.3）----

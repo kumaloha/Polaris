@@ -34,10 +34,12 @@ static func to_board(d: Dictionary) -> Board:
 	var jelly_layer := _int_grid(d.get("jelly", []))
 	var coat_layer := _int_grid(d.get("coat", []))
 	var choco_layer := _int_grid(d.get("choco", []))   # 巧克力层(若库带)；当前关卡库多为空
+	var ing_layer := _int_grid(d.get("ing", []))       # 运料关原料层(若库带)；非运料关为空
+	var exit_cols := _int_arr(d.get("exits", []))      # 运料关出口列号数组(若库带)；非运料关为空
 	var init_grid := _int_grid(d.get("init_board", []))
 	# 从盘面提取墙掩码(WALL=-2)，让 start() 重开本关时也保留异形结构(否则 mask 空→重生成无墙盘，墙丢失)
 	var mask := _wall_mask_from(init_grid)
-	var b := Board.new(w, h, sp, int(d.get("target_score", 0)), int(d.get("move_limit", 25)), int(d.get("seed", 0)), mask, objs, jelly_layer, coat_layer, choco_layer)
+	var b := Board.new(w, h, sp, int(d.get("target_score", 0)), int(d.get("move_limit", 25)), int(d.get("seed", 0)), mask, objs, jelly_layer, coat_layer, choco_layer, ing_layer, exit_cols)
 	if not init_grid.is_empty():
 		b.grid = init_grid   # 用导出盘面覆盖随机生成的 make_board 结果
 		b.fx = b._blank_fx()
@@ -62,6 +64,15 @@ static func _int_grid(a) -> Array:
 		for v in row:
 			r.append(int(v))
 		out.append(r)
+	return out
+
+# 一维数字数组 → int 数组（运料关出口列号 exits 用）。
+static func _int_arr(a) -> Array:
+	if typeof(a) != TYPE_ARRAY:
+		return []
+	var out := []
+	for v in a:
+		out.append(int(v))
 	return out
 
 # 从盘面提取墙掩码：WALL(-2) → true，其余 false。供 Board.start() 重生时保留异形结构。

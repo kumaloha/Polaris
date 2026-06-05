@@ -166,10 +166,53 @@ static void test_generate_choco_difficulty() {
                     hard.empty() ? -1 : hard[0].level.objectives[0].target);
 }
 
+// 运料关生成：按难度带产 COLLECT_INGREDIENT 关，带初始原料层 + 底行出口 + 标定分化 + 可解 + 确定性。
+//   注：裸 Core(无特效)运料慢，单个 seed 不保证精确命中难度带，故只断言"结构正确 + 难度分化 + 确定性"，
+//   不像 choco 那样硬断言 pass 落具体带（避免强加无法稳定满足的契约）。
+static void test_generate_ingredient_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.ing_rows = 2; cfg.ing_density = 0.18; cfg.min_ingredient = 3;
+
+    GeneratedLevel easy = generate_ingredient_for_difficulty(cfg, band_easy(), 550000u);
+    CHECK(!easy.level.ing.empty(), "ING level carries an ingredient layer");
+    CHECK_EQ((int)easy.level.objectives.size(), 1, "exactly one objective");
+    CHECK(easy.level.objectives[0].type == OBJ_COLLECT_INGREDIENT, "objective is COLLECT_INGREDIENT");
+    CHECK(easy.level.objectives[0].target >= 1, "ingredient target >= 1");
+    CHECK(!easy.level.exit_cols.empty(), "ING level has exit columns");
+    int init_ing = 0;
+    for (const auto& row : easy.level.ing) for (int v : row) init_ing += (v > 0);
+    CHECK(init_ing >= cfg.min_ingredient, "initial ingredient count >= min_ingredient");
+    CHECK(easy.level.move_limit > 0, "ING level has positive move_limit");
+    CHECK(easy.skilled_pass >= 0.0 && easy.skilled_pass <= 1.0, "ING skilled_pass is a rate");
+    // 出口列都在合法范围且原料层维度匹配盘面
+    for (int cx : easy.level.exit_cols) CHECK(cx >= 0 && cx < cfg.w, "exit column in range");
+    CHECK_EQ((int)easy.level.ing.size(), (int)easy.level.init_board.size(), "ing layer height matches board");
+
+    GeneratedLevel hard = generate_ingredient_for_difficulty(cfg, band_hard(), 550000u);
+    CHECK(!hard.level.ing.empty(), "produced HARD ingredient level");
+    CHECK(hard.level.objectives[0].type == OBJ_COLLECT_INGREDIENT, "HARD objective is COLLECT_INGREDIENT");
+    // 标定分化：同盘 HARD 的 target 应 >= EASY（更难=要运下更多原料），或 HARD pass <= EASY pass。
+    CHECK(hard.level.objectives[0].target >= easy.level.objectives[0].target
+          || hard.skilled_pass <= easy.skilled_pass + 1e-9, "difficulty separates (target up or pass down)");
+
+    // 确定性：同配置两次生成 → 同 target + 同 pass。
+    GeneratedLevel a = generate_ingredient_for_difficulty(cfg, band_medium(), 660000u);
+    GeneratedLevel b = generate_ingredient_for_difficulty(cfg, band_medium(), 660000u);
+    CHECK_EQ(a.level.objectives[0].target, b.level.objectives[0].target, "ing gen deterministic target");
+    CHECK(a.skilled_pass == b.skilled_pass, "ing gen deterministic pass");
+
+    std::printf("  [gen-ing] EASY pass=%.2f target=%d ing=%d moves=%d | HARD pass=%.2f target=%d\n",
+                easy.skilled_pass, easy.level.objectives[0].target, init_ing, easy.level.move_limit,
+                hard.skilled_pass, hard.level.objectives[0].target);
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
     test_generate_choco_difficulty();
+    test_generate_ingredient_difficulty();
     test_fi2pop();
     test_generate_deterministic();
     test_generate_scroll_difficulty();

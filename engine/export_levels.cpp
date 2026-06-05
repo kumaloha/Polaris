@@ -26,6 +26,17 @@ static std::string grid_json(const std::vector<std::vector<int>>& g) {
     return s;
 }
 
+// 一维 int 数组序列化成 JSON（运料关出口列号用）。
+static std::string int_vec_json(const std::vector<int>& v) {
+    std::string s = "[";
+    for (size_t i = 0; i < v.size(); ++i) {
+        if (i) s += ",";
+        s += std::to_string(v[i]);
+    }
+    s += "]";
+    return s;
+}
+
 // 滚动关 feed：每列一队列(front=最先浮上来的)。序列化成 JSON 数组的数组。
 static std::string feed_json(const std::vector<std::deque<int>>& feed) {
     std::string s = "[";
@@ -50,6 +61,7 @@ static const char* obj_type_str(ObjType t) {
         case OBJ_CLEAR_JELLY: return "CLEAR_JELLY";
         case OBJ_CLEAR_BLOCKER: return "CLEAR_BLOCKER";
         case OBJ_CLEAR_CHOCO: return "CLEAR_CHOCO";
+        case OBJ_COLLECT_INGREDIENT: return "COLLECT_INGREDIENT";
         default: return "SCORE";
     }
 }
@@ -80,6 +92,8 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     o << "\"jelly\":" << grid_json(lv.jelly) << ",";
     o << "\"coat\":" << grid_json(lv.coat) << ",";
     o << "\"choco\":" << grid_json(lv.choco) << ",";
+    o << "\"ing\":" << grid_json(lv.ing) << ",";          // 运料关原料层(非运料关=空[])
+    o << "\"exits\":" << int_vec_json(lv.exit_cols) << ",";  // 运料关出口列号数组(非运料关=空[])
     o << "\"difficulty\":\"" << gl.difficulty << "\",";
     o << "\"lfhc_gap\":" << gl.lfhc_gap << ",";
     o << "\"skilled_pass\":" << gl.skilled_pass;
@@ -192,6 +206,29 @@ int main(int argc, char** argv) {
         for (auto& gl : f.get())
             levels.push_back(gl);
 
+    // 运料关：每档 per_band 关（COLLECT_INGREDIENT：把原料运到底部出口）。顶部撒原料 + 底行全列出口，
+    // 固定充裕步数 + 二分 target 校准难度。与其它档同盘维度(9×9/10/11)、不同 seed 流。三档全部【并行】生成。
+    DiffBand ibands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> ifuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            c.ing_rows = 2 + bi;           // 难档撒得更高(运送距离更远)
+            c.ing_density = 0.18;
+            c.min_ingredient = 3;
+            DiffBand band = ibands[bi];
+            uint32_t seed = 550000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            ifuts.push_back(std::async(std::launch::async, [c, band, seed]() {
+                return generate_ingredient_for_difficulty(c, band, seed);
+            }));
+        }
+    }
+    for (auto& f : ifuts) {
+        GeneratedLevel gl = f.get();
+        if (!gl.level.ing.empty()) levels.push_back(gl);  // 防御：极端凑不出可用盘时跳过(几乎不发生)
+    }
+
     std::ostringstream o;
     o << "{\"levels\":[";
     for (size_t i = 0; i < levels.size(); ++i) {
@@ -217,6 +254,12 @@ int main(int argc, char** argv) {
             int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
             std::fprintf(stderr, "  lvl_%zu: [CHOCO] diff=%s pass=%.2f target=%d initial_choco=%d\n",
                          i, levels[i].difficulty, levels[i].skilled_pass, tgt, cc);
+        } else if (!lv.ing.empty()) {
+            int ic = 0;
+            for (const auto& row : lv.ing) for (int v : row) ic += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [ING] diff=%s pass=%.2f target=%d initial_ing=%d exits=%zu moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, ic, lv.exit_cols.size(), lv.move_limit);
         } else {
             std::fprintf(stderr, "  lvl_%zu: diff=%s pass=%.2f gap=%.2f objs=%zu\n",
                          i, levels[i].difficulty, levels[i].skilled_pass,
