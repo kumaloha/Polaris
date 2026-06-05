@@ -28,6 +28,16 @@ struct GenConfig {
     int min_ingredient = 3;      // 初始原料格数 >= 此值才可作 COLLECT_INGREDIENT
     double bomb_density = 0.12;  // 炸弹关：普通棋子格里撒炸弹的概率（撒 N 个倒计时炸弹）
     int min_bomb = 3;            // 初始炸弹格数 >= 此值才可作 OBJ_DEFUSE_BOMB
+    int cannon_count = 3;        // 糖果炮关：顶行布几门炮（cannon=2 产原料，持续供给到底行出口）
+    int min_cannon = 2;          // 初始炮口数 >= 此值才可作糖果炮关
+    int popcorn_count = 4;       // 爆米花关：撒几个爆米花格
+    int popcorn_hp = 1;          // 每个爆米花初始命中数（裸 Core 溅射命中保守，hp=1 易达成）
+    int min_popcorn = 3;         // 初始爆米花格数 >= 此值才可作 OBJ_POP_POPCORN
+    double cake_density = 0.06;  // 蛋糕关：普通棋子格里撒蛋糕的概率（蛋糕格 grid=WALL）
+    int cake_hp = 2;             // 每个蛋糕初始血量（相邻被清 -1，归0炸毁）
+    int min_cake = 2;            // 初始蛋糕格数 >= 此值才可作 OBJ_DESTROY_CAKE
+    double mystery_density = 0.12; // 神秘糖关：普通棋子格里铺神秘糖的概率（普通棋子可消可换）
+    int min_mystery = 3;         // 初始神秘糖格数 >= 此值才可作 OBJ_REVEAL_MYSTERY
     uint32_t base_seed = 1;
 };
 
@@ -798,6 +808,320 @@ inline std::vector<GeneratedLevel> generate_bomb_for_difficulty(const GenConfig&
         out.push_back(gl);
     }
     return out;
+}
+
+// ═══════════════ H5：四个"死功能"障碍关生成（cannon / popcorn / cake / mystery）═══════════════
+// 设计：仿 choco/ingredient/bomb 的 place_* 布点 + generate_*_for_difficulty 二分标定。
+// 特效标定难题处理（呼应铁律"宁可保守可解、不标真机不可解的关"）：
+//   - cannon(产原料后级联收集)：spawn_from_cannons 直接镜像，无特效依赖 → 标定相对直接。
+//   - mystery(被消即揭开)：神秘糖普通棋子，普通三消即触发揭开 → 标定相对直接。
+//   - cake(引爆链)：blast_cakes 由普通消除的相邻驱动可触发，但裸 Core 无引爆卷入的特效链展开 →
+//       标定偏保守（cake_hp 低、target 取二分命中带的下沿）。
+//   - popcorn(仅特效命中)：裸 Core 无特效，命中靠 play_popcorn 的【保守溅射几何近似】驱动 →
+//       标定最保守（popcorn_hp=1、target 取最贴带中心且偏地板，move 给宽裕）。
+
+// ---- 糖果炮关（OBJ_COLLECT_INGREDIENT，cannon=2 产原料）：顶行布炮 + 起手原料 + 底行出口 + 二分 target ----
+
+// 炮口布点：在物理顶行(y=0)的非墙列里等距选 count 门炮，该格 grid→WALL、cannon=2（产原料）。返回布的炮数。
+//   放顶行 → 产出原料从最高处一路下沉到底行出口（运送距离最长，给标定足够空间）。
+//   同时在每门炮正下方第 2~3 行播一个【起手原料】(ing=1)：保证 COLLECT_INGREDIENT 目标用已验证的"运料下沉"
+//   机制即可在真机达成（真机/裸 Core 一致可解，呼应铁律），炮口产出是【额外】供给(炮下方腾空时再产)。
+inline int place_cannons(std::vector<std::vector<int>>& cannon, std::vector<std::vector<int>>& ing,
+                         Grid& board, int count) {
+    int H = (int)board.size();
+    if (H == 0) return 0;
+    int W = (int)board[0].size();
+    cannon.assign(H, std::vector<int>(W, 0));
+    ing.assign(H, std::vector<int>(W, 0));
+    std::vector<int> cols;
+    for (int x = 0; x < W; ++x)
+        if (board[0][x] != WALL) cols.push_back(x);
+    if (cols.empty()) return 0;
+    int n = std::min(count, (int)cols.size());
+    int placed = 0;
+    // 起手原料行：放在靠底部(y=H-3)而非炮口正下方——原料离出口近、几步即可运下，保证 COLLECT_INGREDIENT 目标
+    //   用已验证的"运料下沉"机制【可靠达成】(真机/裸 Core 一致可解，呼应铁律)。炮口在顶部=额外产出(腾空时再产)。
+    int seed_row = (H >= 3) ? (H - 3) : (H - 1);
+    for (int i = 0; i < n; ++i) {
+        int idx = (int)((long long)i * cols.size() / n);  // 等距取列
+        int cx = cols[idx];
+        if (cannon[0][cx] > 0) continue;
+        cannon[0][cx] = 2;        // 产原料炮
+        board[0][cx] = WALL;      // 炮口格 grid=WALL（与 board.gd _merge_walls_into_mask 一致）
+        // 起手原料：该炮所在列靠底行播一个原料（离出口近、易运下）。若该格非普通棋子则就近找一格。
+        if (seed_row >= 0 && board[seed_row][cx] != WALL && board[seed_row][cx] != EMPTY && ing[seed_row][cx] == 0)
+            ing[seed_row][cx] = 1;
+        placed++;
+    }
+    return placed;
+}
+
+// 共享二分助手（H5 四层用）：在 base 上二分 objectives[0].target 命中难度带，取最贴带中心者。
+//   关键铁律保障：只接受 skilled_pass > 0 的配置（真机可解）；命中带优先，否则取"最贴中心且 pass>0"。
+//   全程 pass 单调随 target 递减 → 若连 target=1 都 pass=0 则该盘不可解，返回 found=false（调用方换盘）。
+//   out 写入标定好的 GeneratedLevel（difficulty=band.name）；返回是否找到可解配置。
+inline bool _bisect_target_solvable(const Level& base, const GenConfig& cfg, DiffBand band,
+                                    int hi, GeneratedLevel& out) {
+    double center = (band.pl + (band.ph < 1.0 ? band.ph : 1.0)) / 2.0;
+    if (hi < 1) hi = 1;
+    double best_dist = 1e9;
+    bool any_solvable = false;
+    int lo = 1;
+    for (int iter = 0; iter < 9 && lo <= hi; ++iter) {
+        int mid = (lo + hi) / 2;
+        Level lv = base;
+        lv.objectives[0].target = mid;
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        double p = e.skilled_pass_rate;
+        if (p > 0.0) {  // 只在可解配置里挑（pass=0 直接判太难，往下压 target）
+            double d = std::abs(p - center);
+            if (d < best_dist) {
+                best_dist = d;
+                out.level = lv;
+                out.floor_score = e.floor_score;
+                out.ceil_score = e.ceil_score;
+                out.lfhc_gap = e.lfhc_gap;
+                out.skilled_pass = p;
+                out.rhythm = rhythm_quality(objective_progress_curve(lv));
+                out.difficulty = band.name;
+                any_solvable = true;
+            }
+        }
+        if (p > band.ph) lo = mid + 1;        // 太易 → 提高 target
+        else if (p < band.pl) hi = mid - 1;   // 太难(含 pass=0) → 降低 target
+        else break;                           // 命中带
+    }
+    if (!any_solvable) {  // 二分路径没碰到可解配置 → 从 target=1 起线性下探确认是否真不可解
+        Level lv = base;
+        lv.objectives[0].target = 1;
+        LevelEval e = evaluate_level(lv, cfg.trials);
+        if (e.skilled_pass_rate > 0.0) {
+            out.level = lv;
+            out.floor_score = e.floor_score;
+            out.ceil_score = e.ceil_score;
+            out.lfhc_gap = e.lfhc_gap;
+            out.skilled_pass = e.skilled_pass_rate;
+            out.rhythm = rhythm_quality(objective_progress_curve(lv));
+            out.difficulty = band.name;
+            any_solvable = true;
+        }
+    }
+    return any_solvable;
+}
+
+// 按请求难度产糖果炮关：顶行布产原料炮 + 起手原料 + 底行全列出口 + COLLECT_INGREDIENT 目标，二分 target 命中难度带。
+//   难度旋钮=target（要运下的原料数）：pass 随 target 单调递减 → 可二分。move_limit 固定充裕。
+//   可解性铁律：换多个候选盘直到标出 pass>0 的可解关（起手原料 + 炮口额外供给，真机/裸 Core 一致可解）。
+inline GeneratedLevel generate_cannon_for_difficulty(const GenConfig& cfg, DiffBand band, uint32_t seed) {
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    const int BIG = 1 << 30;
+    const int MAX_BOARDS = 40;  // 多盘重试：直到标出可解关
+    // 每个候选盘用独立派生 seed 流（确定性）；盘内部 make_board 用 boardgen 顺序推进。
+    std::mt19937 boardgen(seed ^ 0xca77012eu);
+    for (int bs = 0; bs < MAX_BOARDS; ++bs) {
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        std::vector<std::vector<int>> cannon, ing;
+        int cannon_n = place_cannons(cannon, ing, board, cfg.cannon_count);
+        if (cannon_n < cfg.min_cannon) continue;
+        std::vector<int> exits = bottom_exit_cols(board);
+        if (exits.empty()) continue;
+        if (!has_legal_move_ingredient(board, nullptr, nullptr, &ing)) continue;
+
+        Level base;
+        base.init_board = board;
+        base.species = cfg.species;
+        base.seed = seed + (uint32_t)bs * 2654435761u;
+        base.cannon = cannon;
+        base.ing = ing;                 // 起手原料层（炮下方播种，炮口逐步再产）
+        base.exit_cols = exits;
+        base.move_limit = std::max(cfg.move_limit, cfg.h * 3);
+        base.objectives = {{OBJ_COLLECT_INGREDIENT, -1, 1}};
+
+        // 二分上界：smart_greedy 全力运（带下沉势能）实测平均能收下多少（目标导向天花板）。
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level pr = base;
+            pr.seed = base.seed + (uint32_t)t * 1000003u;
+            pr.objectives = {{OBJ_COLLECT_INGREDIENT, -1, BIG}};
+            gd += smart_greedy_play(pr).ingredient_collected;
+        }
+        if (_bisect_target_solvable(base, cfg, band, (int)(gd / cfg.trials) + 1, chosen))
+            return chosen;  // 标出可解关 → 用它
+    }
+    return chosen;  // 极端：多盘都不可解（几乎不发生）→ 空关，export 跳过
+}
+
+// ---- 爆米花关（OBJ_POP_POPCORN）：撒爆米花 + 保守二分 target（裸 Core 溅射命中近似，标定最保守）----
+
+// 爆米花布点：普通棋子格(非 WALL/EMPTY)按 density 撒爆米花，初始命中数统一 hp。返回布的格数。
+inline int place_popcorn(std::vector<std::vector<int>>& popcorn, const Grid& board,
+                         double density, int hp, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    popcorn.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int total = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                popcorn[y][x] = hp;
+                total++;
+            }
+    return total;
+}
+
+// 按请求难度产爆米花关：撒爆米花 + OBJ_POP_POPCORN 目标，二分 target(砸够 N 次)，取最贴带中心者。
+//   保守标定（特效标定难题）：裸 Core 无特效，命中靠 play_popcorn 的几何溅射近似（真机特效命中面更大，
+//   故近似偏低）→ target 取二分命中带的最贴中心值（自然偏地板），popcorn_hp=1 易达成，move 充裕。这样标出的关真机必可解。
+inline GeneratedLevel generate_popcorn_for_difficulty(const GenConfig& cfg, DiffBand band, uint32_t seed) {
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    const int BIG = 1 << 30;
+    const int MAX_BOARDS = 40;
+    std::mt19937 boardgen(seed ^ 0x90fc0123u);
+    for (int bs = 0; bs < MAX_BOARDS; ++bs) {
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = seed + (uint32_t)bs * 7919u;
+        std::vector<std::vector<int>> popcorn;
+        int pop_n = place_popcorn(popcorn, board, cfg.mystery_density /*复用密度旋钮口径*/, cfg.popcorn_hp,
+                                  cand_seed ^ 0x90fcbeefu);
+        if (pop_n < cfg.min_popcorn) continue;
+        if (!has_legal_move_popcorn(board, nullptr, nullptr, &popcorn)) continue;
+
+        Level base;
+        base.init_board = board;
+        base.species = cfg.species;
+        base.seed = seed + (uint32_t)bs * 2654435761u;
+        base.popcorn = popcorn;
+        base.move_limit = std::max(cfg.move_limit, cfg.h * 3);  // 充裕步数（保守）
+        base.objectives = {{OBJ_POP_POPCORN, -1, 1}};
+
+        // 二分上界：smart_greedy 全力砸（保守溅射近似）实测平均命中多少（保守天花板）。
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level pr = base;
+            pr.seed = base.seed + (uint32_t)t * 1000003u;
+            pr.objectives = {{OBJ_POP_POPCORN, -1, BIG}};
+            gd += smart_greedy_play(pr).popcorn_hit;
+        }
+        if (_bisect_target_solvable(base, cfg, band, (int)(gd / cfg.trials) + 1, chosen))
+            return chosen;
+    }
+    return chosen;
+}
+
+// ---- 蛋糕关（OBJ_DESTROY_CAKE）：撒蛋糕(grid=WALL) + 保守二分 target ----
+
+// 蛋糕布点：普通棋子格(非 WALL/EMPTY)按 density 撒蛋糕，该格 grid→WALL、cake=hp。返回布的蛋糕数。
+inline int place_cakes(std::vector<std::vector<int>>& cake, Grid& board,
+                       double density, int hp, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    cake.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int total = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                cake[y][x] = hp;
+                board[y][x] = WALL;   // 蛋糕格 grid=WALL（与 board.gd _merge_walls_into_mask 一致）
+                total++;
+            }
+    return total;
+}
+
+// 按请求难度产蛋糕关：撒蛋糕 + OBJ_DESTROY_CAKE 目标，二分 target(炸毁 N 个)，取最贴带中心者。
+//   保守标定：裸 Core 蛋糕引爆不触发特效链展开（真机威力略大）→ cake_hp 低、target 取命中带最贴中心值。
+inline GeneratedLevel generate_cake_for_difficulty(const GenConfig& cfg, DiffBand band, uint32_t seed) {
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    const int BIG = 1 << 30;
+    const int MAX_BOARDS = 40;
+    std::mt19937 boardgen(seed ^ 0xcafe0456u);
+    for (int bs = 0; bs < MAX_BOARDS; ++bs) {
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = seed + (uint32_t)bs * 7919u;
+        std::vector<std::vector<int>> cake;
+        int cake_n = place_cakes(cake, board, cfg.cake_density, cfg.cake_hp, cand_seed ^ 0xcafed00du);
+        if (cake_n < cfg.min_cake) continue;
+        if (!has_legal_move(board, nullptr)) continue;  // 撒蛋糕(变 WALL)后仍要有合法步
+
+        Level base;
+        base.init_board = board;
+        base.species = cfg.species;
+        base.seed = seed + (uint32_t)bs * 2654435761u;
+        base.cake = cake;
+        base.move_limit = std::max(cfg.move_limit, cfg.h * 3);
+        base.objectives = {{OBJ_DESTROY_CAKE, -1, 1}};
+
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level pr = base;
+            pr.seed = base.seed + (uint32_t)t * 1000003u;
+            pr.objectives = {{OBJ_DESTROY_CAKE, -1, BIG}};
+            gd += smart_greedy_play(pr).cake_destroyed;
+        }
+        if (_bisect_target_solvable(base, cfg, band, (int)(gd / cfg.trials) + 1, chosen))
+            return chosen;
+    }
+    return chosen;
+}
+
+// ---- 神秘糖关（OBJ_REVEAL_MYSTERY）：铺神秘糖(普通棋子) + 二分 target（被消即揭开，标定相对直接）----
+
+// 神秘糖布点：普通棋子格(非 WALL/EMPTY)按 density 铺 mystery=1（grid 保持普通棋子，可消可换）。返回布的格数。
+inline int place_mystery(std::vector<std::vector<int>>& mystery, const Grid& board,
+                         double density, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    mystery.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int total = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                mystery[y][x] = 1;
+                total++;
+            }
+    return total;
+}
+
+// 按请求难度产神秘糖关：铺神秘糖 + OBJ_REVEAL_MYSTERY 目标，二分 target(揭开 N 个)。
+//   标定相对直接：神秘糖是普通棋子，普通三消即触发揭开（无特效依赖）。target 越高越难 → 可二分。
+inline GeneratedLevel generate_mystery_for_difficulty(const GenConfig& cfg, DiffBand band, uint32_t seed) {
+    GeneratedLevel chosen;
+    chosen.difficulty = "?";
+    const int BIG = 1 << 30;
+    const int MAX_BOARDS = 40;
+    std::mt19937 boardgen(seed ^ 0x357e0789u);
+    for (int bs = 0; bs < MAX_BOARDS; ++bs) {
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = seed + (uint32_t)bs * 7919u;
+        std::vector<std::vector<int>> mystery;
+        int mys_n = place_mystery(mystery, board, cfg.mystery_density, cand_seed ^ 0x357ebeefu);
+        if (mys_n < cfg.min_mystery) continue;
+        if (!has_legal_move(board, nullptr)) continue;  // 神秘糖是普通棋子，基础合法步判定即可
+
+        Level base;
+        base.init_board = board;
+        base.species = cfg.species;
+        base.seed = seed + (uint32_t)bs * 2654435761u;
+        base.mystery = mystery;
+        base.move_limit = std::max(cfg.move_limit, cfg.h * 3);
+        base.objectives = {{OBJ_REVEAL_MYSTERY, -1, 1}};
+
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level pr = base;
+            pr.seed = base.seed + (uint32_t)t * 1000003u;
+            pr.objectives = {{OBJ_REVEAL_MYSTERY, -1, BIG}};
+            gd += smart_greedy_play(pr).mystery_revealed;
+        }
+        if (_bisect_target_solvable(base, cfg, band, (int)(gd / cfg.trials) + 1, chosen))
+            return chosen;
+    }
+    return chosen;
 }
 
 // ---- FI2Pop：可行-不可行双种群遗传生成（09 §2.3）----

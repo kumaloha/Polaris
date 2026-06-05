@@ -63,6 +63,9 @@ static const char* obj_type_str(ObjType t) {
         case OBJ_CLEAR_CHOCO: return "CLEAR_CHOCO";
         case OBJ_COLLECT_INGREDIENT: return "COLLECT_INGREDIENT";
         case OBJ_DEFUSE_BOMB: return "DEFUSE_BOMB";
+        case OBJ_POP_POPCORN: return "POP_POPCORN";
+        case OBJ_DESTROY_CAKE: return "DESTROY_CAKE";
+        case OBJ_REVEAL_MYSTERY: return "REVEAL_MYSTERY";
         default: return "SCORE";
     }
 }
@@ -96,6 +99,10 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     o << "\"ing\":" << grid_json(lv.ing) << ",";          // 运料关原料层(非运料关=空[])
     o << "\"exits\":" << int_vec_json(lv.exit_cols) << ",";  // 运料关出口列号数组(非运料关=空[])
     o << "\"bomb\":" << grid_json(lv.bomb) << ",";        // 炸弹关倒计时层(非炸弹关=空[]；bomb[y][x]=剩余步数)
+    o << "\"cannon\":" << grid_json(lv.cannon) << ",";    // 糖果炮层(非糖果炮关=空[]；cannon[y][x]=1产糖/2产原料)
+    o << "\"popcorn\":" << grid_json(lv.popcorn) << ",";  // 爆米花层(非爆米花关=空[]；popcorn[y][x]=剩余命中数)
+    o << "\"cake\":" << grid_json(lv.cake) << ",";        // 蛋糕层(非蛋糕关=空[]；cake[y][x]=剩余血量)
+    o << "\"mystery\":" << grid_json(lv.mystery) << ",";  // 神秘糖层(非神秘糖关=空[]；mystery[y][x]=1神秘糖)
     o << "\"difficulty\":\"" << gl.difficulty << "\",";
     o << "\"lfhc_gap\":" << gl.lfhc_gap << ",";
     o << "\"skilled_pass\":" << gl.skilled_pass;
@@ -251,6 +258,97 @@ int main(int argc, char** argv) {
         for (auto& gl : f.get())
             levels.push_back(gl);
 
+    // ═══════════ H5：四个"死功能"障碍专项关批（cannon / popcorn / cake / mystery）═══════════
+    // 每档 per_band 关（与运料/滚动同量），二分 target 校准难度。盘维度 9×9/10/11，各层独立 seed 流。
+    // 特效标定难题处理：cake/mystery 普通三消即触发(标定直接)；popcorn 用保守溅射几何近似 +
+    //   cannon 用起手原料保证目标可达(炮口产出为额外供给)——均偏保守，确保真机可解(呼应铁律)。
+
+    // 糖果炮关（OBJ_COLLECT_INGREDIENT，cannon=2 产原料）：顶行布炮 + 靠底起手原料 + 底行出口。
+    DiffBand cnbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> cnfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            c.cannon_count = 3 + bi;       // 难档多布一门炮
+            c.min_cannon = 2;
+            DiffBand band = cnbands[bi];
+            uint32_t seed = 440000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            cnfuts.push_back(std::async(std::launch::async, [c, band, seed]() {
+                return generate_cannon_for_difficulty(c, band, seed);
+            }));
+        }
+    }
+    for (auto& f : cnfuts) {
+        GeneratedLevel gl = f.get();
+        if (!gl.level.cannon.empty()) levels.push_back(gl);  // 防御：极端凑不出可用盘时跳过
+    }
+
+    // 爆米花关（OBJ_POP_POPCORN）：撒爆米花格 + 保守二分 target（裸 Core 溅射命中近似，标定最保守）。
+    DiffBand pcbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> pcfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;                     // 各档盘高 9/10/11
+            c.mystery_density = 0.10 + 0.02 * bi;  // 复用 mystery_density 作撒布概率口径（难档略密）
+            c.popcorn_hp = 1;                 // 保守：命中数 1（裸 Core 溅射近似易达成）
+            c.min_popcorn = 3;
+            DiffBand band = pcbands[bi];
+            uint32_t seed = 330000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            pcfuts.push_back(std::async(std::launch::async, [c, band, seed]() {
+                return generate_popcorn_for_difficulty(c, band, seed);
+            }));
+        }
+    }
+    for (auto& f : pcfuts) {
+        GeneratedLevel gl = f.get();
+        if (!gl.level.popcorn.empty()) levels.push_back(gl);
+    }
+
+    // 蛋糕关（OBJ_DESTROY_CAKE）：撒蛋糕(grid=WALL) + 保守二分 target。
+    DiffBand ckbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> ckfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            c.cake_density = 0.06;         // 普通棋子格 ~6% 撒蛋糕
+            c.cake_hp = 2;                 // 保守：血量 2
+            c.min_cake = 2;
+            DiffBand band = ckbands[bi];
+            uint32_t seed = 220000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            ckfuts.push_back(std::async(std::launch::async, [c, band, seed]() {
+                return generate_cake_for_difficulty(c, band, seed);
+            }));
+        }
+    }
+    for (auto& f : ckfuts) {
+        GeneratedLevel gl = f.get();
+        if (!gl.level.cake.empty()) levels.push_back(gl);
+    }
+
+    // 神秘糖关（OBJ_REVEAL_MYSTERY）：铺神秘糖(普通棋子) + 二分 target（被消即揭开，标定相对直接）。
+    DiffBand mybands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<GeneratedLevel>> myfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            c.mystery_density = 0.12;      // 普通棋子格 ~12% 铺神秘糖
+            c.min_mystery = 3;
+            DiffBand band = mybands[bi];
+            uint32_t seed = 110000u + (uint32_t)(bi * per_band + k) * 2654435761u;
+            myfuts.push_back(std::async(std::launch::async, [c, band, seed]() {
+                return generate_mystery_for_difficulty(c, band, seed);
+            }));
+        }
+    }
+    for (auto& f : myfuts) {
+        GeneratedLevel gl = f.get();
+        if (!gl.level.mystery.empty()) levels.push_back(gl);
+    }
+
     std::ostringstream o;
     o << "{\"levels\":[";
     for (size_t i = 0; i < levels.size(); ++i) {
@@ -276,6 +374,32 @@ int main(int argc, char** argv) {
             int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
             std::fprintf(stderr, "  lvl_%zu: [CHOCO] diff=%s pass=%.2f target=%d initial_choco=%d\n",
                          i, levels[i].difficulty, levels[i].skilled_pass, tgt, cc);
+        } else if (!lv.cannon.empty()) {  // 糖果炮关须先于 ing 判（其 ing 层非空=起手原料）
+            int cn = 0;
+            for (const auto& row : lv.cannon) for (int v : row) cn += (v > 0);
+            int ic = 0;
+            for (const auto& row : lv.ing) for (int v : row) ic += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [CANNON] diff=%s pass=%.2f target=%d cannons=%d starter_ing=%d moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, cn, ic, lv.move_limit);
+        } else if (!lv.popcorn.empty()) {
+            int pc = 0;
+            for (const auto& row : lv.popcorn) for (int v : row) pc += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [POPCORN] diff=%s pass=%.2f target=%d initial_popcorn=%d moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, pc, lv.move_limit);
+        } else if (!lv.cake.empty()) {
+            int kc = 0;
+            for (const auto& row : lv.cake) for (int v : row) kc += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [CAKE] diff=%s pass=%.2f target=%d initial_cake=%d moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, kc, lv.move_limit);
+        } else if (!lv.mystery.empty()) {
+            int mc = 0;
+            for (const auto& row : lv.mystery) for (int v : row) mc += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [MYSTERY] diff=%s pass=%.2f target=%d initial_mystery=%d moves=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, mc, lv.move_limit);
         } else if (!lv.ing.empty()) {
             int ic = 0;
             for (const auto& row : lv.ing) for (int v : row) ic += (v > 0);

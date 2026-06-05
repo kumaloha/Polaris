@@ -274,12 +274,208 @@ static void test_generate_bomb_difficulty() {
     }
 }
 
+// ═══════════════ H5：四个"死功能"障碍关生成断言（cannon / popcorn / cake / mystery）═══════════════
+
+// 糖果炮关：cannon=2 产原料，目标 COLLECT_INGREDIENT（靠起手原料 + 炮口供给达成）。带 cannon 层 + 可解 + 确定性。
+static void test_generate_cannon_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.cannon_count = 3; cfg.min_cannon = 2;
+
+    GeneratedLevel easy = generate_cannon_for_difficulty(cfg, band_easy(), 440000u);
+    CHECK(!easy.level.cannon.empty(), "CANNON level carries a cannon layer");
+    CHECK_EQ((int)easy.level.objectives.size(), 1, "exactly one objective");
+    CHECK(easy.level.objectives[0].type == OBJ_COLLECT_INGREDIENT, "objective is COLLECT_INGREDIENT");
+    CHECK(easy.level.objectives[0].target >= 1, "cannon target >= 1");
+    CHECK(!easy.level.exit_cols.empty(), "CANNON level has exit columns");
+    int cannon_n = 0;
+    for (const auto& row : easy.level.cannon) for (int v : row) if (v > 0) { cannon_n++; CHECK(v == 2, "cannon produces ingredient (=2)"); }
+    CHECK(cannon_n >= cfg.min_cannon, "cannon count >= min_cannon");
+    // 炮口格 grid=WALL（与 board.gd _merge_walls_into_mask 一致）
+    for (int y = 0; y < (int)easy.level.cannon.size(); ++y)
+        for (int x = 0; x < (int)easy.level.cannon[y].size(); ++x)
+            if (easy.level.cannon[y][x] > 0)
+                CHECK_EQ(easy.level.init_board[y][x], WALL, "cannon cell is WALL in init_board");
+    CHECK_EQ((int)easy.level.cannon.size(), (int)easy.level.init_board.size(), "cannon layer height matches board");
+    CHECK(easy.skilled_pass >= 0.0 && easy.skilled_pass <= 1.0, "CANNON skilled_pass is a rate");
+    // 可解性铁证：目标导向天花板至少一次收够 target 个原料。
+    bool any_win = false;
+    for (int t = 0; t < 12 && !any_win; ++t) {
+        Level lv = easy.level;
+        lv.seed = easy.level.seed + (uint32_t)t * 1000003u;
+        PlayResult sp = smart_greedy_play(lv);
+        if (sp.ingredient_collected >= easy.level.objectives[0].target) any_win = true;
+    }
+    CHECK(any_win, "ceiling can collect target ingredients (real solvability)");
+
+    GeneratedLevel hard = generate_cannon_for_difficulty(cfg, band_hard(), 440000u);
+    CHECK(!hard.level.cannon.empty(), "produced HARD cannon level");
+    CHECK(hard.level.objectives[0].type == OBJ_COLLECT_INGREDIENT, "HARD objective is COLLECT_INGREDIENT");
+    CHECK(hard.level.objectives[0].target >= easy.level.objectives[0].target
+          || hard.skilled_pass <= easy.skilled_pass + 1e-9, "difficulty separates (target up or pass down)");
+
+    // 确定性：同配置两次生成 → 同 target + 同 pass。
+    GeneratedLevel a = generate_cannon_for_difficulty(cfg, band_medium(), 441000u);
+    GeneratedLevel b = generate_cannon_for_difficulty(cfg, band_medium(), 441000u);
+    CHECK_EQ(a.level.objectives[0].target, b.level.objectives[0].target, "cannon gen deterministic target");
+    CHECK(a.skilled_pass == b.skilled_pass, "cannon gen deterministic pass");
+
+    std::printf("  [gen-cannon] EASY pass=%.2f target=%d cannons=%d | HARD pass=%.2f target=%d\n",
+                easy.skilled_pass, easy.level.objectives[0].target, cannon_n,
+                hard.skilled_pass, hard.level.objectives[0].target);
+}
+
+// 爆米花关：OBJ_POP_POPCORN，裸 Core 保守溅射命中近似。带 popcorn 层 + 可解 + 确定性。
+static void test_generate_popcorn_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.mystery_density = 0.10; cfg.popcorn_hp = 1; cfg.min_popcorn = 3;
+
+    GeneratedLevel easy = generate_popcorn_for_difficulty(cfg, band_easy(), 330000u);
+    CHECK(!easy.level.popcorn.empty(), "POPCORN level carries a popcorn layer");
+    CHECK_EQ((int)easy.level.objectives.size(), 1, "exactly one objective");
+    CHECK(easy.level.objectives[0].type == OBJ_POP_POPCORN, "objective is POP_POPCORN");
+    CHECK(easy.level.objectives[0].target >= 1, "popcorn target >= 1");
+    int pop_n = 0;
+    for (const auto& row : easy.level.popcorn) for (int v : row) if (v > 0) pop_n++;
+    CHECK(pop_n >= cfg.min_popcorn, "initial popcorn count >= min_popcorn");
+    CHECK_EQ((int)easy.level.popcorn.size(), (int)easy.level.init_board.size(), "popcorn layer height matches board");
+    CHECK(easy.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+    CHECK(std::string(easy.difficulty) == "EASY", "labeled EASY");
+    // 可解性铁证：目标导向天花板至少一次砸够 target 次。
+    bool any_win = false;
+    for (int t = 0; t < 12 && !any_win; ++t) {
+        Level lv = easy.level;
+        lv.seed = easy.level.seed + (uint32_t)t * 1000003u;
+        PlayResult sp = smart_greedy_play(lv);
+        if (sp.popcorn_hit >= easy.level.objectives[0].target) any_win = true;
+    }
+    CHECK(any_win, "ceiling can pop target popcorn (conservative splash solvability)");
+
+    GeneratedLevel hard = generate_popcorn_for_difficulty(cfg, band_hard(), 330000u);
+    CHECK(!hard.level.popcorn.empty(), "produced HARD popcorn level");
+    CHECK(hard.level.objectives[0].type == OBJ_POP_POPCORN, "HARD objective is POP_POPCORN");
+    CHECK(hard.level.objectives[0].target >= easy.level.objectives[0].target
+          || hard.skilled_pass <= easy.skilled_pass + 1e-9, "difficulty separates (target up or pass down)");
+
+    GeneratedLevel a = generate_popcorn_for_difficulty(cfg, band_medium(), 331000u);
+    GeneratedLevel b = generate_popcorn_for_difficulty(cfg, band_medium(), 331000u);
+    CHECK_EQ(a.level.objectives[0].target, b.level.objectives[0].target, "popcorn gen deterministic target");
+    CHECK(a.skilled_pass == b.skilled_pass, "popcorn gen deterministic pass");
+
+    std::printf("  [gen-popcorn] EASY pass=%.2f target=%d popcorn=%d | HARD pass=%.2f target=%d\n",
+                easy.skilled_pass, easy.level.objectives[0].target, pop_n,
+                hard.skilled_pass, hard.level.objectives[0].target);
+}
+
+// 蛋糕关：OBJ_DESTROY_CAKE，相邻被清 -1 引爆。带 cake 层(grid=WALL) + 可解 + 确定性。
+static void test_generate_cake_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.cake_density = 0.06; cfg.cake_hp = 2; cfg.min_cake = 2;
+
+    GeneratedLevel easy = generate_cake_for_difficulty(cfg, band_easy(), 220000u);
+    CHECK(!easy.level.cake.empty(), "CAKE level carries a cake layer");
+    CHECK_EQ((int)easy.level.objectives.size(), 1, "exactly one objective");
+    CHECK(easy.level.objectives[0].type == OBJ_DESTROY_CAKE, "objective is DESTROY_CAKE");
+    CHECK(easy.level.objectives[0].target >= 1, "cake target >= 1");
+    int cake_n = 0;
+    for (const auto& row : easy.level.cake) for (int v : row) if (v > 0) cake_n++;
+    CHECK(cake_n >= cfg.min_cake, "initial cake count >= min_cake");
+    // 蛋糕格 grid=WALL（与 board.gd _merge_walls_into_mask 一致）
+    for (int y = 0; y < (int)easy.level.cake.size(); ++y)
+        for (int x = 0; x < (int)easy.level.cake[y].size(); ++x)
+            if (easy.level.cake[y][x] > 0)
+                CHECK_EQ(easy.level.init_board[y][x], WALL, "cake cell is WALL in init_board");
+    CHECK_EQ((int)easy.level.cake.size(), (int)easy.level.init_board.size(), "cake layer height matches board");
+    CHECK(easy.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+    CHECK(std::string(easy.difficulty) == "EASY", "labeled EASY");
+    bool any_win = false;
+    for (int t = 0; t < 12 && !any_win; ++t) {
+        Level lv = easy.level;
+        lv.seed = easy.level.seed + (uint32_t)t * 1000003u;
+        PlayResult sp = smart_greedy_play(lv);
+        if (sp.cake_destroyed >= easy.level.objectives[0].target) any_win = true;
+    }
+    CHECK(any_win, "ceiling can destroy target cakes (real solvability)");
+
+    GeneratedLevel hard = generate_cake_for_difficulty(cfg, band_hard(), 220000u);
+    CHECK(!hard.level.cake.empty(), "produced HARD cake level");
+    CHECK(hard.level.objectives[0].type == OBJ_DESTROY_CAKE, "HARD objective is DESTROY_CAKE");
+    CHECK(hard.level.objectives[0].target >= easy.level.objectives[0].target
+          || hard.skilled_pass <= easy.skilled_pass + 1e-9, "difficulty separates (target up or pass down)");
+
+    GeneratedLevel a = generate_cake_for_difficulty(cfg, band_medium(), 221000u);
+    GeneratedLevel b = generate_cake_for_difficulty(cfg, band_medium(), 221000u);
+    CHECK_EQ(a.level.objectives[0].target, b.level.objectives[0].target, "cake gen deterministic target");
+    CHECK(a.skilled_pass == b.skilled_pass, "cake gen deterministic pass");
+
+    std::printf("  [gen-cake] EASY pass=%.2f target=%d cakes=%d | HARD pass=%.2f target=%d\n",
+                easy.skilled_pass, easy.level.objectives[0].target, cake_n,
+                hard.skilled_pass, hard.level.objectives[0].target);
+}
+
+// 神秘糖关：OBJ_REVEAL_MYSTERY，被消即揭开。带 mystery 层(普通棋子) + 可解 + 确定性。
+static void test_generate_mystery_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4, 5};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.mystery_density = 0.12; cfg.min_mystery = 3;
+
+    GeneratedLevel easy = generate_mystery_for_difficulty(cfg, band_easy(), 110000u);
+    CHECK(!easy.level.mystery.empty(), "MYSTERY level carries a mystery layer");
+    CHECK_EQ((int)easy.level.objectives.size(), 1, "exactly one objective");
+    CHECK(easy.level.objectives[0].type == OBJ_REVEAL_MYSTERY, "objective is REVEAL_MYSTERY");
+    CHECK(easy.level.objectives[0].target >= 1, "mystery target >= 1");
+    int mys_n = 0;
+    for (const auto& row : easy.level.mystery) for (int v : row) if (v > 0) mys_n++;
+    CHECK(mys_n >= cfg.min_mystery, "initial mystery count >= min_mystery");
+    // 神秘糖格 grid 是普通棋子（可消可换，非 WALL）
+    for (int y = 0; y < (int)easy.level.mystery.size(); ++y)
+        for (int x = 0; x < (int)easy.level.mystery[y].size(); ++x)
+            if (easy.level.mystery[y][x] > 0)
+                CHECK(easy.level.init_board[y][x] >= 0, "mystery cell is a normal piece (not WALL/EMPTY)");
+    CHECK_EQ((int)easy.level.mystery.size(), (int)easy.level.init_board.size(), "mystery layer height matches board");
+    CHECK(easy.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+    CHECK(std::string(easy.difficulty) == "EASY", "labeled EASY");
+    bool any_win = false;
+    for (int t = 0; t < 12 && !any_win; ++t) {
+        Level lv = easy.level;
+        lv.seed = easy.level.seed + (uint32_t)t * 1000003u;
+        PlayResult sp = smart_greedy_play(lv);
+        if (sp.mystery_revealed >= easy.level.objectives[0].target) any_win = true;
+    }
+    CHECK(any_win, "ceiling can reveal target mysteries (real solvability)");
+
+    GeneratedLevel hard = generate_mystery_for_difficulty(cfg, band_hard(), 110000u);
+    CHECK(!hard.level.mystery.empty(), "produced HARD mystery level");
+    CHECK(hard.level.objectives[0].type == OBJ_REVEAL_MYSTERY, "HARD objective is REVEAL_MYSTERY");
+    CHECK(hard.level.objectives[0].target >= easy.level.objectives[0].target
+          || hard.skilled_pass <= easy.skilled_pass + 1e-9, "difficulty separates (target up or pass down)");
+
+    GeneratedLevel a = generate_mystery_for_difficulty(cfg, band_medium(), 111000u);
+    GeneratedLevel b = generate_mystery_for_difficulty(cfg, band_medium(), 111000u);
+    CHECK_EQ(a.level.objectives[0].target, b.level.objectives[0].target, "mystery gen deterministic target");
+    CHECK(a.skilled_pass == b.skilled_pass, "mystery gen deterministic pass");
+
+    std::printf("  [gen-mystery] EASY pass=%.2f target=%d mystery=%d | HARD pass=%.2f target=%d\n",
+                easy.skilled_pass, easy.level.objectives[0].target, mys_n,
+                hard.skilled_pass, hard.level.objectives[0].target);
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
     test_generate_choco_difficulty();
     test_generate_ingredient_difficulty();
     test_generate_bomb_difficulty();
+    test_generate_cannon_difficulty();
+    test_generate_popcorn_difficulty();
+    test_generate_cake_difficulty();
+    test_generate_mystery_difficulty();
     test_fi2pop();
     test_generate_deterministic();
     test_generate_scroll_difficulty();
