@@ -331,7 +331,7 @@ static void test_objectives_met_choco() {
     CHECK(!objectives_met(lv, 0, {}, 0, 0, 4), "choco target not met");
 }
 
-// gen_choco::resolve 啃食：与消除正交相邻的巧克力格 -1（巧克力本身不被消，固定切段）。
+// resolve_choco 啃食：与消除正交相邻的巧克力格 -1（巧克力本身不被消，固定切段）。
 static void test_choco_resolve_eats_adjacent() {
     // 构造一行：在 (0,0)(1,0)(2,0) 凑一条三连(species 0)，巧克力放 (3,0) 与消除相邻 → 应被啃 1。
     Grid g = {
@@ -343,7 +343,7 @@ static void test_choco_resolve_eats_adjacent() {
     choco[0][3] = 1;  // 紧邻三连右端
     std::mt19937 rng(1);
     std::vector<int> species = {0, 1, 2, 3, 4};
-    auto rr = gen_choco::resolve(g, species, rng, nullptr, nullptr, &choco, nullptr, false);
+    auto rr = resolve_choco(g, species, rng, nullptr, nullptr, &choco, nullptr, false);
     CHECK(rr.choco_cleared >= 1, "adjacent chocolate eaten by a clear");
     CHECK_EQ(choco[0][3], 0, "the eaten chocolate cell dropped to 0");
 }
@@ -354,9 +354,9 @@ static void test_choco_spread_grows_one() {
     std::vector<std::vector<int>> choco(5, std::vector<int>(5, 0));
     choco[2][2] = 1;
     std::mt19937 rng(7);
-    int before = gen_choco::count_chocolate(choco);
-    bool grew = gen_choco::spread_chocolate(choco, g, rng);
-    int after = gen_choco::count_chocolate(choco);
+    int before = count_chocolate(choco);
+    bool grew = spread_chocolate(choco, g, rng);
+    int after = count_chocolate(choco);
     CHECK(grew, "spread succeeds when an invadable neighbor exists");
     CHECK_EQ(after, before + 1, "spread adds exactly one chocolate cell");
     // 蔓延的格必是 (2,2) 的正交相邻
@@ -366,7 +366,7 @@ static void test_choco_spread_grows_one() {
     std::vector<std::vector<int>> choco2(5, std::vector<int>(5, 0));
     choco2[2][2] = 1;
     std::mt19937 rng2(7);
-    gen_choco::spread_chocolate(choco2, g, rng2);
+    spread_chocolate(choco2, g, rng2);
     CHECK(choco == choco2, "spread is deterministic with same seed");
 }
 
@@ -380,9 +380,9 @@ static void test_choco_spread_blocked() {
     std::vector<std::vector<int>> choco(3, std::vector<int>(3, 0));
     choco[1][1] = 1;
     std::mt19937 rng(3);
-    bool grew = gen_choco::spread_chocolate(choco, g, rng);
+    bool grew = spread_chocolate(choco, g, rng);
     CHECK(!grew, "no spread when all neighbors are walls");
-    CHECK_EQ(gen_choco::count_chocolate(choco), 1, "chocolate count unchanged when blocked");
+    CHECK_EQ(count_chocolate(choco), 1, "chocolate count unchanged when blocked");
 }
 
 // 玩家在巧克力关执行"整步零啃食→蔓延"钩子：不啃则巧克力增多。

@@ -6,221 +6,20 @@
 
 namespace me {
 
-// ───────────── 巧克力蔓延 C++ 镜像（生成器/求解器专用，子命名空间隔离）─────────────
-// 语义与 godot/core/match_engine.gd / board.gd 一一对应（巧克力压力源）：
-//   占格、不参与 match、不可交换、不下落(gravity 固定切段)、相邻消除则啃掉一格(choco-1)；
-//   玩家整步若零啃食 → 从现存巧克力格向随机正交相邻"可侵占格"增殖一格。
-// 放进 gen_choco 子命名空间：与 match_engine.hpp 现有/未来的同名 choco 函数零重定义冲突，
-//   且不触碰 match_engine.hpp（另有并行改动在该文件加 ingredient）。
-namespace gen_choco {
-
-// choco 感知匹配：巧克力格(choco>0)与锁住格(coat>0)同样不参与/不串连。
-inline std::vector<Vec2> find_matches(const Grid& g,
-                                      const std::vector<std::vector<int>>* coat,
-                                      const std::vector<std::vector<int>>* choco) {
-    int h = (int)g.size();
-    if (h == 0) return {};
-    int w = (int)g[0].size();
-    auto blocked = [&](int x, int y) -> bool {
-        return g[y][x] == EMPTY || g[y][x] == WALL
-            || (coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0);
-    };
-    std::vector<std::vector<char>> mark(h, std::vector<char>(w, 0));
-    for (int y = 0; y < h; ++y) {
-        int x = 0;
-        while (x < w) {
-            if (blocked(x, y)) { ++x; continue; }
-            int e = x;
-            while (e + 1 < w && g[y][e + 1] == g[y][x] && !blocked(e + 1, y)) ++e;
-            if (e - x + 1 >= 3)
-                for (int k = x; k <= e; ++k) mark[y][k] = 1;
-            x = e + 1;
-        }
-    }
-    for (int x = 0; x < w; ++x) {
-        int y = 0;
-        while (y < h) {
-            if (blocked(x, y)) { ++y; continue; }
-            int e = y;
-            while (e + 1 < h && g[e + 1][x] == g[y][x] && !blocked(x, e + 1)) ++e;
-            if (e - y + 1 >= 3)
-                for (int k = y; k <= e; ++k) mark[k][x] = 1;
-            y = e + 1;
-        }
-    }
-    std::vector<Vec2> out;
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x)
-            if (mark[y][x]) out.push_back({x, y});
-    return out;
-}
-
-// choco 感知重力：巧克力格与墙/锁住格一样原地固定、把列切段。
-inline void apply_gravity(Grid& g, const std::vector<std::vector<int>>* coat,
-                          const std::vector<std::vector<int>>* choco) {
-    int h = (int)g.size();
-    if (h == 0) return;
-    int w = (int)g[0].size();
-    for (int x = 0; x < w; ++x) {
-        int seg_start = 0;
-        for (int y = 0; y <= h; ++y) {
-            bool fixed = (y < h) && ((coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0));
-            if (y == h || g[y][x] == WALL || fixed) {
-                std::vector<int> stack;
-                for (int k = seg_start; k < y; ++k)
-                    if (g[k][x] != EMPTY) stack.push_back(g[k][x]);
-                int seg_len = y - seg_start;
-                int empties = seg_len - (int)stack.size();
-                for (int k = seg_start; k < y; ++k) {
-                    int idx = k - seg_start;
-                    g[k][x] = (idx < empties) ? EMPTY : stack[idx - empties];
-                }
-                seg_start = y + 1;
-            }
-        }
-    }
-}
-
-// choco 感知合法交换：巧克力格不可参与交换。
-inline bool is_legal_swap(Grid& g, Vec2 a, Vec2 b,
-                          const std::vector<std::vector<int>>* coat,
-                          const std::vector<std::vector<int>>* choco) {
-    if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
-    int va = g[a.y][a.x], vb = g[b.y][b.x];
-    if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
-    if (coat && ((*coat)[a.y][a.x] > 0 || (*coat)[b.y][b.x] > 0)) return false;
-    if (choco && ((*choco)[a.y][a.x] > 0 || (*choco)[b.y][b.x] > 0)) return false;
-    swap_cells(g, a, b);
-    bool found = !find_matches(g, coat, choco).empty();
-    swap_cells(g, a, b);
-    return found;
-}
-
-// choco 感知死局判定。
-inline bool has_legal_move(Grid& g, const std::vector<std::vector<int>>* coat,
-                           const std::vector<std::vector<int>>* choco) {
-    int h = (int)g.size();
-    if (h == 0) return false;
-    int w = (int)g[0].size();
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            if (x + 1 < w && gen_choco::is_legal_swap(g, {x, y}, {x + 1, y}, coat, choco)) return true;
-            if (y + 1 < h && gen_choco::is_legal_swap(g, {x, y}, {x, y + 1}, coat, choco)) return true;
-        }
-    return false;
-}
-
-// 啃食：被清除格(cleared)内或正交相邻的巧克力格 -1。返回啃掉数。
-inline int eat_chocolate(std::vector<std::vector<int>>& choco, const std::vector<Vec2>& cleared) {
-    int h = (int)choco.size();
-    if (h == 0) return 0;
-    int w = (int)choco[0].size();
-    std::vector<std::vector<char>> cs(h, std::vector<char>(w, 0));
-    for (const auto& p : cleared)
-        if (p.x >= 0 && p.x < w && p.y >= 0 && p.y < h) cs[p.y][p.x] = 1;
-    int eaten = 0;
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            if (choco[y][x] <= 0) continue;
-            bool hit = cs[y][x]
-                || (x > 0 && cs[y][x - 1]) || (x + 1 < w && cs[y][x + 1])
-                || (y > 0 && cs[y - 1][x]) || (y + 1 < h && cs[y + 1][x]);
-            if (hit) { choco[y][x]--; ++eaten; }
-        }
-    return eaten;
-}
-
-// 数巧克力格总数。
-inline int count_chocolate(const std::vector<std::vector<int>>& choco) {
-    int n = 0;
-    for (const auto& row : choco)
-        for (int v : row)
-            if (v > 0) ++n;
-    return n;
-}
-
-// 蔓延：从现存巧克力格的随机正交相邻"可侵占格"(普通棋子 species>=0、非墙非空、choco==0)选一变巧克力。
-//   候选枚举序固定(行→列→四向右左下上)，注入 rng → 确定性。无处可蔓延返回 false。
-inline bool spread_chocolate(std::vector<std::vector<int>>& choco, const Grid& g, std::mt19937& rng) {
-    int h = (int)choco.size();
-    if (h == 0) return false;
-    int w = (int)choco[0].size();
-    static const int dx[4] = {1, -1, 0, 0};
-    static const int dy[4] = {0, 0, 1, -1};
-    std::vector<std::vector<char>> seen(h, std::vector<char>(w, 0));
-    std::vector<Vec2> candidates;
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            if (choco[y][x] <= 0) continue;
-            for (int d = 0; d < 4; ++d) {
-                int nx = x + dx[d], ny = y + dy[d];
-                if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-                if (choco[ny][nx] > 0) continue;
-                if (g[ny][nx] < 0) continue;   // EMPTY(-1)/WALL(-2) 不可侵占
-                if (seen[ny][nx]) continue;
-                seen[ny][nx] = 1;
-                candidates.push_back({nx, ny});
-            }
-        }
-    if (candidates.empty()) return false;
-    std::uniform_int_distribution<int> dist(0, (int)candidates.size() - 1);
-    Vec2 pick = candidates[dist(rng)];
-    choco[pick.y][pick.x] = 1;
-    return true;
-}
-
-struct ChocoResolveResult {
-    int score = 0, cascades = 0, cleared = 0;
-    int jelly_cleared = 0, blocker_cleared = 0, choco_cleared = 0;
-    std::vector<int> by_species;
-};
-
-// choco 感知 resolve：消除→破锁/啃巧克力→计分→下落(障碍固定)→补充，循环至稳定。
-inline ChocoResolveResult resolve(Grid& g, const std::vector<int>& species, std::mt19937& rng,
-                                  std::vector<std::vector<int>>* jelly,
-                                  std::vector<std::vector<int>>* coat,
-                                  std::vector<std::vector<int>>* choco,
-                                  std::vector<std::deque<int>>* feed, bool do_refill) {
-    ChocoResolveResult r;
-    while (true) {
-        auto matched = find_matches(g, coat, choco);
-        if (matched.empty()) break;
-        r.cascades++;
-        int H = (int)g.size(), W = (int)g[0].size();
-        std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
-        for (const auto& p : matched) ism[p.y][p.x] = 1;
-        if (coat) {
-            for (int y = 0; y < H; ++y)
-                for (int x = 0; x < W; ++x) {
-                    if ((*coat)[y][x] <= 0) continue;
-                    bool hit = ism[y][x]
-                        || (x > 0 && ism[y][x - 1]) || (x + 1 < W && ism[y][x + 1])
-                        || (y > 0 && ism[y - 1][x]) || (y + 1 < H && ism[y + 1][x]);
-                    if (hit) { (*coat)[y][x]--; r.blocker_cleared++; }
-                }
-        }
-        if (choco) r.choco_cleared += gen_choco::eat_chocolate(*choco, matched);
-        for (const auto& p : matched) {
-            int s = g[p.y][p.x];
-            if (s >= 0) {
-                if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
-                r.by_species[s]++;
-            }
-            if (jelly && (*jelly)[p.y][p.x] > 0) { (*jelly)[p.y][p.x]--; r.jelly_cleared++; }
-            g[p.y][p.x] = EMPTY;
-        }
-        r.cleared += (int)matched.size();
-        r.score += score_for_clear((int)matched.size(), r.cascades);
-        apply_gravity(g, coat, choco);
-        if (do_refill) refill(g, species, rng, feed);
-    }
-    return r;
-}
+// ───────────── 巧克力蔓延：直接复用 match_engine.hpp 的 *_choco 原语（H4 去重）─────────────
+// 历史上这里有一份自包含的 gen_choco 子命名空间拷贝（早期 match_engine.hpp 尚无巧克力时为避重定义而隔离）。
+//   现 match_engine.hpp 已提供完整一套：find_matches_choco / apply_gravity_choco / is_legal_swap_choco /
+//   has_legal_move_choco / eat_chocolate / spread_chocolate / count_chocolate / resolve_choco（含 ChocoResolveResult）。
+//   隔离理由消失 → 删掉整套拷贝，求解器/生成器统一调 me:: 原语，避免"改一处漏另一处"导致标定端与镜像端分叉。
+//   调用处一律用显式 me:: 限定（消除 ADL 二义：旧 gen_choco 内非限定调用曾把 me:: 同名函数拉进重载集）。
+// 唯一例外：choco 感知的洗牌 match_engine.hpp 未提供（基础 reshuffle 只 coat 感知）。这里保留一个最小的
+//   求解器特有包装 reshuffle_choco，内部只调 me:: 的 find_matches_choco / has_legal_move_choco 原语，不复制规则。
 
 // choco 感知洗牌：仅打乱普通棋子(非墙/空/锁/巧克力)，直到无现成消除且有 choco 感知合法步。
-inline void reshuffle(Grid& g, std::mt19937& rng,
-                      const std::vector<std::vector<int>>* coat,
-                      const std::vector<std::vector<int>>* choco) {
+//   match_engine.hpp 无对应原语，故作为求解器特有包装保留；判定全部委托 me:: 的 *_choco 原语。
+inline void reshuffle_choco(Grid& g, std::mt19937& rng,
+                            const std::vector<std::vector<int>>* coat,
+                            const std::vector<std::vector<int>>* choco) {
     int h = (int)g.size();
     if (h == 0) return;
     int w = (int)g[0].size();
@@ -244,16 +43,14 @@ inline void reshuffle(Grid& g, std::mt19937& rng,
         }
         for (size_t i = 0; i < positions.size(); ++i)
             g[positions[i].y][positions[i].x] = tiles[i];
-        bool no_match = find_matches(g, coat, choco).empty();
-        if (no_match && has_legal_move(g, coat, choco)) return;
+        bool no_match = find_matches_choco(g, coat, choco).empty();
+        if (no_match && has_legal_move_choco(g, coat, choco)) return;
         if (no_match && !have_safe) { have_safe = true; safe_tiles = tiles; }
     }
     if (have_safe)
         for (size_t i = 0; i < positions.size(); ++i)
             g[positions[i].y][positions[i].x] = safe_tiles[i];
 }
-
-}  // namespace gen_choco
 
 enum ObjType { OBJ_SCORE, OBJ_COLLECT, OBJ_CLEAR_JELLY, OBJ_CLEAR_BLOCKER, OBJ_CLEAR_CHOCO, OBJ_COLLECT_INGREDIENT, OBJ_DEFUSE_BOMB };
 
@@ -402,7 +199,7 @@ inline double move_value(const ResolveResult& rr, const Level& lv) {
 }
 
 // 一步交换的"价值"（choco 关）：CLEAR_CHOCO→啃的巧克力数×W；其余目标同 move_value 口径。
-inline double move_value_choco(const gen_choco::ChocoResolveResult& rr, const Level& lv) {
+inline double move_value_choco(const ChocoResolveResult& rr, const Level& lv) {
     if (lv.objectives.empty()) return (double)rr.score;
     const double W = 100.0;
     double v = 0.0;
@@ -420,7 +217,7 @@ inline double move_value_choco(const gen_choco::ChocoResolveResult& rr, const Le
 }
 
 // 一步是否"推进巧克力目标"（choco 关 progress 曲线用）。
-inline bool move_progresses_choco(const gen_choco::ChocoResolveResult& rr, const Level& lv) {
+inline bool move_progresses_choco(const ChocoResolveResult& rr, const Level& lv) {
     if (lv.objectives.empty()) return rr.cleared > 0;
     for (const auto& o : lv.objectives) {
         if (o.type == OBJ_SCORE && rr.score > 0) return true;
@@ -458,9 +255,9 @@ inline std::vector<Move> legal_moves_choco(Grid& g, const std::vector<std::vecto
     int w = (int)g[0].size();
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
-            if (x + 1 < w && gen_choco::is_legal_swap(g, {x, y}, {x + 1, y}, coat, choco))
+            if (x + 1 < w && is_legal_swap_choco(g, {x, y}, {x + 1, y}, coat, choco))
                 out.push_back({{x, y}, {x + 1, y}});
-            if (y + 1 < h && gen_choco::is_legal_swap(g, {x, y}, {x, y + 1}, coat, choco))
+            if (y + 1 < h && is_legal_swap_choco(g, {x, y}, {x, y + 1}, coat, choco))
                 out.push_back({{x, y}, {x, y + 1}});
         }
     return out;
@@ -662,7 +459,7 @@ inline PlayResult play_choco(const Level& lv, ValueFn value_fn, bool record_curv
            && !objectives_met(lv, res.score, collected, jelly_total, blocker_total, choco_total)) {
         auto moves = legal_moves_choco(g, coatp(), chocop());
         if (moves.empty()) {  // 死局：choco 感知洗牌续玩
-            gen_choco::reshuffle(g, rng, coatp(), chocop());
+            reshuffle_choco(g, rng, coatp(), chocop());
             moves = legal_moves_choco(g, coatp(), chocop());
             if (moves.empty()) break;
         }
@@ -674,14 +471,14 @@ inline PlayResult play_choco(const Level& lv, ValueFn value_fn, bool record_curv
             std::mt19937 rc = rng;
             std::vector<std::vector<int>> jc = jelly, cc = coat, hc = choco;
             swap_cells(gc, m.a, m.b);
-            gen_choco::ChocoResolveResult rr = gen_choco::resolve(
+            ChocoResolveResult rr = resolve_choco(
                 gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
                 hc.empty() ? nullptr : &hc, nullptr, true);
             double v = value_fn(rr, lv);
             if (v > best_v) { best_v = v; best = m; }
         }
         swap_cells(g, best.a, best.b);
-        gen_choco::ChocoResolveResult rr = gen_choco::resolve(
+        ChocoResolveResult rr = resolve_choco(
             g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
             choco.empty() ? nullptr : &choco, nullptr, true);
         res.score += rr.score;
@@ -690,7 +487,7 @@ inline PlayResult play_choco(const Level& lv, ValueFn value_fn, bool record_curv
         blocker_total += rr.blocker_cleared;
         choco_total += rr.choco_cleared;
         if (!choco.empty() && rr.choco_cleared == 0)  // 整步零啃食 → 蔓延一格（镜像 _spread_choco_if_untouched）
-            gen_choco::spread_chocolate(choco, g, rng);
+            spread_chocolate(choco, g, rng);
         res.moves_used++;
     }
     res.collected = collected;
@@ -836,7 +633,7 @@ inline PlayResult greedy_play(const Level& lv) {
         return play_ingredient(lv, [](const IngResolveResult& rr, const Level&) {
             return (double)rr.score; }, false);
     if (!lv.choco.empty())  // 巧克力关：走 choco 回合骨架，选步仍按立即分数（休闲玩家）
-        return play_choco(lv, [](const gen_choco::ChocoResolveResult& rr, const Level&) {
+        return play_choco(lv, [](const ChocoResolveResult& rr, const Level&) {
             return (double)rr.score; }, false);
     Grid g = lv.init_board;
     std::mt19937 rng(lv.seed);
@@ -1048,13 +845,13 @@ inline PlayResult random_play(const Level& lv) {
                && !objectives_met(lv, res.score, collected, jelly_total, blocker_total, choco_total)) {
             auto moves = legal_moves_choco(g, coatp(), chocop());
             if (moves.empty()) {
-                gen_choco::reshuffle(g, rng, coatp(), chocop());
+                reshuffle_choco(g, rng, coatp(), chocop());
                 moves = legal_moves_choco(g, coatp(), chocop());
                 if (moves.empty()) break;
             }
             Move m = moves[rng() % moves.size()];
             swap_cells(g, m.a, m.b);
-            gen_choco::ChocoResolveResult rr = gen_choco::resolve(
+            ChocoResolveResult rr = resolve_choco(
                 g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
                 choco.empty() ? nullptr : &choco, nullptr, true);
             res.score += rr.score;
@@ -1063,7 +860,7 @@ inline PlayResult random_play(const Level& lv) {
             blocker_total += rr.blocker_cleared;
             choco_total += rr.choco_cleared;
             if (!choco.empty() && rr.choco_cleared == 0)  // 整步零啃食 → 蔓延一格
-                gen_choco::spread_chocolate(choco, g, rng);
+                spread_chocolate(choco, g, rng);
             res.moves_used++;
         }
         res.collected = collected;
@@ -1171,7 +968,7 @@ inline PlayResult heuristic_play(const Level& lv, const Heuristic& h) {
             return h.w_obj * prog + h.w_score * (double)rr.score + h.w_cascade * (double)rr.cascades;
         }, true);
     if (!lv.choco.empty())  // 巧克力关：choco 回合骨架 + 画像选步（目标进度含 choco_cleared）
-        return play_choco(lv, [&h](const gen_choco::ChocoResolveResult& rr, const Level& l) {
+        return play_choco(lv, [&h](const ChocoResolveResult& rr, const Level& l) {
             double prog = 0.0;
             for (const auto& o : l.objectives) {
                 if (o.type == OBJ_SCORE) prog += rr.score / 100.0;
@@ -1333,7 +1130,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
                && !objectives_met(lv, score, collected, jelly_total, blocker_total, choco_total)) {
             auto moves = legal_moves_choco(g, coatp(), chocop());
             if (moves.empty()) {
-                gen_choco::reshuffle(g, rng, coatp(), chocop());
+                reshuffle_choco(g, rng, coatp(), chocop());
                 moves = legal_moves_choco(g, coatp(), chocop());
                 if (moves.empty()) break;
             }
@@ -1345,7 +1142,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
                 std::mt19937 rc = rng;
                 std::vector<std::vector<int>> jc = jelly, cc = coat, hc = choco;
                 swap_cells(gc, m.a, m.b);
-                gen_choco::ChocoResolveResult rr = gen_choco::resolve(
+                ChocoResolveResult rr = resolve_choco(
                     gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
                     hc.empty() ? nullptr : &hc, nullptr, true);
                 if (move_progresses_choco(rr, lv)) prog++;
@@ -1357,7 +1154,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
             }
             curve.push_back(prog);
             swap_cells(g, best.a, best.b);
-            gen_choco::ChocoResolveResult rr = gen_choco::resolve(
+            ChocoResolveResult rr = resolve_choco(
                 g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
                 choco.empty() ? nullptr : &choco, nullptr, true);
             score += rr.score;
@@ -1366,7 +1163,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
             blocker_total += rr.blocker_cleared;
             choco_total += rr.choco_cleared;
             if (!choco.empty() && rr.choco_cleared == 0)
-                gen_choco::spread_chocolate(choco, g, rng);
+                spread_chocolate(choco, g, rng);
             moves_used++;
         }
         return curve;

@@ -533,7 +533,7 @@ inline std::vector<GeneratedLevel> generate_choco_for_difficulty(const GenConfig
         std::vector<std::vector<int>> choco;
         int total = place_chocolate(choco, board, cfg.choco_density, cand_seed ^ 0xc40c0de5u);
         if (total < cfg.min_choco) continue;
-        if (!gen_choco::has_legal_move(board, nullptr, &choco)) continue;
+        if (!has_legal_move_choco(board, nullptr, &choco)) continue;
         final.choco = choco;
         final.objectives = {{OBJ_CLEAR_CHOCO, -1, 1}};
 
