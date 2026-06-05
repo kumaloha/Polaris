@@ -22,6 +22,9 @@ var jelly_cleared: int = 0  # 累计清掉的果冻层
 var init_coat: Array = []   # 初始涂层冰/锁（可选）
 var coat: Array = []        # 当前涂层（随消除破层）
 var blocker_cleared: int = 0  # 累计破掉的涂层
+var init_choco: Array = []  # 初始巧克力层（障碍压力源，可选）
+var choco: Array = []       # 当前巧克力层（choco[y][x]=1=巧克力格；被相邻消除则啃掉、零啃食则蔓延）
+var choco_cleared: int = 0  # 累计啃掉的巧克力格
 var score: int
 var moves_left: int
 
@@ -61,7 +64,7 @@ var feed: Array = []
 var _dug_through: bool = false   # 滚动关：4页全挖穿标志
 var last_cascade_cells: Array = []   # 最近一次交换的逐级联消除格(供视图逐级联动画)
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = [], choco_layer: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
@@ -71,6 +74,7 @@ func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val
 	objectives = objs
 	init_jelly = jelly_layer
 	init_coat = coat_layer
+	init_choco = choco_layer
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	start()
@@ -83,6 +87,8 @@ func start() -> void:
 	jelly_cleared = 0
 	coat = init_coat.duplicate(true)
 	blocker_cleared = 0
+	choco = init_choco.duplicate(true)
+	choco_cleared = 0
 	score = 0
 	moves_left = move_limit + extra_moves   # 铭文 +步数
 	borrow_used = false   # 技能状态随开局重置（skill 装备本身保留）
@@ -132,6 +138,9 @@ func is_won() -> bool:
 				return false
 		elif o["type"] == "CLEAR_BLOCKER":
 			if blocker_cleared < o["target"]:
+				return false
+		elif o["type"] == "CLEAR_CHOCO":
+			if choco_cleared < o["target"]:
 				return false
 	return true
 
@@ -188,7 +197,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	# 两个(非彩球)特效相邻交换 → 主动融合（始终合法，无需形成普通消除）
 	if span == 1 and fx[a.y][a.x] != ME.SP_NONE and fx[b.y][b.x] != ME.SP_NONE:
 		return _activate_fusion(a, b)
-	if not ME.is_legal_swap(grid, a, b, coat, span):
+	if not ME.is_legal_swap(grid, a, b, coat, span, choco):
 		return {"ok": false, "reason": "illegal"}
 	if longswap_armed:
 		longswap_armed = false   # 隔位对换消耗
@@ -196,12 +205,14 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	last_cascade_cells = []   # 捕获本次交换的逐级联消除格
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, last_cascade_cells)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, last_cascade_cells, choco)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
 	moves_left -= 1
+	_spread_choco_if_untouched(res.get("choco_cleared", 0))   # 巧克力：整步零啃食 → 蔓延一格
 	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
 	_settle_deadlock()
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
@@ -222,29 +233,34 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 			eff.append(p)
 	if protect:
 		colorbomb_shield -= 1
-	# 直清的格计入目标（COLLECT/果冻/涂层）；锁住格只破锁、不被清。须在清空 grid 前结算。
-	var acc := ME.account_clears(grid, eff, jelly, coat)
+	# 直清的格计入目标（COLLECT/果冻/涂层/巧克力）；锁住/巧克力格只破层啃食、不被清。须在清空 grid 前结算。
+	var acc := ME.account_clears(grid, eff, jelly, coat, choco)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
+	var step_choco: int = acc.get("choco_cleared", 0)
+	choco_cleared += step_choco
 	var locked_set := {}
 	for p in acc["locked"]:
 		locked_set[p] = true
 	var to_clear := []
 	for p in eff:
 		if not locked_set.has(p):
-			to_clear.append(p)   # 锁住格不清（只破锁）；彩球护盾时 cb 已排除
+			to_clear.append(p)   # 锁住/巧克力格不清（只破层啃食）；彩球护盾时 cb 已排除
 	var gained := ME.score_for_clear(to_clear.size(), 1)
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
-	ME.apply_gravity(grid, fx, coat)   # coat 感知：锁住格在重力下固定
+	ME.apply_gravity(grid, fx, coat, false, choco)   # coat/choco 感知：障碍在重力下固定
 	_refill_unless_scroll()
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling)   # 结算余下级联
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco)   # 结算余下级联
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
+	step_choco += res.get("choco_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
 	moves_left -= 1
+	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
 	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
@@ -259,10 +275,12 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	_push_history()
 	var to_set := ME._expand_triggers(grid, fx, seeds)   # 链式展开被卷入的直线/爆炸
 	var cells: Array = to_set.keys()
-	var acc := ME.account_clears(grid, cells, jelly, coat)
+	var acc := ME.account_clears(grid, cells, jelly, coat, choco)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
+	var step_choco: int = acc.get("choco_cleared", 0)
+	choco_cleared += step_choco
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -273,23 +291,35 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var gained := ME.score_for_clear(to_clear.size(), 1)
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])
-	ME.apply_gravity(grid, fx, coat)
+	ME.apply_gravity(grid, fx, coat, false, choco)
 	_refill_unless_scroll()
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
+	step_choco += res.get("choco_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
 	moves_left -= 1
+	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
 	_on_move_resolved(res["cascades"])
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "fusion": true}
 
+# 巧克力蔓延钩子：玩家整步若零啃食(step_eaten==0)，巧克力向随机相邻格增殖一格。
+# 用 board 注入的 rng → 确定性可复现。须在 try_swap/彩球/融合 的一步完整结算后调一次。
+func _spread_choco_if_untouched(step_eaten: int) -> void:
+	if choco.is_empty():
+		return
+	if step_eaten > 0:
+		return   # 这步啃到了巧克力 → 不蔓延
+	ME.spread_chocolate(choco, grid, rng)
+
 func _settle_deadlock() -> void:
 	if is_scrolling:
 		_scroll_advance()   # 每步统一收口：滚动关在此判"清到70%"→拉新页 / 挖穿
-	if not is_over() and not ME.has_legal_move(grid, coat):
-		ME.reshuffle(grid, rng, coat)   # coat 感知洗牌，避免洗完仍无真实合法步
+	if not is_over() and not ME.has_legal_move(grid, coat, choco):
+		ME.reshuffle(grid, rng, coat, choco)   # coat/choco 感知洗牌，避免洗完仍无真实合法步
 		fx = _blank_fx()   # 洗牌后特效重置（极罕见边界）
 
 # 滚动关消除时不补(resolve do_refill=false)；普通关维持原样随机补。
@@ -306,11 +336,12 @@ func _scroll_advance() -> void:
 		_dug_through = true   # 没有储备可拉 + 已清70% = 4页挖穿
 		return
 	ME.refill(grid, species, rng, fx, feed)   # 拉新页：批量补满空格(feed 不足的列留空)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, false)  # 拉下来只结算级联，仍不补
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, false, null, choco)  # 拉下来只结算级联，仍不补
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
 
 # 当前页是否已清到≥70%(空格占非墙格 ≥70%)。
 func _scroll_cleared_enough() -> bool:
@@ -339,9 +370,11 @@ func _snapshot() -> Dictionary:
 	return {
 		"grid": grid.duplicate(true), "fx": fx.duplicate(true),
 		"coat": coat.duplicate(true), "jelly": jelly.duplicate(true),
+		"choco": choco.duplicate(true),
 		"score": score, "moves_left": moves_left,
 		"collected": collected.duplicate(true),
 		"jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared,
+		"choco_cleared": choco_cleared,
 		"borrow_debt": borrow_debt, "rng_state": rng.state,
 	}
 
@@ -350,11 +383,13 @@ func _restore(s: Dictionary) -> void:
 	fx = s["fx"].duplicate(true)
 	coat = s["coat"].duplicate(true)
 	jelly = s["jelly"].duplicate(true)
+	choco = s["choco"].duplicate(true)
 	score = s["score"]
 	moves_left = s["moves_left"]
 	collected = s["collected"].duplicate(true)
 	jelly_cleared = s["jelly_cleared"]
 	blocker_cleared = s["blocker_cleared"]
+	choco_cleared = s["choco_cleared"]
 	borrow_debt = s["borrow_debt"]
 	rng.state = s["rng_state"]
 
@@ -411,7 +446,9 @@ func skill_gravity_flip() -> bool:
 		coat.reverse()
 	if not jelly.is_empty():
 		jelly.reverse()
-	ME.apply_gravity(grid, fx, coat)
+	if not choco.is_empty():
+		choco.reverse()   # 巧克力层随盘面翻转，保持与 grid 对齐
+	ME.apply_gravity(grid, fx, coat, false, choco)
 	_refill_unless_scroll()
 	_settle_after_skill()
 	active_used = true
@@ -424,10 +461,11 @@ func skill_clear_species(sp: int) -> bool:
 	var cells := ME.cells_of_species(grid, sp)
 	if cells.is_empty():
 		return false
-	var acc := ME.account_clears(grid, cells, jelly, coat)
+	var acc := ME.account_clears(grid, cells, jelly, coat, choco)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
+	choco_cleared += acc.get("choco_cleared", 0)
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -437,7 +475,7 @@ func skill_clear_species(sp: int) -> bool:
 			to_clear.append(p)
 	_gain(ME.score_for_clear(to_clear.size(), 1))
 	ME._apply_clears(grid, fx, to_clear, [])
-	ME.apply_gravity(grid, fx, coat)
+	ME.apply_gravity(grid, fx, coat, false, choco)
 	_refill_unless_scroll()
 	_settle_after_skill()
 	active_used = true
@@ -464,13 +502,14 @@ func skill_foresight(k: int = 0) -> Array:
 	active_used = true
 	return ME.best_moves(grid, k, coat, objectives)
 
-# 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作）。
+# 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作 → 不触发巧克力蔓延）。
 func _settle_after_skill() -> void:
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco)
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
 	blocker_cleared += res.get("blocker_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
 	_settle_deadlock()
 
 # ───── 默认提示(#0) / 看广告续用 / 结算数据 ─────
@@ -548,7 +587,7 @@ func _place_opening(kind: int) -> void:
 	var spots := []
 	for y in height:
 		for x in width:
-			if grid[y][x] >= 0 and fx[y][x] == ME.SP_NONE and (coat.is_empty() or coat[y][x] == 0):
+			if grid[y][x] >= 0 and fx[y][x] == ME.SP_NONE and (coat.is_empty() or coat[y][x] == 0) and (choco.is_empty() or choco[y][x] == 0):
 				spots.append(Vector2i(x, y))
 	if spots.is_empty():
 		return

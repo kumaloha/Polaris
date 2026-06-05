@@ -13,22 +13,24 @@ const SP_BOMB := 3       # 爆炸：清 3x3（T/L 形生成）
 const SP_COLORBOMB := 4  # 彩球：清某 species 全部（5 连生成）
 
 # 找出所有应被消除的格子（横/竖 >=3 同 species），返回去重的 Array[Vector2i]。
-static func find_matches(grid: Array, coat: Array = []) -> Array:
+# choco 可选：巧克力格(choco>0)与锁住格(coat>0)同样不参与匹配、不能让串连过去。
+static func find_matches(grid: Array, coat: Array = [], choco: Array = []) -> Array:
 	var h := grid.size()
 	if h == 0:
 		return []
 	var w: int = grid[0].size()
 	var has_coat := not coat.is_empty()
+	var has_choco := not choco.is_empty()
 	var matched := {}  # Vector2i -> true（当作 set 去重）
-	# 横向扫描（EMPTY/WALL/锁住格(coat>0) 都不参与，也不能让串连过去）
+	# 横向扫描（EMPTY/WALL/锁住格(coat>0)/巧克力格(choco>0) 都不参与，也不能让串连过去）
 	for y in h:
 		var x := 0
 		while x < w:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				x += 1
 				continue
 			var e := x
-			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0):
+			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0) and not (has_choco and choco[y][e + 1] > 0):
 				e += 1
 			if e - x + 1 >= 3:
 				for k in range(x, e + 1):
@@ -38,11 +40,11 @@ static func find_matches(grid: Array, coat: Array = []) -> Array:
 	for x in w:
 		var y := 0
 		while y < h:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				y += 1
 				continue
 			var e := y
-			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0):
+			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0) and not (has_choco and choco[e + 1][x] > 0):
 				e += 1
 			if e - y + 1 >= 3:
 				for k in range(y, e + 1):
@@ -53,18 +55,20 @@ static func find_matches(grid: Array, coat: Array = []) -> Array:
 
 # 重力：每列非空格子落到列底，空格升到顶（原地修改 grid）。up=true 则反向上浮（重力翻转技能 #5）。
 # fx 可选：传入则特效层与棋子层同步下落（保持对齐）。
-static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false) -> void:
+# choco 可选：巧克力格(choco>0)与锁住格(coat>0)一样原地固定、把列切段（巧克力不下落）。
+static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false, choco: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
 	var w: int = grid[0].size()
 	var has_fx := not fx.is_empty()
 	var has_coat := not coat.is_empty()
+	var has_choco := not choco.is_empty()
 	for x in w:
-		# 墙 与 锁住格(coat>0) 把列切成独立段、原地固定，各段内分别下落
+		# 墙 与 锁住格(coat>0) 与 巧克力格(choco>0) 把列切成独立段、原地固定，各段内分别下落
 		var seg_start := 0
 		for y in range(h + 1):
-			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				var stack := []     # 段内非空 species（段内无墙）
 				var fx_stack := []
 				for k in range(seg_start, y):
@@ -120,34 +124,51 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = []) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
+	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco)
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
+# 啃食巧克力：被清除格(cleared_set)内或正交相邻的巧克力格 -1（巧克力本身不被清）。
+# 原地改 choco，返回啃掉的格数。镜像 coat 破锁逻辑。
+static func _eat_chocolate(choco: Array, cleared_set: Dictionary) -> int:
+	var eaten := 0
+	for cy in choco.size():
+		for cx in choco[cy].size():
+			if choco[cy][cx] <= 0:
+				continue
+			if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
+				choco[cy][cx] -= 1
+				eaten += 1
+	return eaten
+
+
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}  # species -> 消除数
 	var jelly_cleared := 0
 	var blocker_cleared := 0
+	var choco_cleared := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
+	var has_choco := not choco.is_empty()
 	while true:
-		var matched: Array = find_matches(grid, coat)
+		var matched: Array = find_matches(grid, coat, choco)
 		if matched.is_empty():
 			break
 		cascades += 1
 		if cascades_out != null:
 			cascades_out.append(matched.duplicate())
+		var matched_set := {}
+		for p in matched:
+			matched_set[p] = true
 		if has_coat:
-			var matched_set := {}
-			for p in matched:
-				matched_set[p] = true
 			for cy in grid.size():
 				for cx in grid[cy].size():
 					if coat[cy][cx] <= 0:
@@ -155,6 +176,8 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 					if matched_set.has(Vector2i(cx, cy)) or matched_set.has(Vector2i(cx - 1, cy)) or matched_set.has(Vector2i(cx + 1, cy)) or matched_set.has(Vector2i(cx, cy - 1)) or matched_set.has(Vector2i(cx, cy + 1)):
 						coat[cy][cx] -= 1
 						blocker_cleared += 1
+		if has_choco:
+			choco_cleared += _eat_chocolate(choco, matched_set)  # 巧克力被相邻消除则 -1
 		for pos in matched:
 			var sp_p: int = grid[pos.y][pos.x]
 			if sp_p >= 0:
@@ -165,10 +188,10 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
-		apply_gravity(grid, [], coat)
+		apply_gravity(grid, [], coat, false, choco)
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -204,30 +227,34 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
 	var by_species := {}
 	var jelly_cleared := 0
 	var blocker_cleared := 0
+	var choco_cleared := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
+	var has_choco := not choco.is_empty()
 	while true:
-		var c := collect_clears(grid, fx, coat)
+		var c := collect_clears(grid, fx, coat, choco)
 		var raw: Array = c["to_clear"]
 		if raw.is_empty():
 			break
 		cascades += 1
 		if cascades_out != null:
 			cascades_out.append(raw.duplicate())
-		# 锁住格(coat>0)不被清除：记下"开始时就锁住"的格，本回合只破锁、不清（下次才消）
+		# 锁住格(coat>0)/巧克力格(choco>0)不被清除：记下它们，本回合只破层/啃食、不清（下次才消）
 		var cleared_set := {}
 		var locked_start := {}
 		for p in raw:
 			cleared_set[p] = true
 			if has_coat and coat[p.y][p.x] > 0:
 				locked_start[p] = true
+			if has_choco and choco[p.y][p.x] > 0:
+				locked_start[p] = true   # 巧克力格也不被特效直清（只能靠相邻啃食）
 		# 破锁：被清除格的内/相邻的锁住格 -1（锁住格本身不被清）
 		if has_coat:
 			for cy in grid.size():
@@ -237,7 +264,9 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 					if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
 						coat[cy][cx] -= 1
 						blocker_cleared += 1
-		# 真正清除的 = raw 里"开始时未锁"的格
+		if has_choco:
+			choco_cleared += _eat_chocolate(choco, cleared_set)  # 巧克力被相邻消除则 -1
+		# 真正清除的 = raw 里"开始时未锁/非巧克力"的格
 		var to_clear := []
 		for p in raw:
 			if not locked_start.has(p):
@@ -256,14 +285,15 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				jelly[pos.y][pos.x] -= 1
 				jelly_cleared += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
-		apply_gravity(grid, fx, coat)
+		apply_gravity(grid, fx, coat, false, choco)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
-static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = [], span: int = 1) -> bool:
+# choco 可选：巧克力格(choco>0)与锁住格一样不可参与交换。
+static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = [], span: int = 1, choco: Array = []) -> bool:
 	# 正交、同行或列、间距=span（span=1 相邻；span=2 隔一格=隔位对换技能 #4，仅 Godot 玩家侧）
 	var in_range: bool = (a.y == b.y and abs(a.x - b.x) == span) or (a.x == b.x and abs(a.y - b.y) == span)
 	if not in_range:
@@ -274,8 +304,10 @@ static func is_legal_swap(grid: Array, a: Vector2i, b: Vector2i, coat: Array = [
 		return false  # 墙/空格不可参与交换（墙不可动）
 	if not coat.is_empty() and (coat[a.y][a.x] > 0 or coat[b.y][b.x] > 0):
 		return false  # 冻住的格不可换
+	if not choco.is_empty() and (choco[a.y][a.x] > 0 or choco[b.y][b.x] > 0):
+		return false  # 巧克力格不可换
 	_swap_cells(grid, a, b)
-	var found := not find_matches(grid, coat).is_empty()
+	var found := not find_matches(grid, coat, choco).is_empty()
 	_swap_cells(grid, a, b)  # 还原
 	return found
 
@@ -287,16 +319,17 @@ static func _swap_cells(grid: Array, a: Vector2i, b: Vector2i) -> void:
 
 
 # 是否存在任一合法交换（无 → 死局，需洗牌）。
-static func has_legal_move(grid: Array, coat: Array = []) -> bool:
+# choco 可选：透传给 is_legal_swap，使巧克力格不被算作可动（避免"看似有步、真实无步"）。
+static func has_legal_move(grid: Array, coat: Array = [], choco: Array = []) -> bool:
 	var h := grid.size()
 	if h == 0:
 		return false
 	var w: int = grid[0].size()
 	for y in h:
 		for x in w:
-			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat):
+			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat, 1, choco):
 				return true
-			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat):
+			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat, 1, choco):
 				return true
 	return false
 
@@ -330,18 +363,20 @@ static func make_board(w: int, h: int, species: Array, rng: RandomNumberGenerato
 
 
 # 死局/有现成消除时洗牌：重排现有棋子（多重集不变），直到无现成消除且有合法移动。
-static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = []) -> void:
+# choco 可选：巧克力格(choco>0)与墙一样固定不参与洗牌；验收也 choco 感知。
+static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = [], choco: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
 	var w: int = grid[0].size()
-	# 只重排可动棋子；墙(WALL)/空格(EMPTY)固定不参与洗牌——否则异形棋盘会被打乱、墙乱飞。
+	var has_choco := not choco.is_empty()
+	# 只重排可动棋子；墙(WALL)/空格(EMPTY)/巧克力格(choco>0)固定不参与洗牌——否则异形棋盘/障碍会被打乱。
 	var positions := []
 	var tiles := []
 	for y in h:
 		for x in w:
 			var v: int = grid[y][x]
-			if v == WALL or v == EMPTY:
+			if v == WALL or v == EMPTY or (has_choco and choco[y][x] > 0):
 				continue
 			positions.append(Vector2i(x, y))
 			tiles.append(v)
@@ -351,9 +386,9 @@ static func reshuffle(grid: Array, rng: RandomNumberGenerator, coat: Array = [])
 		for i in positions.size():
 			var p: Vector2i = positions[i]
 			grid[p.y][p.x] = tiles[i]
-		# 验收须 coat 感知：忽略冰锁会"看似有步、真实玩家无步"。
-		var no_match := find_matches(grid, coat).is_empty()
-		if no_match and has_legal_move(grid, coat):
+		# 验收须 coat/choco 感知：忽略障碍会"看似有步、真实玩家无步"。
+		var no_match := find_matches(grid, coat, choco).is_empty()
+		if no_match and has_legal_move(grid, coat, choco):
 			return   # 理想：无现成消除 + 有合法步
 		if no_match and safe_tiles.is_empty():
 			safe_tiles = tiles.duplicate()
@@ -377,23 +412,24 @@ static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
 # 返回 {clear: Array[Vector2i] 要清空的格, spawns: Array[{pos, kind}] 要生成的特效格}。
 # 规则（v1.1 直线串）：>=5 连→彩球；==4 连→直线(横H/竖V)；==3 连→普通清除。
 # （T/L 形爆炸在后续步骤补。spawns 的 pos 不进 clear——它变成特效而非清空。）
-static func classify_matches(grid: Array, coat: Array = []) -> Dictionary:
+static func classify_matches(grid: Array, coat: Array = [], choco: Array = []) -> Dictionary:
 	var h := grid.size()
 	if h == 0:
 		return {"clear": [], "spawns": []}
 	var w: int = grid[0].size()
 	var has_coat := not coat.is_empty()
+	var has_choco := not choco.is_empty()
 
-	# 收集所有 >=3 的横/纵直线串：{cells, len, mid}
+	# 收集所有 >=3 的横/纵直线串：{cells, len, mid}（巧克力格 choco>0 与锁住格一样跳过、断串）
 	var h_runs := []
 	for y in h:
 		var x := 0
 		while x < w:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				x += 1
 				continue
 			var e := x
-			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0):
+			while e + 1 < w and grid[y][e + 1] == grid[y][x] and not (has_coat and coat[y][e + 1] > 0) and not (has_choco and choco[y][e + 1] > 0):
 				e += 1
 			if e - x + 1 >= 3:
 				var cells := []
@@ -405,11 +441,11 @@ static func classify_matches(grid: Array, coat: Array = []) -> Dictionary:
 	for x in w:
 		var y := 0
 		while y < h:
-			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0):
+			if grid[y][x] == EMPTY or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				y += 1
 				continue
 			var e := y
-			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0):
+			while e + 1 < h and grid[e + 1][x] == grid[y][x] and not (has_coat and coat[e + 1][x] > 0) and not (has_choco and choco[e + 1][x] > 0):
 				e += 1
 			if e - y + 1 >= 3:
 				var cells := []
@@ -501,9 +537,9 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 # 汇总一次消除要清的全部格：>=3 匹配 + 命中的特效触发链（特效连特效）。
 # 返回 {to_clear: Array[Vector2i], spawns: Array[{pos,kind}]}（spawns 来自匹配形状）。
 # 纯函数，不修改 grid/fx。
-static func collect_clears(grid: Array, fx: Array, coat: Array = []) -> Dictionary:
-	var to_clear := _expand_triggers(grid, fx, find_matches(grid, coat))
-	var cls := classify_matches(grid, coat)
+static func collect_clears(grid: Array, fx: Array, coat: Array = [], choco: Array = []) -> Dictionary:
+	var to_clear := _expand_triggers(grid, fx, find_matches(grid, coat, choco))
+	var cls := classify_matches(grid, coat, choco)
 	return {"to_clear": to_clear.keys(), "spawns": cls["spawns"]}
 
 # 从 seed 格出发，沿特效触发链 BFS 展开，返回所有应清的格（Dictionary 当 set）。
@@ -543,20 +579,22 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 # 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat，不改 grid。
 # 用于彩球直清等不经 resolve 匹配循环的清除路径，使其与普通消除同样推进目标。
 # 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
-static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = []) -> Dictionary:
+static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = []) -> Dictionary:
 	var by_species := {}
 	var jelly_cleared := 0
 	var blocker_cleared := 0
+	var choco_cleared := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
-	var locked := {}  # 开始时锁住的格：只破锁，不被清/不计入收集·果冻
+	var has_choco := not choco.is_empty()
+	var locked := {}  # 开始时锁住/巧克力的格：只破层啃食，不被清/不计入收集·果冻
+	var cleared_set := {}
+	for p in cells:
+		cleared_set[p] = true
 	if has_coat:
 		for p in cells:
 			if coat[p.y][p.x] > 0:
 				locked[p] = true
-		var cleared_set := {}
-		for p in cells:
-			cleared_set[p] = true
 		for cy in grid.size():
 			for cx in grid[cy].size():
 				if coat[cy][cx] <= 0:
@@ -564,16 +602,21 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 				if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
 					coat[cy][cx] -= 1
 					blocker_cleared += 1
+	if has_choco:
+		for p in cells:
+			if choco[p.y][p.x] > 0:
+				locked[p] = true   # 巧克力格不被直清（直清路径同样只能相邻啃食）
+		choco_cleared += _eat_chocolate(choco, cleared_set)
 	for pos in cells:
 		if locked.has(pos):
-			continue  # 锁住格不被清除，不计入收集/果冻（仅上面破锁）
+			continue  # 锁住/巧克力格不被清除，不计入收集/果冻（仅上面破层/啃食）
 		var sp_p: int = grid[pos.y][pos.x]
 		if sp_p >= 0:
 			by_species[sp_p] = by_species.get(sp_p, 0) + 1
 		if has_jelly and jelly[pos.y][pos.x] > 0:
 			jelly[pos.y][pos.x] -= 1
 			jelly_cleared += 1
-	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "locked": locked.keys()}
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "locked": locked.keys()}
 
 
 # ───────────── Meta 技能原语（玩家侧能力的引擎钩子，见 10 §7；不进 C++ 基准）─────────────
@@ -586,6 +629,56 @@ static func cells_of_species(grid: Array, sp: int) -> Array:
 			if grid[y][x] == sp:
 				out.append(Vector2i(x, y))
 	return out
+
+# ───────────── 巧克力蔓延（Chocolate）：对局压力源 ─────────────
+# 巧克力语义：占格、不参与 match、不可交换、不下落（apply_gravity 固定切段）、相邻消除则啃掉一格。
+# 蔓延：玩家整步若零啃食，则从现存巧克力格向随机正交相邻"可侵占格"增殖一格。
+#
+# spread_chocolate：从所有现存巧克力格中，找其随机正交相邻的"可侵占格"
+#   （grid 是普通棋子 species>=0、非墙、非空，且 choco==0），随机选一个变成巧克力。
+#   必须用注入的 rng（确定性可测）。无处可蔓延返回 false；蔓延一格返回 true。原地改 choco。
+static func spread_chocolate(choco: Array, grid: Array, rng: RandomNumberGenerator) -> bool:
+	var h := choco.size()
+	if h == 0:
+		return false
+	var w: int = choco[0].size()
+	# 收集所有"巧克力相邻的可侵占格"候选（去重）。顺序固定(行序→列序→四向) → 同 seed 可复现。
+	var seen := {}
+	var candidates := []
+	const DIRS := [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+	for y in h:
+		for x in w:
+			if choco[y][x] <= 0:
+				continue
+			for d in DIRS:
+				var nx: int = x + d.x
+				var ny: int = y + d.y
+				if nx < 0 or nx >= w or ny < 0 or ny >= h:
+					continue
+				if choco[ny][nx] > 0:
+					continue  # 已是巧克力
+				if grid[ny][nx] < 0:
+					continue  # EMPTY(-1)/WALL(-2) 不可侵占（只侵占普通棋子 species>=0）
+				var key := Vector2i(nx, ny)
+				if seen.has(key):
+					continue
+				seen[key] = true
+				candidates.append(key)
+	if candidates.is_empty():
+		return false
+	var pick: Vector2i = candidates[rng.randi() % candidates.size()]
+	choco[pick.y][pick.x] = 1
+	return true
+
+# 数巧克力格总数（供 board 判蔓延/胜负，及测试断言）。
+static func count_chocolate(choco: Array) -> int:
+	var n := 0
+	for row in choco:
+		for v in row:
+			if v > 0:
+				n += 1
+	return n
+
 
 # 破障(#9)：清掉至多 n 个锁住格（coat 归 0），返回实际破掉的格数。原地改 coat。
 static func break_blockers(coat: Array, n: int) -> int:

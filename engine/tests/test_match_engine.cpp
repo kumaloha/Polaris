@@ -275,6 +275,105 @@ static void test_refill_from_feed() {
     CHECK(g2[0][0] != EMPTY && g2[0][2] != EMPTY, "refill: no feed (normal level) = all random filled");
 }
 
+// ───────────── 巧克力蔓延（Chocolate）：C++ 镜像断言（两端语义一致）─────────────
+
+static void test_choco_not_matched() {
+    // 巧克力格(choco>0)不参与匹配、断开同色串（镜像 find_matches_skips_locked 的巧克力版）。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    CHECK_EQ((int)find_matches_choco(g, nullptr, nullptr).size(), 3, "no choco -> top row is a 3-match");
+    std::vector<std::vector<int>> choco(3, std::vector<int>(4, 0));
+    choco[0][1] = 1;  // 巧克力盖住顶行中间格
+    CHECK(find_matches_choco(g, nullptr, &choco).empty(), "chocolate cell breaks the run -> no match");
+}
+
+static void test_choco_blocks_swap() {
+    Grid g = {{0, 0, 1}, {1, 2, 0}, {3, 4, 5}};  // (2,0)<->(2,1) 本来合法
+    std::vector<std::vector<int>> choco(3, std::vector<int>(3, 0));
+    choco[0][2] = 1;  // (2,0) 被巧克力覆盖
+    CHECK(!is_legal_swap_choco(g, {2, 0}, {2, 1}, nullptr, &choco), "chocolate cell can't be swapped");
+    CHECK(is_legal_swap_choco(g, {2, 0}, {2, 1}, nullptr, nullptr), "no choco ptr -> normal legal");
+}
+
+static void test_choco_blocks_gravity() {
+    Grid col = {{0}, {6}, {EMPTY}};  // 列：[0, 6(巧克力), EMPTY]
+    std::vector<std::vector<int>> choco = {{0}, {1}, {0}};  // (0,1) 巧克力
+    apply_gravity_choco(col, nullptr, &choco);
+    CHECK_EQ(col[0][0], 0, "tile above chocolate stays (can't fall through)");
+    CHECK_EQ(col[1][0], 6, "chocolate cell stays put under gravity");
+    CHECK_EQ(col[2][0], EMPTY, "below-chocolate empty stays empty");
+}
+
+static void test_eat_chocolate_direct() {
+    // 啃食：被清除格内/相邻的巧克力 -1。
+    std::vector<std::vector<int>> choco = {{1, 0, 1}, {0, 1, 0}, {0, 0, 0}};
+    std::vector<Vec2> cleared = {{1, 0}};  // 清 (1,0)：相邻 (0,0)左 (2,0)右 (1,1)下
+    int eaten = eat_chocolate(choco, cleared);
+    CHECK_EQ(eaten, 3, "three adjacent/covered chocolates eaten");
+    CHECK_EQ(choco[0][0], 0, "(0,0) 1->0");
+    CHECK_EQ(choco[0][2], 0, "(2,0) 1->0");
+    CHECK_EQ(choco[1][1], 0, "(1,1) 1->0");
+}
+
+static void test_resolve_choco_eaten_by_adjacency() {
+    // 巧克力被相邻消除则 -1，巧克力本身不被清/不下落（镜像 resolve_locked_broken_by_adjacency）。
+    Grid g = {{0, 0, 0, 1}, {2, 1, 3, 2}, {3, 4, 2, 3}};
+    std::vector<std::vector<int>> choco(3, std::vector<int>(4, 0));
+    choco[1][0] = 2;  // (0,1) 巧克力厚 2，紧邻顶行消除（其正下方）
+    std::mt19937 rng(1);
+    auto r = resolve_choco(g, {0, 1, 2, 3}, rng, nullptr, nullptr, &choco, nullptr, false);
+    CHECK(r.choco_cleared >= 1, "adjacent clear eats at least one chocolate");
+    CHECK(choco[1][0] < 2 && choco[1][0] > 0, "chocolate decreased but still present");
+    CHECK_EQ(g[1][0], 2, "chocolate-covered tile preserved (never cleared/moved)");
+}
+
+static void test_spread_adds_one() {
+    // 一块巧克力居中、四周普通棋子 → 蔓延必 +1。
+    Grid g = {{0, 1, 2}, {3, 0, 4}, {1, 2, 3}};
+    std::vector<std::vector<int>> choco(3, std::vector<int>(3, 0));
+    choco[1][1] = 1;
+    std::mt19937 rng(42);
+    int before = count_chocolate(choco);
+    bool ok = spread_chocolate(choco, g, rng);
+    CHECK(ok, "spread succeeds when there is an invadable neighbor");
+    CHECK_EQ(count_chocolate(choco), before + 1, "exactly one new chocolate cell");
+}
+
+static void test_spread_no_candidate() {
+    // 四正交邻全是 墙/空 → 无可侵占格 → 蔓延失败、计数不变。
+    Grid g = {{WALL, EMPTY, WALL}, {EMPTY, 5, EMPTY}, {WALL, EMPTY, WALL}};
+    std::vector<std::vector<int>> choco(3, std::vector<int>(3, 0));
+    choco[1][1] = 1;
+    std::mt19937 rng(7);
+    int before = count_chocolate(choco);
+    bool ok = spread_chocolate(choco, g, rng);
+    CHECK(!ok, "no invadable neighbor (all EMPTY/WALL) -> spread fails");
+    CHECK_EQ(count_chocolate(choco), before, "count unchanged when spread fails");
+}
+
+static void test_spread_deterministic() {
+    // 同 seed 两次蔓延结果一致（确定性，注入 rng）。
+    Grid g = {{0, 1, 2, 3}, {4, 0, 1, 2}, {3, 4, 0, 1}, {2, 3, 4, 0}};
+    std::vector<std::vector<int>> c1(4, std::vector<int>(4, 0)), c2(4, std::vector<int>(4, 0));
+    c1[1][1] = 1; c1[2][2] = 1;
+    c2[1][1] = 1; c2[2][2] = 1;
+    std::mt19937 r1(12345), r2(12345);
+    spread_chocolate(c1, g, r1);
+    spread_chocolate(c2, g, r2);
+    CHECK(c1 == c2, "same seed -> identical spread result");
+}
+
+static void test_resolve_choco_no_eat_far_clear() {
+    // 远端消除不挨着巧克力 → choco_cleared==0（board 据此触发蔓延；引擎只报数）。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}, {1, 2, 3, 1}};
+    std::vector<std::vector<int>> choco(4, std::vector<int>(4, 0));
+    choco[3][3] = 1;  // 角落巧克力，远离顶行消除
+    std::mt19937 rng(1);
+    auto r = resolve_choco(g, {0, 1, 2, 3}, rng, nullptr, nullptr, &choco, nullptr, false);
+    CHECK(r.cleared >= 3, "top row cleared (sanity)");
+    CHECK_EQ(r.choco_cleared, 0, "far clear does not eat the corner chocolate");
+    CHECK_EQ(choco[3][3], 1, "corner chocolate intact");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -298,5 +397,15 @@ int main() {
     test_make_board();
     test_reshuffle_keeps_walls();
     test_reshuffle_coat_aware();
+    // 巧克力蔓延（Chocolate）镜像断言
+    test_choco_not_matched();
+    test_choco_blocks_swap();
+    test_choco_blocks_gravity();
+    test_eat_chocolate_direct();
+    test_resolve_choco_eaten_by_adjacency();
+    test_spread_adds_one();
+    test_spread_no_candidate();
+    test_spread_deterministic();
+    test_resolve_choco_no_eat_far_clear();
     return report();
 }
