@@ -33,9 +33,13 @@ static func to_board(d: Dictionary) -> Board:
 	var objs := _norm_objectives(d.get("objectives", []))
 	var jelly_layer := _int_grid(d.get("jelly", []))
 	var coat_layer := _int_grid(d.get("coat", []))
-	var b := Board.new(w, h, sp, int(d.get("target_score", 0)), int(d.get("move_limit", 25)), int(d.get("seed", 0)), [], objs, jelly_layer, coat_layer)
-	if d.has("init_board"):
-		b.grid = _int_grid(d["init_board"])   # 用导出盘面覆盖随机生成的 make_board 结果
+	var choco_layer := _int_grid(d.get("choco", []))   # 巧克力层(若库带)；当前关卡库多为空
+	var init_grid := _int_grid(d.get("init_board", []))
+	# 从盘面提取墙掩码(WALL=-2)，让 start() 重开本关时也保留异形结构(否则 mask 空→重生成无墙盘，墙丢失)
+	var mask := _wall_mask_from(init_grid)
+	var b := Board.new(w, h, sp, int(d.get("target_score", 0)), int(d.get("move_limit", 25)), int(d.get("seed", 0)), mask, objs, jelly_layer, coat_layer, choco_layer)
+	if not init_grid.is_empty():
+		b.grid = init_grid   # 用导出盘面覆盖随机生成的 make_board 结果
 		b.fx = b._blank_fx()
 	if bool(d.get("is_scrolling", false)):   # 滚动/挖矿关：补充从预设 feed 出，挖穿通关
 		b.is_scrolling = true
@@ -57,6 +61,16 @@ static func _int_grid(a) -> Array:
 		var r := []
 		for v in row:
 			r.append(int(v))
+		out.append(r)
+	return out
+
+# 从盘面提取墙掩码：WALL(-2) → true，其余 false。供 Board.start() 重生时保留异形结构。
+static func _wall_mask_from(grid: Array) -> Array:
+	var out := []
+	for row in grid:
+		var r := []
+		for v in row:
+			r.append(int(v) == -2)
 		out.append(r)
 	return out
 
