@@ -66,7 +66,10 @@ static func find_matches(grid: Array, coat: Array = [], choco: Array = [], ing: 
 #   故 bomb 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】（与 ing 同样跟随，但语义更纯：纯标记）。
 # popcorn 可选：爆米花剩余命中数。爆米花格 grid 是普通 species(占位)、不可消，但【随重力下落】——
 #   与 ing/bomb 同构：不切段、作为段内可动元素的标记随 grid 同序搬运。
-static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false, choco: Array = [], ing: Array = [], bomb: Array = [], popcorn: Array = []) -> void:
+# mystery 可选：神秘糖标记。神秘糖格 grid 是【普通 species】(可消可换)，mystery 只是叠加的"这格是神秘糖"标记——
+#   故 mystery 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】（与 bomb 同构：纯标记跟随）。
+#   神秘糖随重力下落时其 mystery 标记必须跟着移动，否则下落后标记与真身错位，故此处给 apply_gravity 加 mystery 参数。
+static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false, choco: Array = [], ing: Array = [], bomb: Array = [], popcorn: Array = [], mystery: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
@@ -77,6 +80,7 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 	var has_ing := not ing.is_empty()
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
+	var has_mystery := not mystery.is_empty()
 	for x in w:
 		# 墙 与 锁住格(coat>0) 与 巧克力格(choco>0) 把列切成独立段、原地固定，各段内分别下落。
 		# 原料(ing>0) 不切段——它是段内可移动元素，随段一起下落。炸弹(bomb>0)/爆米花(popcorn>0)同样不切段（皆段内可动格）。
@@ -88,6 +92,7 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 				var ing_stack := []   # 段内每个可动格的原料标记，随 stack 同序搬运（原料随棋子一起落）
 				var bomb_stack := []  # 段内每个可动格的炸弹倒计时，随 stack 同序搬运（炸弹随棋子一起落）
 				var pop_stack := []   # 段内每个可动格的爆米花命中数，随 stack 同序搬运（爆米花随棋子一起落）
+				var mys_stack := []   # 段内每个可动格的神秘糖标记，随 stack 同序搬运（神秘糖随棋子一起落）
 				for k in range(seg_start, y):
 					if grid[k][x] != EMPTY:
 						stack.append(grid[k][x])
@@ -99,6 +104,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							bomb_stack.append(bomb[k][x])
 						if has_pop:
 							pop_stack.append(popcorn[k][x])
+						if has_mystery:
+							mys_stack.append(mystery[k][x])
 				var empties := (y - seg_start) - stack.size()
 				for k in range(seg_start, y):
 					var idx := k - seg_start
@@ -114,6 +121,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							bomb[k][x] = 0   # 空格无炸弹
 						if has_pop:
 							popcorn[k][x] = 0   # 空格无爆米花
+						if has_mystery:
+							mystery[k][x] = 0   # 空格无神秘糖
 					else:
 						var si := (idx - empties) if not up else idx
 						grid[k][x] = stack[si]
@@ -125,6 +134,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							bomb[k][x] = bomb_stack[si]   # 炸弹倒计时随该格内容一起落
 						if has_pop:
 							popcorn[k][x] = pop_stack[si]   # 爆米花命中数随该格内容一起落
+						if has_mystery:
+							mystery[k][x] = mys_stack[si]   # 神秘糖标记随该格内容一起落
 				seg_start = y + 1
 
 
@@ -159,7 +170,7 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = [], mystery: Array = []) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
@@ -167,9 +178,11 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 	# bomb 可选：炸弹倒计时层。被消除的炸弹格 bomb→0（拆弹）。结果里附带 bomb_defused = 本步因消除而拆掉的炸弹数。
 	# popcorn 可选：爆米花层。被【特效】清除波及的爆米花格 popcorn-1(不清)，归0变彩球(SP_COLORBOMB)；普通三消不碰它。
 	#   结果里附带 popcorn_hit = 本步被特效命中递减的爆米花次数。仅特效路径(_resolve_fx)有意义；纯三消(_resolve_plain)不触发。
+	# mystery 可选：神秘糖层。神秘糖格 grid 是普通棋子(可消可换)，被消除时【揭开】为随机内容(mystery→0)而非清空。
+	#   结果里附带 mystery_revealed = 本步被揭开的神秘糖数。两条路径(纯三消/特效)都支持；揭开内容按 70/20/10 概率(rng 确定性)。
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
 
 
 # 原料下沉收集循环：消除稳定后，原料可能仍悬在出口上方（或刚补充落下）。
@@ -177,17 +190,18 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 # 注：纯重力不触发消除循环，故消除稳定后必须单独跑这个把已落定原料送进出口（先 gravity 让原料触到出口行）。
 # bomb 可选：原料下沉伴随的重力也需让炸弹标记跟随搬运（与棋子一起落），故透传 bomb。
 # popcorn 可选：同理透传——原料下沉的重力也要让爆米花格随之沉底（避免原料关与爆米花共存时爆米花掉队）。
-static func _drain_ingredients(grid: Array, fx: Array, coat: Array, choco: Array, ing: Array, exit_cols: Array, up: bool, bomb: Array = [], popcorn: Array = []) -> int:
+# mystery 可选：同理透传——原料下沉的重力也要让神秘糖标记随之沉底（避免原料关与神秘糖共存时标记掉队）。
+static func _drain_ingredients(grid: Array, fx: Array, coat: Array, choco: Array, ing: Array, exit_cols: Array, up: bool, bomb: Array = [], popcorn: Array = [], mystery: Array = []) -> int:
 	if ing.is_empty() or exit_cols.is_empty():
 		return 0
 	var collected := 0
-	apply_gravity(grid, fx, coat, up, choco, ing, bomb, popcorn)   # 先沉底：把悬空原料送到它能到的最低处（含出口行）
+	apply_gravity(grid, fx, coat, up, choco, ing, bomb, popcorn, mystery)   # 先沉底：把悬空原料送到它能到的最低处（含出口行）
 	while true:
 		var got := collect_ingredients_at_exit(grid, ing, exit_cols)
 		if got == 0:
 			break
 		collected += got
-		apply_gravity(grid, fx, coat, up, choco, ing, bomb, popcorn)   # 收掉出口原料 → 让位 → 上方原料/棋子继续沉
+		apply_gravity(grid, fx, coat, up, choco, ing, bomb, popcorn, mystery)   # 收掉出口原料 → 让位 → 上方原料/棋子继续沉
 	return collected
 
 
@@ -291,7 +305,78 @@ static func count_cakes(cake: Array) -> int:
 	return n
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
+# ───────────── 神秘糖（Mystery Candy）：被消除时揭开随机内容（对标 Candy Crush 的 Mystery Candy）─────────────
+# 神秘糖语义 —— 与 coat/choco/ing 本质不同：神秘糖格的 grid 是【普通 species】（可消、可换、随重力下落），
+#   mystery[y][x]=1 只是叠加的"这格外观是神秘糖、被消时揭开"标记（0=无神秘糖）。
+#   故 find_matches/classify_matches/is_legal_swap 都【完全不感知 mystery】（神秘糖当普通棋子参与匹配/交换）——
+#   这是与 coat/choco/ing 的关键区别（它们不可消所以要改那些函数；神秘糖可消，故零侵入匹配/交换/分类）。
+#   ① 正常参与三消：神秘糖格 grid 是随机普通色，正常凑串、正常被特效波及。
+#   ② 被消除时揭开：当某神秘糖格出现在 to_clear（将被清除）时，【不清空】而是揭开为随机内容、mystery 清 0：
+#        70% 随机普通 species / 20% 直线特效(SP_LINE_H 或 SP_LINE_V) / 10% 原料(ing=1)。
+#      揭开后该格【不参与本轮后续清除】（它是刚揭开的新内容，下一轮才可能消）。
+#   ③ 随重力下落：mystery 作为纯标记随 grid 同步搬运（apply_gravity 已透传 mystery，与 bomb 同构）。
+# 概率分配用注入的 rng（确定性可复现）。揭开原语集中在 _reveal_mystery_at / _reveal_mysteries_in_clear，
+#   两条 resolve 路径(_resolve_plain/_resolve_fx)及直清路径(_apply_clears)都调它 → 揭开逻辑只一处。
+
+const MYSTERY_P_SPECIES := 70   # 概率(%)：揭开为随机普通 species
+const MYSTERY_P_FX := 20        # 概率(%)：揭开为直线特效（SP_LINE_H/V，按掷骰行号定向）
+# 余下 10%：揭开为原料(ing=1)。三档累计 100。
+
+# 揭开单个神秘糖格 pos：按掷骰设 grid 新 species / fx / ing，并清 mystery 标记。原地改 grid/fx/ing/mystery。
+# rng 注入 → 确定性。fx/ing 可选：不传则对应产物退化（无 fx 层时特效档落普通色；无 ing 层时原料档落普通色）。
+static func _reveal_mystery_at(grid: Array, fx: Array, ing: Array, mystery: Array, pos: Vector2i, rng: RandomNumberGenerator, species_set: Array) -> void:
+	var n := species_set.size()
+	var roll := rng.randi() % 100   # [0,99]
+	var new_sp: int = species_set[rng.randi() % n] if n > 0 else grid[pos.y][pos.x]
+	if roll < MYSTERY_P_SPECIES:
+		# 70%：随机普通糖（揭开成一颗新普通色）
+		grid[pos.y][pos.x] = new_sp
+		if not fx.is_empty():
+			fx[pos.y][pos.x] = SP_NONE
+		if not ing.is_empty():
+			ing[pos.y][pos.x] = 0
+	elif roll < MYSTERY_P_SPECIES + MYSTERY_P_FX:
+		# 20%：直线特效（保留/重置底色 species + 落条纹）。行号定向：偶数行清行(LINE_H)、奇数行清列(LINE_V) → 确定且行列兼顾。
+		grid[pos.y][pos.x] = new_sp   # 无 fx 层兜底：grid 已是普通色，特效档自然退化为普通糖
+		if not fx.is_empty():
+			fx[pos.y][pos.x] = SP_LINE_H if (pos.y % 2 == 0) else SP_LINE_V
+		if not ing.is_empty():
+			ing[pos.y][pos.x] = 0
+	else:
+		# 10%：原料（grid=随机色占位 + ing=1）；无 ing 层则退化为普通色。
+		grid[pos.y][pos.x] = new_sp
+		if not fx.is_empty():
+			fx[pos.y][pos.x] = SP_NONE
+		if not ing.is_empty():
+			ing[pos.y][pos.x] = 1
+	mystery[pos.y][pos.x] = 0   # 揭开完成 → 不再是神秘糖
+
+# 揭开一组将被清除的格(to_clear)里的全部神秘糖格：逐格揭开，返回被揭开的格集合(Dictionary 当 set)+计数。
+# 被揭开的格【不被清空】(它变成新内容)，故调用方据返回的 set 把这些格从实际清除集中剔除。
+# 顺序固定(按 to_clear 原序) → 同 seed 确定性。原地改 grid/fx/ing/mystery。
+static func _reveal_mysteries_in_clear(grid: Array, fx: Array, ing: Array, mystery: Array, to_clear: Array, rng: RandomNumberGenerator, species_set: Array) -> Dictionary:
+	var revealed := {}   # Vector2i -> true（本轮揭开、不被清空的格）
+	if mystery.is_empty():
+		return {"revealed": revealed, "count": 0}
+	var count := 0
+	for pos in to_clear:
+		if mystery[pos.y][pos.x] > 0:
+			_reveal_mystery_at(grid, fx, ing, mystery, pos, rng, species_set)
+			revealed[pos] = true
+			count += 1
+	return {"revealed": revealed, "count": count}
+
+# 数盘上还剩的神秘糖格总数（供 board/测试断言；已揭开的格 mystery=0 不计）。
+static func count_mystery(mystery: Array) -> int:
+	var n := 0
+	for row in mystery:
+		for v in row:
+			if v > 0:
+				n += 1
+	return n
+
+
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = [], mystery: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -302,12 +387,14 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 	var ingredient_collected := 0
 	var bomb_defused := 0
 	var cake_destroyed := 0
+	var mystery_revealed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
 	var has_bomb := not bomb.is_empty()
 	var has_cake := not cake.is_empty()
+	var has_mystery := not mystery.is_empty()
 	# 纯三消路径无特效 → 爆米花永不被命中（爆米花只认特效）；此处仅让它【跳过匹配 + 随重力下落】，故透传给 find_matches/apply_gravity。
 	while true:
 		var matched: Array = find_matches(grid, coat, choco, ing, popcorn)
@@ -329,7 +416,15 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 						blocker_cleared += 1
 		if has_choco:
 			choco_cleared += _eat_chocolate(choco, matched_set)  # 巧克力被相邻消除则 -1
+		# 神秘糖：被消除的神秘糖格【不清空】，揭开为随机内容(mystery→0)。揭开的格本轮不计入清除/收集。
+		var revealed: Dictionary = {}
+		if has_mystery:
+			var rv := _reveal_mysteries_in_clear(grid, [], ing, mystery, matched, rng, species_set)  # 纯三消无 fx 层 → 特效档退化为普通糖
+			revealed = rv["revealed"]
+			mystery_revealed += rv["count"]
 		for pos in matched:
+			if revealed.has(pos):
+				continue   # 神秘糖揭开 → 该格变新内容，不清空、不计消除
 			var sp_p: int = grid[pos.y][pos.x]
 			if sp_p >= 0:
 				by_species[sp_p] = by_species.get(sp_p, 0) + 1
@@ -340,13 +435,21 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 				bomb[pos.y][pos.x] = 0   # 炸弹格被消除 → 拆弹（bomb 归 0，不再倒计时）
 				bomb_defused += 1
 			grid[pos.y][pos.x] = EMPTY
-		cleared_total += matched.size()
-		total_score += score_for_clear(matched.size(), cascades)
+			cleared_total += 1   # 仅真正清空的格计入（揭开的神秘糖不计）
+		total_score += score_for_clear(matched.size() - revealed.size(), cascades)
 		# 蛋糕：本轮三消相邻的蛋糕 cake-1 + 引爆一圈/归0大爆炸（引爆波及的普通格本轮一并清掉，随后下落级联）。
 		if has_cake:
 			var cb := _blast_cakes(grid, cake, matched_set)
 			cake_destroyed += cb["destroyed"]
+			# 蛋糕引爆波及的神秘糖格同样揭开(不清空)；先揭开再清其余。
+			var blast_revealed: Dictionary = {}
+			if has_mystery:
+				var rvb := _reveal_mysteries_in_clear(grid, [], ing, mystery, cb["blast"], rng, species_set)
+				blast_revealed = rvb["revealed"]
+				mystery_revealed += rvb["count"]
 			for bp in cb["blast"]:
+				if blast_revealed.has(bp):
+					continue   # 神秘糖揭开 → 不清空
 				var sp_b: int = grid[bp.y][bp.x]
 				if sp_b >= 0:
 					by_species[sp_b] = by_species.get(sp_b, 0) + 1
@@ -358,17 +461,17 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 					bomb_defused += 1
 				grid[bp.y][bp.x] = EMPTY
 				cleared_total += 1
-		apply_gravity(grid, [], coat, false, choco, ing, bomb, popcorn)   # 原料/炸弹/爆米花随重力下落（随 grid 同步移动）
+		apply_gravity(grid, [], coat, false, choco, ing, bomb, popcorn, mystery)   # 原料/炸弹/爆米花/神秘糖随重力下落（随 grid 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)  # 落到出口的原料即收
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉（纯重力不触发上面的 match 循环）。
 	if has_ing:
-		ingredient_collected += _drain_ingredients(grid, [], coat, choco, ing, exit_cols, false, bomb, popcorn)
+		ingredient_collected += _drain_ingredients(grid, [], coat, choco, ing, exit_cols, false, bomb, popcorn, mystery)
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": 0, "cake_destroyed": cake_destroyed}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": 0, "cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -434,7 +537,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = []) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = [], popcorn: Array = [], cake: Array = [], mystery: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -446,6 +549,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var bomb_defused := 0
 	var popcorn_hit := 0
 	var cake_destroyed := 0
+	var mystery_revealed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
@@ -453,6 +557,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
 	var has_cake := not cake.is_empty()
+	var has_mystery := not mystery.is_empty()
 	while true:
 		var c := collect_clears(grid, fx, coat, choco, ing, popcorn)
 		var raw: Array = c["to_clear"]
@@ -462,6 +567,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		if cascades_out != null:
 			cascades_out.append(raw.duplicate())
 		# 锁住格(coat>0)/巧克力格(choco>0)/原料格(ing>0)/爆米花格(popcorn>0)不被清除：记下它们，本回合只破层/啃食/命中、不清。
+		# 神秘糖格(mystery>0)也不被直清：它会在下方揭开为随机内容，故同样记入 locked_start 排除出实际清除集。
 		var cleared_set := {}
 		var locked_start := {}
 		for p in raw:
@@ -474,6 +580,8 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				locked_start[p] = true   # 原料格不被特效直清（原料不可消，只随重力下落到出口）
 			if has_pop and popcorn[p.y][p.x] > 0:
 				locked_start[p] = true   # 爆米花格不被特效直清（特效命中只递减、归0变彩球，见下方 _hit_popcorn）
+			if has_mystery and mystery[p.y][p.x] > 0:
+				locked_start[p] = true   # 神秘糖格不被直清：下方揭开为随机内容（mystery→0），本轮不清空
 		# 破锁：被清除格的内/相邻的锁住格 -1（锁住格本身不被清）
 		if has_coat:
 			for cy in grid.size():
@@ -488,7 +596,12 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		# 爆米花命中：被特效清除波及(格自身在清除集)的爆米花 -1，归0变彩球。须在 _apply_clears(不清这些格)前结算。
 		if has_pop:
 			popcorn_hit += _hit_popcorn(grid, fx, popcorn, cleared_set)
-		# 真正清除的 = raw 里"开始时未锁/非巧克力/非原料/非爆米花"的格
+		# 神秘糖揭开：被特效清除波及(格自身在清除集)的神秘糖格揭开为随机内容(mystery→0)、不清空。须在 _apply_clears 前结算。
+		# 揭开走带 fx 层版本 → 20% 档真正落条纹特效（与纯三消路径退化为普通糖不同）。
+		if has_mystery:
+			var rv := _reveal_mysteries_in_clear(grid, fx, ing, mystery, raw, rng, species_set)
+			mystery_revealed += rv["count"]
+		# 真正清除的 = raw 里"开始时未锁/非巧克力/非原料/非爆米花/非神秘糖"的格
 		var to_clear := []
 		for p in raw:
 			if not locked_start.has(p):
@@ -520,8 +633,13 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 					if cleared_set.has(bp):
 						continue   # 已在本轮清除集里，避免重复计账
 					cleared_set[bp] = true
-					# 蛋糕引爆同样尊重锁住/巧克力/原料/爆米花：这些格只破层/啃食/命中、不被引爆直清。
+					# 蛋糕引爆同样尊重锁住/巧克力/原料/爆米花/神秘糖：这些格只破层/啃食/命中/揭开、不被引爆直清。
 					if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_ing and ing[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
+						continue
+					if has_mystery and mystery[bp.y][bp.x] > 0:
+						# 蛋糕引爆波及的神秘糖格 → 揭开为随机内容(mystery→0)、不清空（与上面波及揭开同口径）。
+						var rvb := _reveal_mysteries_in_clear(grid, fx, ing, mystery, [bp], rng, species_set)
+						mystery_revealed += rvb["count"]
 						continue
 					var sp_b: int = grid[bp.y][bp.x]
 					if sp_b >= 0:
@@ -535,17 +653,17 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 					to_clear.append(bp)
 					cleared_total += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
-		apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)   # 原料/炸弹/爆米花随重力下落（随 grid/fx 同步移动）
+		apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)   # 原料/炸弹/爆米花/神秘糖随重力下落（随 grid/fx 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉。
 	if has_ing:
-		ingredient_collected += _drain_ingredients(grid, fx, coat, choco, ing, exit_cols, false, bomb, popcorn)
+		ingredient_collected += _drain_ingredients(grid, fx, coat, choco, ing, exit_cols, false, bomb, popcorn, mystery)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
@@ -851,7 +969,9 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 # 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
 # popcorn 可选：彩球/融合等直清路径波及的爆米花格 -1(不清、记 locked)，归0变彩球(fx=SP_COLORBOMB)。
 #   结果里附带 popcorn_hit；爆米花格须 fx 才能落彩球，故 fx 也作为可选参数透传（不传则只递减不变彩球——退化兜底）。
-static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = [], bomb: Array = [], popcorn: Array = [], fx: Array = [], cake: Array = []) -> Dictionary:
+# mystery/rng/species_set/ing 可选：彩球/融合/同类消除等直清路径波及的神秘糖格【揭开】为随机内容(mystery→0、记 locked 不清空)。
+#   结果里附带 mystery_revealed；揭开须 rng+species_set（确定性概率），fx/ing 用于落特效/原料档（缺则对应档退化为普通糖）。
+static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = [], bomb: Array = [], popcorn: Array = [], fx: Array = [], cake: Array = [], mystery: Array = [], rng: RandomNumberGenerator = null, species_set: Array = [], ing: Array = []) -> Dictionary:
 	var by_species := {}
 	var jelly_cleared := 0
 	var blocker_cleared := 0
@@ -859,13 +979,15 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 	var bomb_defused := 0
 	var popcorn_hit := 0
 	var cake_destroyed := 0
+	var mystery_revealed := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
 	var has_cake := not cake.is_empty()
-	var locked := {}  # 开始时锁住/巧克力/爆米花的格：只破层啃食/命中，不被清/不计入收集·果冻
+	var has_mystery := not mystery.is_empty() and rng != null
+	var locked := {}  # 开始时锁住/巧克力/爆米花/神秘糖的格：只破层啃食/命中/揭开，不被清/不计入收集·果冻
 	var cleared_set := {}
 	for p in cells:
 		cleared_set[p] = true
@@ -891,9 +1013,16 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 				locked[p] = true   # 爆米花格不被直清（直清波及只递减、归0变彩球）
 		# 命中递减：直清路径同样只认"格自身在清除集"（与特效 resolve 路径一致）。
 		popcorn_hit += _hit_popcorn(grid, fx, popcorn, cleared_set)
+	if has_mystery:
+		# 直清波及的神秘糖格揭开为随机内容(mystery→0、记 locked 不清空)。揭开走 fx/ing 版本 → 20%/10% 档真正落特效/原料。
+		for p in cells:
+			if mystery[p.y][p.x] > 0:
+				locked[p] = true   # 神秘糖格不被直清（直清波及只揭开）
+		var rv := _reveal_mysteries_in_clear(grid, fx, ing, mystery, cells, rng, species_set)
+		mystery_revealed += rv["count"]
 	for pos in cells:
 		if locked.has(pos):
-			continue  # 锁住/巧克力/爆米花格不被清除，不计入收集/果冻（仅上面破层/啃食/命中）
+			continue  # 锁住/巧克力/爆米花/神秘糖格不被清除，不计入收集/果冻（仅上面破层/啃食/命中/揭开）
 		var sp_p: int = grid[pos.y][pos.x]
 		if sp_p >= 0:
 			by_species[sp_p] = by_species.get(sp_p, 0) + 1
@@ -916,6 +1045,11 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 			# 蛋糕引爆同样尊重锁住/巧克力/爆米花：这些格只破层/啃食/命中、不被引爆直清。
 			if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0) or (has_pop and popcorn[bp.y][bp.x] > 0):
 				continue
+			if has_mystery and mystery[bp.y][bp.x] > 0:
+				# 蛋糕引爆波及的神秘糖格 → 揭开(mystery→0)、不并入 cake_blast（不清空）。
+				var rvb := _reveal_mysteries_in_clear(grid, fx, ing, mystery, [bp], rng, species_set)
+				mystery_revealed += rvb["count"]
+				continue
 			var sp_b: int = grid[bp.y][bp.x]
 			if sp_b >= 0:
 				by_species[sp_b] = by_species.get(sp_b, 0) + 1
@@ -926,7 +1060,7 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 				bomb[bp.y][bp.x] = 0   # 蛋糕引爆波及炸弹格 → 拆弹
 				bomb_defused += 1
 			cake_blast.append(bp)
-	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed, "cake_blast": cake_blast, "locked": locked.keys()}
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed, "cake_blast": cake_blast, "locked": locked.keys(), "mystery_revealed": mystery_revealed}
 
 
 # ───────────── Meta 技能原语（玩家侧能力的引擎钩子，见 10 §7；不进 C++ 基准）─────────────

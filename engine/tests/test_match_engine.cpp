@@ -898,6 +898,108 @@ static void test_cake_deterministic_geometry() {
     CHECK(b1 == b2, "same input -> identical blast cells");
 }
 
+// ───────────── 神秘糖（Mystery Candy）镜像断言 ─────────────
+
+static void test_mystery_cell_still_matches() {
+    // 神秘糖格 grid=普通 species → 正常进 find_matches（神秘糖不感知于匹配，当普通棋子参与）。
+    // 三个 0 横向三连，其中 (1,0) 设为神秘糖也不影响——find_matches 不接 mystery 参数。
+    Grid g = {{0, 0, 0, 1}, {1, 2, 3, 2}, {2, 3, 1, 0}};
+    auto m = find_matches(g);
+    CHECK_EQ((int)m.size(), 3, "mystery cell (grid=normal species) participates in matching like a normal candy");
+}
+
+static void test_mystery_falls_under_gravity() {
+    // 神秘糖格 grid 是普通棋子 → 随重力下落；mystery 标记跟随（apply_gravity_mystery）。
+    // (0,0)=神秘糖(grid=5)，下方两格空 → 沉到列底 (2,0)，标记也从 (0,0) 移到 (2,0)。
+    Grid g = {{5}, {EMPTY}, {EMPTY}};
+    std::vector<std::vector<int>> mystery = {{1}, {0}, {0}};
+    apply_gravity_mystery(g, nullptr, nullptr, &mystery);
+    CHECK_EQ(g[2][0], 5, "mystery candy (normal piece) sank to the column bottom");
+    CHECK_EQ(g[0][0], EMPTY, "top cell vacated after the mystery candy fell");
+    CHECK_EQ(mystery[2][0], 1, "mystery marker followed its candy down to (2,0)");
+    CHECK_EQ(mystery[0][0], 0, "mystery marker no longer at the old top position");
+}
+
+static void test_mystery_marker_follows_after_clear_below() {
+    // 下方格被清空后，神秘糖随重力下沉，标记跟随（与 GDScript test_mystery_marker_follows_after_clear_below 一致）。
+    Grid g = {{9}, {EMPTY}, {EMPTY}, {EMPTY}};
+    std::vector<std::vector<int>> mystery = {{1}, {0}, {0}, {0}};
+    apply_gravity_mystery(g, nullptr, nullptr, &mystery);
+    CHECK_EQ(g[3][0], 9, "mystery candy fell to the bottom after the cells below were cleared");
+    CHECK_EQ(mystery[3][0], 1, "mystery marker followed the candy down to the bottom");
+    CHECK_EQ(count_mystery(mystery), 1, "still exactly one mystery candy on board (only moved, not consumed)");
+}
+
+static void test_reveal_mystery_clears_flag() {
+    // 揭开必清 mystery 标记（无论掷到哪档），且 grid 落普通 species（>=0）。
+    Grid g = {{3}};
+    std::vector<std::vector<int>> ing = {{0}};
+    std::vector<std::vector<int>> mystery = {{1}};
+    std::mt19937 rng(7);
+    std::vector<int> species = {0, 1, 2, 3, 4, 5};
+    reveal_mystery_at(g, &ing, mystery, {0, 0}, rng, species);
+    CHECK_EQ(mystery[0][0], 0, "reveal always clears the mystery flag");
+    CHECK(g[0][0] >= 0, "revealed mystery cell holds new content (grid >= 0), not EMPTY");
+}
+
+static void test_reveal_mystery_buckets() {
+    // 概率分配(70/20/10)覆盖三档：多次揭开应同时出现 普通糖(bucket 0)/特效档(bucket 1)/原料(bucket 2)。
+    // 用累计标志在循环外断言（避免循环内 CHECK 膨胀断言计数）。
+    std::mt19937 rng(2024);
+    std::vector<int> species = {0, 1, 2, 3, 4, 5};
+    bool b0 = false, b1 = false, b2 = false;
+    bool flag_always_cleared = true;   // 每次揭开都清了 mystery 标记
+    bool ing_set_on_bucket2 = true;    // bucket 2 都置了 ing=1
+    for (int i = 0; i < 400; ++i) {
+        Grid g = {{3}};
+        std::vector<std::vector<int>> ing = {{0}};
+        std::vector<std::vector<int>> mystery = {{1}};
+        int bucket = reveal_mystery_at(g, &ing, mystery, {0, 0}, rng, species);
+        if (mystery[0][0] != 0) flag_always_cleared = false;
+        if (bucket == 0) b0 = true;
+        else if (bucket == 1) b1 = true;
+        else if (bucket == 2) { b2 = true; if (ing[0][0] != 1) ing_set_on_bucket2 = false; }
+    }
+    CHECK(flag_always_cleared, "reveal clears the mystery flag every time");
+    CHECK(ing_set_on_bucket2, "ingredient bucket sets ing=1 every time");
+    CHECK(b0, "70% bucket hit: plain species reveals occur");
+    CHECK(b1, "20% bucket hit: effect-bucket reveals occur (degrade to plain in C++)");
+    CHECK(b2, "10% bucket hit: ingredient reveals occur");
+}
+
+static void test_reveal_mystery_deterministic() {
+    // 同 seed 同输入两次揭开 → grid/ing/mystery/bucket 完全一致（确定性）。
+    auto mkg = []() { return Grid{{3}}; };
+    Grid g1 = mkg(), g2 = mkg();
+    std::vector<std::vector<int>> i1 = {{0}}, i2 = {{0}};
+    std::vector<std::vector<int>> m1 = {{1}}, m2 = {{1}};
+    std::mt19937 r1(13579), r2(13579);
+    std::vector<int> species = {0, 1, 2, 3, 4};
+    int b1 = reveal_mystery_at(g1, &i1, m1, {0, 0}, r1, species);
+    int b2 = reveal_mystery_at(g2, &i2, m2, {0, 0}, r2, species);
+    CHECK_EQ(b1, b2, "same seed -> identical reveal bucket");
+    CHECK(g1 == g2, "same seed -> identical grid after reveal");
+    CHECK(i1 == i2, "same seed -> identical ing after reveal");
+    CHECK(m1 == m2, "same seed -> identical mystery after reveal");
+}
+
+static void test_count_mystery() {
+    std::vector<std::vector<int>> mystery = {{1, 0, 1}, {0, 0, 0}, {0, 1, 0}};
+    CHECK_EQ(count_mystery(mystery), 3, "three mystery candies counted");
+}
+
+static void test_mystery_deterministic_gravity() {
+    // 同输入两次重力下落 → 盘面/mystery 层一致（apply_gravity_mystery 纯函数无 rng）。
+    auto mkg = []() { return Grid{{8, 1}, {EMPTY, 2}, {EMPTY, 3}}; };
+    auto mkm = []() { return std::vector<std::vector<int>>{{1, 0}, {0, 0}, {0, 0}}; };
+    Grid g1 = mkg(), g2 = mkg();
+    auto m1 = mkm(), m2 = mkm();
+    apply_gravity_mystery(g1, nullptr, nullptr, &m1);
+    apply_gravity_mystery(g2, nullptr, nullptr, &m2);
+    CHECK(g1 == g2, "same input -> identical grid after mystery gravity");
+    CHECK(m1 == m2, "same input -> identical mystery layer after gravity");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -976,5 +1078,14 @@ int main() {
     test_blast_cakes_no_adjacency_no_change();
     test_count_cakes();
     test_cake_deterministic_geometry();
+    // 神秘糖（Mystery Candy）镜像断言
+    test_mystery_cell_still_matches();
+    test_mystery_falls_under_gravity();
+    test_mystery_marker_follows_after_clear_below();
+    test_reveal_mystery_clears_flag();
+    test_reveal_mystery_buckets();
+    test_reveal_mystery_deterministic();
+    test_count_mystery();
+    test_mystery_deterministic_gravity();
     return report();
 }

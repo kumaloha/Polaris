@@ -1082,4 +1082,97 @@ inline int count_cakes(const std::vector<std::vector<int>>& cake) {
     return n;
 }
 
+// ───────────── 神秘糖（Mystery Candy）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 神秘糖语义（与 godot/core/match_engine.gd 一一对应）—— 与 coat/choco/ing 本质不同：神秘糖格的 grid 是【普通 species】：
+//   神秘糖格【可消、可换、随重力下落】，mystery[y][x]=1 只是叠加的"这格外观是神秘糖、被消时揭开"标记(0=无)。
+//   故神秘糖【完全不感知于 find_matches/is_legal_swap/classify】（神秘糖格当普通棋子参与匹配/交换，无需 *_mystery 的匹配/交换版本）——
+//   这是与 coat/choco/ing 的关键区别（它们不可消所以要改那些；神秘糖可消，零侵入匹配/交换）。
+//   ① 正常参与三消：神秘糖格 grid 是普通色，正常凑串/被波及。
+//   ② 被消除时揭开：被清除时【不清空】而是揭开为随机内容(mystery→0)：70% 普通 species / 20% 直线特效 / 10% 原料。
+//   ③ 随重力下落：mystery 作为纯标记随 grid 同步搬运（apply_gravity_mystery，与 bomb/popcorn 同构）。
+// 说明：直线特效(SP_LINE)与"揭开成特效"是 Godot 侧专属（C++ 裸 Core 不实现特效，已在文件头声明），
+//   故 C++ 镜像只覆盖【不依赖特效的机械原语】：随重力下落(apply_gravity_mystery)、揭开掷骰(reveal_mystery_at，
+//   20% 特效档在 C++ 退化为普通糖；10% 原料档若传 ing 则置 ing=1)、计数(count_mystery)。概率常量与 GDScript 端一致。
+
+constexpr int MYSTERY_P_SPECIES = 70;  // 概率(%)：揭开为随机普通 species
+constexpr int MYSTERY_P_FX = 20;       // 概率(%)：揭开为直线特效（C++ 无 fx 层 → 退化为普通糖）
+// 余下 10%：揭开为原料(ing=1，若传 ing)。三档累计 100。
+
+// mystery 感知的重力：神秘糖格的 grid 是普通棋子，mystery 作为纯标记【随 grid 同步搬运】（不切段）。
+//   仅墙/锁住格(coat>0)/巧克力格(choco>0)切段固定；神秘糖自身不切段（它是段内可动元素）。
+//   与 apply_gravity_bomb/apply_gravity_popcorn 同构：mystery 标记随该格内容一起落。
+inline void apply_gravity_mystery(Grid& g, const std::vector<std::vector<int>>* coat,
+                                  const std::vector<std::vector<int>>* choco,
+                                  std::vector<std::vector<int>>* mystery) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    for (int x = 0; x < w; ++x) {
+        int seg_start = 0;
+        for (int y = 0; y <= h; ++y) {
+            bool fixed = (y < h) && ((coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0));
+            if (y == h || g[y][x] == WALL || fixed) {
+                std::vector<int> stack;        // 段内非空 species
+                std::vector<int> mys_stack;    // 段内每个可动格的神秘糖标记，随 stack 同序搬运
+                for (int k = seg_start; k < y; ++k)
+                    if (g[k][x] != EMPTY) {
+                        stack.push_back(g[k][x]);
+                        if (mystery) mys_stack.push_back((*mystery)[k][x]);
+                    }
+                int seg_len = y - seg_start;
+                int empties = seg_len - (int)stack.size();
+                for (int k = seg_start; k < y; ++k) {
+                    int idx = k - seg_start;
+                    if (idx < empties) {
+                        g[k][x] = EMPTY;
+                        if (mystery) (*mystery)[k][x] = 0;            // 空格无神秘糖
+                    } else {
+                        g[k][x] = stack[idx - empties];
+                        if (mystery) (*mystery)[k][x] = mys_stack[idx - empties];  // 神秘糖标记随该格内容一起落
+                    }
+                }
+                seg_start = y + 1;
+            }
+        }
+    }
+}
+
+// 揭开单个神秘糖格 pos：按掷骰设 grid 新 species / ing，并清 mystery 标记。原地改 g/(ing)/mystery。
+//   rng 注入 → 确定性。返回揭开档：0=普通糖 / 1=特效(C++ 退化为普通糖) / 2=原料(若传 ing 则 ing=1)。
+//   镜像 GDScript _reveal_mystery_at 的掷骰与概率分配（先掷 roll[0,99] 再取 new species，两次 rng 消耗）。
+inline int reveal_mystery_at(Grid& g, std::vector<std::vector<int>>* ing,
+                             std::vector<std::vector<int>>& mystery, Vec2 pos,
+                             std::mt19937& rng, const std::vector<int>& species) {
+    int n = (int)species.size();
+    std::uniform_int_distribution<int> roll_dist(0, 99);
+    int roll = roll_dist(rng);                              // [0,99]
+    std::uniform_int_distribution<int> sp_dist(0, n > 0 ? n - 1 : 0);
+    int new_sp = (n > 0) ? species[sp_dist(rng)] : g[pos.y][pos.x];
+    int bucket;
+    if (roll < MYSTERY_P_SPECIES) {
+        bucket = 0;                                          // 70% 普通糖
+        g[pos.y][pos.x] = new_sp;
+        if (ing) (*ing)[pos.y][pos.x] = 0;
+    } else if (roll < MYSTERY_P_SPECIES + MYSTERY_P_FX) {
+        bucket = 1;                                          // 20% 特效（C++ 无 fx 层 → 退化为普通糖）
+        g[pos.y][pos.x] = new_sp;
+        if (ing) (*ing)[pos.y][pos.x] = 0;
+    } else {
+        bucket = 2;                                          // 10% 原料
+        g[pos.y][pos.x] = new_sp;
+        if (ing) (*ing)[pos.y][pos.x] = 1;
+    }
+    mystery[pos.y][pos.x] = 0;                                // 揭开完成 → 不再是神秘糖
+    return bucket;
+}
+
+// 数盘上还剩的神秘糖格总数（已揭开的格 mystery=0 不计）。
+inline int count_mystery(const std::vector<std::vector<int>>& mystery) {
+    int n = 0;
+    for (const auto& row : mystery)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
 }  // namespace me

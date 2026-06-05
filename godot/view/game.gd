@@ -54,6 +54,8 @@ var popcorn_rects := []  # popcorn_rects[y][x] -> ColorRect（爆米花占位：
 var popcorn_labels := [] # popcorn_labels[y][x] -> Label（爆米花剩余命中数：深色数字，砸到 0 变彩球）
 var cake_rects := []     # cake_rects[y][x] -> ColorRect (蛋糕炸弹占位：暖粉蛋糕块画在 WALL 格上，无美术图依赖)
 var cake_labels := []    # cake_labels[y][x] -> Label (蛋糕剩余血量：深色数字，相邻被清-1并引爆，归0大爆炸)
+var mystery_rects := []  # mystery_rects[y][x] -> ColorRect (神秘糖占位：紫色神秘遮罩盖住整格，无美术图依赖)
+var mystery_labels := [] # mystery_labels[y][x] -> Label (神秘糖问号"?"符号：被消除时揭开露出真身，mystery=0 则隐藏)
 var exit_rects := []     # exit_rects[i] -> ColorRect（底部出口标记：原料落到此被收集，独立于格网格）
 var piece_rects := []    # piece_rects[y][x] -> TextureRect（宝石立绘：基础/横炸/竖炸/彩球）
 var burst_rects := []    # burst_rects[y][x] -> Burst（爆炸形态的放射能量光环，仅 SP_BOMB 显示）
@@ -444,7 +446,7 @@ func _mk_label(pos: Vector2, fsize: int) -> Label:
 
 func _rebuild_tiles() -> void:
 	# 释放旧网格(切到不同维度的关卡时)，再按当前 W/H 重建
-	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, cannon_rects, bomb_labels, popcorn_rects, popcorn_labels, cake_rects, cake_labels, piece_rects, burst_rects]:
+	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, cannon_rects, bomb_labels, popcorn_rects, popcorn_labels, cake_rects, cake_labels, mystery_rects, mystery_labels, piece_rects, burst_rects]:
 		for row in arr:
 			for n in row:
 				n.queue_free()
@@ -463,6 +465,8 @@ func _rebuild_tiles() -> void:
 	popcorn_labels.clear()
 	cake_rects.clear()
 	cake_labels.clear()
+	mystery_rects.clear()
+	mystery_labels.clear()
 	exit_rects.clear()
 	piece_rects.clear()
 	burst_rects.clear()
@@ -479,6 +483,8 @@ func _rebuild_tiles() -> void:
 	popcorn_labels.resize(H)
 	cake_rects.resize(H)
 	cake_labels.resize(H)
+	mystery_rects.resize(H)
+	mystery_labels.resize(H)
 	piece_rects.resize(H)
 	burst_rects.resize(H)
 	for y in H:
@@ -495,6 +501,8 @@ func _rebuild_tiles() -> void:
 		popcorn_labels[y] = []
 		cake_rects[y] = []
 		cake_labels[y] = []
+		mystery_rects[y] = []
+		mystery_labels[y] = []
 		piece_rects[y] = []
 		burst_rects[y] = []
 		for x in W:
@@ -668,6 +676,29 @@ func _rebuild_tiles() -> void:
 			cake_r.add_child(cake_lab)   # 血量数字随蛋糕块一起定位/显隐
 			cake_rects[y].append(cake_r)
 			cake_labels[y].append(cake_lab)
+
+			# 神秘糖占位：紫色神秘遮罩盖住整格（外观神秘，看不出真身）+ 问号"?"符号子节点。
+			# 神秘糖格 grid 是普通棋子(可消可换)，遮罩只是外观；被消除时揭开 → mystery=0 → _render_cell 隐藏遮罩露出真身。仿 coat 双节点结构。
+			var mys := ColorRect.new()
+			mys.size = Vector2(CELL, CELL)
+			mys.color = Color(0.55, 0.30, 0.78, 0.82)   # 神秘紫（与冰锁蓝、巧克力棕、爆米花黄白、蛋糕粉区分）
+			mys.visible = false
+			mys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			mys.z_index = 4   # 与巧克力/爆米花同层级：盖在道具立绘之上，暗示"这格外观是神秘糖"
+			add_child(mys)
+			var mlab := Label.new()
+			mlab.text = "?"
+			mlab.size = Vector2(CELL, CELL)
+			mlab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			mlab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			mlab.add_theme_font_size_override("font_size", 38)
+			mlab.add_theme_color_override("font_color", Color(1, 1, 1, 0.98))   # 白色问号（紫遮罩上醒目）
+			mlab.add_theme_color_override("font_outline_color", Color(0.25, 0.10, 0.40, 0.9))
+			mlab.add_theme_constant_override("outline_size", 4)
+			mlab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			mys.add_child(mlab)   # 问号随遮罩一起定位/显隐
+			mystery_rects[y].append(mys)
+			mystery_labels[y].append(mlab)
 
 	# 出口标记：仅运料关（board 有 ing 层）才建——底部出口列各一条金色色条 + 下箭头，提示"原料落此被收"。
 	if board != null and not board.ing.is_empty():
@@ -916,6 +947,20 @@ func _render_cell(x: int, y: int) -> void:
 	else:
 		cake_r.visible = false
 		cake_lab.visible = false
+
+	# 神秘糖占位：该格是神秘糖(mystery>0) → 盖紫色遮罩 + 问号(外观神秘，遮住真身；神秘糖格本身是普通棋子可消可换随重力下落)。
+	# 被消除时揭开 → mystery=0 → 遮罩/问号隐藏，露出底下揭开的真身(普通糖/特效/原料，由上面立绘+各层渲染照常画出)。
+	var my: int = _layer_at(board.mystery, x, y)
+	var mys: ColorRect = mystery_rects[y][x]
+	var mlab: Label = mystery_labels[y][x]
+	if my > 0 and sp >= 0:
+		mys.position = p
+		mys.visible = true
+		mlab.position = p
+		mlab.visible = true
+	else:
+		mys.visible = false
+		mlab.visible = false
 
 
 func _render_hud() -> void:

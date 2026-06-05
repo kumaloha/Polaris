@@ -42,6 +42,9 @@ var popcorn_hit: int = 0      # 累计被特效命中递减的爆米花次数（
 var init_cake: Array = []     # 初始蛋糕炸弹层（可选；cake[y][x]=N=该蛋糕剩余 N 血，0=无蛋糕）
 var cake: Array = []          # 当前蛋糕层（蛋糕格 grid 复用 WALL=不可消不可动；相邻被清则-1并引爆一圈，归0大爆炸+移除）
 var cake_destroyed: int = 0   # 累计炸毁(血量归0)的蛋糕数（OBJ_DESTROY_CAKE 目标）
+var init_mystery: Array = []  # 初始神秘糖层（可选；mystery[y][x]=1=神秘糖格，0=无）
+var mystery: Array = []       # 当前神秘糖层（神秘糖格 grid 是普通棋子=可消可换随重力下落；被消除时揭开为随机内容、mystery→0）
+var mystery_revealed: int = 0 # 累计被揭开的神秘糖数（OBJ_REVEAL_MYSTERY 目标）
 var score: int
 var moves_left: int
 
@@ -81,7 +84,7 @@ var feed: Array = []
 var _dug_through: bool = false   # 滚动关：4页全挖穿标志
 var last_cascade_cells: Array = []   # 最近一次交换的逐级联消除格(供视图逐级联动画)
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = [], choco_layer: Array = [], ingredient_layer: Array = [], exits: Array = [], bomb_layer: Array = [], cannon_layer: Array = [], popcorn_layer: Array = [], cake_layer: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = [], choco_layer: Array = [], ingredient_layer: Array = [], exits: Array = [], bomb_layer: Array = [], cannon_layer: Array = [], popcorn_layer: Array = [], cake_layer: Array = [], mystery_layer: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
@@ -100,6 +103,8 @@ func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val
 	init_bomb = bomb_layer
 	# 爆米花格 grid 是普通棋子(占位、非墙)：不并入 wall_mask，只作并行层叠加，由 make_board 正常铺棋子。
 	init_popcorn = popcorn_layer
+	# 神秘糖格 grid 是普通棋子(可消、非墙)：同爆米花，不并入 wall_mask，只作并行层叠加，由 make_board 正常铺棋子。
+	init_mystery = mystery_layer
 	# 出口列：未指定则默认整最底行皆出口（最小可扩展：传 exits 限定某几列为出口）。
 	exit_cols = exits.duplicate() if not exits.is_empty() else _all_bottom_cols()
 	rng = RandomNumberGenerator.new()
@@ -152,6 +157,8 @@ func start() -> void:
 	popcorn_hit = 0
 	cake = init_cake.duplicate(true)
 	cake_destroyed = 0
+	mystery = init_mystery.duplicate(true)
+	mystery_revealed = 0
 	score = 0
 	moves_left = move_limit + extra_moves   # 铭文 +步数
 	borrow_used = false   # 技能状态随开局重置（skill 装备本身保留）
@@ -219,6 +226,9 @@ func is_won() -> bool:
 		elif o["type"] == "DESTROY_CAKE":
 			if cake_destroyed < o["target"]:
 				return false  # 炸毁够 N 个蛋糕(血量归0)即达成
+		elif o["type"] == "REVEAL_MYSTERY":
+			if mystery_revealed < o["target"]:
+				return false  # 揭开够 N 个神秘糖即达成（每个神秘糖被消除时揭开计一次）
 	return true
 
 func _feed_empty() -> bool:
@@ -285,7 +295,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	last_cascade_cells = []   # 捕获本次交换的逐级联消除格
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, last_cascade_cells, choco, ing, exit_cols, bomb, popcorn, cake)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, last_cascade_cells, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -295,6 +305,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	bomb_defused += res.get("bomb_defused", 0)   # 本步消除掉的炸弹（已在 resolve 里 bomb→0 拆除）
 	popcorn_hit += res.get("popcorn_hit", 0)   # 本步特效命中递减的爆米花（归0的格已在 resolve 里变彩球）
 	cake_destroyed += res.get("cake_destroyed", 0)   # 本步炸毁的蛋糕（相邻被清→cake-1，归0已在 resolve 里移除+大爆炸）
+	mystery_revealed += res.get("mystery_revealed", 0)   # 本步揭开的神秘糖（被消除时揭开为随机内容，已在 resolve 里 mystery→0）
 	moves_left -= 1
 	_tick_bombs_after_move()   # 有效交换消耗一步 → 存活炸弹倒计时 -1；归零未消则引爆判负
 	_spread_choco_if_untouched(res.get("choco_cleared", 0))   # 巧克力：整步零啃食 → 蔓延一格
@@ -320,7 +331,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	if protect:
 		colorbomb_shield -= 1
 	# 直清的格计入目标（COLLECT/果冻/涂层/巧克力/炸弹）；锁住/巧克力格只破层啃食、不被清。须在清空 grid 前结算。
-	var acc := ME.account_clears(grid, eff, jelly, coat, choco, bomb, popcorn, fx, cake)
+	var acc := ME.account_clears(grid, eff, jelly, coat, choco, bomb, popcorn, fx, cake, mystery, rng, species, ing)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
@@ -329,6 +340,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	bomb_defused += acc.get("bomb_defused", 0)   # 彩球波及炸弹格 → 拆弹（account_clears 已 bomb→0）
 	popcorn_hit += acc.get("popcorn_hit", 0)   # 彩球波及爆米花格 → 命中-1（account_clears 已递减/归0变彩球）
 	cake_destroyed += acc.get("cake_destroyed", 0)   # 彩球波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
+	mystery_revealed += acc.get("mystery_revealed", 0)   # 彩球波及神秘糖格 → 揭开（account_clears 已 mystery→0）
 	var locked_set := {}
 	for p in acc["locked"]:
 		locked_set[p] = true
@@ -339,9 +351,9 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	var gained := ME.score_for_clear(to_clear.size(), 1)
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
-	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)   # coat/choco 感知：障碍固定；原料/炸弹随重力落
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)   # coat/choco 感知：障碍固定；原料/炸弹随重力落
 	_refill_unless_scroll()
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake)   # 结算余下级联
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake, mystery)   # 结算余下级联
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -352,6 +364,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	bomb_defused += res.get("bomb_defused", 0)
 	popcorn_hit += res.get("popcorn_hit", 0)
 	cake_destroyed += res.get("cake_destroyed", 0)
+	mystery_revealed += res.get("mystery_revealed", 0)
 	moves_left -= 1
 	_tick_bombs_after_move()   # 彩球消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
@@ -370,7 +383,7 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	_push_history()
 	var to_set := ME._expand_triggers(grid, fx, seeds)   # 链式展开被卷入的直线/爆炸
 	var cells: Array = to_set.keys()
-	var acc := ME.account_clears(grid, cells, jelly, coat, choco, bomb, popcorn, fx, cake)
+	var acc := ME.account_clears(grid, cells, jelly, coat, choco, bomb, popcorn, fx, cake, mystery, rng, species, ing)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
@@ -379,6 +392,7 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	bomb_defused += acc.get("bomb_defused", 0)   # 融合波及炸弹格 → 拆弹
 	popcorn_hit += acc.get("popcorn_hit", 0)   # 融合波及爆米花格 → 命中-1（归0变彩球）
 	cake_destroyed += acc.get("cake_destroyed", 0)   # 融合波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
+	mystery_revealed += acc.get("mystery_revealed", 0)   # 融合波及神秘糖格 → 揭开（account_clears 已 mystery→0）
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -391,9 +405,9 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var gained := ME.score_for_clear(to_clear.size(), 1)
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])
-	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)
 	_refill_unless_scroll()
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -404,6 +418,7 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	bomb_defused += res.get("bomb_defused", 0)
 	popcorn_hit += res.get("popcorn_hit", 0)
 	cake_destroyed += res.get("cake_destroyed", 0)
+	mystery_revealed += res.get("mystery_revealed", 0)
 	moves_left -= 1
 	_tick_bombs_after_move()   # 融合消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
@@ -442,8 +457,8 @@ func _spawn_from_cannons_after_move() -> void:
 		return
 	cannon_spawned += produced
 	# 产出物落进盘面 → 重力下沉 + 结算其引发的级联（含原料收集），与一次普通结算同口径推进目标。
-	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake)
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -453,6 +468,7 @@ func _spawn_from_cannons_after_move() -> void:
 	bomb_defused += res.get("bomb_defused", 0)
 	popcorn_hit += res.get("popcorn_hit", 0)
 	cake_destroyed += res.get("cake_destroyed", 0)
+	mystery_revealed += res.get("mystery_revealed", 0)
 
 func _settle_deadlock() -> void:
 	if is_scrolling:
@@ -475,7 +491,7 @@ func _scroll_advance() -> void:
 		_dug_through = true   # 没有储备可拉 + 已清70% = 4页挖穿
 		return
 	ME.refill(grid, species, rng, fx, feed)   # 拉新页：批量补满空格(feed 不足的列留空)
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, false, null, choco, ing, exit_cols, bomb, popcorn, cake)  # 拉下来只结算级联，仍不补
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, false, null, choco, ing, exit_cols, bomb, popcorn, cake, mystery)  # 拉下来只结算级联，仍不补
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -485,6 +501,7 @@ func _scroll_advance() -> void:
 	bomb_defused += res.get("bomb_defused", 0)
 	popcorn_hit += res.get("popcorn_hit", 0)
 	cake_destroyed += res.get("cake_destroyed", 0)
+	mystery_revealed += res.get("mystery_revealed", 0)
 
 # 当前页是否已清到≥70%(空格占非墙格 ≥70%)。
 func _scroll_cleared_enough() -> bool:
@@ -516,13 +533,14 @@ func _snapshot() -> Dictionary:
 		"choco": choco.duplicate(true), "ing": ing.duplicate(true),
 		"bomb": bomb.duplicate(true), "cannon": cannon.duplicate(true),
 		"popcorn": popcorn.duplicate(true), "cake": cake.duplicate(true),
+		"mystery": mystery.duplicate(true),
 		"score": score, "moves_left": moves_left,
 		"collected": collected.duplicate(true),
 		"jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared,
 		"choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected,
 		"bomb_defused": bomb_defused, "bomb_exploded": bomb_exploded,
 		"cannon_spawned": cannon_spawned, "popcorn_hit": popcorn_hit,
-		"cake_destroyed": cake_destroyed,
+		"cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed,
 		"borrow_debt": borrow_debt, "rng_state": rng.state,
 	}
 
@@ -537,6 +555,7 @@ func _restore(s: Dictionary) -> void:
 	cannon = s["cannon"].duplicate(true)
 	popcorn = s["popcorn"].duplicate(true)
 	cake = s["cake"].duplicate(true)
+	mystery = s["mystery"].duplicate(true)
 	score = s["score"]
 	moves_left = s["moves_left"]
 	collected = s["collected"].duplicate(true)
@@ -549,6 +568,7 @@ func _restore(s: Dictionary) -> void:
 	cannon_spawned = s["cannon_spawned"]
 	popcorn_hit = s["popcorn_hit"]
 	cake_destroyed = s["cake_destroyed"]
+	mystery_revealed = s["mystery_revealed"]
 	borrow_debt = s["borrow_debt"]
 	rng.state = s["rng_state"]
 
@@ -617,7 +637,9 @@ func skill_gravity_flip() -> bool:
 		popcorn.reverse()   # 爆米花层随盘面翻转，保持与 grid 对齐；翻转后随重力重新沉底（与原料同构）
 	if not cake.is_empty():
 		cake.reverse()   # 蛋糕层随盘面翻转，保持与蛋糕 WALL 格对齐（蛋糕不可动，翻转后仍是不可消的墙障碍）
-	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)
+	if not mystery.is_empty():
+		mystery.reverse()   # 神秘糖层随盘面翻转，保持与 grid 对齐；翻转后随重力重新沉底（与 bomb/popcorn 同构，纯标记跟随）
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)
 	_refill_unless_scroll()
 	_settle_after_skill()
 	active_used = true
@@ -630,7 +652,7 @@ func skill_clear_species(sp: int) -> bool:
 	var cells := ME.cells_of_species(grid, sp)
 	if cells.is_empty():
 		return false
-	var acc := ME.account_clears(grid, cells, jelly, coat, choco, bomb, popcorn, fx, cake)
+	var acc := ME.account_clears(grid, cells, jelly, coat, choco, bomb, popcorn, fx, cake, mystery, rng, species, ing)
 	_accumulate(acc["by_species"])
 	jelly_cleared += acc["jelly_cleared"]
 	blocker_cleared += acc["blocker_cleared"]
@@ -638,6 +660,7 @@ func skill_clear_species(sp: int) -> bool:
 	bomb_defused += acc.get("bomb_defused", 0)   # 同类消除波及炸弹格 → 拆弹
 	popcorn_hit += acc.get("popcorn_hit", 0)   # 同类消除波及爆米花格 → 命中-1（归0变彩球）
 	cake_destroyed += acc.get("cake_destroyed", 0)   # 同类消除波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
+	mystery_revealed += acc.get("mystery_revealed", 0)   # 同类消除波及神秘糖格 → 揭开（account_clears 已 mystery→0）
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -649,7 +672,7 @@ func skill_clear_species(sp: int) -> bool:
 		to_clear.append(bp)   # 蛋糕引爆波及的普通格一并清除
 	_gain(ME.score_for_clear(to_clear.size(), 1))
 	ME._apply_clears(grid, fx, to_clear, [])
-	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn)
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb, popcorn, mystery)
 	_refill_unless_scroll()
 	_settle_after_skill()
 	active_used = true
@@ -679,7 +702,7 @@ func skill_foresight(k: int = 0) -> Array:
 # 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作 → 不触发巧克力蔓延、不递减炸弹倒计时）。
 # 但技能消除波及的炸弹格仍算拆弹（透传 bomb 给 resolve，bomb_defused 累加）——拆弹与"是否消耗步数"无关。
 func _settle_after_skill() -> void:
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb, popcorn, cake, mystery)
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
 	jelly_cleared += res.get("jelly_cleared", 0)
@@ -689,6 +712,7 @@ func _settle_after_skill() -> void:
 	bomb_defused += res.get("bomb_defused", 0)   # 技能消除拆弹（免费动作不 tick 倒计时，但拆弹照算）
 	popcorn_hit += res.get("popcorn_hit", 0)   # 技能特效命中爆米花（免费动作不 tick，但命中/变彩球照算）
 	cake_destroyed += res.get("cake_destroyed", 0)   # 技能消除波及相邻蛋糕 → cake-1/归0（免费动作不 tick，但炸毁照算）
+	mystery_revealed += res.get("mystery_revealed", 0)   # 技能消除波及神秘糖 → 揭开（免费动作不 tick，但揭开照算）
 	_settle_deadlock()
 
 # ───── 默认提示(#0) / 看广告续用 / 结算数据 ─────
