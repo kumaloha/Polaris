@@ -865,6 +865,56 @@ static func count_bombs(bomb: Array) -> int:
 	return n
 
 
+# ───────────── 糖果炮（Candy Cannon）：持续供给的生成器障碍（对标 CC 生成器）─────────────
+# 炮口语义 —— 复用 WALL 机制，故 find_matches/apply_gravity/is_legal_swap 等全部无需改动：
+#   炮口格的 grid 是【WALL(-2)】（不可消、不可动、不下落、apply_gravity 处切段），cannon[y][x] 只是叠加的
+#   "这格是炮 + 产出类型"标记：cannon[y][x]=0 无炮；=1 产普通糖；=2 产原料。
+#   每【有效】交换结算后，每个炮口格在其【正下方相邻格】(y+1) 产出一个棋子（须该格 EMPTY，否则本步不产、等位置空出）：
+#     cannon=1 → 普通糖（随机 species，注入 rng 确定性），后续自然下落；
+#     cannon=2 → 原料（grid=随机 species + ing[y+1]=1），与运料关协同（炮源源产原料、玩家运到出口）。
+#   炮口格永在盘面顶部（或区域顶），产出物落在其下，故炮始终从上方补给盘面。
+
+# 从所有炮口产出：每个 cannon>0 的格在其正下方相邻格(y+1)若 EMPTY 则产一个棋子。
+#   cannon=1 → 普通糖（grid=随机 species）；cannon=2 → 原料（grid=随机 species 且 ing[y+1]=1）。
+#   下方非空(或越界到底)则该炮本步不产。须用注入的 rng（确定性可复现）。
+#   ing 可选：仅 cannon=2 需要——传入则在产出格打原料标记；不传则 cannon=2 退化为只产普通糖（无原料层兜底）。
+#   返回本次产出的棋子总数。原地改 grid（与 ing，若传入）。
+static func spawn_from_cannons(cannon: Array, grid: Array, species_set: Array, rng: RandomNumberGenerator, ing: Array = []) -> int:
+	var h := cannon.size()
+	if h == 0:
+		return 0
+	var w: int = cannon[0].size()
+	var n := species_set.size()
+	if n == 0:
+		return 0
+	var has_ing := not ing.is_empty()
+	var produced := 0
+	# 顺序固定(行序→列序) → 同 seed 可复现。
+	for y in h:
+		for x in w:
+			if cannon[y][x] <= 0:
+				continue
+			var by := y + 1
+			if by >= h:
+				continue   # 炮口在最底行：下方无格可产
+			if grid[by][x] != EMPTY:
+				continue   # 下方非空 → 本步不产（等位置空出）
+			grid[by][x] = species_set[rng.randi() % n]   # 产出一个随机 species 棋子
+			if cannon[y][x] == 2 and has_ing:
+				ing[by][x] = 1   # 产原料炮：在产出格打原料标记（随重力下落、可被运到出口）
+			produced += 1
+	return produced
+
+# 数盘上的炮口格总数（供 board/测试断言；cannon[y][x]>0 即一门炮）。
+static func count_cannons(cannon: Array) -> int:
+	var n := 0
+	for row in cannon:
+		for v in row:
+			if v > 0:
+				n += 1
+	return n
+
+
 # 破障(#9)：清掉至多 n 个锁住格（coat 归 0），返回实际破掉的格数。原地改 coat。
 static func break_blockers(coat: Array, n: int) -> int:
 	var broken := 0

@@ -825,4 +825,46 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
     return r;
 }
 
+// ───────────── 糖果炮（Candy Cannon）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 炮口语义（与 godot/core/match_engine.gd 一一对应）—— 复用 WALL，故 find_matches/apply_gravity/is_legal_swap 全不感知 cannon：
+//   炮口格的 grid 是【WALL(-2)】（不可消/不可动/不下落/切段），cannon[y][x] 只是叠加的"这格是炮 + 产出类型"标记：
+//     cannon[y][x]=0 无炮；=1 产普通糖；=2 产原料。
+//   每【有效】交换结算后，每个炮口格在其正下方相邻格(y+1) 若 EMPTY 则产一个棋子（下方非空则本步不产、等位置空出）：
+//     cannon=1 → 普通糖（grid=随机 species）；cannon=2 → 原料（grid=随机 species 且 ing[y+1]=1）。
+//   产出物随后自然下落（由上层 board 在产出后调 apply_gravity_* 沉底）。RNG 各端独立，不要求跨语言同序列。
+
+// 从所有炮口产出：每个 cannon>0 的格在其正下方(y+1)空格产一个随机 species 棋子。
+//   cannon=2 且传入 ing → 产出格 ing=1（产原料炮）。下方非空或越界则该炮本步不产。
+//   用注入的 rng（确定性可复现）。返回本次产出的棋子总数。原地改 g（与 ing，若传入）。
+inline int spawn_from_cannons(const std::vector<std::vector<int>>& cannon, Grid& g,
+                              const std::vector<int>& species, std::mt19937& rng,
+                              std::vector<std::vector<int>>* ing = nullptr) {
+    int h = (int)cannon.size();
+    if (h == 0) return 0;
+    int w = (int)cannon[0].size();
+    if (species.empty()) return 0;
+    std::uniform_int_distribution<int> dist(0, (int)species.size() - 1);
+    int produced = 0;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            if (cannon[y][x] <= 0) continue;
+            int by = y + 1;
+            if (by >= h) continue;             // 炮口在最底行：下方无格可产
+            if (g[by][x] != EMPTY) continue;   // 下方非空 → 本步不产
+            g[by][x] = species[dist(rng)];     // 产出一个随机 species 棋子
+            if (cannon[y][x] == 2 && ing) (*ing)[by][x] = 1;  // 产原料炮：产出格打原料标记
+            ++produced;
+        }
+    return produced;
+}
+
+// 数盘上的炮口格总数（cannon[y][x]>0 即一门炮）。
+inline int count_cannons(const std::vector<std::vector<int>>& cannon) {
+    int n = 0;
+    for (const auto& row : cannon)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
 }  // namespace me

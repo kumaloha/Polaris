@@ -12,7 +12,7 @@ const Board := preload("res://core/board.gd")
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
 	assert_true(v != null, "game.gd instantiates (compiles clean)")
-	assert_eq(v.DEMO_COUNT, 6, "six demo levels declared")
+	assert_eq(v.DEMO_COUNT, 7, "seven demo levels declared")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:
@@ -20,9 +20,9 @@ func test_all_demo_levels_build_valid_board() -> void:
 	for idx in v.DEMO_COUNT:
 		var lvl: Dictionary = v._demo_level(idx)
 		assert_true(lvl.has("name") and not String(lvl["name"]).is_empty(), "level %d has a name" % idx)
-		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits、炸弹层 bomb）。
+		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits、炸弹层 bomb、糖果炮层 cannon）。
 		var b := Board.new(v.W, v.H, v.SPECIES, lvl["target"], lvl["moves"], 99,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []))
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []), lvl.get("cannon", []))
 		assert_eq(b.grid.size(), v.H, "level %d board height" % idx)
 		assert_eq(b.grid[0].size(), v.W, "level %d board width" % idx)
 		assert_false(b.is_over(), "level %d not already over at start" % idx)

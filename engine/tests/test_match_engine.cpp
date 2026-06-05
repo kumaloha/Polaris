@@ -567,6 +567,72 @@ static void test_resolve_bomb_deterministic() {
     CHECK_EQ(a.bomb_defused, b.bomb_defused, "same seed -> identical bomb_defused");
 }
 
+// ───────────── 糖果炮（Candy Cannon）镜像断言 ─────────────
+
+static void test_cannon_spawns_below_when_empty() {
+    // 炮口格(WALL)正下方空 → 产一个棋子(species 来自 species_set)。炮在 (1,0)，其下 (1,1) 空。
+    Grid g = {{WALL, WALL, WALL}, {0, EMPTY, 2}, {1, 2, 3}};
+    std::vector<std::vector<int>> cannon(3, std::vector<int>(3, 0));
+    cannon[0][1] = 1;  // 产普通糖炮
+    std::mt19937 rng(1);
+    int produced = spawn_from_cannons(cannon, g, {0, 1, 2, 3, 4}, rng);
+    CHECK_EQ(produced, 1, "one cannon produced one piece below it");
+    CHECK(g[1][1] != EMPTY && g[1][1] != WALL, "below-cannon cell now holds a normal piece");
+}
+
+static void test_cannon_type2_produces_ingredient() {
+    // cannon=2 → 产原料：产出格 grid 是普通棋子且 ing=1（与运料关协同）。
+    Grid g = {{WALL, 1, 2}, {EMPTY, 3, 4}, {5, 0, 1}};
+    std::vector<std::vector<int>> cannon(3, std::vector<int>(3, 0));
+    cannon[0][0] = 2;  // 产原料炮在 (0,0)，其下 (0,1) 空
+    std::vector<std::vector<int>> ing(3, std::vector<int>(3, 0));
+    std::mt19937 rng(7);
+    int produced = spawn_from_cannons(cannon, g, {0, 1, 2, 3, 4, 5}, rng, &ing);
+    CHECK_EQ(produced, 1, "ingredient cannon produced one piece");
+    CHECK(g[1][0] != EMPTY && g[1][0] != WALL, "produced cell holds a normal-species tile");
+    CHECK_EQ(ing[1][0], 1, "produced cell is marked as an ingredient (ing=1)");
+}
+
+static void test_cannon_no_spawn_when_below_occupied() {
+    // 炮口正下方非空 → 本步不产（等位置空出）。
+    Grid g = {{WALL, 1, 2}, {9, 3, 4}, {5, 0, 1}};  // (0,1)=9 非空
+    std::vector<std::vector<int>> cannon(3, std::vector<int>(3, 0));
+    cannon[0][0] = 1;
+    std::mt19937 rng(1);
+    int produced = spawn_from_cannons(cannon, g, {0, 1, 2, 3, 4}, rng);
+    CHECK_EQ(produced, 0, "below occupied -> cannon does not produce this step");
+    CHECK_EQ(g[1][0], 9, "occupied cell below cannon is untouched");
+}
+
+static void test_cannon_no_spawn_at_bottom_row() {
+    // 炮口在最底行 → 下方无格可产，不产。
+    Grid g = {{0, 1, 2}, {3, 4, 5}, {WALL, 1, 2}};
+    std::vector<std::vector<int>> cannon(3, std::vector<int>(3, 0));
+    cannon[2][0] = 1;  // 最底行的炮
+    std::mt19937 rng(1);
+    int produced = spawn_from_cannons(cannon, g, {0, 1, 2, 3, 4}, rng);
+    CHECK_EQ(produced, 0, "cannon at bottom row has no cell below -> no spawn");
+}
+
+static void test_count_cannons() {
+    std::vector<std::vector<int>> cannon = {{1, 0, 2}, {0, 0, 0}, {0, 1, 0}};
+    CHECK_EQ(count_cannons(cannon), 3, "three cannon cells counted");
+}
+
+static void test_cannon_deterministic_same_seed() {
+    // 同 seed 两次产出 → 盘面一致。
+    auto mk = []() { return Grid{{WALL, WALL, WALL}, {EMPTY, EMPTY, EMPTY}, {0, 1, 2}}; };
+    Grid g1 = mk(), g2 = mk();
+    std::vector<std::vector<int>> c1(3, std::vector<int>(3, 0));
+    c1[0][0] = 1; c1[0][1] = 1; c1[0][2] = 1;
+    auto c2 = c1;
+    std::mt19937 r1(2468), r2(2468);
+    int p1 = spawn_from_cannons(c1, g1, {0, 1, 2, 3, 4, 5}, r1);
+    int p2 = spawn_from_cannons(c2, g2, {0, 1, 2, 3, 4, 5}, r2);
+    CHECK_EQ(p1, p2, "same seed -> identical produced count");
+    CHECK(g1 == g2, "same seed -> identical grid after cannon spawn");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -616,5 +682,12 @@ int main() {
     test_resolve_bomb_defused_when_matched();
     test_resolve_bomb_sinks_one_after_clear();
     test_resolve_bomb_deterministic();
+    // 糖果炮（Candy Cannon）镜像断言
+    test_cannon_spawns_below_when_empty();
+    test_cannon_type2_produces_ingredient();
+    test_cannon_no_spawn_when_below_occupied();
+    test_cannon_no_spawn_at_bottom_row();
+    test_count_cannons();
+    test_cannon_deterministic_same_seed();
     return report();
 }

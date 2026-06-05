@@ -33,6 +33,9 @@ var init_bomb: Array = []   # 初始炸弹层（倒计时炸弹关，可选；bo
 var bomb: Array = []        # 当前炸弹层（炸弹格 grid 是普通棋子，bomb 是叠加倒计时；随重力下落、被消除则拆除）
 var bomb_defused: int = 0   # 累计因消除而拆掉的炸弹数（OBJ_DEFUSE_BOMB 目标）
 var bomb_exploded: bool = false  # 是否有炸弹倒计时归零引爆（任一爆 → 对局立即失败，核心张力）
+var init_cannon: Array = []  # 初始糖果炮层（生成器关，可选；cannon[y][x]=0 无炮/1 产普通糖/2 产原料）
+var cannon: Array = []       # 当前炮层（炮口格 grid 复用 WALL=不可消不可动；每有效步从炮口下方产棋子，持续供给）
+var cannon_spawned: int = 0  # 累计从炮口产出的棋子数（供测试/调试断言；非胜负目标）
 var score: int
 var moves_left: int
 
@@ -72,13 +75,16 @@ var feed: Array = []
 var _dug_through: bool = false   # 滚动关：4页全挖穿标志
 var last_cascade_cells: Array = []   # 最近一次交换的逐级联消除格(供视图逐级联动画)
 
-func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = [], choco_layer: Array = [], ingredient_layer: Array = [], exits: Array = [], bomb_layer: Array = []) -> void:
+func _init(w: int, h: int, species_set: Array, target: int, moves: int, seed_val: int, mask: Array = [], objs: Array = [], jelly_layer: Array = [], coat_layer: Array = [], choco_layer: Array = [], ingredient_layer: Array = [], exits: Array = [], bomb_layer: Array = [], cannon_layer: Array = []) -> void:
 	width = w
 	height = h
 	species = species_set
 	target_score = target
 	move_limit = moves
-	wall_mask = mask
+	init_cannon = cannon_layer
+	# 炮口格复用 WALL（不可消不可动）：把炮位并入墙掩码，make_board 在这些格放 WALL。
+	# 这是糖果炮"最小改动面"的关键——find_matches/apply_gravity/is_legal_swap 见 WALL 即生效，无需感知 cannon。
+	wall_mask = _merge_cannon_into_mask(mask, cannon_layer)
 	objectives = objs
 	init_jelly = jelly_layer
 	init_coat = coat_layer
@@ -98,6 +104,21 @@ func _all_bottom_cols() -> Array:
 		cols.append(x)
 	return cols
 
+# 把炮位(cannon>0)并入墙掩码：返回一份新掩码，炮口格 + 原墙格皆为 true（make_board 据此放 WALL）。
+# cannon 为空 → 原样返回 mask（无糖果炮关零开销）。
+func _merge_cannon_into_mask(mask: Array, cannon_layer: Array) -> Array:
+	if cannon_layer.is_empty():
+		return mask
+	var out := []
+	for y in height:
+		var row := []
+		for x in width:
+			var is_wall: bool = (not mask.is_empty()) and mask[y][x]
+			var is_cannon: bool = cannon_layer[y][x] > 0
+			row.append(is_wall or is_cannon)
+		out.append(row)
+	return out
+
 func start() -> void:
 	grid = ME.make_board(width, height, species, rng, wall_mask)
 	fx = _blank_fx()
@@ -113,6 +134,8 @@ func start() -> void:
 	bomb = init_bomb.duplicate(true)
 	bomb_defused = 0
 	bomb_exploded = false
+	cannon = init_cannon.duplicate(true)
+	cannon_spawned = 0
 	score = 0
 	moves_left = move_limit + extra_moves   # 铭文 +步数
 	borrow_used = false   # 技能状态随开局重置（skill 装备本身保留）
@@ -251,6 +274,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	moves_left -= 1
 	_tick_bombs_after_move()   # 有效交换消耗一步 → 存活炸弹倒计时 -1；归零未消则引爆判负
 	_spread_choco_if_untouched(res.get("choco_cleared", 0))   # 巧克力：整步零啃食 → 蔓延一格
+	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子(普通糖/原料)，持续供给
 	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
 	_settle_deadlock()
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
@@ -303,6 +327,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	moves_left -= 1
 	_tick_bombs_after_move()   # 彩球消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
+	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子，持续供给
 	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
@@ -348,6 +373,7 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	moves_left -= 1
 	_tick_bombs_after_move()   # 融合消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
+	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子，持续供给
 	_on_move_resolved(res["cascades"])
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "fusion": true}
@@ -369,6 +395,28 @@ func _tick_bombs_after_move() -> void:
 		return
 	if ME.tick_bombs(bomb) > 0:
 		bomb_exploded = true   # 这步有炸弹倒计时归零（且未被消除拆除）→ 引爆，本局判负
+
+# 糖果炮产出钩子：每次【消耗步数的有效交换/彩球/融合】完整结算后调一次（须在 resolve 稳定之后）。
+# 每个炮口格在其正下方空格产一个棋子(cannon=1 普通糖 / cannon=2 原料)，再结算产出物的下落+级联，
+# 滚动关不补随机(do_refill=false)。须用 board 注入的 rng → 确定性可复现。
+# 一致语义：技能/免费动作不调此（炮只随有效步供给，与炸弹递减同节奏）。
+func _spawn_from_cannons_after_move() -> void:
+	if cannon.is_empty():
+		return
+	var produced := ME.spawn_from_cannons(cannon, grid, species, rng, ing)
+	if produced == 0:
+		return
+	cannon_spawned += produced
+	# 产出物落进盘面 → 重力下沉 + 结算其引发的级联（含原料收集），与一次普通结算同口径推进目标。
+	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, jelly, coat, feed, not is_scrolling, null, choco, ing, exit_cols, bomb)
+	_gain(res.get("score", 0))
+	_accumulate(res.get("by_species", {}))
+	jelly_cleared += res.get("jelly_cleared", 0)
+	blocker_cleared += res.get("blocker_cleared", 0)
+	choco_cleared += res.get("choco_cleared", 0)
+	ingredient_collected += res.get("ingredient_collected", 0)
+	bomb_defused += res.get("bomb_defused", 0)
 
 func _settle_deadlock() -> void:
 	if is_scrolling:
@@ -428,12 +476,13 @@ func _snapshot() -> Dictionary:
 		"grid": grid.duplicate(true), "fx": fx.duplicate(true),
 		"coat": coat.duplicate(true), "jelly": jelly.duplicate(true),
 		"choco": choco.duplicate(true), "ing": ing.duplicate(true),
-		"bomb": bomb.duplicate(true),
+		"bomb": bomb.duplicate(true), "cannon": cannon.duplicate(true),
 		"score": score, "moves_left": moves_left,
 		"collected": collected.duplicate(true),
 		"jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared,
 		"choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected,
 		"bomb_defused": bomb_defused, "bomb_exploded": bomb_exploded,
+		"cannon_spawned": cannon_spawned,
 		"borrow_debt": borrow_debt, "rng_state": rng.state,
 	}
 
@@ -445,6 +494,7 @@ func _restore(s: Dictionary) -> void:
 	choco = s["choco"].duplicate(true)
 	ing = s["ing"].duplicate(true)
 	bomb = s["bomb"].duplicate(true)
+	cannon = s["cannon"].duplicate(true)
 	score = s["score"]
 	moves_left = s["moves_left"]
 	collected = s["collected"].duplicate(true)
@@ -454,6 +504,7 @@ func _restore(s: Dictionary) -> void:
 	ingredient_collected = s["ingredient_collected"]
 	bomb_defused = s["bomb_defused"]
 	bomb_exploded = s["bomb_exploded"]
+	cannon_spawned = s["cannon_spawned"]
 	borrow_debt = s["borrow_debt"]
 	rng.state = s["rng_state"]
 
@@ -516,6 +567,8 @@ func skill_gravity_flip() -> bool:
 		ing.reverse()   # 原料层随盘面翻转；翻转后用普通 down 重新沉底 → 原料落到新底行(=出口)，语义一致
 	if not bomb.is_empty():
 		bomb.reverse()   # 炸弹层随盘面翻转，保持与 grid 对齐；炸弹随重力重新沉底
+	if not cannon.is_empty():
+		cannon.reverse()   # 炮层随盘面翻转，保持与炮口 WALL 格对齐（翻转后炮口/产出方向随之倒置）
 	ME.apply_gravity(grid, fx, coat, false, choco, ing, bomb)
 	_refill_unless_scroll()
 	_settle_after_skill()

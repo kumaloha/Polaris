@@ -48,6 +48,7 @@ var coat_rects := []     # coat_rects[y][x] -> ColorRect（冰锁遮罩）
 var coat_labels := []    # coat_labels[y][x] -> Label（冰锁层数指示）
 var choco_rects := []    # choco_rects[y][x] -> ColorRect（巧克力占位：棕色半透明遮罩，无美术图依赖）
 var ingredient_rects := []  # ingredient_rects[y][x] -> ColorRect（运料占位：樱桃红实心块，无美术图依赖）
+var cannon_rects := []   # cannon_rects[y][x] -> ColorRect（糖果炮占位：深色炮台 + 向下箭头子节点，无美术图依赖）
 var bomb_labels := []    # bomb_labels[y][x] -> Label（炸弹倒计时：红色数字叠在棋子上，醒目显示剩余步数）
 var exit_rects := []     # exit_rects[i] -> ColorRect（底部出口标记：原料落到此被收集，独立于格网格）
 var piece_rects := []    # piece_rects[y][x] -> TextureRect（宝石立绘：基础/横炸/竖炸/彩球）
@@ -81,15 +82,15 @@ func _process(_dt: float) -> void:
 
 # ───────────────────────────── Demo 关定义 ─────────────────────────────
 # 每个 demo 关返回构造 Board 所需的全部参数（按需带 objs/jelly/coat/mask）。
-# 关卡轮播：纯分数关[现状] → COLLECT → CLEAR_JELLY → CLEAR_BLOCKER。
-const DEMO_COUNT := 6
+# 关卡轮播：纯分数关[现状] → COLLECT → CLEAR_JELLY → CLEAR_BLOCKER → 运料 → 拆弹 → 糖果炮。
+const DEMO_COUNT := 7
 
 func _demo_level(idx: int) -> Dictionary:
 	match idx:
 		1:
 			# COLLECT 关：收集红色(species 0) 与 蓝色(species 3)，叠加异形墙。
 			return {
-				"name": "Demo 2/6 · 收集关 (COLLECT) + 墙",
+				"name": "Demo 2/7 · 收集关 (COLLECT) + 墙",
 				"target": 0,
 				"moves": 30,
 				"mask": _demo_wall_mask(),
@@ -105,7 +106,7 @@ func _demo_level(idx: int) -> Dictionary:
 		2:
 			# CLEAR_JELLY 关：中心 4x4 果冻（内 2x2 双层），清掉 18 层。
 			return {
-				"name": "Demo 3/6 · 果冻关 (CLEAR_JELLY)",
+				"name": "Demo 3/7 · 果冻关 (CLEAR_JELLY)",
 				"target": 0,
 				"moves": 30,
 				"mask": [],
@@ -118,7 +119,7 @@ func _demo_level(idx: int) -> Dictionary:
 		3:
 			# CLEAR_BLOCKER 关：边框一圈单层冰锁，解锁 12 个；叠加少量墙。
 			return {
-				"name": "Demo 4/6 · 冰锁关 (CLEAR_BLOCKER) + 墙",
+				"name": "Demo 4/7 · 冰锁关 (CLEAR_BLOCKER) + 墙",
 				"target": 0,
 				"moves": 35,
 				"mask": _demo_corner_mask(),
@@ -131,7 +132,7 @@ func _demo_level(idx: int) -> Dictionary:
 		4:
 			# COLLECT_INGREDIENT 关：顶部几颗原料下落，落到底部出口被收集（运料关，对标 CC 三大关型）。
 			return {
-				"name": "Demo 5/6 · 运料关 (COLLECT_INGREDIENT)",
+				"name": "Demo 5/7 · 运料关 (COLLECT_INGREDIENT)",
 				"target": 0,
 				"moves": 40,
 				"mask": [],
@@ -145,7 +146,7 @@ func _demo_level(idx: int) -> Dictionary:
 		5:
 			# DEFUSE_BOMB 关：盘上几颗倒计时炸弹，限步内消除拆够 N 个过关；任一炸弹归零即引爆判负（紧迫感）。
 			return {
-				"name": "Demo 6/6 · 拆弹关 (DEFUSE_BOMB)",
+				"name": "Demo 6/7 · 拆弹关 (DEFUSE_BOMB)",
 				"target": 0,
 				"moves": 40,
 				"mask": [],
@@ -156,10 +157,26 @@ func _demo_level(idx: int) -> Dictionary:
 				"exits": [],
 				"bomb": _demo_bomb_layer(),
 			}
+		6:
+			# 糖果炮关 (Candy Cannon)：顶行两门炮——产原料炮源源供原料 + 产普通糖炮持续补给盘面。
+			# 与运料关协同：炮口(复用 WALL，不可消不可动)每有效步从下方产原料，玩家把它运到底部出口，收够 N 过关。
+			return {
+				"name": "Demo 7/7 · 糖果炮关 (Candy Cannon + 运料)",
+				"target": 0,
+				"moves": 45,
+				"mask": [],
+				"objs": [{"type": "COLLECT_INGREDIENT", "species": -1, "target": 6}],
+				"jelly": [],
+				"coat": [],
+				"ing": _blank_layer(),   # 初始无散落原料：原料全部由炮产出（演示"持续供给"）
+				"exits": [],   # 空 = 整最底行皆出口
+				"bomb": [],
+				"cannon": _demo_cannon_layer(),
+			}
 		_:
 			# 纯分数关[现状]：异形墙 + 分数目标（objectives 为空 → 走旧式分数判定）。
 			return {
-				"name": "Demo 1/6 · 分数关 (SCORE) + 墙",
+				"name": "Demo 1/7 · 分数关 (SCORE) + 墙",
 				"target": TARGET,
 				"moves": MOVES,
 				"mask": _demo_wall_mask(),
@@ -199,7 +216,7 @@ func _new_game() -> void:
 	else:
 		var lvl := _demo_level(demo_idx)
 		board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []))
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []), lvl.get("cannon", []))
 		title_label.text = lvl["name"]
 	if not loadout.is_empty():
 		board.apply_loadout(loadout)
@@ -298,6 +315,20 @@ func _demo_bomb_layer() -> Array:
 			g[p.y][p.x] = counts[i]
 	return g
 
+# 糖果炮关：顶行两门炮（炮口复用 WALL，不可消不可动）。一门产原料(=2)供运料目标，一门产普通糖(=1)持续补给。
+# cannon[y][x]：0 无炮 / 1 产普通糖 / 2 产原料。每有效步从炮口正下方空格产出，源源不断供给盘面。
+func _demo_cannon_layer() -> Array:
+	var g := _blank_layer()
+	var ing_spots := [Vector2i(2, 0), Vector2i(6, 0)]   # 顶行两门产原料炮（运料目标靠它喂）
+	var candy_spots := [Vector2i(4, 0)]                  # 顶行一门产普通糖炮（持续补给消除资源）
+	for p in ing_spots:
+		if p.y < H and p.x < W:
+			g[p.y][p.x] = 2
+	for p in candy_spots:
+		if p.y < H and p.x < W:
+			g[p.y][p.x] = 1
+	return g
+
 
 # ───────────────────────────── HUD / 节点构建 ─────────────────────────────
 func _build_hud() -> void:
@@ -380,7 +411,7 @@ func _mk_label(pos: Vector2, fsize: int) -> Label:
 
 func _rebuild_tiles() -> void:
 	# 释放旧网格(切到不同维度的关卡时)，再按当前 W/H 重建
-	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, bomb_labels, piece_rects, burst_rects]:
+	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, cannon_rects, bomb_labels, piece_rects, burst_rects]:
 		for row in arr:
 			for n in row:
 				n.queue_free()
@@ -393,6 +424,7 @@ func _rebuild_tiles() -> void:
 	coat_labels.clear()
 	choco_rects.clear()
 	ingredient_rects.clear()
+	cannon_rects.clear()
 	bomb_labels.clear()
 	exit_rects.clear()
 	piece_rects.clear()
@@ -404,6 +436,7 @@ func _rebuild_tiles() -> void:
 	coat_labels.resize(H)
 	choco_rects.resize(H)
 	ingredient_rects.resize(H)
+	cannon_rects.resize(H)
 	bomb_labels.resize(H)
 	piece_rects.resize(H)
 	burst_rects.resize(H)
@@ -415,6 +448,7 @@ func _rebuild_tiles() -> void:
 		coat_labels[y] = []
 		choco_rects[y] = []
 		ingredient_rects[y] = []
+		cannon_rects[y] = []
 		bomb_labels[y] = []
 		piece_rects[y] = []
 		burst_rects[y] = []
@@ -521,6 +555,26 @@ func _rebuild_tiles() -> void:
 			blab.z_index = 7   # 最高层：压住所有占位/遮罩，倒计时永远可见
 			add_child(blab)
 			bomb_labels[y].append(blab)
+
+			# 糖果炮占位：深色炮台块盖住整格(炮口=WALL，本就暗格) + 向下箭头子节点暗示"从此向下产棋子"。
+			# 炮台色按产出类型微调(普通糖=钢灰、原料=暗樱桃)，箭头始终向下。代码占位，无任何美术图依赖。
+			var cann := ColorRect.new()
+			cann.size = Vector2(CELL, CELL)
+			cann.color = Color(0.16, 0.18, 0.24, 0.95)   # 深炮台色（盖在暗墙格上，凸显"这是炮不是普通墙"）
+			cann.visible = false
+			cann.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cann.z_index = 4   # 叠在墙底色之上、与巧克力同层级，醒目标识炮口
+			add_child(cann)
+			var carrow := Label.new()
+			carrow.text = "▼"
+			carrow.size = Vector2(CELL, CELL)
+			carrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			carrow.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			carrow.add_theme_font_size_override("font_size", 34)
+			carrow.add_theme_color_override("font_color", Color(0.96, 0.86, 0.40, 0.98))   # 暖金箭头（炮口产出方向）
+			carrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cann.add_child(carrow)   # 箭头随炮台一起定位/显隐
+			cannon_rects[y].append(cann)
 
 	# 出口标记：仅运料关（board 有 ing 层）才建——底部出口列各一条金色色条 + 下箭头，提示"原料落此被收"。
 	if board != null and not board.ing.is_empty():
@@ -729,6 +783,17 @@ func _render_cell(x: int, y: int) -> void:
 		blab.visible = true
 	else:
 		blab.visible = false
+
+	# 糖果炮占位：该格是炮口(cannon>0) → 盖深色炮台 + 向下箭头（炮口 grid=WALL，本就暗格；此块凸显"这是炮"）。
+	# 与其他层相反：炮口【就在 WALL 格上】渲染（不是 sp!=WALL）。产出在它正下方，玩家可直觉读出供给方向。
+	var ca: int = _layer_at(board.cannon, x, y)
+	var cann: ColorRect = cannon_rects[y][x]
+	if ca > 0:
+		cann.position = p
+		cann.color = Color(0.30, 0.10, 0.14, 0.95) if ca == 2 else Color(0.16, 0.18, 0.24, 0.95)  # 产原料炮=暗樱桃、普通糖炮=钢灰
+		cann.visible = true
+	else:
+		cann.visible = false
 
 
 func _render_hud() -> void:
