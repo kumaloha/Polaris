@@ -180,6 +180,27 @@ func _accumulate(by_species: Dictionary) -> void:
 	for k in by_species:
 		collected[k] = collected.get(k, 0) + by_species[k]
 
+# 七层结果累加：把 resolve / account_clears 返回的各计数加进对应 board 成员计数器。
+# PROGRESS_KEYS 里每个名字同时是【结果字典键】与【board 成员属性名】（一一对应），用 get/set 驱动。
+# acc(account_clears) 不含 ingredient_collected 键 → .get(k, 0) 退化为 +0，与原逐字代码完全一致（纯重构）。
+const PROGRESS_KEYS := [
+	"jelly_cleared", "blocker_cleared", "choco_cleared", "ingredient_collected",
+	"bomb_defused", "popcorn_hit", "cake_destroyed", "mystery_revealed",
+]
+func _accumulate_progress(r: Dictionary) -> void:
+	for k in PROGRESS_KEYS:
+		set(k, get(k) + r.get(k, 0))
+
+# 9 个可选障碍/目标层（与 grid/fx 一起构成盘面状态；grid/fx 恒非空、单独显式处理）。
+# 三处共用：_snapshot 各 duplicate(true)、_restore 各 duplicate(true) 回写、skill_gravity_flip 各 reverse()。
+# 名字一一对应成员变量；改/加层只需动这张表，杜绝"加层漏改某一处"。
+const LAYER_NAMES := ["coat", "jelly", "choco", "ing", "bomb", "cannon", "popcorn", "cake", "mystery"]
+# 快照/恢复要存的整型计数器（= 累加七层 + cannon_spawned；cannon_spawned 非累加块成员，单列于此）。
+const SNAPSHOT_COUNTERS := [
+	"jelly_cleared", "blocker_cleared", "choco_cleared", "ingredient_collected",
+	"bomb_defused", "cannon_spawned", "popcorn_hit", "cake_destroyed", "mystery_revealed",
+]
+
 func _blank_fx() -> Array:
 	var f := []
 	for y in height:
@@ -307,14 +328,7 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, last_cascade_cells, _layers())
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)   # 本步消除掉的炸弹（已在 resolve 里 bomb→0 拆除）
-	popcorn_hit += res.get("popcorn_hit", 0)   # 本步特效命中递减的爆米花（归0的格已在 resolve 里变彩球）
-	cake_destroyed += res.get("cake_destroyed", 0)   # 本步炸毁的蛋糕（相邻被清→cake-1，归0已在 resolve 里移除+大爆炸）
-	mystery_revealed += res.get("mystery_revealed", 0)   # 本步揭开的神秘糖（被消除时揭开为随机内容，已在 resolve 里 mystery→0）
+	_accumulate_progress(res)   # 本步 resolve 的七层计数(果冻/涂层/巧克力/原料/炸弹/爆米花/蛋糕/神秘糖)累加进 board 计数器
 	moves_left -= 1
 	_tick_bombs_after_move()   # 有效交换消耗一步 → 存活炸弹倒计时 -1；归零未消则引爆判负
 	_spread_choco_if_untouched(res.get("choco_cleared", 0))   # 巧克力：整步零啃食 → 蔓延一格
@@ -342,14 +356,8 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	# 直清的格计入目标（COLLECT/果冻/涂层/巧克力/炸弹）；锁住/巧克力格只破层啃食、不被清。须在清空 grid 前结算。
 	var acc := ME.account_clears(grid, eff, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
-	jelly_cleared += acc["jelly_cleared"]
-	blocker_cleared += acc["blocker_cleared"]
-	var step_choco: int = acc.get("choco_cleared", 0)
-	choco_cleared += step_choco
-	bomb_defused += acc.get("bomb_defused", 0)   # 彩球波及炸弹格 → 拆弹（account_clears 已 bomb→0）
-	popcorn_hit += acc.get("popcorn_hit", 0)   # 彩球波及爆米花格 → 命中-1（account_clears 已递减/归0变彩球）
-	cake_destroyed += acc.get("cake_destroyed", 0)   # 彩球波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
-	mystery_revealed += acc.get("mystery_revealed", 0)   # 彩球波及神秘糖格 → 揭开（account_clears 已 mystery→0）
+	var step_choco: int = acc.get("choco_cleared", 0)   # 本步啃食量(供 _spread_choco_if_untouched 判蔓延)，acc+res 两段累计
+	_accumulate_progress(acc)   # 彩球直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
 	var locked_set := {}
 	for p in acc["locked"]:
 		locked_set[p] = true
@@ -365,15 +373,8 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, null, _layers())   # 结算余下级联
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	step_choco += res.get("choco_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)
-	popcorn_hit += res.get("popcorn_hit", 0)
-	cake_destroyed += res.get("cake_destroyed", 0)
-	mystery_revealed += res.get("mystery_revealed", 0)
+	step_choco += res.get("choco_cleared", 0)   # 余下级联的啃食并入本步累计(供蔓延判定)
+	_accumulate_progress(res)   # 余下级联的七层计数累加进 board 计数器
 	moves_left -= 1
 	_tick_bombs_after_move()   # 彩球消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
@@ -394,14 +395,8 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var cells: Array = to_set.keys()
 	var acc := ME.account_clears(grid, cells, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
-	jelly_cleared += acc["jelly_cleared"]
-	blocker_cleared += acc["blocker_cleared"]
-	var step_choco: int = acc.get("choco_cleared", 0)
-	choco_cleared += step_choco
-	bomb_defused += acc.get("bomb_defused", 0)   # 融合波及炸弹格 → 拆弹
-	popcorn_hit += acc.get("popcorn_hit", 0)   # 融合波及爆米花格 → 命中-1（归0变彩球）
-	cake_destroyed += acc.get("cake_destroyed", 0)   # 融合波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
-	mystery_revealed += acc.get("mystery_revealed", 0)   # 融合波及神秘糖格 → 揭开（account_clears 已 mystery→0）
+	var step_choco: int = acc.get("choco_cleared", 0)   # 本步啃食量(供 _spread_choco_if_untouched 判蔓延)，acc+res 两段累计
+	_accumulate_progress(acc)   # 融合直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -419,15 +414,8 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, null, _layers())
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	step_choco += res.get("choco_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)
-	popcorn_hit += res.get("popcorn_hit", 0)
-	cake_destroyed += res.get("cake_destroyed", 0)
-	mystery_revealed += res.get("mystery_revealed", 0)
+	step_choco += res.get("choco_cleared", 0)   # 余下级联的啃食并入本步累计(供蔓延判定)
+	_accumulate_progress(res)   # 余下级联的七层计数累加进 board 计数器
 	moves_left -= 1
 	_tick_bombs_after_move()   # 融合消耗一步 → 存活炸弹倒计时 -1
 	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
@@ -470,14 +458,7 @@ func _spawn_from_cannons_after_move() -> void:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, null, _layers())
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)
-	popcorn_hit += res.get("popcorn_hit", 0)
-	cake_destroyed += res.get("cake_destroyed", 0)
-	mystery_revealed += res.get("mystery_revealed", 0)
+	_accumulate_progress(res)   # 炮口产出引发级联的七层计数累加进 board 计数器
 
 func _settle_deadlock() -> void:
 	if is_scrolling:
@@ -503,14 +484,7 @@ func _scroll_advance() -> void:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, false, null, _layers())  # 拉下来只结算级联，仍不补
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)
-	popcorn_hit += res.get("popcorn_hit", 0)
-	cake_destroyed += res.get("cake_destroyed", 0)
-	mystery_revealed += res.get("mystery_revealed", 0)
+	_accumulate_progress(res)   # 拉新页引发级联的七层计数累加进 board 计数器
 
 # 当前页是否已清到≥70%(空格占非墙格 ≥70%)。
 func _scroll_cleared_enough() -> bool:
@@ -536,48 +510,32 @@ func _on_move_resolved(cascades: int) -> void:
 
 # ───── 局面快照（时间回退#2 / 存档快照#3 共用）─────
 func _snapshot() -> Dictionary:
-	return {
+	# grid/fx 恒非空、单独深拷；9 个可选层与计数器各按表驱动；其余标量状态显式列。
+	var s := {
 		"grid": grid.duplicate(true), "fx": fx.duplicate(true),
-		"coat": coat.duplicate(true), "jelly": jelly.duplicate(true),
-		"choco": choco.duplicate(true), "ing": ing.duplicate(true),
-		"bomb": bomb.duplicate(true), "cannon": cannon.duplicate(true),
-		"popcorn": popcorn.duplicate(true), "cake": cake.duplicate(true),
-		"mystery": mystery.duplicate(true),
 		"score": score, "moves_left": moves_left,
 		"collected": collected.duplicate(true),
-		"jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared,
-		"choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected,
-		"bomb_defused": bomb_defused, "bomb_exploded": bomb_exploded,
-		"cannon_spawned": cannon_spawned, "popcorn_hit": popcorn_hit,
-		"cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed,
+		"bomb_exploded": bomb_exploded,
 		"borrow_debt": borrow_debt, "rng_state": rng.state,
 	}
+	for name in LAYER_NAMES:
+		s[name] = get(name).duplicate(true)
+	for c in SNAPSHOT_COUNTERS:
+		s[c] = get(c)
+	return s
 
 func _restore(s: Dictionary) -> void:
+	# 与 _snapshot 对称：grid/fx 单独深拷回写；9 个可选层与计数器各按同一张表驱动；其余标量显式回写。
 	grid = s["grid"].duplicate(true)
 	fx = s["fx"].duplicate(true)
-	coat = s["coat"].duplicate(true)
-	jelly = s["jelly"].duplicate(true)
-	choco = s["choco"].duplicate(true)
-	ing = s["ing"].duplicate(true)
-	bomb = s["bomb"].duplicate(true)
-	cannon = s["cannon"].duplicate(true)
-	popcorn = s["popcorn"].duplicate(true)
-	cake = s["cake"].duplicate(true)
-	mystery = s["mystery"].duplicate(true)
+	for name in LAYER_NAMES:
+		set(name, s[name].duplicate(true))
+	for c in SNAPSHOT_COUNTERS:
+		set(c, s[c])
 	score = s["score"]
 	moves_left = s["moves_left"]
 	collected = s["collected"].duplicate(true)
-	jelly_cleared = s["jelly_cleared"]
-	blocker_cleared = s["blocker_cleared"]
-	choco_cleared = s["choco_cleared"]
-	ingredient_collected = s["ingredient_collected"]
-	bomb_defused = s["bomb_defused"]
 	bomb_exploded = s["bomb_exploded"]
-	cannon_spawned = s["cannon_spawned"]
-	popcorn_hit = s["popcorn_hit"]
-	cake_destroyed = s["cake_destroyed"]
-	mystery_revealed = s["mystery_revealed"]
 	borrow_debt = s["borrow_debt"]
 	rng.state = s["rng_state"]
 
@@ -630,24 +588,12 @@ func skill_gravity_flip() -> bool:
 		return false
 	grid.reverse()
 	fx.reverse()
-	if not coat.is_empty():
-		coat.reverse()
-	if not jelly.is_empty():
-		jelly.reverse()
-	if not choco.is_empty():
-		choco.reverse()   # 巧克力层随盘面翻转，保持与 grid 对齐
-	if not ing.is_empty():
-		ing.reverse()   # 原料层随盘面翻转；翻转后用普通 down 重新沉底 → 原料落到新底行(=出口)，语义一致
-	if not bomb.is_empty():
-		bomb.reverse()   # 炸弹层随盘面翻转，保持与 grid 对齐；炸弹随重力重新沉底
-	if not cannon.is_empty():
-		cannon.reverse()   # 炮层随盘面翻转，保持与炮口 WALL 格对齐（翻转后炮口/产出方向随之倒置）
-	if not popcorn.is_empty():
-		popcorn.reverse()   # 爆米花层随盘面翻转，保持与 grid 对齐；翻转后随重力重新沉底（与原料同构）
-	if not cake.is_empty():
-		cake.reverse()   # 蛋糕层随盘面翻转，保持与蛋糕 WALL 格对齐（蛋糕不可动，翻转后仍是不可消的墙障碍）
-	if not mystery.is_empty():
-		mystery.reverse()   # 神秘糖层随盘面翻转，保持与 grid 对齐；翻转后随重力重新沉底（与 bomb/popcorn 同构，纯标记跟随）
+	# 9 个可选障碍/目标层随盘面行序倒置，保持与 grid 对齐（空层跳过）；
+	# 随后 apply_gravity 用普通 down 重新沉底 → 原料/炸弹/爆米花/神秘糖落到新底行，语义一致。
+	for name in LAYER_NAMES:
+		var layer: Array = get(name)
+		if not layer.is_empty():
+			layer.reverse()
 	ME.apply_gravity(grid, fx, false, _layers())
 	_refill_unless_scroll()
 	_settle_after_skill()
@@ -663,13 +609,7 @@ func skill_clear_species(sp: int) -> bool:
 		return false
 	var acc := ME.account_clears(grid, cells, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
-	jelly_cleared += acc["jelly_cleared"]
-	blocker_cleared += acc["blocker_cleared"]
-	choco_cleared += acc.get("choco_cleared", 0)
-	bomb_defused += acc.get("bomb_defused", 0)   # 同类消除波及炸弹格 → 拆弹
-	popcorn_hit += acc.get("popcorn_hit", 0)   # 同类消除波及爆米花格 → 命中-1（归0变彩球）
-	cake_destroyed += acc.get("cake_destroyed", 0)   # 同类消除波及相邻蛋糕 → cake-1，归0已在 account_clears 里移除
-	mystery_revealed += acc.get("mystery_revealed", 0)   # 同类消除波及神秘糖格 → 揭开（account_clears 已 mystery→0）
+	_accumulate_progress(acc)   # 同类消除直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -714,14 +654,7 @@ func _settle_after_skill() -> void:
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, null, _layers())
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
-	jelly_cleared += res.get("jelly_cleared", 0)
-	blocker_cleared += res.get("blocker_cleared", 0)
-	choco_cleared += res.get("choco_cleared", 0)
-	ingredient_collected += res.get("ingredient_collected", 0)
-	bomb_defused += res.get("bomb_defused", 0)   # 技能消除拆弹（免费动作不 tick 倒计时，但拆弹照算）
-	popcorn_hit += res.get("popcorn_hit", 0)   # 技能特效命中爆米花（免费动作不 tick，但命中/变彩球照算）
-	cake_destroyed += res.get("cake_destroyed", 0)   # 技能消除波及相邻蛋糕 → cake-1/归0（免费动作不 tick，但炸毁照算）
-	mystery_revealed += res.get("mystery_revealed", 0)   # 技能消除波及神秘糖 → 揭开（免费动作不 tick，但揭开照算）
+	_accumulate_progress(res)   # 技能改盘后余下级联的七层计数累加(免费动作不 tick 倒计时/不触发蔓延，但拆弹/命中/炸毁/揭开照算)
 	_settle_deadlock()
 
 # ───── 默认提示(#0) / 看广告续用 / 结算数据 ─────
