@@ -374,6 +374,117 @@ static void test_resolve_choco_no_eat_far_clear() {
     CHECK_EQ(choco[3][3], 1, "corner chocolate intact");
 }
 
+// ───────────── 运原料（Ingredients）镜像断言 ─────────────
+
+static void test_ingredient_not_matched() {
+    // 原料格(ing>0)不参与匹配、断开同色串（镜像 GDScript test_ingredient_not_matched）。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    CHECK_EQ((int)find_matches_ingredient(g, nullptr, nullptr, nullptr).size(), 3, "no ingredient -> top row is a 3-match");
+    std::vector<std::vector<int>> ing(3, std::vector<int>(4, 0));
+    ing[0][1] = 1;  // 原料盖住顶行中间格
+    CHECK(find_matches_ingredient(g, nullptr, nullptr, &ing).empty(), "ingredient cell breaks the run -> no match");
+}
+
+static void test_ingredient_blocks_swap() {
+    Grid g = {{0, 0, 1}, {1, 2, 0}, {3, 4, 5}};
+    std::vector<std::vector<int>> ing(3, std::vector<int>(3, 0));
+    ing[0][2] = 1;  // (2,0) 被原料覆盖
+    CHECK(!is_legal_swap_ingredient(g, {2, 0}, {2, 1}, nullptr, nullptr, &ing), "ingredient cell can't be swapped");
+    CHECK(is_legal_swap_ingredient(g, {2, 0}, {2, 1}, nullptr, nullptr, nullptr), "no ingredient ptr -> normal legal");
+}
+
+static void test_ingredient_falls_under_gravity() {
+    // 与 choco 最大不同：原料【随重力下落】（choco 固定不动）。列 [原料,空,空] → 原料沉到列底。
+    Grid col = {{5}, {EMPTY}, {EMPTY}};
+    std::vector<std::vector<int>> ing = {{1}, {0}, {0}};
+    apply_gravity_ingredient(col, nullptr, nullptr, &ing);
+    CHECK_EQ(col[2][0], 5, "ingredient tile fell to the column bottom");
+    CHECK_EQ(ing[2][0], 1, "ing layer moved with the tile (now at bottom)");
+    CHECK_EQ(col[0][0], EMPTY, "top is now empty");
+    CHECK_EQ(ing[0][0], 0, "ing layer cleared at the old top cell");
+}
+
+static void test_collect_at_exit_direct() {
+    // 收集纯函数：最底行出口列若是原料 → 收集（grid 清空、ing 归 0）。
+    Grid g = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}};
+    std::vector<std::vector<int>> ing(3, std::vector<int>(3, 0));
+    ing[2][0] = 1; ing[2][2] = 1;  // 两个原料在最底行
+    int got = collect_ingredients_at_exit(g, ing, {0, 2});
+    CHECK_EQ(got, 2, "two ingredients at exit collected");
+    CHECK_EQ(g[2][0], EMPTY, "collected cell cleared to EMPTY");
+    CHECK_EQ(ing[2][0], 0, "ing layer zeroed at collected cell");
+    CHECK_EQ(count_ingredients(ing), 0, "no ingredients remain");
+}
+
+static void test_collect_respects_exit_cols() {
+    // 非出口列的底行原料不被收集。
+    Grid g = {{0, 1, 2}, {3, 4, 5}, {6, 7, 8}};
+    std::vector<std::vector<int>> ing(3, std::vector<int>(3, 0));
+    ing[2][1] = 1;  // (1,2) 在最底行但列1不是出口
+    int got = collect_ingredients_at_exit(g, ing, {0, 2});
+    CHECK_EQ(got, 0, "ingredient in non-exit column not collected");
+    CHECK_EQ(ing[2][1], 1, "ingredient stays");
+}
+
+static void test_resolve_ingredient_sinks_to_bottom() {
+    // 原料连续下沉到最底行 → 被收集，ingredient_collected==1，grid 该格清空（断言②）。
+    // 列0 全空 → 原料从顶 (0,0) 落到底 (0,3) 出口被收。
+    Grid g = {
+        {5, 0, 1, 2},
+        {EMPTY, 3, 4, 0},
+        {EMPTY, 1, 2, 3},
+        {EMPTY, 4, 0, 1},
+    };
+    std::vector<std::vector<int>> ing(4, std::vector<int>(4, 0));
+    ing[0][0] = 1;
+    std::mt19937 rng(1);
+    auto r = resolve_ingredient(g, {0, 1, 2, 3, 4, 5}, rng, nullptr, nullptr, nullptr, &ing, {0, 1, 2, 3}, nullptr, false);
+    CHECK_EQ(r.ingredient_collected, 1, "ingredient sank to bottom exit and got collected");
+    CHECK_EQ(count_ingredients(ing), 0, "ingredient removed from board");
+    CHECK_EQ(g[3][0], EMPTY, "exit cell cleared after collection");
+}
+
+static void test_resolve_ingredient_sinks_one_after_clear() {
+    // 原料正下方棋子被消除 → 原料下沉一格（断言①）。
+    // 原料在 (1,1)；正下方 (1,2) 属于第2行三连 7,7,7。消除 → (1,2) 空 → 原料沉到 (1,2)。
+    Grid g = {
+        {0, 1, 2, 3},
+        {4, 9, 6, 0},
+        {7, 7, 7, 1},
+        {2, 3, 4, 5},
+    };
+    std::vector<std::vector<int>> ing(4, std::vector<int>(4, 0));
+    ing[1][1] = 1;
+    std::mt19937 rng(1);
+    // 无出口(exit 空) → 只看下沉、不收集、不补充。
+    auto r = resolve_ingredient(g, {0, 1, 2, 3, 4, 5, 6, 7, 9}, rng, nullptr, nullptr, nullptr, &ing, {}, nullptr, false);
+    CHECK_EQ(ing[2][1], 1, "ingredient sank exactly one row (y=1 -> y=2)");
+    CHECK_EQ(g[2][1], 9, "ingredient-covered tile moved down with it (species 9 preserved)");
+    CHECK_EQ(ing[1][1], 0, "old ingredient cell cleared");
+    CHECK_EQ(r.ingredient_collected, 0, "no exit configured -> nothing collected");
+}
+
+static void test_resolve_ingredient_deterministic() {
+    // 同 seed 两次完整 resolve（含下落+收集+补充）结果一致（断言④）。
+    auto mk = []() {
+        return Grid{
+            {0, 1, 9, 3},
+            {4, 5, 0, 1},
+            {2, 3, 4, 5},
+            {1, 2, 3, 4},
+        };
+    };
+    Grid g1 = mk(), g2 = mk();
+    std::vector<std::vector<int>> i1(4, std::vector<int>(4, 0)); i1[0][2] = 1;
+    std::vector<std::vector<int>> i2(4, std::vector<int>(4, 0)); i2[0][2] = 1;
+    std::mt19937 r1(24680), r2(24680);
+    auto a = resolve_ingredient(g1, {0, 1, 2, 3, 4, 5}, r1, nullptr, nullptr, nullptr, &i1, {0, 1, 2, 3}, nullptr, true);
+    auto b = resolve_ingredient(g2, {0, 1, 2, 3, 4, 5}, r2, nullptr, nullptr, nullptr, &i2, {0, 1, 2, 3}, nullptr, true);
+    CHECK(g1 == g2, "same seed -> identical grid after resolve");
+    CHECK(i1 == i2, "same seed -> identical ing layer after resolve");
+    CHECK_EQ(a.ingredient_collected, b.ingredient_collected, "same seed -> identical collected count");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -407,5 +518,14 @@ int main() {
     test_spread_no_candidate();
     test_spread_deterministic();
     test_resolve_choco_no_eat_far_clear();
+    // 运原料（Ingredients）镜像断言
+    test_ingredient_not_matched();
+    test_ingredient_blocks_swap();
+    test_ingredient_falls_under_gravity();
+    test_collect_at_exit_direct();
+    test_collect_respects_exit_cols();
+    test_resolve_ingredient_sinks_to_bottom();
+    test_resolve_ingredient_sinks_one_after_clear();
+    test_resolve_ingredient_deterministic();
     return report();
 }

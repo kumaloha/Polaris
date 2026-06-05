@@ -483,4 +483,218 @@ inline ChocoResolveResult resolve_choco(Grid& g, const std::vector<int>& species
     return r;
 }
 
+// ───────────── 运原料（Ingredients）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 原料语义（与 godot/core/match_engine.gd 一一对应）：
+//   占格、不参与 match、不可交换、【随重力下落】（与 choco 最大不同：choco 固定切段，原料是可动元素）、
+//   落到底部出口列(物理最底行 y=h-1 的 exit_cols)即被收集移除(grid→EMPTY, ing→0, ingredient_collected++)。
+// 障碍判定沿用 coat>0/choco>0 表达"不可消/不可换"，原料再叠一层 ing>0；为不动现有签名，提供独立 *_ingredient 版本。
+
+// ing 感知的匹配：原料格(ing>0)与锁住/巧克力格一样不参与匹配、断开同色串。
+inline std::vector<Vec2> find_matches_ingredient(const Grid& g,
+                                                 const std::vector<std::vector<int>>* coat,
+                                                 const std::vector<std::vector<int>>* choco,
+                                                 const std::vector<std::vector<int>>* ing) {
+    int h = (int)g.size();
+    if (h == 0) return {};
+    int w = (int)g[0].size();
+    auto blocked = [&](int x, int y) -> bool {
+        return g[y][x] == EMPTY || g[y][x] == WALL
+            || (coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0)
+            || (ing && (*ing)[y][x] > 0);
+    };
+    std::vector<std::vector<char>> mark(h, std::vector<char>(w, 0));
+    for (int y = 0; y < h; ++y) {
+        int x = 0;
+        while (x < w) {
+            if (blocked(x, y)) { ++x; continue; }
+            int e = x;
+            while (e + 1 < w && g[y][e + 1] == g[y][x] && !blocked(e + 1, y)) ++e;
+            if (e - x + 1 >= 3)
+                for (int k = x; k <= e; ++k) mark[y][k] = 1;
+            x = e + 1;
+        }
+    }
+    for (int x = 0; x < w; ++x) {
+        int y = 0;
+        while (y < h) {
+            if (blocked(x, y)) { ++y; continue; }
+            int e = y;
+            while (e + 1 < h && g[e + 1][x] == g[y][x] && !blocked(x, e + 1)) ++e;
+            if (e - y + 1 >= 3)
+                for (int k = y; k <= e; ++k) mark[k][x] = 1;
+            y = e + 1;
+        }
+    }
+    std::vector<Vec2> out;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (mark[y][x]) out.push_back({x, y});
+    return out;
+}
+
+// ing 感知的重力：原料格(ing>0)【随重力下落】——作为段内可动元素和 grid 一起搬运，ing 层与 grid 同步重排。
+//   这是与 apply_gravity_choco 的本质区别（巧克力固定切段；原料只随 wall/coat/choco 切段，自身不切段）。
+inline void apply_gravity_ingredient(Grid& g, const std::vector<std::vector<int>>* coat,
+                                     const std::vector<std::vector<int>>* choco,
+                                     std::vector<std::vector<int>>* ing) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    for (int x = 0; x < w; ++x) {
+        int seg_start = 0;
+        for (int y = 0; y <= h; ++y) {
+            // 仅墙/锁住格(coat>0)/巧克力格(choco>0)切段固定；原料不切段（它是段内可动元素）。
+            bool fixed = (y < h) && ((coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0));
+            if (y == h || g[y][x] == WALL || fixed) {
+                std::vector<int> stack;       // 段内非空 species
+                std::vector<int> ing_stack;   // 段内每个可动格的原料标记，随 stack 同序搬运
+                for (int k = seg_start; k < y; ++k)
+                    if (g[k][x] != EMPTY) {
+                        stack.push_back(g[k][x]);
+                        if (ing) ing_stack.push_back((*ing)[k][x]);
+                    }
+                int seg_len = y - seg_start;
+                int empties = seg_len - (int)stack.size();
+                for (int k = seg_start; k < y; ++k) {
+                    int idx = k - seg_start;
+                    if (idx < empties) {
+                        g[k][x] = EMPTY;
+                        if (ing) (*ing)[k][x] = 0;          // 空格无原料
+                    } else {
+                        g[k][x] = stack[idx - empties];
+                        if (ing) (*ing)[k][x] = ing_stack[idx - empties];  // 原料标记随该格内容一起落
+                    }
+                }
+                seg_start = y + 1;
+            }
+        }
+    }
+}
+
+// ing 感知的合法交换：原料格(ing>0)与锁住/巧克力格一样不可参与交换。
+inline bool is_legal_swap_ingredient(Grid& g, Vec2 a, Vec2 b,
+                                     const std::vector<std::vector<int>>* coat,
+                                     const std::vector<std::vector<int>>* choco,
+                                     const std::vector<std::vector<int>>* ing) {
+    if (std::abs(a.x - b.x) + std::abs(a.y - b.y) != 1) return false;
+    int va = g[a.y][a.x], vb = g[b.y][b.x];
+    if (va == WALL || vb == WALL || va == EMPTY || vb == EMPTY) return false;
+    if (coat && ((*coat)[a.y][a.x] > 0 || (*coat)[b.y][b.x] > 0)) return false;
+    if (choco && ((*choco)[a.y][a.x] > 0 || (*choco)[b.y][b.x] > 0)) return false;
+    if (ing && ((*ing)[a.y][a.x] > 0 || (*ing)[b.y][b.x] > 0)) return false;  // 原料格不可换
+    swap_cells(g, a, b);
+    bool found = !find_matches_ingredient(g, coat, choco, ing).empty();
+    swap_cells(g, a, b);
+    return found;
+}
+
+// 数原料格总数。
+inline int count_ingredients(const std::vector<std::vector<int>>& ing) {
+    int n = 0;
+    for (const auto& row : ing)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
+// 收集出口处的原料：exit_cols 列在物理最底行(y=h-1)若是原料(ing>0)则收集——
+//   grid 该格清空(EMPTY)、ing 归 0，返回本次收集格数。原地改 g/ing。
+inline int collect_ingredients_at_exit(Grid& g, std::vector<std::vector<int>>& ing,
+                                       const std::vector<int>& exit_cols) {
+    int h = (int)g.size();
+    if (h == 0 || ing.empty()) return 0;
+    int w = (int)g[0].size();
+    int by = h - 1;   // 物理最底行 = 出口所在行
+    int collected = 0;
+    for (int cx : exit_cols) {
+        if (cx < 0 || cx >= w) continue;
+        if (ing[by][cx] > 0) {
+            g[by][cx] = EMPTY;
+            ing[by][cx] = 0;
+            ++collected;
+        }
+    }
+    return collected;
+}
+
+// 原料下沉收集循环：先重力沉底，再"收出口→重力"直到无新原料被收。返回累计收集数。
+//   镜像 GDScript _drain_ingredients：纯重力不触发 match 循环，故消除稳定后单独跑把原料送进出口。
+inline int drain_ingredients(Grid& g, const std::vector<std::vector<int>>* coat,
+                             const std::vector<std::vector<int>>* choco,
+                             std::vector<std::vector<int>>& ing,
+                             const std::vector<int>& exit_cols) {
+    if (ing.empty() || exit_cols.empty()) return 0;
+    int collected = 0;
+    apply_gravity_ingredient(g, coat, choco, &ing);   // 先沉底：悬空原料送到最低处（含出口行）
+    while (true) {
+        int got = collect_ingredients_at_exit(g, ing, exit_cols);
+        if (got == 0) break;
+        collected += got;
+        apply_gravity_ingredient(g, coat, choco, &ing);   // 收掉出口原料→让位→上方继续沉
+    }
+    return collected;
+}
+
+struct IngResolveResult {
+    int score = 0, cascades = 0, cleared = 0;
+    int jelly_cleared = 0, blocker_cleared = 0, ingredient_collected = 0;
+    std::vector<int> by_species;
+    bool operator==(const IngResolveResult& o) const {
+        return score == o.score && cascades == o.cascades && cleared == o.cleared
+               && jelly_cleared == o.jelly_cleared && blocker_cleared == o.blocker_cleared
+               && ingredient_collected == o.ingredient_collected && by_species == o.by_species;
+    }
+};
+
+// ing 感知的 resolve：消除→计分→下落(原料随重力落)→收出口→补充，循环至稳定；末尾把落定原料排进出口。
+//   返回含 ingredient_collected = 本次结算落到出口被收的原料数。镜像 GDScript _resolve_plain 的 ing 分支。
+inline IngResolveResult resolve_ingredient(Grid& g, const std::vector<int>& species, std::mt19937& rng,
+                                           std::vector<std::vector<int>>* jelly,
+                                           std::vector<std::vector<int>>* coat,
+                                           std::vector<std::vector<int>>* choco,
+                                           std::vector<std::vector<int>>* ing,
+                                           const std::vector<int>& exit_cols,
+                                           std::vector<std::deque<int>>* feed = nullptr,
+                                           bool do_refill = true) {
+    IngResolveResult r;
+    while (true) {
+        auto matched = find_matches_ingredient(g, coat, choco, ing);
+        if (matched.empty()) break;
+        r.cascades++;
+        int H = (int)g.size(), W = (int)g[0].size();
+        std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
+        for (const auto& p : matched) ism[p.y][p.x] = 1;
+        if (coat) {  // 破锁：消除内/相邻的锁住格 -1
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x) {
+                    if ((*coat)[y][x] <= 0) continue;
+                    bool hit = ism[y][x]
+                        || (x > 0 && ism[y][x - 1]) || (x + 1 < W && ism[y][x + 1])
+                        || (y > 0 && ism[y - 1][x]) || (y + 1 < H && ism[y + 1][x]);
+                    if (hit) { (*coat)[y][x]--; r.blocker_cleared++; }
+                }
+        }
+        for (const auto& p : matched) {
+            int s = g[p.y][p.x];
+            if (s >= 0) {
+                if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
+                r.by_species[s]++;
+            }
+            if (jelly && (*jelly)[p.y][p.x] > 0) { (*jelly)[p.y][p.x]--; r.jelly_cleared++; }
+            g[p.y][p.x] = EMPTY;
+        }
+        r.cleared += (int)matched.size();
+        r.score += score_for_clear((int)matched.size(), r.cascades);
+        apply_gravity_ingredient(g, coat, choco, ing);   // 原料随重力下落（ing 随 grid 同步移动）
+        if (ing) r.ingredient_collected += collect_ingredients_at_exit(g, *ing, exit_cols);
+        if (do_refill) refill(g, species, rng, feed);
+    }
+    // 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉。
+    if (ing) {
+        r.ingredient_collected += drain_ingredients(g, coat, choco, *ing, exit_cols);
+        if (do_refill) refill(g, species, rng, feed);
+    }
+    return r;
+}
+
 }  // namespace me

@@ -12,7 +12,7 @@ const Board := preload("res://core/board.gd")
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
 	assert_true(v != null, "game.gd instantiates (compiles clean)")
-	assert_eq(v.DEMO_COUNT, 4, "four demo levels declared")
+	assert_eq(v.DEMO_COUNT, 5, "five demo levels declared")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:
@@ -20,9 +20,9 @@ func test_all_demo_levels_build_valid_board() -> void:
 	for idx in v.DEMO_COUNT:
 		var lvl: Dictionary = v._demo_level(idx)
 		assert_true(lvl.has("name") and not String(lvl["name"]).is_empty(), "level %d has a name" % idx)
-		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露。
+		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits）。
 		var b := Board.new(v.W, v.H, v.SPECIES, lvl["target"], lvl["moves"], 99,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"])
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []))
 		assert_eq(b.grid.size(), v.H, "level %d board height" % idx)
 		assert_eq(b.grid[0].size(), v.W, "level %d board width" % idx)
 		assert_false(b.is_over(), "level %d not already over at start" % idx)
@@ -41,6 +41,7 @@ func test_demo_levels_cover_all_objective_types() -> void:
 	assert_true(types.has("COLLECT"), "has a COLLECT level")
 	assert_true(types.has("CLEAR_JELLY"), "has a CLEAR_JELLY level")
 	assert_true(types.has("CLEAR_BLOCKER"), "has a CLEAR_BLOCKER level")
+	assert_true(types.has("COLLECT_INGREDIENT"), "has a COLLECT_INGREDIENT (运料) level")
 	v.free()
 
 func test_demo_jelly_layer_shape() -> void:
@@ -89,6 +90,7 @@ func test_objectives_text_renders_each_type() -> void:
 		{"type": "COLLECT", "species": 0, "target": 10},
 		{"type": "CLEAR_JELLY", "species": -1, "target": 8},
 		{"type": "CLEAR_BLOCKER", "species": -1, "target": 5},
+		{"type": "COLLECT_INGREDIENT", "species": -1, "target": 4},
 		{"type": "SCORE", "species": -1, "target": 2000},
 	]
 	v.board = Board.new(v.W, v.H, v.SPECIES, 2000, 30, 1, [], objs)
@@ -97,7 +99,23 @@ func test_objectives_text_renders_each_type() -> void:
 	assert_true(txt.contains(v.SYMBOLS[0]), "COLLECT shows species symbol")
 	assert_true(txt.contains("果冻"), "CLEAR_JELLY label present")
 	assert_true(txt.contains("解锁"), "CLEAR_BLOCKER label present")
+	assert_true(txt.contains("运料"), "COLLECT_INGREDIENT label present")
 	assert_true(txt.contains("分数"), "SCORE label present")
 	assert_true(txt.contains("10"), "COLLECT target shown")
 	assert_true(txt.contains("8"), "CLEAR_JELLY target shown")
+	v.free()
+
+func test_demo_ingredient_layer_shape() -> void:
+	var v: Game = Game.new()
+	var g: Array = v._demo_ingredient_layer()
+	assert_eq(g.size(), v.H, "ingredient layer height")
+	assert_eq(g[0].size(), v.W, "ingredient layer width")
+	assert_eq(g[0][1], 1, "top-row ingredient placed at col 1")
+	assert_eq(g[0][7], 1, "top-row ingredient placed at col 7")
+	assert_eq(g[0][0], 0, "no ingredient where not seeded")
+	var total := 0
+	for row in g:
+		for val in row:
+			total += val
+	assert_eq(total, 4, "exactly 4 ingredients (matches target)")
 	v.free()
