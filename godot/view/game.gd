@@ -746,10 +746,6 @@ func _load_pieces() -> void:
 		})
 
 
-func _res_abs(p: String) -> String:
-	return ProjectSettings.globalize_path("res://../" + p).simplify_path()
-
-
 func _piece_tex(p) -> Texture2D:
 	if p == null or String(p).is_empty():
 		return null
@@ -1161,14 +1157,6 @@ func _animate_settle(pre: Array) -> void:
 		await tw.finished
 	else:
 		tw.kill()
-
-
-# 消除后整盘轻微"脉冲"提示发生了变化（v1 简化版反馈；逐级联动画留待 v1.x）
-func _pop_flash() -> void:
-	modulate = Color(1.15, 1.15, 1.15)
-	var tw := create_tween()
-	tw.tween_property(self, "modulate", Color(1, 1, 1), 0.14)
-	await tw.finished
 
 
 # 点冰锁格的反馈：该格遮罩快速闪一下（提示"锁住、不可换"）。
