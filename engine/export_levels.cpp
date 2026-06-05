@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
     GenConfig cfg;
     cfg.w = 9;       // 默认 9×9，对齐 Candy Crush
     cfg.h = 9;
-    cfg.species = {0, 1, 2, 3, 4};
+    cfg.species = {0, 1, 2, 3, 4, 5};   // 6 色，对齐 Candy Crush
     cfg.move_limit = 25;
     cfg.trials = 12;
 
@@ -118,12 +118,41 @@ int main(int argc, char** argv) {
         for (auto& gl : f.get())
             levels.push_back(gl);
 
+    // 专项关：保证每难度档都有「异形墙 / 冰锁(blocker) / 多目标」三类各若干，补足库的丰富度。
+    // 各类用独立 base_seed（与上面随机档错开），靠 generate_for_difficulty 的扩展旋钮强制产出。
+    //   - 墙关 ：wall_density 0.10，init_board 出现 -2（异形棋盘）
+    //   - 冰锁 ：force_obj=3，coat 非空（CLEAR_BLOCKER）
+    //   - 多目标：force_obj=1(COLLECT)+want_multi，objectives 含 2 项（双色 COLLECT 或 +清果冻）
+    int special_each = std::max(1, per_band / 2);   // 每档每类关数，随 per_band 增长
+    struct SpecKind { double wall; int force; bool multi; uint32_t salt; };
+    SpecKind kinds[] = {
+        {0.10, -1, false, 0x10000001u},   // 异形墙（目标类型仍随机）
+        {0.00,  3, false, 0x20000002u},   // 冰锁 blocker
+        {0.00,  1, true,  0x30000003u},   // 多目标
+    };
+    std::vector<std::future<std::vector<GeneratedLevel>>> spfuts;
+    for (const SpecKind& sk : kinds) {
+        for (int bi = 0; bi < 3; ++bi) {
+            GenConfig c = cfg;
+            c.h = 9 + bi;
+            c.base_seed = sk.salt + (uint32_t)bi * 2654435761u;
+            DiffBand band = bands[bi];
+            int cnt = special_each;
+            spfuts.push_back(std::async(std::launch::async, [c, band, cnt, sk]() {
+                return generate_for_difficulty(c, band, cnt, 1200, sk.wall, sk.force, sk.multi);
+            }));
+        }
+    }
+    for (auto& f : spfuts)
+        for (auto& gl : f.get())
+            levels.push_back(gl);
+
     // 滚动/挖矿关：每档 per_band 关（与目标关同量），难度旋钮=步数(feed 深度固定/关)。
     // 变 seed + 矿深(3~5页)增多样性。三档 × per_band 全部【并行】二分校准。
     ScrollConfig sc_base;
     sc_base.w = 9;
     sc_base.h = 9;
-    sc_base.species = {0, 1, 2, 3, 4};
+    sc_base.species = {0, 1, 2, 3, 4, 5};   // 6 色，对齐 Candy Crush
     sc_base.trials = 8;
     const int scroll_depths[] = {3, 4, 5};   // 不同矿深(页)：首页可见，往下 2~4 页
     DiffBand sbands[] = {band_easy(), band_medium(), band_hard()};

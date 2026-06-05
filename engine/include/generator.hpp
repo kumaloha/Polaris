@@ -8,7 +8,7 @@ namespace me {
 
 struct GenConfig {
     int w = 8, h = 8;
-    std::vector<int> species = {0, 1, 2, 3, 4};
+    std::vector<int> species = {0, 1, 2, 3, 4, 5};
     int move_limit = 16;
     int trials = 4;           // 每个候选评估的重复次数（应对随机补充）
     double min_gap = 0.10;    // 最低 LFHC 深度（gap 太小=怎么玩都一样 → 弃）
@@ -195,6 +195,17 @@ inline std::vector<GeneratedLevel> generate_and_test(const GenConfig& cfg, int c
 
 // ---- 定向难度生成：二分搜索目标值，把 skilled_pass 逼进请求难度带 ----
 
+// 按密度随机生成布尔掩码（异形墙/涂层共用）。seed 决定布局，density 决定占比。
+inline std::vector<std::vector<char>> _mask_from(uint32_t seed, double density, int W, int H) {
+    std::mt19937 r(seed);
+    std::uniform_real_distribution<double> d(0.0, 1.0);
+    std::vector<std::vector<char>> m(H, std::vector<char>(W, 0));
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (d(r) < density) m[y][x] = 1;
+    return m;
+}
+
 struct DiffBand {
     const char* name;
     double pl, ph;  // skilled_pass 落入 [pl, ph] 即该难度
@@ -215,7 +226,7 @@ inline void set_level_target(Level& lv, int t) {
 // ---- 滚动/挖矿关生成（难度旋钮=步数：feed 深度固定，步多→易挖穿→skilled_pass 单调↑→可二分）----
 struct ScrollConfig {
     int w = 8, h = 8;
-    std::vector<int> species = {0, 1, 2, 3, 4};
+    std::vector<int> species = {0, 1, 2, 3, 4, 5};
     int depth_pages = 4;       // feed 深度(页)，1 页 = h 行；一开始只见首页，往下约 depth_pages 页
     int trials = 6;            // 评估重复次数（feed 固定，变 reshuffle/挖穿后随机流以测稳健）
     uint32_t base_seed = 1;
@@ -269,8 +280,16 @@ inline GeneratedLevel generate_scroll_for_difficulty(const ScrollConfig& cfg, Di
 }
 
 // 按请求难度直接产关：每个候选盘二分搜索目标值，命中该难度带才留。
+// 可选扩展（默认值=原行为，不影响既有调用）：
+//   wall_density>0：每个候选盘按该密度铺异形墙(WALL=-2)，做异形棋盘关。
+//   force_obj>=0  ：强制目标类型（0=SCORE/1=COLLECT/2=JELLY/3=BLOCKER），跳过随机抽型，
+//                   保证某类目标（尤其 BLOCKER 冰锁关）一定产出。
+//   want_multi    ：COLLECT 命中后再追加一个目标（另一可收集色，或退化为清果冻），产多目标关。
 inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg, DiffBand band,
-                                                           int count, int max_attempts) {
+                                                           int count, int max_attempts,
+                                                           double wall_density = 0.0,
+                                                           int force_obj = -1,
+                                                           bool want_multi = false) {
     std::vector<GeneratedLevel> out;
     std::mt19937 boardgen(cfg.base_seed);
     std::mt19937 fracgen(cfg.base_seed ^ 0x00abcdefu);
@@ -279,8 +298,12 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
     int attempts = 0;
     while ((int)out.size() < count && attempts < max_attempts) {
         ++attempts;
-        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
         uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
+        // 异形墙：按候选 seed 派生墙图，传给 make_board（其余格正常填棋子且保证有合法步）。
+        std::vector<std::vector<char>> wmask;
+        if (wall_density > 0.0)
+            wmask = _mask_from(cand_seed ^ 0x9e3779b9u, wall_density, cfg.w, cfg.h);
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen, wmask);
         int H = (int)board.size(), W = (int)board[0].size();
         std::vector<std::vector<int>> full_jelly(H, std::vector<int>(W, 1));
         for (int y = 0; y < H; ++y)
@@ -288,7 +311,7 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
                 if (board[y][x] == WALL) full_jelly[y][x] = 0;
 
         // raw 评估（地板/天花板 + 各色收集 + 果冻清层）
-        double fsum = 0, csum = 0, gj = 0;
+        double fsum = 0, csum = 0, gj = 0, rjsum = 0;
         std::vector<double> g_col, r_col;
         for (int t = 0; t < cfg.trials; ++t) {
             Level lv;
@@ -302,6 +325,7 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
             fsum += rp.score;
             csum += gp.score;
             gj += gp.jelly_cleared;
+            rjsum += rp.jelly_cleared;
             if (r_col.size() < rp.collected.size()) r_col.resize(rp.collected.size(), 0.0);
             for (size_t i = 0; i < rp.collected.size(); ++i) r_col[i] += rp.collected[i];
             if (g_col.size() < gp.collected.size()) g_col.resize(gp.collected.size(), 0.0);
@@ -309,6 +333,7 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
         }
         double floor_s = fsum / cfg.trials, ceil_s = csum / cfg.trials;
         double g_jelly = gj / cfg.trials;
+        double r_jelly = rjsum / cfg.trials;
         if (floor_s < 1.0) continue;
         double gap = (ceil_s - floor_s) / floor_s;
         if (gap < cfg.min_gap) continue;
@@ -323,6 +348,11 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
         final.seed = cand_seed;
         int lo = 1, hi = 1;
         double u = fracdist(fracgen);
+        // 强制目标类型：把 u 钳到对应分支区间，跳过随机抽型（保证 BLOCKER 等稀有目标必产）。
+        if (force_obj == 1) u = cfg.collect_ratio * 0.5;                                    // COLLECT
+        else if (force_obj == 2) u = cfg.collect_ratio + cfg.jelly_ratio * 0.5;             // JELLY
+        else if (force_obj == 3) u = cfg.collect_ratio + cfg.jelly_ratio + cfg.blocker_ratio * 0.5;  // BLOCKER
+        else if (force_obj == 0) u = 1.0;                                                   // SCORE
         bool decided = false;
         if (u < cfg.collect_ratio) {
             int best_s = -1;
@@ -363,13 +393,20 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
             decided = true;
         }
         if (!decided && u < cfg.collect_ratio + cfg.jelly_ratio + cfg.blocker_ratio) {
-            std::mt19937 lr(cand_seed ^ 0x5bd1e995u);
-            std::uniform_real_distribution<double> dd(0.0, 1.0);
-            std::vector<std::vector<int>> coat(H, std::vector<int>(W, 0));
+            // 强制 BLOCKER 时逐步加密，直到涂层格达标（保证冰锁关一定铺得出）。
+            std::vector<std::vector<int>> coat;
             int total = 0;
-            for (int y = 0; y < H; ++y)
-                for (int x = 0; x < W; ++x)
-                    if (board[y][x] != WALL && dd(lr) < cfg.coat_density) { coat[y][x] = 1; total++; }
+            for (double dens = cfg.coat_density; dens <= 0.5; dens += 0.06) {
+                std::mt19937 lr(cand_seed ^ 0x5bd1e995u);
+                std::uniform_real_distribution<double> dd(0.0, 1.0);
+                coat.assign(H, std::vector<int>(W, 0));
+                total = 0;
+                for (int y = 0; y < H; ++y)
+                    for (int x = 0; x < W; ++x)
+                        if (board[y][x] != WALL && dd(lr) < dens) { coat[y][x] = 1; total++; }
+                if (total >= cfg.min_blocker && has_legal_move(board, &coat)) break;
+                if (force_obj != 3) break;  // 非强制：维持单次尝试的原行为
+            }
             if (total >= cfg.min_blocker && has_legal_move(board, &coat)) {
                 final.coat = coat;
                 final.objectives = {{OBJ_CLEAR_BLOCKER, -1, 1}};
@@ -404,6 +441,34 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
         }
         if (found < 0) continue;  // 此盘命中不了该难度带
         set_level_target(final, found);
+
+        // 多目标：在已标定的 COLLECT 关上追加第二目标（双色 COLLECT，或退化为清果冻），
+        // 第二目标取保守小值（地板附近）以保可解；追加后复测一次，仍可解才留。
+        if (want_multi && final.objectives.size() == 1 && final.objectives[0].type == OBJ_COLLECT) {
+            int first_s = final.objectives[0].species;
+            int second_s = -1;
+            double best2 = 0.0;
+            for (size_t s = 0; s < g_col.size(); ++s) {
+                if ((int)s == first_s || g_col[s] < cfg.min_collect) continue;
+                if (g_col[s] > best2) { best2 = g_col[s]; second_s = (int)s; }
+            }
+            if (second_s >= 0) {  // 双色 COLLECT：第二色目标取其随机地板量(保守)
+                double rp = (second_s < (int)r_col.size()) ? r_col[second_s] : 0.0;
+                int t2 = (int)rp; if (t2 < 1) t2 = 1;
+                final.objectives.push_back({OBJ_COLLECT, second_s, t2});
+            } else if (g_jelly >= cfg.min_jelly) {  // 退化：COLLECT + 清部分果冻
+                if (final.jelly.empty()) final.jelly = full_jelly;
+                int t2 = (int)(r_jelly < 1 ? 1 : r_jelly);
+                final.objectives.push_back({OBJ_CLEAR_JELLY, -1, t2});
+            }
+            // 追加目标后复测可解性：赢不了就丢这关，保证产出关都合法。
+            if (final.objectives.size() > 1) {
+                LevelEval me = evaluate_level(final, cfg.trials);
+                if (me.skilled_pass_rate <= 0.0) continue;
+                fe = me;
+            }
+        }
+
         double rhythm = rhythm_quality(objective_progress_curve(final));
 
         GeneratedLevel gl;
@@ -435,16 +500,6 @@ struct Genotype {
     double fitness = -1e9;
     bool feasible = false;
 };
-
-inline std::vector<std::vector<char>> _mask_from(uint32_t seed, double density, int W, int H) {
-    std::mt19937 r(seed);
-    std::uniform_real_distribution<double> d(0.0, 1.0);
-    std::vector<std::vector<char>> m(H, std::vector<char>(W, 0));
-    for (int y = 0; y < H; ++y)
-        for (int x = 0; x < W; ++x)
-            if (d(r) < density) m[y][x] = 1;
-    return m;
-}
 
 inline Level decode_genotype(const Genotype& g, const GenConfig& cfg) {
     int W = cfg.w, H = cfg.h;
