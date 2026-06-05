@@ -114,29 +114,60 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     return o.str();
 }
 
+// ═══════════════ 棋盘维度方案：宽高都多样（不再固定 9×N）═══════════════
+// 用户要求：不固定 8×8，可能 9×9、甚至 9×11，每关可不同。故定义维度池覆盖 8×8 ~ 9×11，
+// 宽∈{8,9}、高∈{8..11} 都有分布。各关批按"难度档 bi + 关内 index k"组合轮选池中维度，
+// 使同一关型不同关落在不同盘形上（确定性：同 bi/k 永远同维度，库可复现）。
+struct Dim { int w, h; };
+// 维度池：含用户的例子(8×8 / 9×9 / 9×11)及中间值(8×9 / 9×10 / 8×10)。顺序经排布让轮选时
+// 宽/高交替变化，避免连续多关同形。
+static const Dim DIM_POOL[] = {
+    {8, 8}, {9, 9}, {8, 10}, {9, 11}, {8, 9}, {9, 10},
+};
+static const int DIM_POOL_N = (int)(sizeof(DIM_POOL) / sizeof(DIM_POOL[0]));
+
+// 普通轮选：按"全局序号 idx"取池中维度。idx 一般取 bi*per_band + k（关批内唯一推进），
+// 保证每个关型的各关铺开覆盖整个池（含 8×8 与 9×11）。
+static Dim pick_dim(int idx) {
+    return DIM_POOL[((idx % DIM_POOL_N) + DIM_POOL_N) % DIM_POOL_N];
+}
+
+// 偏大盘轮选（8×8 标定难的关型用）：跳过纯 8×8(更小更挤、障碍密度高易标不出/产出少)，
+// 只在 {9×9, 8×10, 9×11, 8×9, 9×10} 里轮——仍含 8 宽与多种高，维度依旧多样，但不落最小盘。
+// 用于异形墙(多障碍)与后 4 层(cannon/popcorn/cake/mystery 特效标定保守)，确保每档每型都有产出。
+static Dim pick_dim_biglean(int idx) {
+    static const Dim BIG_POOL[] = { {9, 9}, {8, 10}, {9, 11}, {8, 9}, {9, 10} };
+    static const int N = (int)(sizeof(BIG_POOL) / sizeof(BIG_POOL[0]));
+    return BIG_POOL[((idx % N) + N) % N];
+}
+
 int main(int argc, char** argv) {
     int per_band = (argc > 1) ? std::atoi(argv[1]) : 3;
     const char* out_path = (argc > 2) ? argv[2] : "godot/levels.json";
 
     GenConfig cfg;
-    cfg.w = 9;       // 默认 9×9，对齐 Candy Crush
+    cfg.w = 9;       // 兜底默认（实际各关批用 pick_dim 覆盖宽高，见下）
     cfg.h = 9;
     cfg.species = {0, 1, 2, 3, 4, 5};   // 6 色，对齐 Candy Crush
     cfg.move_limit = 25;
     cfg.trials = 12;
 
-    // 多难度库：每档若干关，由易到难。三档【并行】生成——各档独立、各自 seed，
+    // 多难度库：每档若干关，由易到难。三档 × 关内 index 全部【并行】生成——各关独立、各自 seed，
     // 结果与串行完全一致（确定性），只是更快（09 §6 候选并行）。
+    // 维度：每关按 pick_dim(bi*per_band+k) 轮选不同 (w,h)，故同档内各关盘形不同（覆盖 8×8 ~ 9×11）。
     DiffBand bands[] = {band_easy(), band_medium(), band_hard()};
     std::vector<std::future<std::vector<GeneratedLevel>>> futs;
     for (int bi = 0; bi < 3; ++bi) {
-        GenConfig c = cfg;
-        c.h = 9 + bi;                                       // 各档盘高 9/10/11，增维度多样性(宽固定 9)
-        c.base_seed = 12345u + (uint32_t)bi * 2654435761u;  // 各档用不同盘
-        DiffBand band = bands[bi];
-        futs.push_back(std::async(std::launch::async, [c, band, per_band]() {
-            return generate_for_difficulty(c, band, per_band, 800);
-        }));
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            Dim dm = pick_dim(bi * per_band + k);
+            c.w = dm.w; c.h = dm.h;                              // 宽高都多样
+            c.base_seed = 12345u + (uint32_t)(bi * per_band + k) * 2654435761u;  // 各关用不同盘
+            DiffBand band = bands[bi];
+            futs.push_back(std::async(std::launch::async, [c, band]() {
+                return generate_for_difficulty(c, band, 1, 800);  // 每次产 1 关（该关专属维度）
+            }));
+        }
     }
     std::vector<GeneratedLevel> levels;
     for (auto& f : futs)
@@ -155,17 +186,23 @@ int main(int argc, char** argv) {
         {0.00,  3, false, 0x20000002u},   // 冰锁 blocker
         {0.00,  1, true,  0x30000003u},   // 多目标
     };
+    // 每类每档逐关产 1 个，按 index 轮选维度。异形墙(多障碍)在小盘易标不出 → 用 pick_dim_biglean
+    // 偏大盘(跳过纯 8×8、仍含 8 宽多种高)；blocker/multi 用普通 pick_dim(含 8×8)。维度依旧多样。
     std::vector<std::future<std::vector<GeneratedLevel>>> spfuts;
     for (const SpecKind& sk : kinds) {
+        bool is_wall = sk.wall > 0.0;
         for (int bi = 0; bi < 3; ++bi) {
-            GenConfig c = cfg;
-            c.h = 9 + bi;
-            c.base_seed = sk.salt + (uint32_t)bi * 2654435761u;
-            DiffBand band = bands[bi];
-            int cnt = special_each;
-            spfuts.push_back(std::async(std::launch::async, [c, band, cnt, sk]() {
-                return generate_for_difficulty(c, band, cnt, 1200, sk.wall, sk.force, sk.multi);
-            }));
+            for (int k = 0; k < special_each; ++k) {
+                GenConfig c = cfg;
+                Dim dm = is_wall ? pick_dim_biglean(bi * special_each + k)
+                                 : pick_dim(bi * special_each + k);
+                c.w = dm.w; c.h = dm.h;
+                c.base_seed = sk.salt + (uint32_t)(bi * special_each + k) * 2654435761u;
+                DiffBand band = bands[bi];
+                spfuts.push_back(std::async(std::launch::async, [c, band, sk]() {
+                    return generate_for_difficulty(c, band, 1, 1200, sk.wall, sk.force, sk.multi);
+                }));
+            }
         }
     }
     for (auto& f : spfuts)
@@ -175,7 +212,7 @@ int main(int argc, char** argv) {
     // 滚动/挖矿关：每档 per_band 关（与目标关同量），难度旋钮=步数(feed 深度固定/关)。
     // 变 seed + 矿深(3~5页)增多样性。三档 × per_band 全部【并行】二分校准。
     ScrollConfig sc_base;
-    sc_base.w = 9;
+    sc_base.w = 9;                          // 兜底默认（实际每关 pick_dim 覆盖宽高）
     sc_base.h = 9;
     sc_base.species = {0, 1, 2, 3, 4, 5};   // 6 色，对齐 Candy Crush
     sc_base.trials = 8;
@@ -185,6 +222,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             ScrollConfig sc = sc_base;
+            Dim dm = pick_dim(bi * per_band + k);   // 每关不同 (w,h)
+            sc.w = dm.w; sc.h = dm.h;
             sc.depth_pages = scroll_depths[k % 3];   // 关间轮换矿深
             DiffBand band = sbands[bi];
             uint32_t seed = 990000u + (uint32_t)(bi * per_band + k) * 2654435761u;
@@ -201,15 +240,18 @@ int main(int argc, char** argv) {
     DiffBand cbands[] = {band_easy(), band_medium(), band_hard()};
     std::vector<std::future<std::vector<GeneratedLevel>>> cfuts;
     for (int bi = 0; bi < 3; ++bi) {
-        GenConfig c = cfg;
-        c.h = 9 + bi;                                       // 各档盘高 9/10/11
-        c.base_seed = 770000u + (uint32_t)bi * 2654435761u; // 各档不同盘流
-        c.choco_density = 0.10;                             // 普通棋子格 ~10% 初始巧克力
-        c.min_choco = 3;
-        DiffBand band = cbands[bi];
-        cfuts.push_back(std::async(std::launch::async, [c, band, per_band]() {
-            return generate_choco_for_difficulty(c, band, per_band, 800);
-        }));
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            Dim dm = pick_dim(bi * per_band + k);               // 每关不同 (w,h)
+            c.w = dm.w; c.h = dm.h;
+            c.base_seed = 770000u + (uint32_t)(bi * per_band + k) * 2654435761u; // 各关不同盘流
+            c.choco_density = 0.10;                             // 普通棋子格 ~10% 初始巧克力
+            c.min_choco = 3;
+            DiffBand band = cbands[bi];
+            cfuts.push_back(std::async(std::launch::async, [c, band]() {
+                return generate_choco_for_difficulty(c, band, 1, 800);
+            }));
+        }
     }
     for (auto& f : cfuts)
         for (auto& gl : f.get())
@@ -222,7 +264,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             GenConfig c = cfg;
-            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            Dim dm = pick_dim(bi * per_band + k);   // 每关不同 (w,h)
+            c.w = dm.w; c.h = dm.h;
             c.ing_rows = 2 + bi;           // 难档撒得更高(运送距离更远)
             c.ing_density = 0.18;
             c.min_ingredient = 3;
@@ -244,15 +287,18 @@ int main(int argc, char** argv) {
     DiffBand bbands[] = {band_easy(), band_medium(), band_hard()};
     std::vector<std::future<std::vector<GeneratedLevel>>> bfuts;
     for (int bi = 0; bi < 3; ++bi) {
-        GenConfig c = cfg;
-        c.h = 9 + bi;                                       // 各档盘高 9/10/11
-        c.base_seed = 660000u + (uint32_t)bi * 2654435761u; // 各档不同盘流
-        c.bomb_density = 0.12;                              // 普通棋子格 ~12% 撒炸弹
-        c.min_bomb = 3;
-        DiffBand band = bbands[bi];
-        bfuts.push_back(std::async(std::launch::async, [c, band, per_band]() {
-            return generate_bomb_for_difficulty(c, band, per_band, 800);
-        }));
+        for (int k = 0; k < per_band; ++k) {
+            GenConfig c = cfg;
+            Dim dm = pick_dim(bi * per_band + k);               // 每关不同 (w,h)
+            c.w = dm.w; c.h = dm.h;
+            c.base_seed = 660000u + (uint32_t)(bi * per_band + k) * 2654435761u; // 各关不同盘流
+            c.bomb_density = 0.12;                              // 普通棋子格 ~12% 撒炸弹
+            c.min_bomb = 3;
+            DiffBand band = bbands[bi];
+            bfuts.push_back(std::async(std::launch::async, [c, band]() {
+                return generate_bomb_for_difficulty(c, band, 1, 800);
+            }));
+        }
     }
     for (auto& f : bfuts)
         for (auto& gl : f.get())
@@ -269,7 +315,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             GenConfig c = cfg;
-            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            Dim dm = pick_dim_biglean(bi * per_band + k);  // 偏大盘(后4层特效标定保守，避最小 8×8)
+            c.w = dm.w; c.h = dm.h;
             c.cannon_count = 3 + bi;       // 难档多布一门炮
             c.min_cannon = 2;
             DiffBand band = cnbands[bi];
@@ -290,7 +337,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             GenConfig c = cfg;
-            c.h = 9 + bi;                     // 各档盘高 9/10/11
+            Dim dm = pick_dim_biglean(bi * per_band + k);  // 偏大盘(爆米花溅射近似最保守，避最小 8×8)
+            c.w = dm.w; c.h = dm.h;
             c.mystery_density = 0.10 + 0.02 * bi;  // 复用 mystery_density 作撒布概率口径（难档略密）
             c.popcorn_hp = 1;                 // 保守：命中数 1（裸 Core 溅射近似易达成）
             c.min_popcorn = 3;
@@ -312,7 +360,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             GenConfig c = cfg;
-            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            Dim dm = pick_dim_biglean(bi * per_band + k);  // 偏大盘(蛋糕引爆链保守，避最小 8×8)
+            c.w = dm.w; c.h = dm.h;
             c.cake_density = 0.06;         // 普通棋子格 ~6% 撒蛋糕
             c.cake_hp = 2;                 // 保守：血量 2
             c.min_cake = 2;
@@ -334,7 +383,8 @@ int main(int argc, char** argv) {
     for (int bi = 0; bi < 3; ++bi) {
         for (int k = 0; k < per_band; ++k) {
             GenConfig c = cfg;
-            c.h = 9 + bi;                  // 各档盘高 9/10/11
+            Dim dm = pick_dim_biglean(bi * per_band + k);  // 偏大盘(神秘糖标定相对直接但仍避最小 8×8 保稳)
+            c.w = dm.w; c.h = dm.h;
             c.mystery_density = 0.12;      // 普通棋子格 ~12% 铺神秘糖
             c.min_mystery = 3;
             DiffBand band = mybands[bi];
