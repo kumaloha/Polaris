@@ -14,9 +14,9 @@ func _find_legal_move(grid: Array, coat: Array = []) -> Array:
 	var w: int = grid[0].size()
 	for y in h:
 		for x in w:
-			if x + 1 < w and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), coat):
+			if x + 1 < w and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), 1, {"coat": coat}):
 				return [Vector2i(x, y), Vector2i(x + 1, y)]
-			if y + 1 < h and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), coat):
+			if y + 1 < h and ME.is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), 1, {"coat": coat}):
 				return [Vector2i(x, y), Vector2i(x, y + 1)]
 	return []
 

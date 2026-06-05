@@ -42,7 +42,7 @@ func test_swap_wall_is_illegal() -> void:
 func test_coat_blocks_swap() -> void:
 	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]  # (2,0)<->(2,1) 本来合法
 	var coat := [[0, 0, 1], [0, 0, 0], [0, 0, 0]]  # (2,0) 被涂层冻住
-	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), coat), "coated cell can't be swapped")
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), 1, {"coat": coat}), "coated cell can't be swapped")
 	assert_true(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "without coat -> legal")
 
 func test_make_board_with_wall_mask() -> void:
@@ -508,9 +508,9 @@ func test_reshuffle_coat_aware_leaves_legal_move() -> void:
 	coat[2][3] = 1
 	coat[4][1] = 1
 	coat[5][5] = 1
-	ME.reshuffle(grid, rng, coat)
-	assert_true(ME.find_matches(grid, coat).is_empty(), "no coat-aware ready match after reshuffle")
-	assert_true(ME.has_legal_move(grid, coat), "coat-aware legal move exists after reshuffle")
+	ME.reshuffle(grid, rng, {"coat": coat})
+	assert_true(ME.find_matches(grid, {"coat": coat}).is_empty(), "no coat-aware ready match after reshuffle")
+	assert_true(ME.has_legal_move(grid, {"coat": coat}), "coat-aware legal move exists after reshuffle")
 
 # ───────────────── P3: 彩球直清的 jelly/coat 计数（account_clears 直测）─────────────────
 
@@ -526,7 +526,7 @@ func test_account_clears_counts_jelly() -> void:
 		[0, 0, 0],
 	]
 	var cells := [Vector2i(0, 0), Vector2i(2, 0), Vector2i(1, 1)]  # 三格均有 jelly
-	var acc: Dictionary = ME.account_clears(grid, cells, jelly, [])
+	var acc: Dictionary = ME.account_clears(grid, cells, [], null, [], {"jelly": jelly})
 	assert_eq(acc["jelly_cleared"], 3, "one jelly layer per jellied cleared cell")
 	assert_eq(jelly[0][0], 0, "(0,0) jelly 1->0")
 	assert_eq(jelly[0][2], 1, "(2,0) jelly 2->1")
@@ -544,7 +544,7 @@ func test_account_clears_counts_coat() -> void:
 		[0, 0, 0],
 	]
 	var cells := [Vector2i(1, 0)]  # 与 (0,0)[左邻]、(1,1)[上邻] 相邻
-	var acc: Dictionary = ME.account_clears(grid, cells, [], coat)
+	var acc: Dictionary = ME.account_clears(grid, cells, [], null, [], {"coat": coat})
 	assert_eq(acc["blocker_cleared"], 2, "both adjacent coats damaged once")
 	assert_eq(coat[0][0], 0, "(0,0) coat 1->0")
 	assert_eq(coat[1][1], 1, "(1,1) coat 2->1")
@@ -563,12 +563,12 @@ func test_find_matches_skips_locked() -> void:
 		[0, 0, 0, 0],
 		[0, 0, 0, 0],
 	]
-	assert_true(ME.find_matches(grid, coat).is_empty(), "locked middle breaks the run")
+	assert_true(ME.find_matches(grid, {"coat": coat}).is_empty(), "locked middle breaks the run")
 
 func test_gravity_blocks_locked() -> void:
 	var grid := [[0], [6], [ME.EMPTY]]   # 列：[0, 6(锁), EMPTY]
 	var coat := [[0], [1], [0]]          # (0,1) 锁住
-	ME.apply_gravity(grid, [], coat)
+	ME.apply_gravity(grid, [], false, {"coat": coat})
 	assert_eq(grid[0][0], 0, "tile above lock stays (can't fall through)")
 	assert_eq(grid[1][0], 6, "locked cell stays put under gravity")
 	assert_eq(grid[2][0], ME.EMPTY, "below-lock empty stays empty")
@@ -586,7 +586,7 @@ func test_resolve_locked_broken_by_adjacency() -> void:
 	]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], coat)
+	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], true, null, {"coat": coat})
 	assert_true(r["blocker_cleared"] >= 1, "adjacent clear breaks >=1 lock layer")
 	assert_true(coat[1][0] < 5 and coat[1][0] > 0, "lock decreased but still locked")
 	assert_eq(grid[1][0], 2, "locked tile preserved (not cleared/moved)")
@@ -596,7 +596,7 @@ func test_resolve_locked_broken_by_adjacency() -> void:
 func test_apply_gravity_up_flip() -> void:
 	# 重力翻转(#5)：up=true 时非空棋子上浮、空格沉底。
 	var grid := [[0], [ME.EMPTY], [1], [ME.EMPTY]]  # 列：[0, _, 1, _]
-	ME.apply_gravity(grid, [], [], true)
+	ME.apply_gravity(grid, [], true)
 	assert_eq(grid[0][0], 0, "tile 0 risen to top")
 	assert_eq(grid[1][0], 1, "tile 1 risen below it")
 	assert_eq(grid[2][0], ME.EMPTY, "empty sinks")
@@ -643,4 +643,4 @@ func test_longswap_distance2() -> void:
 	var a := Vector2i(0, 0)
 	var b := Vector2i(2, 0)  # 同行，隔一格(|dx|=2)
 	assert_false(ME.is_legal_swap(grid, a, b), "span=1 默认：距离2交换不合法")
-	assert_true(ME.is_legal_swap(grid, a, b, [], 2), "span=2：隔位交换合法(换后 x=1,2,3 成 1,1,1)")
+	assert_true(ME.is_legal_swap(grid, a, b, 2), "span=2：隔位交换合法(换后 x=1,2,3 成 1,1,1)")

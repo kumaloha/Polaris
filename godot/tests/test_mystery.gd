@@ -76,7 +76,7 @@ func test_mystery_revealed_not_emptied_on_clear() -> void:
 	mystery[0][1] = 1   # (1,0) 是神秘糖
 	var rng := RandomNumberGenerator.new(); rng.seed = 7
 	# mystery 是 resolve 第16参；纯三消路径(无 fx)、do_refill=false。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5], rng, [], [], [], [], false, null, [], [], [], [], [], [], mystery)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5], rng, [], [], false, null, {"mystery": mystery})
 	assert_eq(r.get("mystery_revealed", -1), 1, "exactly one mystery candy revealed when cleared")
 	assert_eq(mystery[0][1], 0, "revealed mystery cell: mystery flag cleared to 0")
 	# 揭开的格【不清空】：纯三消路径无 fx 层 → 特效档退化为普通糖，故揭开后 grid 必 >=0（普通糖或原料占位）。
@@ -96,7 +96,7 @@ func test_mystery_revealed_cell_not_recleared_same_round() -> void:
 	var mystery := _blank(4, 3)
 	mystery[0][1] = 1
 	var rng := RandomNumberGenerator.new(); rng.seed = 123
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], [], [], false, null, [], [], [], [], [], [], mystery)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], false, null, {"mystery": mystery})
 	assert_eq(r.get("mystery_revealed", 0), 1, "mystery revealed once")
 	# 揭开后该格沉底(重力)但内容保留：盘上该列应仍有这枚揭开的糖（未被清空消失）。grid 全盘非空格数 > 0。
 	var nonempty := 0
@@ -120,8 +120,8 @@ func test_mystery_reveal_deterministic_same_seed() -> void:
 	var r1 := RandomNumberGenerator.new(); r1.seed = 999
 	var r2 := RandomNumberGenerator.new(); r2.seed = 999
 	# 特效路径(传 fx) → 揭开可落条纹。do_refill=false 隔离。
-	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5, 6, 7, 8], r1, fx1, [], [], [], false, null, [], ing1, [], [], [], [], m1)
-	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5, 6, 7, 8], r2, fx2, [], [], [], false, null, [], ing2, [], [], [], [], m2)
+	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5, 6, 7, 8], r1, fx1, [], false, null, {"ing": ing1, "mystery": m1})
+	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5, 6, 7, 8], r2, fx2, [], false, null, {"ing": ing2, "mystery": m2})
 	assert_eq(g1, g2, "same seed -> identical grid after mystery reveal")
 	assert_eq(fx1, fx2, "same seed -> identical fx (revealed stripes) after reveal")
 	assert_eq(ing1, ing2, "same seed -> identical ing (revealed ingredients) after reveal")
@@ -182,7 +182,7 @@ func test_mystery_falls_under_gravity_marker_follows() -> void:
 	var E := ME.EMPTY
 	var grid := [[5], [E], [E]]
 	var mystery := [[1], [0], [0]]
-	ME.apply_gravity(grid, [], [], false, [], [], [], [], mystery)
+	ME.apply_gravity(grid, [], false, {"mystery": mystery})
 	assert_eq(grid[2][0], 5, "mystery candy (normal piece) sank to the column bottom")
 	assert_eq(grid[0][0], E, "top cell vacated after the mystery candy fell")
 	assert_eq(mystery[2][0], 1, "mystery marker followed its candy down to (2,0)")
@@ -202,7 +202,7 @@ func test_mystery_marker_follows_after_clear_below() -> void:
 	var mystery := [[1], [0], [0], [0]]
 	# 模拟下方三连 4,4,4 被清 → (1,0)(2,0)(3,0)=EMPTY，再重力。
 	grid[1][0] = ME.EMPTY; grid[2][0] = ME.EMPTY; grid[3][0] = ME.EMPTY
-	ME.apply_gravity(grid, [], [], false, [], [], [], [], mystery)
+	ME.apply_gravity(grid, [], false, {"mystery": mystery})
 	assert_eq(grid[3][0], 9, "mystery candy fell to the bottom after the pieces below were cleared")
 	assert_eq(mystery[3][0], 1, "mystery marker followed the candy down to the bottom")
 	assert_eq(ME.count_mystery(mystery), 1, "still exactly one mystery candy on board (only moved, not consumed)")
@@ -267,7 +267,7 @@ func test_no_mystery_layer_is_noop() -> void:
 		[2, 3, 4, 5],
 	]
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7], rng, [], [], [], [], false)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7], rng, [], [], false)
 	assert_eq(r.get("mystery_revealed", 0), 0, "no mystery layer -> mystery_revealed stays 0")
 	assert_true(r.get("cleared", 0) >= 3, "the plain 3-match still cleared normally")
 
@@ -288,7 +288,7 @@ func test_mystery_coexists_with_bomb_and_ingredient() -> void:
 	ing[0][3] = 1   # 原料在 (3,0)
 	var rng := RandomNumberGenerator.new(); rng.seed = 3
 	# 传 ing(第12参)、bomb(第14参)、mystery(第16参)；exit_cols=[] 不收原料；do_refill=false。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], [], [], false, null, [], ing, [], bomb, [], [], mystery)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], false, null, {"ing": ing, "bomb": bomb, "mystery": mystery})
 	assert_eq(r.get("mystery_revealed", -1), 1, "mystery revealed (coexists with bomb+ingredient)")
 	assert_eq(ME.count_mystery(mystery), 0, "the mystery candy was revealed")
 	assert_eq(r.get("bomb_defused", -1), 0, "bomb not in the cleared area -> not defused (independent layer)")
@@ -307,7 +307,7 @@ func test_mystery_coexists_with_coat_no_match_interference() -> void:
 	coat[0][2] = 1   # (2,0) 冰锁 → 断开三连
 	var mystery := _blank(4, 3)
 	mystery[0][1] = 1
-	var m: Array = ME.find_matches(grid, coat)   # coat 感知；不传 mystery
+	var m: Array = ME.find_matches(grid, {"coat": coat})   # coat 感知；不传 mystery
 	assert_eq(m.size(), 0, "coat at (2,0) breaks the run -> no match (mystery cell does not bypass coat blocking)")
 
 

@@ -37,7 +37,7 @@ func test_ingredient_not_matched() -> void:
 		[0, 0, 0, 0],
 		[0, 0, 0, 0],
 	]
-	assert_true(ME.find_matches(grid, [], [], ing).is_empty(), "ingredient cell breaks the run -> no match")
+	assert_true(ME.find_matches(grid, {"ing": ing}).is_empty(), "ingredient cell breaks the run -> no match")
 
 func test_ingredient_classify_skips() -> void:
 	# classify_matches 也跳过原料格（fx 路径一致）。
@@ -48,7 +48,7 @@ func test_ingredient_classify_skips() -> void:
 	]
 	var ing := _blank(5, 3)
 	ing[0][1] = 1  # 原料盖住四连中一格 → 断成 0 [I] 0 0 → 无三连
-	var c := ME.classify_matches(grid, [], [], ing)
+	var c := ME.classify_matches(grid, {"ing": ing})
 	assert_true(c["clear"].is_empty() and c["spawns"].is_empty(), "ingredient breaks the run in classify too")
 
 # ───────────── 不可交换 ─────────────
@@ -56,7 +56,7 @@ func test_ingredient_classify_skips() -> void:
 func test_ingredient_blocks_swap() -> void:
 	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]  # (2,0)<->(2,1) 本来合法
 	var ing := [[0, 0, 1], [0, 0, 0], [0, 0, 0]]   # (2,0) 被原料覆盖
-	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), [], 1, [], ing), "ingredient cell can't be swapped")
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), 1, {"ing": ing}), "ingredient cell can't be swapped")
 	assert_true(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "without ingredient -> legal")
 
 # ───────────── 随重力下落（与 choco 最大不同）─────────────
@@ -66,7 +66,7 @@ func test_ingredient_falls_under_gravity() -> void:
 	var E := ME.EMPTY
 	var grid := [[5], [E], [E]]
 	var ing := [[1], [0], [0]]
-	ME.apply_gravity(grid, [], [], false, [], ing)
+	ME.apply_gravity(grid, [], false, {"ing": ing})
 	assert_eq(grid[2][0], 5, "ingredient tile fell to the column bottom")
 	assert_eq(ing[2][0], 1, "ing layer moved with the tile (now at bottom)")
 	assert_eq(grid[0][0], E, "top is now empty")
@@ -87,7 +87,7 @@ func test_ingredient_sinks_one_after_clear_below() -> void:
 	ing[1][1] = 1
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	# do_refill=false、无出口(exit_cols=[]) → 只看下沉、不收集、不补充。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 9], rng, [], [], [], [], false, null, [], ing, [])
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 9], rng, [], [], false, null, {"ing": ing})
 	assert_eq(ing[2][1], 1, "ingredient sank exactly one row (from y=1 to y=2)")
 	assert_eq(grid[2][1], 9, "ingredient-covered tile moved down with it (species 9 preserved)")
 	assert_eq(ing[1][1], 0, "old ingredient cell cleared")
@@ -135,7 +135,7 @@ func test_ingredient_sinks_to_bottom_and_collected() -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	var exits := _bottom_exits(4)
 	# do_refill=false：避免补充填回列0；专测下沉到出口收集。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5], rng, [], [], [], [], false, null, [], ing, exits)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5], rng, [], [], false, null, {"ing": ing, "exit_cols": exits})
 	assert_eq(r.get("ingredient_collected", -1), 1, "ingredient sank to bottom exit and got collected")
 	assert_eq(ME.count_ingredients(ing), 0, "ingredient removed from board")
 	assert_eq(grid[3][0], E, "exit cell cleared after collection")
@@ -185,8 +185,8 @@ func test_ingredient_deterministic_same_seed() -> void:
 	var i2 := _blank(4, 4); i2[0][2] = 1
 	var r1 := RandomNumberGenerator.new(); r1.seed = 24680
 	var r2 := RandomNumberGenerator.new(); r2.seed = 24680
-	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5], r1, [], [], [], [], true, null, [], i1, exits)
-	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5], r2, [], [], [], [], true, null, [], i2, exits)
+	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5], r1, [], [], true, null, {"ing": i1, "exit_cols": exits})
+	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5], r2, [], [], true, null, {"ing": i2, "exit_cols": exits})
 	assert_eq(g1, g2, "same seed -> identical grid after resolve")
 	assert_eq(i1, i2, "same seed -> identical ing layer after resolve")
 	assert_eq(res1.get("ingredient_collected", -1), res2.get("ingredient_collected", -2), "same seed -> identical collected count")

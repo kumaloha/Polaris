@@ -49,7 +49,7 @@ func test_bomb_falls_under_gravity() -> void:
 	var E := ME.EMPTY
 	var grid := [[5], [E], [E]]
 	var bomb := [[3], [0], [0]]
-	ME.apply_gravity(grid, [], [], false, [], [], bomb)
+	ME.apply_gravity(grid, [], false, {"bomb": bomb})
 	assert_eq(grid[2][0], 5, "bomb tile fell to the column bottom")
 	assert_eq(bomb[2][0], 3, "bomb countdown moved with the tile (now at bottom)")
 	assert_eq(grid[0][0], E, "top is now empty")
@@ -68,7 +68,7 @@ func test_bomb_sinks_when_tile_below_cleared() -> void:
 	bomb[1][1] = 5
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	# bomb 是最后一个参数；do_refill=false、无 ing/exit。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], [], [], false, null, [], [], [], bomb)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], false, null, {"bomb": bomb})
 	assert_eq(bomb[2][1], 5, "bomb countdown sank exactly one row (y=1 -> y=2)")
 	assert_eq(grid[2][1], 8, "bomb-covered tile moved down with it (species 8 preserved)")
 	assert_eq(bomb[1][1], 0, "old bomb cell cleared")
@@ -87,7 +87,7 @@ func test_bomb_defused_when_matched() -> void:
 	var bomb := _blank(4, 3)
 	bomb[0][1] = 4   # 炸弹在三连里
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4], rng, [], [], [], [], false, null, [], [], [], bomb)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4], rng, [], [], false, null, {"bomb": bomb})
 	assert_eq(r.get("bomb_defused", -1), 1, "bomb in the match got defused")
 	assert_eq(ME.count_bombs(bomb), 0, "no bombs remain on board (defused)")
 
@@ -222,7 +222,7 @@ func test_bomb_coexists_with_ingredient() -> void:
 	ing[0][3] = 1    # 原料在 (3,0)
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	# 同时传 ing(第11参) 和 bomb(第13参)，exit_cols=[] 不收集，do_refill=false。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 9], rng, [], [], [], [], false, null, [], ing, [], bomb)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 9], rng, [], [], false, null, {"ing": ing, "bomb": bomb})
 	assert_eq(r.get("bomb_defused", -1), 1, "bomb in the match got defused (coexists with ingredient)")
 	assert_eq(ME.count_bombs(bomb), 0, "bomb removed")
 	# 原料(3,0) 正下方 (3,1)=0 空 → 原料下沉至少一格；原料层仍计 1 颗（未到出口，未收集）。
@@ -237,7 +237,7 @@ func test_no_bomb_layer_is_noop() -> void:
 		[3, 4, 2, 3],
 	]
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4], rng, [], [], [], [], false)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4], rng, [], [], false)
 	assert_eq(r.get("bomb_defused", 0), 0, "no bomb layer -> bomb_defused stays 0")
 	assert_true(r.get("cleared", 0) >= 3, "the 3-match still cleared normally")
 
@@ -250,8 +250,8 @@ func test_bomb_deterministic_same_seed() -> void:
 	var b2 := _blank(4, 4); b2[0][2] = 4
 	var r1 := RandomNumberGenerator.new(); r1.seed = 13579
 	var r2 := RandomNumberGenerator.new(); r2.seed = 13579
-	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5], r1, [], [], [], [], true, null, [], [], [], b1)
-	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5], r2, [], [], [], [], true, null, [], [], [], b2)
+	var res1 := ME.resolve(g1, [0, 1, 2, 3, 4, 5], r1, [], [], true, null, {"bomb": b1})
+	var res2 := ME.resolve(g2, [0, 1, 2, 3, 4, 5], r2, [], [], true, null, {"bomb": b2})
 	assert_eq(g1, g2, "same seed -> identical grid after resolve")
 	assert_eq(b1, b2, "same seed -> identical bomb layer after resolve")
 	assert_eq(res1.get("bomb_defused", -1), res2.get("bomb_defused", -2), "same seed -> identical bomb_defused")

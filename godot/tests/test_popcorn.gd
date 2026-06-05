@@ -45,7 +45,7 @@ func test_popcorn_not_matched() -> void:
 	# 传 popcorn，中间格(1,0)是爆米花 → 断串，无三连。
 	var pop := _blank(4, 3)
 	pop[0][1] = 2
-	assert_true(ME.find_matches(grid, [], [], [], pop).is_empty(), "popcorn cell breaks the run -> no match (like ingredient)")
+	assert_true(ME.find_matches(grid, {"popcorn": pop}).is_empty(), "popcorn cell breaks the run -> no match (like ingredient)")
 
 func test_popcorn_blocks_swap() -> void:
 	# 爆米花格不可交换：is_legal_swap 传 popcorn → 拒绝。
@@ -60,7 +60,7 @@ func test_popcorn_blocks_swap() -> void:
 	# (2,0) 是爆米花 → 不可换（即使换后形状能消，爆米花也拦死）。
 	var pop := _blank(4, 3)
 	pop[0][2] = 1
-	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(3, 0), [], 1, [], [], pop), "popcorn cell cannot be swapped")
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(3, 0), 1, {"popcorn": pop}), "popcorn cell cannot be swapped")
 
 func test_popcorn_no_legal_move_when_isolated() -> void:
 	# has_legal_move 须 popcorn 感知：把会动的格设成爆米花，应识别为不可动。
@@ -74,7 +74,7 @@ func test_popcorn_no_legal_move_when_isolated() -> void:
 	# 无 popcorn 感知会误判"有步"；popcorn 感知后该步被否。
 	assert_true(ME.has_legal_move(grid), "ignoring popcorn -> looks like a move exists")
 	# 该盘仅此一步可消，封死后无其他合法步。
-	assert_false(ME.has_legal_move(grid, [], [], [], pop), "popcorn-aware: that move is rejected, no legal move remains")
+	assert_false(ME.has_legal_move(grid, {"popcorn": pop}), "popcorn-aware: that move is rejected, no legal move remains")
 
 
 # ───────────── 断言⑤：爆米花随重力下落（popcorn 标记跟随 grid 搬运）─────────────
@@ -85,7 +85,7 @@ func test_popcorn_falls_under_gravity() -> void:
 	var grid := [[5], [E], [E]]
 	var pop := [[2], [0], [0]]
 	# apply_gravity 第8参=popcorn。
-	ME.apply_gravity(grid, [], [], false, [], [], [], pop)
+	ME.apply_gravity(grid, [], false, {"popcorn": pop})
 	assert_eq(grid[2][0], 5, "popcorn tile fell to the column bottom")
 	assert_eq(pop[2][0], 2, "popcorn count moved with the tile (now at bottom)")
 	assert_eq(grid[0][0], E, "top is now empty")
@@ -104,7 +104,7 @@ func test_popcorn_sinks_when_tile_below_cleared() -> void:
 	pop[1][1] = 3
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	# popcorn 是最后一个参数；do_refill=false、无 fx（纯三消路径，爆米花不被命中只下落）。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], [], [], false, null, [], [], [], [], pop)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], false, null, {"popcorn": pop})
 	assert_eq(pop[2][1], 3, "popcorn count sank exactly one row (y=1 -> y=2)")
 	assert_eq(grid[2][1], 8, "popcorn-covered tile moved down with it (species 8 preserved)")
 	assert_eq(pop[1][1], 0, "old popcorn cell cleared")
@@ -123,7 +123,7 @@ func test_plain_match_does_not_hit_adjacent_popcorn() -> void:
 	var pop := _blank(4, 3)
 	pop[1][0] = 2   # 爆米花紧贴三连下方（正交相邻）
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6], rng, [], [], [], [], false, null, [], [], [], [], pop)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6], rng, [], [], false, null, {"popcorn": pop})
 	assert_eq(r.get("popcorn_hit", -1), 0, "plain adjacent 3-match does NOT hit popcorn (popcorn only reacts to effects)")
 	assert_eq(ME.count_popcorn(pop), 1, "popcorn count unchanged after a plain adjacent match")
 
@@ -146,7 +146,7 @@ func test_stripe_effect_hits_popcorn_decrements() -> void:
 	# 会：popcorn 断串，故 9,9 只剩两格不成三连。改用不含爆米花的三连触发条纹。见下方修正测试。
 	# 这里直接验证 collect_clears + _resolve_fx 的命中：用一个独立可成的三连触发条纹。
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 9], rng, fx, [], [], [], false, null, [], [], [], [], pop)
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 9], rng, fx, [], false, null, {"popcorn": pop})
 	# 由于 (2,0) 爆米花断串，(0,0)(1,0) 只两格 9 → 不成三连 → 条纹不被触发 → 爆米花未被命中。
 	# 这验证了"爆米花断串"的副作用；真正的命中场景见 test_stripe_triggered_clears_row_hits_popcorn。
 	assert_eq(r.get("popcorn_hit", -1), 0, "popcorn breaks the 9-run so the stripe is never triggered here")
@@ -167,7 +167,7 @@ func test_stripe_triggered_clears_row_hits_popcorn() -> void:
 	var pop := _blank(6, 3)
 	pop[0][3] = 3   # 爆米花在行0、x=3 → 条纹清行0 时波及
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8], rng, fx, [], [], [], false, null, [], [], [], [], pop)
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8], rng, fx, [], false, null, {"popcorn": pop})
 	assert_eq(r.get("popcorn_hit", -1), 1, "stripe cleared row 0 and hit the popcorn once (popcorn-1)")
 	assert_eq(pop[0][3], 2, "popcorn decremented from 3 to 2 (NOT cleared)")
 	assert_eq(ME.count_popcorn(pop), 1, "popcorn still on board (hit, not destroyed)")
@@ -191,7 +191,7 @@ func test_bomb_effect_hits_popcorn_and_converts_at_zero() -> void:
 	var pop := _blank(4, 4)
 	pop[1][1] = 1   # 爆米花剩 1 次命中 → 这次命中即归0变彩球
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [2, 3, 4, 5, 6, 7, 8, 9], rng, fx, [], [], [], false, null, [], [], [], [], pop)
+	var r := ME.resolve(grid, [2, 3, 4, 5, 6, 7, 8, 9], rng, fx, [], false, null, {"popcorn": pop})
 	assert_true(r.get("popcorn_hit", 0) >= 1, "3x3 bomb hit the popcorn at least once")
 	# 归0后：popcorn 该格=0、fx=SP_COLORBOMB、grid 保留 species（彩球底色）。
 	# 注意结算后可能下落/补充改变坐标——爆米花变彩球的格本应原地(未被清)，但其上方棋子下落不影响它的 fx。
@@ -219,7 +219,7 @@ func test_popcorn_converts_keeps_species_in_place() -> void:
 	pop[2][1] = 1   # 爆米花剩 1 次
 	# 模拟一次直清波及 (1,2)（如彩球/融合）：cells 含 (1,2)。account_clears 传 popcorn+fx。
 	var cells := [Vector2i(1, 2), Vector2i(2, 2)]   # 波及爆米花格 + 一个普通格
-	var acc := ME.account_clears(grid, cells, [], [], [], [], pop, fx)
+	var acc := ME.account_clears(grid, cells, fx, null, [], {"popcorn": pop})
 	assert_eq(acc.get("popcorn_hit", -1), 1, "direct clear hit the popcorn once")
 	assert_eq(pop[2][1], 0, "popcorn reached 0")
 	assert_eq(fx[2][1], ME.SP_COLORBOMB, "converted to color bomb in place (fx=SP_COLORBOMB)")
@@ -236,12 +236,12 @@ func test_popcorn_multi_hit_needs_multiple_effects() -> void:
 	var fx := _none_fx(4, 4)
 	var pop := _blank(4, 4)
 	pop[2][1] = 2   # 需两次命中
-	var acc := ME.account_clears(grid, [Vector2i(1, 2)], [], [], [], [], pop, fx)
+	var acc := ME.account_clears(grid, [Vector2i(1, 2)], fx, null, [], {"popcorn": pop})
 	assert_eq(acc.get("popcorn_hit", -1), 1, "first effect hit decrements by 1")
 	assert_eq(pop[2][1], 1, "popcorn now at 1 (not yet a color bomb)")
 	assert_eq(fx[2][1], ME.SP_NONE, "not converted yet (fx still SP_NONE while popcorn > 0)")
 	# 第二次命中 → 归0变彩球。
-	var acc2 := ME.account_clears(grid, [Vector2i(1, 2)], [], [], [], [], pop, fx)
+	var acc2 := ME.account_clears(grid, [Vector2i(1, 2)], fx, null, [], {"popcorn": pop})
 	assert_eq(acc2.get("popcorn_hit", -1), 1, "second effect hit decrements again")
 	assert_eq(pop[2][1], 0, "popcorn reached 0 on the second hit")
 	assert_eq(fx[2][1], ME.SP_COLORBOMB, "converted to color bomb on the second hit")
@@ -258,8 +258,8 @@ func test_popcorn_deterministic_same_seed() -> void:
 	var p2 := _blank(4, 4); p2[0][2] = 2
 	var r1 := RandomNumberGenerator.new(); r1.seed = 24680
 	var r2 := RandomNumberGenerator.new(); r2.seed = 24680
-	var res1 := ME.resolve(g1, [1, 2, 3, 4, 5, 8], r1, fx1, [], [], [], true, null, [], [], [], [], p1)
-	var res2 := ME.resolve(g2, [1, 2, 3, 4, 5, 8], r2, fx2, [], [], [], true, null, [], [], [], [], p2)
+	var res1 := ME.resolve(g1, [1, 2, 3, 4, 5, 8], r1, fx1, [], true, null, {"popcorn": p1})
+	var res2 := ME.resolve(g2, [1, 2, 3, 4, 5, 8], r2, fx2, [], true, null, {"popcorn": p2})
 	assert_eq(g1, g2, "same seed -> identical grid after resolve")
 	assert_eq(p1, p2, "same seed -> identical popcorn layer after resolve")
 	assert_eq(res1.get("popcorn_hit", -1), res2.get("popcorn_hit", -2), "same seed -> identical popcorn_hit")
@@ -293,7 +293,7 @@ func test_board_popcorn_converts_and_is_usable_colorbomb() -> void:
 	# 触发：交换让列0 成三连？列0 已是 8,8,8 但开局不应有现成消除——这里直接手填盘，绕过 start 的无消除保证。
 	# 用一次 resolve 直接结算手填盘（模拟"上一步落定后"）：调 board 的私有结算入口不便，改用 ME.resolve 直推 board 层。
 	var rng := b.rng
-	var r := ME.resolve(b.grid, b.species, rng, b.fx, b.jelly, b.coat, b.feed, true, null, b.choco, b.ing, b.exit_cols, b.bomb, b.popcorn)
+	var r := ME.resolve(b.grid, b.species, rng, b.fx, b.feed, true, null, {"jelly": b.jelly, "coat": b.coat, "choco": b.choco, "ing": b.ing, "exit_cols": b.exit_cols, "bomb": b.bomb, "popcorn": b.popcorn})
 	assert_true(r.get("popcorn_hit", 0) >= 1, "stripe hit the popcorn")
 	assert_eq(ME.count_popcorn(b.popcorn), 0, "popcorn converted (count 0)")
 	# 盘上应出现一枚彩球（爆米花变的），玩家可用。
@@ -323,7 +323,7 @@ func test_popcorn_coexists_with_bomb_and_ingredient() -> void:
 	var ing := _blank(6, 4); ing[0][4] = 1
 	var rng := RandomNumberGenerator.new(); rng.seed = 3
 	# 传 ing(第11参)、bomb(第13参)、popcorn(第14参)；exit_cols=[] 不收原料；do_refill=false。
-	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8, 9], rng, fx, [], [], [], false, null, [], ing, [], bomb, pop)
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8, 9], rng, fx, [], false, null, {"ing": ing, "bomb": bomb, "popcorn": pop})
 	assert_eq(r.get("popcorn_hit", -1), 1, "stripe hit the popcorn once (coexists with bomb+ingredient)")
 	assert_eq(ME.count_popcorn(pop), 1, "popcorn decremented to 1, still on board")
 	assert_eq(r.get("bomb_defused", -1), 0, "bomb not in the cleared row -> not defused (independent layer)")
@@ -341,7 +341,7 @@ func test_no_popcorn_layer_is_noop() -> void:
 	var fx := _none_fx(4, 4)
 	fx[0][0] = ME.SP_LINE_H   # 列0 三连触发条纹
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 8], rng, fx, [], [], [], false)
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 8], rng, fx, [], false)
 	assert_eq(r.get("popcorn_hit", 0), 0, "no popcorn layer -> popcorn_hit stays 0")
 	assert_true(r.get("cleared", 0) >= 3, "the stripe-triggered clear still happened normally")
 

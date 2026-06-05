@@ -83,7 +83,7 @@ func test_cake_adjacent_match_decrements_and_blasts_ring() -> void:
 	cake[1][1] = 3   # 蛋糕血量 3
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
 	# cake 是 resolve 第15参；无 fx（纯三消路径走 _resolve_plain）、do_refill=false。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], [], [], false, null, [], [], [], [], [], cake)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8], rng, [], [], false, null, {"cake": cake})
 	assert_eq(cake[1][1], 2, "cake adjacent to the cleared 3-match lost exactly 1 HP (3 -> 2)")
 	assert_eq(r.get("cake_destroyed", -1), 0, "cake still alive -> not destroyed this round")
 	assert_eq(grid[1][1], ME.WALL, "cake cell is still a WALL (alive, not removed)")
@@ -107,7 +107,7 @@ func test_cake_blast_ring_uses_3x3_geometry() -> void:
 	var cake := _blank(5, 5)
 	cake[2][2] = 2
 	# 清除集 = 蛋糕的一个正交邻格 (2,1)（普通格）→ 蛋糕受击 -1 → 引爆 3x3。account_clears 返回 cake_blast。
-	var acc := ME.account_clears(grid, [Vector2i(2, 1)], [], [], [], [], [], [], cake)
+	var acc := ME.account_clears(grid, [Vector2i(2, 1)], [], null, [], {"cake": cake})
 	assert_eq(cake[2][2], 1, "cake lost 1 HP from the adjacent cleared cell (2 -> 1)")
 	assert_eq(acc.get("cake_destroyed", -1), 0, "cake alive (HP 1) -> not destroyed")
 	var blast := {}
@@ -151,7 +151,7 @@ func test_cake_max_one_decrement_per_round() -> void:
 	cake[2][2] = 5
 	# 清除集 = 蛋糕 (2,2) 的上下左右四邻格（全部普通格）。account_clears 第9参=cake。
 	var cells := [Vector2i(2, 1), Vector2i(2, 3), Vector2i(1, 2), Vector2i(3, 2)]
-	var acc := ME.account_clears(grid, cells, [], [], [], [], [], [], cake)
+	var acc := ME.account_clears(grid, cells, [], null, [], {"cake": cake})
 	assert_eq(cake[2][2], 4, "cake adjacent to 4 cleared cells in one round still loses only 1 HP (5 -> 4)")
 	assert_eq(acc.get("cake_destroyed", -1), 0, "cake not destroyed (still 4 HP)")
 
@@ -172,7 +172,7 @@ func test_cake_reaches_zero_removed_and_big_blast() -> void:
 	var cake := _blank(5, 5)
 	cake[2][2] = 1
 	# 清除集含蛋糕的一个正交邻格 (2,3) → 蛋糕受击 → 归0 → 移除 + 5x5 大爆炸。
-	var acc := ME.account_clears(grid, [Vector2i(2, 3)], [], [], [], [], [], [], cake)
+	var acc := ME.account_clears(grid, [Vector2i(2, 3)], [], null, [], {"cake": cake})
 	assert_eq(cake[2][2], 0, "cake HP reached 0")
 	assert_eq(acc.get("cake_destroyed", -1), 1, "exactly one cake destroyed")
 	assert_eq(grid[2][2], ME.EMPTY, "destroyed cake removed: WALL -> EMPTY")
@@ -218,7 +218,7 @@ func test_cake_hit_by_stripe_effect_decrements() -> void:
 	var cake := _blank(6, 4)
 	cake[1][3] = 2
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8], rng, fx, [], [], [], false, null, [], [], [], [], [], cake)
+	var r := ME.resolve(grid, [1, 2, 3, 4, 5, 6, 7, 8], rng, fx, [], false, null, {"cake": cake})
 	assert_eq(cake[1][3], 1, "stripe cleared row 0; cake just below (3,0) lost 1 HP (2 -> 1)")
 	assert_eq(grid[1][3], ME.WALL, "cake still a WALL (alive)")
 	assert_eq(r.get("cake_destroyed", -1), 0, "cake not destroyed yet")
@@ -233,8 +233,8 @@ func test_cake_deterministic_same_seed() -> void:
 	var c2 := _blank(5, 4); c2[2][2] = 3
 	var r1 := RandomNumberGenerator.new(); r1.seed = 13579
 	var r2 := RandomNumberGenerator.new(); r2.seed = 13579
-	var res1 := ME.resolve(g1, [1, 2, 3, 4, 5, 6, 7], r1, [], [], [], [], true, null, [], [], [], [], [], c1)
-	var res2 := ME.resolve(g2, [1, 2, 3, 4, 5, 6, 7], r2, [], [], [], [], true, null, [], [], [], [], [], c2)
+	var res1 := ME.resolve(g1, [1, 2, 3, 4, 5, 6, 7], r1, [], [], true, null, {"cake": c1})
+	var res2 := ME.resolve(g2, [1, 2, 3, 4, 5, 6, 7], r2, [], [], true, null, {"cake": c2})
 	assert_eq(g1, g2, "same seed -> identical grid after cake resolve")
 	assert_eq(c1, c2, "same seed -> identical cake layer after resolve")
 	assert_eq(res1.get("cake_destroyed", -1), res2.get("cake_destroyed", -2), "same seed -> identical cake_destroyed")
@@ -269,7 +269,7 @@ func test_cake_coexists_with_bomb_and_ingredient() -> void:
 	ing[0][3] = 1   # 原料在 (3,0)
 	var rng := RandomNumberGenerator.new(); rng.seed = 3
 	# 传 ing(第12参)、bomb(第14参)、cake(第15参)；exit_cols=[] 不收原料；do_refill=false。
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], [], [], false, null, [], ing, [], bomb, [], cake)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], rng, [], [], false, null, {"ing": ing, "bomb": bomb, "cake": cake})
 	assert_eq(cake[2][3], 1, "cake decremented by the adjacent 3-match (2 -> 1), coexists with bomb+ingredient")
 	assert_eq(ME.count_cakes(cake), 1, "cake still on board")
 	assert_eq(r.get("bomb_defused", -1), 0, "bomb not in the cleared area -> not defused (independent layer)")
@@ -284,7 +284,7 @@ func test_no_cake_layer_is_noop() -> void:
 		[2, 3, 4, 5],
 	]
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7], rng, [], [], [], [], false)
+	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7], rng, [], [], false)
 	assert_eq(r.get("cake_destroyed", 0), 0, "no cake layer -> cake_destroyed stays 0")
 	assert_true(r.get("cleared", 0) >= 3, "the plain 3-match still cleared normally")
 

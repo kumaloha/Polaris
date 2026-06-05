@@ -1112,7 +1112,7 @@ func _grid_copy(g: Array) -> Array:
 func _swap_preview_matches(a: Vector2i, b: Vector2i) -> Array:
 	var g := _grid_copy(board.grid)
 	ME._swap_cells(g, a, b)
-	return ME.find_matches(g, board.coat)
+	return ME.find_matches(g, {"coat": board.coat})
 
 
 # 逐级联依次闪：第 i 级延迟 0.08*i 起闪，呈现连锁一波波传播。

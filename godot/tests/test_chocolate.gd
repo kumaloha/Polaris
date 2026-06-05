@@ -29,7 +29,7 @@ func test_choco_not_matched() -> void:
 		[0, 0, 0, 0],
 		[0, 0, 0, 0],
 	]
-	assert_true(ME.find_matches(grid, [], choco).is_empty(), "chocolate cell breaks the run -> no match")
+	assert_true(ME.find_matches(grid, {"choco": choco}).is_empty(), "chocolate cell breaks the run -> no match")
 
 func test_choco_classify_skips() -> void:
 	# classify_matches 也要跳过巧克力格（fx 路径一致）。
@@ -40,7 +40,7 @@ func test_choco_classify_skips() -> void:
 	]
 	var choco := _blank(5, 3)
 	choco[0][1] = 1  # 巧克力盖住四连中的一格 → 断成 0 [C] 0 0 → 仅右侧无三连
-	var c := ME.classify_matches(grid, [], choco)
+	var c := ME.classify_matches(grid, {"choco": choco})
 	assert_true(c["clear"].is_empty() and c["spawns"].is_empty(), "chocolate breaks the run in classify too")
 
 # ───────────── 不可交换 ─────────────
@@ -48,7 +48,7 @@ func test_choco_classify_skips() -> void:
 func test_choco_blocks_swap() -> void:
 	var grid := [[0, 0, 1], [1, 2, 0], [3, 4, 5]]  # (2,0)<->(2,1) 本来合法
 	var choco := [[0, 0, 1], [0, 0, 0], [0, 0, 0]]  # (2,0) 被巧克力覆盖
-	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), [], 1, choco), "chocolate cell can't be swapped")
+	assert_false(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1), 1, {"choco": choco}), "chocolate cell can't be swapped")
 	assert_true(ME.is_legal_swap(grid, Vector2i(2, 0), Vector2i(2, 1)), "without choco -> legal")
 
 # ───────────── 不下落：巧克力在重力下原地固定、切段 ─────────────
@@ -57,7 +57,7 @@ func test_choco_blocks_gravity() -> void:
 	var E := ME.EMPTY
 	var grid := [[0], [6], [E]]   # 列：[0, 6(巧克力), EMPTY]
 	var choco := [[0], [1], [0]]  # (0,1) 是巧克力
-	ME.apply_gravity(grid, [], [], false, choco)
+	ME.apply_gravity(grid, [], false, {"choco": choco})
 	assert_eq(grid[0][0], 0, "tile above chocolate stays (can't fall through)")
 	assert_eq(grid[1][0], 6, "chocolate cell stays put under gravity")
 	assert_eq(grid[2][0], E, "below-chocolate empty stays empty")
@@ -76,7 +76,7 @@ func test_choco_eaten_by_adjacent_clear() -> void:
 		[0, 0, 0, 0],
 	]
 	var rng := RandomNumberGenerator.new(); rng.seed = 1
-	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], [], [], false, null, choco)
+	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], false, null, {"choco": choco})
 	assert_true(r["choco_cleared"] >= 1, "adjacent clear eats >=1 chocolate")
 	assert_true(choco[1][0] < 2 and choco[1][0] > 0, "chocolate decreased but still present")
 	assert_eq(grid[1][0], 2, "chocolate-covered tile preserved (not cleared/moved)")
