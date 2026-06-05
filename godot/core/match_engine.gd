@@ -253,9 +253,20 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
 # 返回要清的格（含被卷入的直线/爆炸特效的触发链；不再触发其他彩球）。纯函数。
+#
+# CC 式组合精度（对标 Candy Crush）：
+#   彩球 + 条纹(SP_LINE_H/V) → 全盘该色棋子【先全部变成条纹糖，再一起引爆】(每个清整行/列，满屏连锁)。
+#   彩球 + 包装(SP_BOMB)     → 全盘该色【先变成包装糖再引爆】(每个 3x3 连锁)。
+#   彩球 + 普通棋子          → 清掉该色(原行为，保留)。
+#   双彩球                  → 清全盘非空(原行为，保留)。
+# 实现：把"该色每格当 partner 特效引爆"用 override 表达——BFS 触发时该格按 override 的特效几何展开，
+#   而非它自身 fx(多为 SP_NONE)。其余被卷入格仍按各自现有 fx 展开。彩球不触发彩球(避免自激/递归)。
+#   override 行号决定条纹方向(偶数行→清行 LINE_H、奇数行→清列 LINE_V)，确定性且行列兼顾、清除量最大化。
 static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partner_pos: Vector2i) -> Array:
 	var seeds := []
-	if fx[partner_pos.y][partner_pos.x] == SP_COLORBOMB:
+	var override := {}   # Vector2i -> 特效 kind：该格强制按此特效几何引爆（彩球把该色格"染"成 partner 特效）
+	var partner_fx: int = fx[partner_pos.y][partner_pos.x]
+	if partner_fx == SP_COLORBOMB:
 		# 双彩球 → 清全盘非空（排除墙：墙不可消）
 		for y in grid.size():
 			for x in grid[y].size():
@@ -266,20 +277,39 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 		seeds = special_effect_cells(grid, cb_pos, SP_COLORBOMB, target)
 		seeds.append(cb_pos)
 		seeds.append(partner_pos)
-	# 触发链：被卷入的直线/爆炸继续触发；但不再触发其他彩球（避免自激/递归）
+		# partner 是条纹/包装：该色每格【染成对应特效】，引爆时按特效几何满屏连锁(CC 式)。
+		# 彩球本体(cb_pos)与 partner 本体不染(它们只是被清掉/已是触发源)，避免改写已有特效。
+		if partner_fx == SP_LINE_H or partner_fx == SP_LINE_V or partner_fx == SP_BOMB:
+			for c in seeds:
+				if c == cb_pos or c == partner_pos:
+					continue
+				if grid[c.y][c.x] != target:
+					continue   # 只染该色格(special_effect_cells 已只返该色，这里再兜底)
+				if fx[c.y][c.x] == SP_COLORBOMB:
+					continue   # 该色格上若另有彩球，不染、不触发(彩球不触发彩球)
+				if partner_fx == SP_BOMB:
+					override[c] = SP_BOMB
+				else:
+					# 条纹：偶数行染清行(LINE_H)、奇数行染清列(LINE_V) → 行列兼顾、确定性、清除量最大化
+					override[c] = SP_LINE_H if (c.y % 2 == 0) else SP_LINE_V
+	# 触发链：被卷入的直线/爆炸继续触发；但不再触发其他彩球（避免自激/递归）。
+	# override 优先：被染色的该色格按 override 特效几何展开；其余格按自身 fx 展开。
 	var to_clear := {}
 	var queue := []
 	for c in seeds:
 		if not to_clear.has(c):
 			to_clear[c] = true
-			if fx[c.y][c.x] != SP_NONE and fx[c.y][c.x] != SP_COLORBOMB:
+			var k: int = override.get(c, fx[c.y][c.x])
+			if k != SP_NONE and k != SP_COLORBOMB:
 				queue.append(c)
 	while not queue.is_empty():
 		var c: Vector2i = queue.pop_back()
-		for e in special_effect_cells(grid, c, fx[c.y][c.x], grid[c.y][c.x]):
+		var kind: int = override.get(c, fx[c.y][c.x])
+		for e in special_effect_cells(grid, c, kind, grid[c.y][c.x]):
 			if not to_clear.has(e):
 				to_clear[e] = true
-				if fx[e.y][e.x] != SP_NONE and fx[e.y][e.x] != SP_COLORBOMB:
+				var ke: int = override.get(e, fx[e.y][e.x])
+				if ke != SP_NONE and ke != SP_COLORBOMB:
 					queue.append(e)
 	return to_clear.keys()
 
