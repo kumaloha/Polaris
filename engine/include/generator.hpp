@@ -21,6 +21,8 @@ struct GenConfig {
     double min_jelly = 4.0;      // 天花板平均清果冻 >= 此值才可作 JELLY
     double coat_density = 0.18;  // 冰/锁关里涂层格占比
     int min_blocker = 3;         // 涂层格数 >= 此值才可作 BLOCKER
+    double choco_density = 0.10; // 巧克力关里初始巧克力格占普通棋子格比例（0.08~0.12 甜区）
+    int min_choco = 3;           // 初始巧克力格数 >= 此值才可作 CLEAR_CHOCO
     uint32_t base_seed = 1;
 };
 
@@ -476,6 +478,94 @@ inline std::vector<GeneratedLevel> generate_for_difficulty(const GenConfig& cfg,
         gl.floor_score = floor_s;
         gl.ceil_score = ceil_s;
         gl.lfhc_gap = gap;
+        gl.skilled_pass = fe.skilled_pass_rate;
+        gl.rhythm = rhythm;
+        gl.difficulty = band.name;
+        out.push_back(gl);
+    }
+    return out;
+}
+
+// ---- 巧克力关生成（CLEAR_CHOCO）：仿冰锁布点 + 二分目标命中难度带 ----
+
+// 巧克力布点：选普通棋子格(非 WALL/EMPTY)按 density 随机铺 choco=1。返回布的格数。
+inline int place_chocolate(std::vector<std::vector<int>>& choco, const Grid& board,
+                           double density, uint32_t seed) {
+    int H = (int)board.size(), W = (int)board[0].size();
+    choco.assign(H, std::vector<int>(W, 0));
+    std::mt19937 rng(seed);
+    std::uniform_real_distribution<double> dd(0.0, 1.0);
+    int total = 0;
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x)
+            if (board[y][x] != WALL && board[y][x] != EMPTY && dd(rng) < density) {
+                choco[y][x] = 1;
+                total++;
+            }
+    return total;
+}
+
+// 按请求难度产巧克力关：每候选盘强制布巧克力 + CLEAR_CHOCO 目标，二分 target 命中难度带。
+// 标定核心：evaluate_level 内的玩家(random/heuristic)在 choco 关自动执行"整步零啃食→蔓延"钩子，
+//   故 skilled_pass 真实反映"高手能否在蔓延压力下啃够目标数"。target 取命中带的保守地板。
+inline std::vector<GeneratedLevel> generate_choco_for_difficulty(const GenConfig& cfg, DiffBand band,
+                                                                 int count, int max_attempts) {
+    std::vector<GeneratedLevel> out;
+    std::mt19937 boardgen(cfg.base_seed ^ 0x0c0c0a11u);  // 与其它批不同盘流
+    const int BIG = 1 << 30;
+    int attempts = 0;
+    while ((int)out.size() < count && attempts < max_attempts) {
+        ++attempts;
+        Grid board = make_board(cfg.w, cfg.h, cfg.species, boardgen);
+        uint32_t cand_seed = cfg.base_seed + (uint32_t)attempts * 7919u;
+        Level final;
+        final.init_board = board;
+        final.species = cfg.species;
+        final.move_limit = cfg.move_limit;
+        final.seed = cand_seed;
+
+        // 布巧克力：普通棋子格按 density 铺；格数不足或布完无合法步 → 弃此盘
+        std::vector<std::vector<int>> choco;
+        int total = place_chocolate(choco, board, cfg.choco_density, cand_seed ^ 0xc40c0de5u);
+        if (total < cfg.min_choco) continue;
+        if (!gen_choco::has_legal_move(board, nullptr, &choco)) continue;
+        final.choco = choco;
+        final.objectives = {{OBJ_CLEAR_CHOCO, -1, 1}};
+
+        // 二分上界：smart_greedy 全力追 CLEAR_CHOCO 实测能啃多少（目标导向天花板）
+        double gd = 0.0;
+        for (int t = 0; t < cfg.trials; ++t) {
+            Level probe = final;
+            probe.seed = cand_seed + (uint32_t)t * 1000003u;
+            probe.objectives = {{OBJ_CLEAR_CHOCO, -1, BIG}};  // 大目标 → 走满步、最大化啃食
+            PlayResult sp = smart_greedy_play(probe);
+            gd += sp.choco_cleared;
+        }
+        gd /= cfg.trials;
+        int lo = 1, hi = (int)gd + 2;
+        if (hi < lo) continue;
+
+        // 二分 target 命中难度带（pass 随 target 单调递减）
+        int found = -1;
+        LevelEval fe;
+        int a = lo, b = hi;
+        for (int it = 0; it < 9 && a <= b; ++it) {
+            int mid = a + (b - a) / 2;
+            set_level_target(final, mid);
+            LevelEval e = evaluate_level(final, cfg.trials);
+            if (e.skilled_pass_rate > band.ph) a = mid + 1;       // 太易 → 提高 target
+            else if (e.skilled_pass_rate < band.pl) b = mid - 1;   // 太难 → 降低 target
+            else { found = mid; fe = e; break; }
+        }
+        if (found < 0) continue;
+        set_level_target(final, found);
+        double rhythm = rhythm_quality(objective_progress_curve(final));
+
+        GeneratedLevel gl;
+        gl.level = final;
+        gl.floor_score = fe.floor_score;
+        gl.ceil_score = fe.ceil_score;
+        gl.lfhc_gap = fe.lfhc_gap;
         gl.skilled_pass = fe.skilled_pass_rate;
         gl.rhythm = rhythm;
         gl.difficulty = band.name;

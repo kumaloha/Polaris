@@ -120,9 +120,56 @@ static void test_generate_scroll_difficulty() {
                 gl.difficulty, gl.level.move_limit, gl.skilled_pass, 3 * 8);
 }
 
+// 巧克力关生成：按难度带产 CLEAR_CHOCO 关，带初始巧克力层 + 标定到带内 + 可解。
+static void test_generate_choco_difficulty() {
+    GenConfig cfg;
+    cfg.w = 9; cfg.h = 9; cfg.species = {0, 1, 2, 3, 4};
+    cfg.move_limit = 25; cfg.trials = 8;
+    cfg.choco_density = 0.10; cfg.min_choco = 3;
+    cfg.base_seed = 12345u;
+
+    auto easy = generate_choco_for_difficulty(cfg, band_easy(), 2, 400);
+    CHECK(!easy.empty(), "produced EASY chocolate levels on request");
+    for (const auto& gl : easy) {
+        CHECK(!gl.level.choco.empty(), "CHOCO level carries a chocolate layer");
+        CHECK_EQ((int)gl.level.objectives.size(), 1, "exactly one objective");
+        CHECK(gl.level.objectives[0].type == OBJ_CLEAR_CHOCO, "objective is CLEAR_CHOCO");
+        CHECK(gl.level.objectives[0].target >= 1, "choco target >= 1");
+        int init_choco = 0;
+        for (const auto& row : gl.level.choco) for (int v : row) init_choco += (v > 0);
+        CHECK(init_choco >= cfg.min_choco, "initial chocolate count >= min_choco");
+        CHECK(gl.skilled_pass >= 0.8 - 1e-9, "EASY: skilled_pass >= 0.8");
+        CHECK(std::string(gl.difficulty) == "EASY", "labeled EASY");
+    }
+
+    auto hard = generate_choco_for_difficulty(cfg, band_hard(), 2, 400);
+    CHECK(!hard.empty(), "produced HARD chocolate levels on request");
+    for (const auto& gl : hard) {
+        CHECK(gl.skilled_pass >= 0.1 - 1e-9 && gl.skilled_pass <= 0.4 + 1e-9, "HARD: skilled_pass in [0.1,0.4]");
+        CHECK(gl.level.objectives[0].type == OBJ_CLEAR_CHOCO, "HARD objective is CLEAR_CHOCO");
+    }
+    // 标定有效性：HARD 目标通过率应低于 EASY（蔓延压力 + 更高 target 让难度真分化）
+    if (!easy.empty() && !hard.empty())
+        CHECK(easy[0].skilled_pass >= hard[0].skilled_pass - 1e-9, "EASY pass >= HARD pass (difficulty separates)");
+
+    // 确定性：同配置两次生成 → 同 target
+    auto a = generate_choco_for_difficulty(cfg, band_medium(), 1, 400);
+    auto b = generate_choco_for_difficulty(cfg, band_medium(), 1, 400);
+    CHECK(a.size() == b.size(), "choco gen deterministic count");
+    if (!a.empty() && !b.empty())
+        CHECK_EQ(a[0].level.objectives[0].target, b[0].level.objectives[0].target, "choco gen deterministic target");
+
+    if (!easy.empty())
+        std::printf("  [gen-choco] EASY kept=%d pass=%.2f target=%d | HARD kept=%d pass=%.2f target=%d\n",
+                    (int)easy.size(), easy[0].skilled_pass, easy[0].level.objectives[0].target,
+                    (int)hard.size(), hard.empty() ? -1.0 : hard[0].skilled_pass,
+                    hard.empty() ? -1 : hard[0].level.objectives[0].target);
+}
+
 int main() {
     test_generate_curates_library();
     test_generate_for_difficulty();
+    test_generate_choco_difficulty();
     test_fi2pop();
     test_generate_deterministic();
     test_generate_scroll_difficulty();

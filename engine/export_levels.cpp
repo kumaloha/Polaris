@@ -49,6 +49,7 @@ static const char* obj_type_str(ObjType t) {
         case OBJ_COLLECT: return "COLLECT";
         case OBJ_CLEAR_JELLY: return "CLEAR_JELLY";
         case OBJ_CLEAR_BLOCKER: return "CLEAR_BLOCKER";
+        case OBJ_CLEAR_CHOCO: return "CLEAR_CHOCO";
         default: return "SCORE";
     }
 }
@@ -78,6 +79,7 @@ static std::string level_json(const GeneratedLevel& gl, int idx) {
     o << "],";
     o << "\"jelly\":" << grid_json(lv.jelly) << ",";
     o << "\"coat\":" << grid_json(lv.coat) << ",";
+    o << "\"choco\":" << grid_json(lv.choco) << ",";
     o << "\"difficulty\":\"" << gl.difficulty << "\",";
     o << "\"lfhc_gap\":" << gl.lfhc_gap << ",";
     o << "\"skilled_pass\":" << gl.skilled_pass;
@@ -171,6 +173,25 @@ int main(int argc, char** argv) {
     for (auto& f : sfuts)
         levels.push_back(f.get());
 
+    // 巧克力关：每档 per_band 关（CLEAR_CHOCO 蔓延压力源）。强制布巧克力 + 二分目标校准。
+    // 与目标关同盘维度(9×9/10/11)、不同 seed 流。三档全部【并行】生成。
+    DiffBand cbands[] = {band_easy(), band_medium(), band_hard()};
+    std::vector<std::future<std::vector<GeneratedLevel>>> cfuts;
+    for (int bi = 0; bi < 3; ++bi) {
+        GenConfig c = cfg;
+        c.h = 9 + bi;                                       // 各档盘高 9/10/11
+        c.base_seed = 770000u + (uint32_t)bi * 2654435761u; // 各档不同盘流
+        c.choco_density = 0.10;                             // 普通棋子格 ~10% 初始巧克力
+        c.min_choco = 3;
+        DiffBand band = cbands[bi];
+        cfuts.push_back(std::async(std::launch::async, [c, band, per_band]() {
+            return generate_choco_for_difficulty(c, band, per_band, 800);
+        }));
+    }
+    for (auto& f : cfuts)
+        for (auto& gl : f.get())
+            levels.push_back(gl);
+
     std::ostringstream o;
     o << "{\"levels\":[";
     for (size_t i = 0; i < levels.size(); ++i) {
@@ -190,6 +211,12 @@ int main(int argc, char** argv) {
             int depth = lv.feed.empty() ? 0 : (int)lv.feed[0].size();
             std::fprintf(stderr, "  lvl_%zu: [SCROLL] diff=%s pass=%.2f moves=%d feed=%d/col\n",
                          i, levels[i].difficulty, levels[i].skilled_pass, lv.move_limit, depth);
+        } else if (!lv.choco.empty()) {
+            int cc = 0;
+            for (const auto& row : lv.choco) for (int v : row) cc += (v > 0);
+            int tgt = lv.objectives.empty() ? 0 : lv.objectives[0].target;
+            std::fprintf(stderr, "  lvl_%zu: [CHOCO] diff=%s pass=%.2f target=%d initial_choco=%d\n",
+                         i, levels[i].difficulty, levels[i].skilled_pass, tgt, cc);
         } else {
             std::fprintf(stderr, "  lvl_%zu: diff=%s pass=%.2f gap=%.2f objs=%zu\n",
                          i, levels[i].difficulty, levels[i].skilled_pass,
