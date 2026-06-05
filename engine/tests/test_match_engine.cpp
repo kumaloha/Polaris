@@ -567,6 +567,64 @@ static void test_resolve_bomb_deterministic() {
     CHECK_EQ(a.bomb_defused, b.bomb_defused, "same seed -> identical bomb_defused");
 }
 
+// ───────────── 炸弹 × spawn 守卫（两端镜像盲区：炸弹在特效生成点上不拆）─────────────
+// 真机(GDScript)炸弹关跑 _resolve_fx：匹配里的【特效生成点(spawn)】格被保留为特效棋子、不清空，
+// 故该格上的炸弹【不拆、不计 bomb_defused】（match_engine.gd _resolve_fx 的 `if not spawn_set.has(pos)` 守卫）。
+// 这组断言锁死 C++ resolve_bomb 与该语义一致——修复前(无 spawn 概念，凡匹配炸弹一律拆)这两个用例必 FAIL。
+
+static void test_bomb_on_4run_spawn_not_defused() {
+    // 炸弹正好在【4连的 mid 点(spawn)】上 → 该格保留为特效棋子 → 炸弹不拆、bomb 残留、bomb_defused 不增。
+    // 横向4连 cells x=0..3 y=0，mid=(0+3)/2=1 → spawn 在 (1,0)；炸弹放 (1,0)。
+    // 该串不与任何纵串相交(各列无3连) → 是直线 spawn(SP_LINE_V)，非 T/L 交点 → 严格走 4连 mid 分支。
+    Grid g = {
+        {5, 5, 5, 5},
+        {0, 1, 2, 3},
+        {1, 2, 3, 0},
+    };
+    std::vector<std::vector<int>> bomb(3, std::vector<int>(4, 0));
+    bomb[0][1] = 4;  // 炸弹在 4连 mid(spawn) 上
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4, 5}, rng, nullptr, nullptr, &bomb, nullptr, false);
+    // 与 GDScript _resolve_fx 行为一致：spawn 格炸弹不拆。
+    CHECK_EQ(r.bomb_defused, 0, "bomb on 4-run spawn(mid) is NOT defused (mirror _resolve_fx)");
+    CHECK_EQ(count_bombs(bomb), 1, "bomb still lives on the spawn cell");
+    CHECK_EQ(bomb[0][1], 4, "bomb countdown on spawn cell preserved (not cleared)");
+    CHECK_EQ(g[0][1], 5, "spawn cell keeps its species (special piece, not emptied)");
+    CHECK_EQ(r.cleared, 3, "only the 3 non-spawn cells cleared (spawn cell kept)");
+}
+
+static void test_bomb_on_3run_defused_normally() {
+    // 炸弹在【3连】里(3连无 spawn) → 正常拆：bomb→0、bomb_defused 增。明确与 4连 spawn 用例对照。
+    Grid g = {
+        {0, 0, 0, 1},
+        {2, 3, 4, 2},
+        {3, 4, 2, 3},
+    };
+    std::vector<std::vector<int>> bomb(3, std::vector<int>(4, 0));
+    bomb[0][1] = 4;  // 炸弹在 3连里(无特效生成)
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4}, rng, nullptr, nullptr, &bomb, nullptr, false);
+    CHECK_EQ(r.bomb_defused, 1, "bomb in a plain 3-run IS defused (no spawn)");
+    CHECK_EQ(count_bombs(bomb), 0, "bomb cleared by the 3-match");
+}
+
+static void test_bomb_on_4run_non_mid_defused() {
+    // 炸弹在【4连里但非 mid 点】(端点 (0,0)) → 该格不是 spawn → 正常拆。
+    // 同 4连盘(mid=(1,0) 是 spawn)，炸弹改放端点 (0,0)：端点不是生成点 → 应被清除拆弹。
+    Grid g = {
+        {5, 5, 5, 5},
+        {0, 1, 2, 3},
+        {1, 2, 3, 0},
+    };
+    std::vector<std::vector<int>> bomb(3, std::vector<int>(4, 0));
+    bomb[0][0] = 4;  // 炸弹在 4连端点(非 spawn)
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4, 5}, rng, nullptr, nullptr, &bomb, nullptr, false);
+    CHECK_EQ(r.bomb_defused, 1, "bomb on 4-run non-mid cell IS defused (only mid is spawn)");
+    CHECK_EQ(count_bombs(bomb), 0, "bomb cleared (endpoint is not a spawn cell)");
+    CHECK_EQ(bomb[0][1], 0, "the mid(spawn) cell carried no bomb here -> nothing left there");
+}
+
 // ───────────── 糖果炮（Candy Cannon）镜像断言 ─────────────
 
 static void test_cannon_spawns_below_when_empty() {
@@ -1049,6 +1107,10 @@ int main() {
     test_resolve_bomb_defused_when_matched();
     test_resolve_bomb_sinks_one_after_clear();
     test_resolve_bomb_deterministic();
+    // 炸弹 × spawn 守卫（spawn 格炸弹不拆，对齐 GDScript _resolve_fx）
+    test_bomb_on_4run_spawn_not_defused();
+    test_bomb_on_3run_defused_normally();
+    test_bomb_on_4run_non_mid_defused();
     // 糖果炮（Candy Cannon）镜像断言
     test_cannon_spawns_below_when_empty();
     test_cannon_type2_produces_ingredient();

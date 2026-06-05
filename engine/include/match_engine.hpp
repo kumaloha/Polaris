@@ -766,6 +766,89 @@ inline int count_bombs(const std::vector<std::vector<int>>& bomb) {
     return n;
 }
 
+// 特效生成点(spawn)的纯几何判定 —— 镜像 GDScript classify_matches 的 spawn_at 逻辑（match_engine.gd）。
+//   C++ 裸 Core 不实现特效，但【标定端必须知道哪些格会被保留为特效棋子】：GDScript 真机走 _resolve_fx，
+//   spawn 格被留作特效、不清空 → 该格上的炸弹既不拆也不计 bomb_defused（_resolve_fx 的 spawn 守卫）。
+//   故这里只算【哪些格是 spawn 点】(纯几何，不落特效)，供 resolve_bomb 对齐真机的拆弹语义。
+//
+// spawn 规则（与 classify_matches 一一对应，优先级：彩球(5连)>爆炸(交点)>直线(4连)，一格只生成一个特效）：
+//   1) 收集所有横/纵 >=3 同色直线串（coat>0 的格跳过、断串；与 find_matches(g,coat) 同口径——
+//      炸弹格是普通棋子，不跳过）。每串记 cells/len/mid，mid = (start+end)/2（整数除法，与 GDScript 一致）。
+//   2) >=5 连 → 该串 mid 点是 spawn（彩球）。遍历 h_runs+v_runs。
+//   3) T/L/+ 交点（同时属于某横串 in_h 且某纵串 in_v 的格）→ 该格是 spawn（爆炸）。遍历 matched 全集。
+//   4) ==4 连 → 横 4 连 mid（且该串不与任何纵串相交）/ 纵 4 连 mid（不与横串相交）是 spawn（直线）。
+//   返回 spawn 点集合(布尔网格)。只关心"是不是 spawn"，不关心特效种类（拆弹守卫只看 pos 是否在 spawn_set）。
+inline std::vector<std::vector<char>> bomb_spawn_points(
+        const Grid& g, const std::vector<std::vector<int>>* coat) {
+    int h = (int)g.size();
+    std::vector<std::vector<char>> spawn;
+    if (h == 0) return spawn;
+    int w = (int)g[0].size();
+    spawn.assign(h, std::vector<char>(w, 0));
+    auto blocked = [&](int x, int y) -> bool {  // 与 find_matches(g,coat) 同口径：EMPTY/WALL/coat>0 断串
+        return g[y][x] == EMPTY || g[y][x] == WALL || (coat && (*coat)[y][x] > 0);
+    };
+    struct Run { int x0, y0, x1, y1, len; Vec2 mid; };  // 一条 >=3 同色直线串
+    std::vector<Run> h_runs, v_runs;
+    std::vector<std::vector<char>> in_h(h, std::vector<char>(w, 0));  // 属于某横串
+    std::vector<std::vector<char>> in_v(h, std::vector<char>(w, 0));  // 属于某纵串
+    // 横向串
+    for (int y = 0; y < h; ++y) {
+        int x = 0;
+        while (x < w) {
+            if (blocked(x, y)) { ++x; continue; }
+            int e = x;
+            while (e + 1 < w && g[y][e + 1] == g[y][x] && !blocked(e + 1, y)) ++e;
+            if (e - x + 1 >= 3) {
+                h_runs.push_back({x, y, e, y, e - x + 1, {(x + e) / 2, y}});
+                for (int k = x; k <= e; ++k) in_h[y][k] = 1;
+            }
+            x = e + 1;
+        }
+    }
+    // 纵向串
+    for (int x = 0; x < w; ++x) {
+        int y = 0;
+        while (y < h) {
+            if (blocked(x, y)) { ++y; continue; }
+            int e = y;
+            while (e + 1 < h && g[e + 1][x] == g[y][x] && !blocked(x, e + 1)) ++e;
+            if (e - y + 1 >= 3) {
+                v_runs.push_back({x, y, x, e, e - y + 1, {x, (y + e) / 2}});
+                for (int k = y; k <= e; ++k) in_v[k][x] = 1;
+            }
+            y = e + 1;
+        }
+    }
+    // 优先级 1：>=5 连 → mid 是彩球 spawn（h_runs 先于 v_runs，与 GDScript h_runs+v_runs 同序）。
+    auto colorbomb_pass = [&](const std::vector<Run>& runs) {
+        for (const auto& r : runs)
+            if (r.len >= 5) spawn[r.mid.y][r.mid.x] = 1;  // 一格只一个特效 → 置位幂等
+    };
+    colorbomb_pass(h_runs);
+    colorbomb_pass(v_runs);
+    // 优先级 2：T/L/+ 交点（in_h 且 in_v）→ 爆炸 spawn。若该格已是彩球 spawn 则跳过（spawn_at 去重）。
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (in_h[y][x] && in_v[y][x] && !spawn[y][x]) spawn[y][x] = 1;
+    // 优先级 3：==4 连 → mid 是直线 spawn（横4连需不与任何纵串相交；纵4连需不与任何横串相交）。
+    auto run_intersects = [&](const Run& r, const std::vector<std::vector<char>>& other) -> bool {
+        if (r.y0 == r.y1) {  // 横串
+            for (int x = r.x0; x <= r.x1; ++x) if (other[r.y0][x]) return true;
+        } else {             // 纵串
+            for (int y = r.y0; y <= r.y1; ++y) if (other[y][r.x0]) return true;
+        }
+        return false;
+    };
+    for (const auto& r : h_runs)
+        if (r.len == 4 && !run_intersects(r, in_v) && !spawn[r.mid.y][r.mid.x])
+            spawn[r.mid.y][r.mid.x] = 1;
+    for (const auto& r : v_runs)
+        if (r.len == 4 && !run_intersects(r, in_h) && !spawn[r.mid.y][r.mid.x])
+            spawn[r.mid.y][r.mid.x] = 1;
+    return spawn;
+}
+
 struct BombResolveResult {
     int score = 0, cascades = 0, cleared = 0;
     int jelly_cleared = 0, blocker_cleared = 0, bomb_defused = 0;
@@ -778,8 +861,16 @@ struct BombResolveResult {
 };
 
 // bomb 感知的 resolve：消除→拆弹(消除格 bomb→0)→计分→下落(炸弹随重力落)→补充，循环至稳定。原地改 g/coat/bomb。
-//   返回含 bomb_defused = 本次结算因消除而拆掉的炸弹数。镜像 GDScript _resolve_plain 的 bomb 分支。
-//   炸弹格是普通棋子 → 用基础 find_matches(coat 感知；炸弹不感知)，与 GDScript 纯炸弹关行为一致。
+//   返回含 bomb_defused = 本次结算因消除而拆掉的炸弹数。
+//   炸弹格是普通棋子 → 用基础 find_matches(coat 感知；炸弹不感知)。
+//
+// 【对齐铁律 — spawn 守卫】真机(GDScript)炸弹关跑 _resolve_fx(fx 恒非空)，不是 _resolve_plain：
+//   匹配里的【特效生成点(spawn)】格被保留为特效棋子、【不清空】，故该格上的炸弹【不拆、不计 bomb_defused】
+//   （见 match_engine.gd _resolve_fx 的 spawn 守卫 `if not spawn_set.has(pos)`）。
+//   若 C++ 把所有匹配炸弹一律拆，会把炸弹关标偏易（C++ bomb_defused ≥ 真机）。故这里用 bomb_spawn_points
+//   算出本轮 spawn 几何，spawn 格：不拆弹、不计 by_species、不清空(grid 保留 species、bomb 保留)——与真机一致。
+//   非 spawn 的匹配格：正常拆弹/计分/清空。spawn 格的 fx 特效本身（条纹/爆炸/彩球的后续连锁清除）是 Godot
+//   专属、裸 Core 不模拟；标定只需保证"spawn 格炸弹不被本轮拆掉"这一影响 bomb_defused 的语义对齐。
 inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, std::mt19937& rng,
                                       std::vector<std::vector<int>>* jelly = nullptr,
                                       std::vector<std::vector<int>>* coat = nullptr,
@@ -794,6 +885,8 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
         int H = (int)g.size(), W = (int)g[0].size();
         std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
         for (const auto& p : matched) ism[p.y][p.x] = 1;
+        // spawn 几何：本轮匹配里哪些格会被保留为特效棋子（不清空、其上炸弹不拆）。镜像 _resolve_fx 守卫。
+        auto spawn = bomb_spawn_points(g, coat);
         if (coat) {  // 破锁：消除内/相邻的锁住格 -1
             for (int y = 0; y < H; ++y)
                 for (int x = 0; x < W; ++x) {
@@ -804,7 +897,9 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
                     if (hit) { (*coat)[y][x]--; r.blocker_cleared++; }
                 }
         }
+        int cleared_this = 0;  // 本级联真正清空的格数（不含 spawn 格 → 与 _resolve_fx 的 to_clear.size() 同口径）
         for (const auto& p : matched) {
+            if (spawn[p.y][p.x]) continue;  // spawn 格：保留为特效棋子，不清空/不计分/不拆弹（其上炸弹存活）
             int s = g[p.y][p.x];
             if (s >= 0) {
                 if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
@@ -816,9 +911,10 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
                 r.bomb_defused++;
             }
             g[p.y][p.x] = EMPTY;
+            ++cleared_this;
         }
-        r.cleared += (int)matched.size();
-        r.score += score_for_clear((int)matched.size(), r.cascades);
+        r.cleared += cleared_this;
+        r.score += score_for_clear(cleared_this, r.cascades);
         apply_gravity_bomb(g, coat, nullptr, bomb);   // 炸弹随重力下落（bomb 随 grid 同步移动）
         if (do_refill) refill(g, species, rng, feed);
     }
