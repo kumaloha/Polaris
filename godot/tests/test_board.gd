@@ -405,6 +405,45 @@ func test_level_library_reads_scrolling() -> void:
 	var b2 := LevelLibrary.to_board(d2)
 	assert_eq(b2.is_scrolling, false, "non-scroll level defaults is_scrolling=false")
 
+func _count_walls(grid: Array) -> int:
+	var n := 0
+	for row in grid:
+		for v in row:
+			if v == ME.WALL:
+				n += 1
+	return n
+
+func test_level_with_walls_survives_start() -> void:
+	# P1 回归：带异形墙(init_board 含 WALL=-2)的关，再走 start() 重开后墙必须保留。
+	# 旧 bug：to_board 给 Board.new() 传空 wall_mask → start() 的 make_board 重生成无墙盘
+	#         → init_board 里的 -2 被覆盖、墙消失（任何走 start() 路径的异形关墙都丢）。
+	# 修复(level_library._wall_mask_from)：从 init_board 提取墙掩码传入 → start() 按 mask 铺回墙。
+	var init_board := [
+		[-2,  0,  1, -2],   # -2 == ME.WALL
+		[ 1,  2,  0,  1],
+		[ 2,  0,  1,  2],
+		[-2,  1,  2, -2],
+	]
+	var d := {
+		"w": 4, "h": 4,
+		"species": [0, 1, 2],
+		"init_board": init_board,
+		"move_limit": 20,
+		"objectives": [],
+	}
+	var b := LevelLibrary.to_board(d)
+	assert_eq(_count_walls(b.grid), 4, "walls present right after to_board")
+	assert_false(b.wall_mask.is_empty(), "wall_mask extracted from init_board (for start regen)")
+	# 关键：重开本关(直接走 start 路径) → 墙必须仍在、位置不变（数量与 init_board 一致）
+	b.start()
+	assert_eq(_count_walls(b.grid), 4, "P1: walls survive start() (mask-loss regression guard)")
+	for y in 4:
+		for x in 4:
+			if init_board[y][x] == ME.WALL:
+				assert_eq(b.grid[y][x], ME.WALL, "wall preserved at (%d,%d) after start" % [x, y])
+			else:
+				assert_true(b.grid[y][x] >= 0, "non-wall cell is a normal piece at (%d,%d)" % [x, y])
+
 # ───────────── 主动技能 board API（#5/#7/#9/#8，一局一次）─────────────
 
 func test_skill_gravity_flip() -> void:
