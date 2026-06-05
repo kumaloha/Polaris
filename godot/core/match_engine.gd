@@ -60,7 +60,9 @@ static func find_matches(grid: Array, coat: Array = [], choco: Array = [], ing: 
 # choco 可选：巧克力格(choco>0)与锁住格(coat>0)一样原地固定、把列切段（巧克力不下落）。
 # ing 可选：原料格(ing>0)与普通棋子一样【随重力下落】（不切段、不固定）——这是原料与 choco 的关键区别。
 #   原料是可移动格，作为段内一个元素和 grid 一起沉底，ing 层与 grid 列同步重排（像 fx 那样跟随）。
-static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false, choco: Array = [], ing: Array = []) -> void:
+# bomb 可选：炸弹倒计时标记。炸弹格的 grid 是【普通棋子】(可消可换)，bomb 只是叠加的倒计时——
+#   故 bomb 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】（与 ing 同样跟随，但语义更纯：纯标记）。
+static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: bool = false, choco: Array = [], ing: Array = [], bomb: Array = []) -> void:
 	var h := grid.size()
 	if h == 0:
 		return
@@ -69,15 +71,17 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
+	var has_bomb := not bomb.is_empty()
 	for x in w:
 		# 墙 与 锁住格(coat>0) 与 巧克力格(choco>0) 把列切成独立段、原地固定，各段内分别下落。
-		# 原料(ing>0) 不切段——它是段内可移动元素，随段一起下落。
+		# 原料(ing>0) 不切段——它是段内可移动元素，随段一起下落。炸弹(bomb>0)同样不切段（炸弹格是普通棋子）。
 		var seg_start := 0
 		for y in range(h + 1):
 			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				var stack := []     # 段内非空 species（段内无墙）
 				var fx_stack := []
 				var ing_stack := []   # 段内每个可动格的原料标记，随 stack 同序搬运（原料随棋子一起落）
+				var bomb_stack := []  # 段内每个可动格的炸弹倒计时，随 stack 同序搬运（炸弹随棋子一起落）
 				for k in range(seg_start, y):
 					if grid[k][x] != EMPTY:
 						stack.append(grid[k][x])
@@ -85,6 +89,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							fx_stack.append(fx[k][x])
 						if has_ing:
 							ing_stack.append(ing[k][x])
+						if has_bomb:
+							bomb_stack.append(bomb[k][x])
 				var empties := (y - seg_start) - stack.size()
 				for k in range(seg_start, y):
 					var idx := k - seg_start
@@ -96,6 +102,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							fx[k][x] = SP_NONE
 						if has_ing:
 							ing[k][x] = 0   # 空格无原料
+						if has_bomb:
+							bomb[k][x] = 0   # 空格无炸弹
 					else:
 						var si := (idx - empties) if not up else idx
 						grid[k][x] = stack[si]
@@ -103,6 +111,8 @@ static func apply_gravity(grid: Array, fx: Array = [], coat: Array = [], up: boo
 							fx[k][x] = fx_stack[si]
 						if has_ing:
 							ing[k][x] = ing_stack[si]   # 原料标记随该格内容一起落
+						if has_bomb:
+							bomb[k][x] = bomb_stack[si]   # 炸弹倒计时随该格内容一起落
 				seg_start = y + 1
 
 
@@ -137,30 +147,32 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = []) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = []) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
 	# ing/exit_cols 可选：原料层 + 出口列。结果里附带 ingredient_collected = 本步落到出口被收的原料格数。
+	# bomb 可选：炸弹倒计时层。被消除的炸弹格 bomb→0（拆弹）。结果里附带 bomb_defused = 本步因消除而拆掉的炸弹数。
 	if fx.is_empty():
-		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols)
-	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols)
+		return _resolve_plain(grid, species_set, rng, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb)
+	return _resolve_fx(grid, species_set, rng, fx, jelly, coat, feed, do_refill, cascades_out, choco, ing, exit_cols, bomb)
 
 
 # 原料下沉收集循环：消除稳定后，原料可能仍悬在出口上方（或刚补充落下）。
 # 先重力沉底，再"收出口→重力"循环直到无新原料被收（触底→被收→让位→继续沉）。返回累计收集数。
 # 注：纯重力不触发消除循环，故消除稳定后必须单独跑这个把已落定原料送进出口（先 gravity 让原料触到出口行）。
-static func _drain_ingredients(grid: Array, fx: Array, coat: Array, choco: Array, ing: Array, exit_cols: Array, up: bool) -> int:
+# bomb 可选：原料下沉伴随的重力也需让炸弹标记跟随搬运（与棋子一起落），故透传 bomb。
+static func _drain_ingredients(grid: Array, fx: Array, coat: Array, choco: Array, ing: Array, exit_cols: Array, up: bool, bomb: Array = []) -> int:
 	if ing.is_empty() or exit_cols.is_empty():
 		return 0
 	var collected := 0
-	apply_gravity(grid, fx, coat, up, choco, ing)   # 先沉底：把悬空原料送到它能到的最低处（含出口行）
+	apply_gravity(grid, fx, coat, up, choco, ing, bomb)   # 先沉底：把悬空原料送到它能到的最低处（含出口行）
 	while true:
 		var got := collect_ingredients_at_exit(grid, ing, exit_cols)
 		if got == 0:
 			break
 		collected += got
-		apply_gravity(grid, fx, coat, up, choco, ing)   # 收掉出口原料 → 让位 → 上方原料/棋子继续沉
+		apply_gravity(grid, fx, coat, up, choco, ing, bomb)   # 收掉出口原料 → 让位 → 上方原料/棋子继续沉
 	return collected
 
 
@@ -178,7 +190,7 @@ static func _eat_chocolate(choco: Array, cleared_set: Dictionary) -> int:
 	return eaten
 
 
-static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = []) -> Dictionary:
+static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGenerator, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -187,10 +199,12 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 	var blocker_cleared := 0
 	var choco_cleared := 0
 	var ingredient_collected := 0
+	var bomb_defused := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
+	var has_bomb := not bomb.is_empty()
 	while true:
 		var matched: Array = find_matches(grid, coat, choco, ing)
 		if matched.is_empty():
@@ -218,20 +232,23 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 			if has_jelly and jelly[pos.y][pos.x] > 0:
 				jelly[pos.y][pos.x] -= 1
 				jelly_cleared += 1
+			if has_bomb and bomb[pos.y][pos.x] > 0:
+				bomb[pos.y][pos.x] = 0   # 炸弹格被消除 → 拆弹（bomb 归 0，不再倒计时）
+				bomb_defused += 1
 			grid[pos.y][pos.x] = EMPTY
 		cleared_total += matched.size()
 		total_score += score_for_clear(matched.size(), cascades)
-		apply_gravity(grid, [], coat, false, choco, ing)   # 原料随重力下落（ing 随 grid 同步移动）
+		apply_gravity(grid, [], coat, false, choco, ing, bomb)   # 原料/炸弹随重力下落（ing/bomb 随 grid 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)  # 落到出口的原料即收
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉（纯重力不触发上面的 match 循环）。
 	if has_ing:
-		ingredient_collected += _drain_ingredients(grid, [], coat, choco, ing, exit_cols, false)
+		ingredient_collected += _drain_ingredients(grid, [], coat, choco, ing, exit_cols, false, bomb)
 		if do_refill:
 			refill(grid, species_set, rng, [], feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused}
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
@@ -267,7 +284,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return to_clear.keys()
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = []) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, jelly: Array = [], coat: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, choco: Array = [], ing: Array = [], exit_cols: Array = [], bomb: Array = []) -> Dictionary:
 	var total_score := 0
 	var cascades := 0
 	var cleared_total := 0
@@ -276,10 +293,12 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var blocker_cleared := 0
 	var choco_cleared := 0
 	var ingredient_collected := 0
+	var bomb_defused := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
 	var has_ing := not ing.is_empty()
+	var has_bomb := not bomb.is_empty()
 	while true:
 		var c := collect_clears(grid, fx, coat, choco, ing)
 		var raw: Array = c["to_clear"]
@@ -325,21 +344,24 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				var sp_p: int = grid[pos.y][pos.x]
 				if sp_p >= 0:
 					by_species[sp_p] = by_species.get(sp_p, 0) + 1
+				if has_bomb and bomb[pos.y][pos.x] > 0:
+					bomb[pos.y][pos.x] = 0   # 炸弹格被特效清除 → 拆弹（spawn 格保留为特效棋子，炸弹随之不拆）
+					bomb_defused += 1
 			if has_jelly and jelly[pos.y][pos.x] > 0:
 				jelly[pos.y][pos.x] -= 1
 				jelly_cleared += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"])
-		apply_gravity(grid, fx, coat, false, choco, ing)   # 原料随重力下落（ing 随 grid/fx 同步移动）
+		apply_gravity(grid, fx, coat, false, choco, ing, bomb)   # 原料/炸弹随重力下落（ing/bomb 随 grid/fx 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉。
 	if has_ing:
-		ingredient_collected += _drain_ingredients(grid, fx, coat, choco, ing, exit_cols, false)
+		ingredient_collected += _drain_ingredients(grid, fx, coat, choco, ing, exit_cols, false, bomb)
 		if do_refill:
 			refill(grid, species_set, rng, fx, feed)
-	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected}
+	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused}
 
 
 # 交换是否合法：相邻 + 交换后能形成消除（v1 无特效）。不修改 grid。
@@ -637,14 +659,16 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 # 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat，不改 grid。
 # 用于彩球直清等不经 resolve 匹配循环的清除路径，使其与普通消除同样推进目标。
 # 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
-static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = []) -> Dictionary:
+static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: Array = [], choco: Array = [], bomb: Array = []) -> Dictionary:
 	var by_species := {}
 	var jelly_cleared := 0
 	var blocker_cleared := 0
 	var choco_cleared := 0
+	var bomb_defused := 0
 	var has_jelly := not jelly.is_empty()
 	var has_coat := not coat.is_empty()
 	var has_choco := not choco.is_empty()
+	var has_bomb := not bomb.is_empty()
 	var locked := {}  # 开始时锁住/巧克力的格：只破层啃食，不被清/不计入收集·果冻
 	var cleared_set := {}
 	for p in cells:
@@ -674,7 +698,10 @@ static func account_clears(grid: Array, cells: Array, jelly: Array = [], coat: A
 		if has_jelly and jelly[pos.y][pos.x] > 0:
 			jelly[pos.y][pos.x] -= 1
 			jelly_cleared += 1
-	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "locked": locked.keys()}
+		if has_bomb and bomb[pos.y][pos.x] > 0:
+			bomb[pos.y][pos.x] = 0   # 炸弹格被特效(彩球/融合/同类消除)波及清除 → 拆弹
+			bomb_defused += 1
+	return {"by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "bomb_defused": bomb_defused, "locked": locked.keys()}
 
 
 # ───────────── Meta 技能原语（玩家侧能力的引擎钩子，见 10 §7；不进 C++ 基准）─────────────
@@ -769,6 +796,39 @@ static func collect_ingredients_at_exit(grid: Array, ing: Array, exit_cols: Arra
 static func count_ingredients(ing: Array) -> int:
 	var n := 0
 	for row in ing:
+		for v in row:
+			if v > 0:
+				n += 1
+	return n
+
+
+# ───────────── 倒计时炸弹（Bomb）：对局紧迫感来源（对标 Candy Crush 的 Bomb）─────────────
+# 炸弹语义 —— 与 coat/choco/ing 本质不同，是它们里【唯一可被三消/特效直接消除】的层：
+#   炸弹格的 grid 是【普通棋子 species】（可消、可换、随重力下落），bomb[y][x] 只是叠加的剩余步数倒计时。
+#   故 find_matches/classify_matches/is_legal_swap 都【不感知 bomb】（炸弹格当普通棋子参与匹配/交换）。
+#   ① 消除拆弹：炸弹格被三消/特效/彩球波及清除 → bomb→0（resolve/account_clears 在清格处同步清）。
+#   ② 随重力下落：bomb 作为纯标记随 grid 同步搬运（apply_gravity 已透传 bomb），不切段、不阻断。
+#   ③ 每步递减：玩家每次【有效】交换结算后，所有 bomb>0 的格 -1（tick_bombs，由 board 在消耗步数处调）。
+#   ④ 归零判负：某 bomb 从 >0 递减到 0 且该步未被消除 → 炸弹引爆 → 对局立即失败（board 据 tick 返回置失败态）。
+
+# 每步倒计时递减：所有 bomb>0 的格 -1。返回本次有几个炸弹【因递减而归零】（即引爆数）。
+#   语义约定：只在【消耗步数的有效交换】后调用（技能/免费动作不递减——见 board 注）。原地改 bomb。
+static func tick_bombs(bomb: Array) -> int:
+	if bomb.is_empty():
+		return 0
+	var exploded := 0
+	for y in bomb.size():
+		for x in bomb[y].size():
+			if bomb[y][x] > 0:
+				bomb[y][x] -= 1
+				if bomb[y][x] == 0:
+					exploded += 1   # 这步递减到 0 = 引爆（该格本步未被消除拆弹才会走到这）
+	return exploded
+
+# 数盘上还在倒计时的炸弹格总数（供 board/测试断言；拆掉的格 bomb=0 不计）。
+static func count_bombs(bomb: Array) -> int:
+	var n := 0
+	for row in bomb:
 		for v in row:
 			if v > 0:
 				n += 1

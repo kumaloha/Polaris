@@ -697,4 +697,132 @@ inline IngResolveResult resolve_ingredient(Grid& g, const std::vector<int>& spec
     return r;
 }
 
+// ───────────── 倒计时炸弹（Bomb）：C++ 镜像（仅新增函数，不改现有签名）─────────────
+// 炸弹语义（与 godot/core/match_engine.gd 一一对应）—— 它是障碍层里【唯一可被三消/特效直接消除】的：
+//   炸弹格的 grid 是【普通棋子 species】（可消、可换、随重力下落），bomb[y][x]=N 只是叠加的剩余 N 步倒计时。
+//   故炸弹【不感知于 find_matches/is_legal_swap】（炸弹格当普通棋子参与匹配/交换，无需 *_bomb 的匹配/交换版本）。
+//   ① 消除拆弹：炸弹格被消除 → bomb→0（resolve_bomb 在清格处同步清）。
+//   ② 随重力下落：bomb 作为纯标记随 grid 同步搬运（apply_gravity_bomb，与 ingredient 同构的"标记跟随"）。
+//   ③ 每步递减：有效交换后所有 bomb>0 -1（tick_bombs，由上层 board 在消耗步数处调）。
+//   ④ 归零判负：某 bomb 递减到 0 且未被消除 → 引爆 → 对局立即失败（上层据 tick 返回置失败态）。
+
+// bomb 感知的重力：炸弹格的 grid 是普通棋子，bomb 作为纯标记【随 grid 同步搬运】（不切段）。
+//   仅墙/锁住格(coat>0)/巧克力格(choco>0)切段固定；炸弹自身不切段（它是段内可动元素）。
+//   与 apply_gravity_ingredient 同构：bomb 标记随该格内容一起落。
+inline void apply_gravity_bomb(Grid& g, const std::vector<std::vector<int>>* coat,
+                               const std::vector<std::vector<int>>* choco,
+                               std::vector<std::vector<int>>* bomb) {
+    int h = (int)g.size();
+    if (h == 0) return;
+    int w = (int)g[0].size();
+    for (int x = 0; x < w; ++x) {
+        int seg_start = 0;
+        for (int y = 0; y <= h; ++y) {
+            bool fixed = (y < h) && ((coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0));
+            if (y == h || g[y][x] == WALL || fixed) {
+                std::vector<int> stack;        // 段内非空 species
+                std::vector<int> bomb_stack;   // 段内每个可动格的炸弹倒计时，随 stack 同序搬运
+                for (int k = seg_start; k < y; ++k)
+                    if (g[k][x] != EMPTY) {
+                        stack.push_back(g[k][x]);
+                        if (bomb) bomb_stack.push_back((*bomb)[k][x]);
+                    }
+                int seg_len = y - seg_start;
+                int empties = seg_len - (int)stack.size();
+                for (int k = seg_start; k < y; ++k) {
+                    int idx = k - seg_start;
+                    if (idx < empties) {
+                        g[k][x] = EMPTY;
+                        if (bomb) (*bomb)[k][x] = 0;            // 空格无炸弹
+                    } else {
+                        g[k][x] = stack[idx - empties];
+                        if (bomb) (*bomb)[k][x] = bomb_stack[idx - empties];  // 炸弹倒计时随该格内容一起落
+                    }
+                }
+                seg_start = y + 1;
+            }
+        }
+    }
+}
+
+// 每步倒计时递减：所有 bomb>0 的格 -1。返回本次有几个炸弹【因递减而归零】（即引爆数）。原地改 bomb。
+inline int tick_bombs(std::vector<std::vector<int>>& bomb) {
+    int exploded = 0;
+    for (auto& row : bomb)
+        for (int& v : row)
+            if (v > 0) {
+                --v;
+                if (v == 0) ++exploded;  // 这步递减到 0 = 引爆（该格本步未被消除拆弹才会走到这）
+            }
+    return exploded;
+}
+
+// 数盘上还在倒计时的炸弹格总数。
+inline int count_bombs(const std::vector<std::vector<int>>& bomb) {
+    int n = 0;
+    for (const auto& row : bomb)
+        for (int v : row)
+            if (v > 0) ++n;
+    return n;
+}
+
+struct BombResolveResult {
+    int score = 0, cascades = 0, cleared = 0;
+    int jelly_cleared = 0, blocker_cleared = 0, bomb_defused = 0;
+    std::vector<int> by_species;
+    bool operator==(const BombResolveResult& o) const {
+        return score == o.score && cascades == o.cascades && cleared == o.cleared
+               && jelly_cleared == o.jelly_cleared && blocker_cleared == o.blocker_cleared
+               && bomb_defused == o.bomb_defused && by_species == o.by_species;
+    }
+};
+
+// bomb 感知的 resolve：消除→拆弹(消除格 bomb→0)→计分→下落(炸弹随重力落)→补充，循环至稳定。原地改 g/coat/bomb。
+//   返回含 bomb_defused = 本次结算因消除而拆掉的炸弹数。镜像 GDScript _resolve_plain 的 bomb 分支。
+//   炸弹格是普通棋子 → 用基础 find_matches(coat 感知；炸弹不感知)，与 GDScript 纯炸弹关行为一致。
+inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, std::mt19937& rng,
+                                      std::vector<std::vector<int>>* jelly = nullptr,
+                                      std::vector<std::vector<int>>* coat = nullptr,
+                                      std::vector<std::vector<int>>* bomb = nullptr,
+                                      std::vector<std::deque<int>>* feed = nullptr,
+                                      bool do_refill = true) {
+    BombResolveResult r;
+    while (true) {
+        auto matched = find_matches(g, coat);
+        if (matched.empty()) break;
+        r.cascades++;
+        int H = (int)g.size(), W = (int)g[0].size();
+        std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
+        for (const auto& p : matched) ism[p.y][p.x] = 1;
+        if (coat) {  // 破锁：消除内/相邻的锁住格 -1
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x) {
+                    if ((*coat)[y][x] <= 0) continue;
+                    bool hit = ism[y][x]
+                        || (x > 0 && ism[y][x - 1]) || (x + 1 < W && ism[y][x + 1])
+                        || (y > 0 && ism[y - 1][x]) || (y + 1 < H && ism[y + 1][x]);
+                    if (hit) { (*coat)[y][x]--; r.blocker_cleared++; }
+                }
+        }
+        for (const auto& p : matched) {
+            int s = g[p.y][p.x];
+            if (s >= 0) {
+                if ((int)r.by_species.size() <= s) r.by_species.resize(s + 1, 0);
+                r.by_species[s]++;
+            }
+            if (jelly && (*jelly)[p.y][p.x] > 0) { (*jelly)[p.y][p.x]--; r.jelly_cleared++; }
+            if (bomb && (*bomb)[p.y][p.x] > 0) {   // 炸弹格被消除 → 拆弹（bomb 归 0）
+                (*bomb)[p.y][p.x] = 0;
+                r.bomb_defused++;
+            }
+            g[p.y][p.x] = EMPTY;
+        }
+        r.cleared += (int)matched.size();
+        r.score += score_for_clear((int)matched.size(), r.cascades);
+        apply_gravity_bomb(g, coat, nullptr, bomb);   // 炸弹随重力下落（bomb 随 grid 同步移动）
+        if (do_refill) refill(g, species, rng, feed);
+    }
+    return r;
+}
+
 }  // namespace me

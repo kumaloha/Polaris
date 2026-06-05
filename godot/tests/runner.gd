@@ -12,6 +12,7 @@ func _initialize() -> void:
 		preload("res://tests/test_meta.gd").new(),
 		preload("res://tests/test_chocolate.gd").new(),
 		preload("res://tests/test_ingredient.gd").new(),
+		preload("res://tests/test_bomb.gd").new(),
 	]
 	var total := 0
 	var failed := 0

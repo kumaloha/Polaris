@@ -485,6 +485,88 @@ static void test_resolve_ingredient_deterministic() {
     CHECK_EQ(a.ingredient_collected, b.ingredient_collected, "same seed -> identical collected count");
 }
 
+// ───────────── 倒计时炸弹（Bomb）镜像断言 ─────────────
+
+static void test_bomb_cell_still_matches() {
+    // 炸弹格的 grid 是普通棋子 → 照常参与匹配（炸弹不感知于 find_matches，故不断串）。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    // bomb 层存在与否都不影响 find_matches（无 *_bomb 的匹配版本：炸弹格当普通棋子）。
+    CHECK_EQ((int)find_matches(g).size(), 3, "bomb cell does NOT break the run (bomb tile is a normal piece)");
+}
+
+static void test_bomb_falls_under_gravity() {
+    // 炸弹随重力下落：bomb 作为纯标记随 grid 搬运（与 ingredient 同构）。列 [炸弹,空,空] → 沉到列底。
+    Grid col = {{5}, {EMPTY}, {EMPTY}};
+    std::vector<std::vector<int>> bomb = {{3}, {0}, {0}};
+    apply_gravity_bomb(col, nullptr, nullptr, &bomb);
+    CHECK_EQ(col[2][0], 5, "bomb tile fell to the column bottom");
+    CHECK_EQ(bomb[2][0], 3, "bomb countdown moved with the tile (now at bottom)");
+    CHECK_EQ(col[0][0], EMPTY, "top is now empty");
+    CHECK_EQ(bomb[0][0], 0, "bomb layer cleared at the old top cell");
+}
+
+static void test_tick_bombs_decrements_and_explodes() {
+    // 每步递减：所有 bomb>0 -1；归零数 = 引爆数。
+    std::vector<std::vector<int>> bomb = {{3, 0, 5}, {0, 2, 0}, {1, 0, 4}};
+    int exploded = tick_bombs(bomb);
+    CHECK_EQ(bomb[0][0], 2, "bomb -1");
+    CHECK_EQ(bomb[1][1], 1, "bomb -1");
+    CHECK_EQ(bomb[2][0], 0, "bomb 1 -> 0 (explodes)");
+    CHECK_EQ(bomb[2][2], 3, "bomb -1");
+    CHECK_EQ(exploded, 1, "exactly one bomb reached 0");
+    CHECK_EQ(count_bombs(bomb), 4, "four bombs still live after the tick");
+}
+
+static void test_resolve_bomb_defused_when_matched() {
+    // 炸弹格本身在三连里 → 被消除拆弹（bomb→0），bomb_defused 计数。
+    Grid g = {{0, 0, 0, 1}, {2, 3, 4, 2}, {3, 4, 2, 3}};
+    std::vector<std::vector<int>> bomb(3, std::vector<int>(4, 0));
+    bomb[0][1] = 4;  // 炸弹在第0行三连里
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4}, rng, nullptr, nullptr, &bomb, nullptr, false);
+    CHECK_EQ(r.bomb_defused, 1, "bomb in the match got defused");
+    CHECK_EQ(count_bombs(bomb), 0, "no bombs remain (defused)");
+}
+
+static void test_resolve_bomb_sinks_one_after_clear() {
+    // 炸弹格正下方棋子被消除 → 炸弹格(普通棋子)随重力下沉一格，bomb 标记跟随，本格未被消除→不拆。
+    Grid g = {
+        {0, 1, 2, 3},
+        {4, 8, 6, 0},   // (1,1)=8 盖炸弹
+        {7, 7, 7, 1},   // 第2行三连
+        {2, 3, 4, 5},
+    };
+    std::vector<std::vector<int>> bomb(4, std::vector<int>(4, 0));
+    bomb[1][1] = 5;
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4, 5, 6, 7, 8}, rng, nullptr, nullptr, &bomb, nullptr, false);
+    CHECK_EQ(bomb[2][1], 5, "bomb countdown sank exactly one row (y=1 -> y=2)");
+    CHECK_EQ(g[2][1], 8, "bomb-covered tile moved down with it (species 8 preserved)");
+    CHECK_EQ(bomb[1][1], 0, "old bomb cell cleared");
+    CHECK_EQ(r.bomb_defused, 0, "tile below cleared, bomb tile itself NOT cleared -> not defused");
+}
+
+static void test_resolve_bomb_deterministic() {
+    // 同 seed 两次完整 resolve（含下落+补充）结果一致。
+    auto mk = []() {
+        return Grid{
+            {0, 1, 8, 3},
+            {4, 5, 0, 1},
+            {2, 3, 4, 5},
+            {1, 2, 3, 4},
+        };
+    };
+    Grid g1 = mk(), g2 = mk();
+    std::vector<std::vector<int>> b1(4, std::vector<int>(4, 0)); b1[0][2] = 4;
+    std::vector<std::vector<int>> b2(4, std::vector<int>(4, 0)); b2[0][2] = 4;
+    std::mt19937 r1(13579), r2(13579);
+    auto a = resolve_bomb(g1, {0, 1, 2, 3, 4, 5}, r1, nullptr, nullptr, &b1, nullptr, true);
+    auto b = resolve_bomb(g2, {0, 1, 2, 3, 4, 5}, r2, nullptr, nullptr, &b2, nullptr, true);
+    CHECK(g1 == g2, "same seed -> identical grid after resolve");
+    CHECK(b1 == b2, "same seed -> identical bomb layer after resolve");
+    CHECK_EQ(a.bomb_defused, b.bomb_defused, "same seed -> identical bomb_defused");
+}
+
 int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
@@ -527,5 +609,12 @@ int main() {
     test_resolve_ingredient_sinks_to_bottom();
     test_resolve_ingredient_sinks_one_after_clear();
     test_resolve_ingredient_deterministic();
+    // 倒计时炸弹（Bomb）镜像断言
+    test_bomb_cell_still_matches();
+    test_bomb_falls_under_gravity();
+    test_tick_bombs_decrements_and_explodes();
+    test_resolve_bomb_defused_when_matched();
+    test_resolve_bomb_sinks_one_after_clear();
+    test_resolve_bomb_deterministic();
     return report();
 }

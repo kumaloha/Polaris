@@ -1,7 +1,7 @@
 extends "res://tests/test_lib.gd"
 # test_view_smoke.gd — 表现层(game.gd) 冒烟测试（headless 友好）。
 # 目的：① preload 即编译 game.gd，捕获语法错误；
-#       ② 校验 4 个 demo 关都能拼出合法 Board（构造不报错、维度对、目标/层正确）；
+#       ② 校验全部 demo 关都能拼出合法 Board（构造不报错、维度对、目标/层正确）；
 #       ③ 校验目标 HUD 文案按 objectives 渲染、空目标回退分数。
 # 只调 game.gd 里不依赖场景节点的纯函数（_demo_level/_demo_*_layer/_layer_at/_objectives_text）。
 # 实例化为裸 Node（不入树→不触发 _ready），用完即 free()，避免退出时 CanvasItem RID 泄漏告警。
@@ -12,7 +12,7 @@ const Board := preload("res://core/board.gd")
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
 	assert_true(v != null, "game.gd instantiates (compiles clean)")
-	assert_eq(v.DEMO_COUNT, 5, "five demo levels declared")
+	assert_eq(v.DEMO_COUNT, 6, "six demo levels declared")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:
@@ -20,9 +20,9 @@ func test_all_demo_levels_build_valid_board() -> void:
 	for idx in v.DEMO_COUNT:
 		var lvl: Dictionary = v._demo_level(idx)
 		assert_true(lvl.has("name") and not String(lvl["name"]).is_empty(), "level %d has a name" % idx)
-		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits）。
+		# 用关卡参数真正构造一局 Board —— 任一构造期报错都会在此暴露（含运料层 ing/exits、炸弹层 bomb）。
 		var b := Board.new(v.W, v.H, v.SPECIES, lvl["target"], lvl["moves"], 99,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []))
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []))
 		assert_eq(b.grid.size(), v.H, "level %d board height" % idx)
 		assert_eq(b.grid[0].size(), v.W, "level %d board width" % idx)
 		assert_false(b.is_over(), "level %d not already over at start" % idx)
@@ -42,6 +42,7 @@ func test_demo_levels_cover_all_objective_types() -> void:
 	assert_true(types.has("CLEAR_JELLY"), "has a CLEAR_JELLY level")
 	assert_true(types.has("CLEAR_BLOCKER"), "has a CLEAR_BLOCKER level")
 	assert_true(types.has("COLLECT_INGREDIENT"), "has a COLLECT_INGREDIENT (运料) level")
+	assert_true(types.has("DEFUSE_BOMB"), "has a DEFUSE_BOMB (拆弹) level")
 	v.free()
 
 func test_demo_jelly_layer_shape() -> void:

@@ -48,6 +48,7 @@ var coat_rects := []     # coat_rects[y][x] -> ColorRect（冰锁遮罩）
 var coat_labels := []    # coat_labels[y][x] -> Label（冰锁层数指示）
 var choco_rects := []    # choco_rects[y][x] -> ColorRect（巧克力占位：棕色半透明遮罩，无美术图依赖）
 var ingredient_rects := []  # ingredient_rects[y][x] -> ColorRect（运料占位：樱桃红实心块，无美术图依赖）
+var bomb_labels := []    # bomb_labels[y][x] -> Label（炸弹倒计时：红色数字叠在棋子上，醒目显示剩余步数）
 var exit_rects := []     # exit_rects[i] -> ColorRect（底部出口标记：原料落到此被收集，独立于格网格）
 var piece_rects := []    # piece_rects[y][x] -> TextureRect（宝石立绘：基础/横炸/竖炸/彩球）
 var burst_rects := []    # burst_rects[y][x] -> Burst（爆炸形态的放射能量光环，仅 SP_BOMB 显示）
@@ -81,14 +82,14 @@ func _process(_dt: float) -> void:
 # ───────────────────────────── Demo 关定义 ─────────────────────────────
 # 每个 demo 关返回构造 Board 所需的全部参数（按需带 objs/jelly/coat/mask）。
 # 关卡轮播：纯分数关[现状] → COLLECT → CLEAR_JELLY → CLEAR_BLOCKER。
-const DEMO_COUNT := 5
+const DEMO_COUNT := 6
 
 func _demo_level(idx: int) -> Dictionary:
 	match idx:
 		1:
 			# COLLECT 关：收集红色(species 0) 与 蓝色(species 3)，叠加异形墙。
 			return {
-				"name": "Demo 2/4 · 收集关 (COLLECT) + 墙",
+				"name": "Demo 2/6 · 收集关 (COLLECT) + 墙",
 				"target": 0,
 				"moves": 30,
 				"mask": _demo_wall_mask(),
@@ -104,7 +105,7 @@ func _demo_level(idx: int) -> Dictionary:
 		2:
 			# CLEAR_JELLY 关：中心 4x4 果冻（内 2x2 双层），清掉 18 层。
 			return {
-				"name": "Demo 3/4 · 果冻关 (CLEAR_JELLY)",
+				"name": "Demo 3/6 · 果冻关 (CLEAR_JELLY)",
 				"target": 0,
 				"moves": 30,
 				"mask": [],
@@ -117,7 +118,7 @@ func _demo_level(idx: int) -> Dictionary:
 		3:
 			# CLEAR_BLOCKER 关：边框一圈单层冰锁，解锁 12 个；叠加少量墙。
 			return {
-				"name": "Demo 4/5 · 冰锁关 (CLEAR_BLOCKER) + 墙",
+				"name": "Demo 4/6 · 冰锁关 (CLEAR_BLOCKER) + 墙",
 				"target": 0,
 				"moves": 35,
 				"mask": _demo_corner_mask(),
@@ -130,7 +131,7 @@ func _demo_level(idx: int) -> Dictionary:
 		4:
 			# COLLECT_INGREDIENT 关：顶部几颗原料下落，落到底部出口被收集（运料关，对标 CC 三大关型）。
 			return {
-				"name": "Demo 5/5 · 运料关 (COLLECT_INGREDIENT)",
+				"name": "Demo 5/6 · 运料关 (COLLECT_INGREDIENT)",
 				"target": 0,
 				"moves": 40,
 				"mask": [],
@@ -139,11 +140,26 @@ func _demo_level(idx: int) -> Dictionary:
 				"coat": [],
 				"ing": _demo_ingredient_layer(),
 				"exits": [],   # 空 = 整最底行皆出口
+				"bomb": [],
+			}
+		5:
+			# DEFUSE_BOMB 关：盘上几颗倒计时炸弹，限步内消除拆够 N 个过关；任一炸弹归零即引爆判负（紧迫感）。
+			return {
+				"name": "Demo 6/6 · 拆弹关 (DEFUSE_BOMB)",
+				"target": 0,
+				"moves": 40,
+				"mask": [],
+				"objs": [{"type": "DEFUSE_BOMB", "species": -1, "target": 4}],
+				"jelly": [],
+				"coat": [],
+				"ing": [],
+				"exits": [],
+				"bomb": _demo_bomb_layer(),
 			}
 		_:
 			# 纯分数关[现状]：异形墙 + 分数目标（objectives 为空 → 走旧式分数判定）。
 			return {
-				"name": "Demo 1/5 · 分数关 (SCORE) + 墙",
+				"name": "Demo 1/6 · 分数关 (SCORE) + 墙",
 				"target": TARGET,
 				"moves": MOVES,
 				"mask": _demo_wall_mask(),
@@ -183,7 +199,7 @@ func _new_game() -> void:
 	else:
 		var lvl := _demo_level(demo_idx)
 		board = Board.new(W, H, SPECIES, lvl["target"], lvl["moves"], cur_seed,
-				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []))
+				lvl["mask"], lvl["objs"], lvl["jelly"], lvl["coat"], [], lvl.get("ing", []), lvl.get("exits", []), lvl.get("bomb", []))
 		title_label.text = lvl["name"]
 	if not loadout.is_empty():
 		board.apply_loadout(loadout)
@@ -270,6 +286,18 @@ func _demo_ingredient_layer() -> Array:
 		g[0][x] = 1
 	return g
 
+# 拆弹关：盘中散布几颗倒计时炸弹（炸弹格 grid 仍是普通棋子，bomb 是叠加倒计时）。
+# 给较宽裕步数(12-15)，玩家须在归零前消除该格拆弹；任一归零即引爆判负。target=4 拆够即过关。
+func _demo_bomb_layer() -> Array:
+	var g := _blank_layer()
+	var spots := [Vector2i(2, 2), Vector2i(6, 2), Vector2i(2, 6), Vector2i(6, 6), Vector2i(4, 4)]
+	var counts := [12, 13, 14, 15, 12]
+	for i in spots.size():
+		var p: Vector2i = spots[i]
+		if p.y < H and p.x < W:
+			g[p.y][p.x] = counts[i]
+	return g
+
 
 # ───────────────────────────── HUD / 节点构建 ─────────────────────────────
 func _build_hud() -> void:
@@ -352,7 +380,7 @@ func _mk_label(pos: Vector2, fsize: int) -> Label:
 
 func _rebuild_tiles() -> void:
 	# 释放旧网格(切到不同维度的关卡时)，再按当前 W/H 重建
-	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, piece_rects, burst_rects]:
+	for arr in [tiles, labels, jelly_rects, coat_rects, coat_labels, choco_rects, ingredient_rects, bomb_labels, piece_rects, burst_rects]:
 		for row in arr:
 			for n in row:
 				n.queue_free()
@@ -365,6 +393,7 @@ func _rebuild_tiles() -> void:
 	coat_labels.clear()
 	choco_rects.clear()
 	ingredient_rects.clear()
+	bomb_labels.clear()
 	exit_rects.clear()
 	piece_rects.clear()
 	burst_rects.clear()
@@ -375,6 +404,7 @@ func _rebuild_tiles() -> void:
 	coat_labels.resize(H)
 	choco_rects.resize(H)
 	ingredient_rects.resize(H)
+	bomb_labels.resize(H)
 	piece_rects.resize(H)
 	burst_rects.resize(H)
 	for y in H:
@@ -385,6 +415,7 @@ func _rebuild_tiles() -> void:
 		coat_labels[y] = []
 		choco_rects[y] = []
 		ingredient_rects[y] = []
+		bomb_labels[y] = []
 		piece_rects[y] = []
 		burst_rects[y] = []
 		for x in W:
@@ -474,6 +505,22 @@ func _rebuild_tiles() -> void:
 			ingr.z_index = 5   # 叠在道具/冰锁/巧克力之上，醒目表示"原料在此、随重力下落"
 			add_child(ingr)
 			ingredient_rects[y].append(ingr)
+
+			# 炸弹倒计时：红色粗体数字叠在棋子上（剩余步数）。炸弹格 grid 是普通棋子(照常渲染立绘)，
+			# 此 Label 只额外叠一个倒计时数字——醒目、独立，不碰 piece_tex/颜色/其他层。
+			var blab := Label.new()
+			blab.size = Vector2(CELL, CELL)
+			blab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			blab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			blab.add_theme_font_size_override("font_size", 40)
+			blab.add_theme_color_override("font_color", Color(1.0, 0.12, 0.08, 1.0))   # 醒目红
+			blab.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))   # 黑描边保证棋子上可读
+			blab.add_theme_constant_override("outline_size", 6)
+			blab.visible = false
+			blab.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			blab.z_index = 7   # 最高层：压住所有占位/遮罩，倒计时永远可见
+			add_child(blab)
+			bomb_labels[y].append(blab)
 
 	# 出口标记：仅运料关（board 有 ing 层）才建——底部出口列各一条金色色条 + 下箭头，提示"原料落此被收"。
 	if board != null and not board.ing.is_empty():
@@ -673,6 +720,16 @@ func _render_cell(x: int, y: int) -> void:
 	else:
 		igr.visible = false
 
+	# 炸弹倒计时：该格有炸弹(bomb>0) → 红色数字叠在棋子上显示剩余步数（炸弹格仍是普通棋子，照常渲染立绘）。
+	var bo: int = _layer_at(board.bomb, x, y)
+	var blab: Label = bomb_labels[y][x]
+	if bo > 0 and sp >= 0:
+		blab.position = p
+		blab.text = str(bo)   # 剩余步数；归零即引爆判负 → 玩家须在此前消除该格拆弹
+		blab.visible = true
+	else:
+		blab.visible = false
+
 
 func _render_hud() -> void:
 	score_label.text = _objectives_text()
@@ -705,6 +762,8 @@ func _objectives_text() -> String:
 			parts.append("解锁 %d/%d" % [board.blocker_cleared, o["target"]])
 		elif t == "COLLECT_INGREDIENT":
 			parts.append("运料 %d/%d" % [board.ingredient_collected, o["target"]])
+		elif t == "DEFUSE_BOMB":
+			parts.append("拆弹 %d/%d" % [board.bomb_defused, o["target"]])
 		else:
 			parts.append("%s %d" % [t, o["target"]])
 	return "   ·   ".join(parts)
