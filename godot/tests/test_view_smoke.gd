@@ -8,11 +8,41 @@ extends "res://tests/test_lib.gd"
 
 const Game := preload("res://view/game.gd")  # 编译期即验证 game.gd 无语法错误
 const Board := preload("res://core/board.gd")
+const ME := preload("res://core/match_engine.gd")
 
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
 	assert_true(v != null, "game.gd instantiates (compiles clean)")
 	assert_eq(v.DEMO_COUNT, 8, "eight demo levels declared (added POP_POPCORN)")
+	v.free()
+
+func test_battle_screen_builds_reference_layout_shell() -> void:
+	var v: Game = Game.new()
+	v._load_pieces()
+	v._build_hud()
+	v.algo_levels = []
+	v._new_game()
+	assert_true(v.has_node("BattleTopBar"), "battle top stage banner exists")
+	assert_true(v.has_node("ObjectivePanel"), "objective card exists")
+	assert_true(v.has_node("EnemyHealthBar"), "enemy health bar exists")
+	assert_true(v.has_node("PetSkillBar"), "bottom pet skill bar exists")
+	assert_true(v.has_node("MovesMedallion"), "moves medallion exists")
+	assert_true(v.has_node("CoinChip"), "coin chip exists")
+	assert_eq(v.W, 8, "reference battle board uses eight columns")
+	assert_eq(v.H, 8, "reference battle board uses eight rows")
+	assert_true(FileAccess.file_exists("res://art/reference_pieces/red_cube.png"), "reference red cube crop exists")
+	assert_true(FileAccess.file_exists("res://art/reference_pieces/red_h.png"), "reference horizontal special crop exists")
+	assert_true(FileAccess.file_exists("res://art/reference_pieces/red_v.png"), "reference vertical special crop exists")
+	assert_true(FileAccess.file_exists("res://art/reference_pieces/red_x.png"), "reference cross special crop exists")
+	assert_true(FileAccess.file_exists("res://art/reference_ui/ice_block.png"), "reference ice/blocker crop exists")
+	assert_true(FileAccess.file_exists("res://art/characters/keyed/lucky.png"), "keyed character portrait exists")
+	assert_eq(v._keyed_character_path("res://art/characters/lucky.png"), "res://art/characters/keyed/lucky.png", "character portraits prefer keyed transparent copies")
+	assert_eq(v._piece_asset_name(0, ME.SP_LINE_H), "red_h", "horizontal special selects cropped red line asset")
+	assert_eq(v._piece_asset_name(0, ME.SP_LINE_V), "red_v", "vertical special selects cropped red line asset")
+	assert_eq(v._piece_asset_name(0, ME.SP_BOMB), "red_x", "bomb special selects cropped red cross asset")
+	assert_true(v.piece_asset_rects[0][0].texture != null, "board uses cropped reference piece textures")
+	assert_true(v.ORIGIN.y >= 480.0 and v.ORIGIN.y <= 540.0, "board starts below combat hero band")
+	assert_true(v.ORIGIN.y + v.H * v.CELL + (v.H - 1) * v.GAP <= 1230.0, "board leaves room for pet skills")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:
