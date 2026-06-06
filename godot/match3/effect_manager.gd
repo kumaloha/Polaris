@@ -8,6 +8,7 @@ const SMOKE := "res://assets/fx/fx_smoke.png"       # 烟/碎屑
 const TRAIL := "res://assets/fx/fx_trail.png"       # 拖尾/光束
 const SHOCK := "res://assets/fx/fx_shockwave.png"   # 冲击波
 const BOKEH := "res://assets/fx/fx_bokeh.png"       # 光斑
+const COMET := "res://assets/fx/beam_comet_white.png"  # 流星拖尾(纯白, 行列横扫波, modulate 染色)
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
@@ -120,10 +121,77 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.65)
 
+## 局部爆裂(炸弹/十字 3x3): 纯粒子全向爆发 + 小中心闪, 扩散严格卡在 radius_px(实际清除边界)内,
+## 不放冲击波环(那个会外溢)。美术原则: 动画范围 ≤ 实际效果范围。
+func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
+	var life := 0.40
+	# 中心闪: 直径压在范围内
+	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), radius_px * 0.85, 0.18)
+	# 粒子: 匀速(无重力) dist=v*t, 最远飞到 ~0.72*radius(加粒子自身大小仍不碰边界)
+	var p := CPUParticles2D.new()
+	p.texture = load(SPARK)
+	p.position = pos
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 16
+	p.lifetime = life
+	p.direction = Vector2(0, -1)
+	p.spread = 180.0
+	var vmax: float = (radius_px * 0.72) / life
+	p.initial_velocity_min = vmax * 0.4
+	p.initial_velocity_max = vmax
+	p.gravity = Vector2.ZERO
+	p.scale_amount_min = 0.09
+	p.scale_amount_max = 0.20
+	p.color = color
+	p.material = _add_mat()
+	p.emitting = true
+	_layer().add_child(p)
+	_auto_free(p, life + 0.25)
+
 ## 行列光束: 宽彩辉光 + 白热核(厚度 pop) + 沿线火花。比单条更有冲击力。
 func spawn_beam(from: Vector2, to: Vector2, color: Color) -> void:
 	_beam_layer(from, to, color, 100.0, 0.32)
 	_beam_layer(from, to, Color(1, 1, 1, 1), 30.0, 0.24)
+	_beam_sparks(from, to, color)
+
+## 行列横扫(升级版): 一道流星头(纯白拖尾素材 × color, additive)朝飞行方向从 from 飞到 to,
+## 叠加"从中心向两端错峰的亮点", 营造扫过依次炸开。逐格棋子消除由 Level._play_clear 负责,
+## 此处只做横扫表现, 不重复 spawn_elimination(避免每格双播)。
+func spawn_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
+	var dir: Vector2 = to - from
+	var full_len: float = maxf(dir.length(), 1.0)
+	var u: Vector2 = dir / full_len
+	var origin: Vector2 = (from + to) * 0.5
+	if not ResourceLoader.exists(COMET):
+		spawn_beam(from, to, color)   # 素材缺失时降级回静态光束, 不丢特效
+		return
+	# 流星头: 纯白素材染色 + additive, 朝飞行方向(行/列自动适配), 从一端飞到另一端。
+	var tex: Texture2D = load(COMET)
+	var b := Sprite2D.new()
+	b.texture = tex
+	b.modulate = color
+	b.rotation = u.angle()
+	b.material = _add_mat()
+	var head_len: float = 140.0   # 流星头约 1.5~2 格宽
+	var thick: float = 84.0
+	b.scale = Vector2(head_len / maxf(float(tex.get_width()), 1.0), thick / maxf(float(tex.get_height()), 1.0))
+	b.global_position = from
+	_layer().add_child(b)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(b, "global_position", to, 0.26).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(b, "modulate:a", 0.0, 0.30).set_delay(0.13).set_trans(Tween.TRANS_CUBIC)
+	_auto_free(b, 0.42)
+	# 从中心向两端错峰的小亮点(纯视觉节奏感)。
+	var glow: Color = color.lerp(Color(1, 1, 1, 1), 0.4)
+	var steps: int = clampi(int(full_len / 88.0), 1, 12)
+	for i in range(steps + 1):
+		var f: float = float(i) / float(steps) - 0.5    # -0.5(头)..0.5(尾)
+		var pt: Vector2 = origin + u * (f * full_len)
+		var delay: float = 0.20 * absf(f) * 2.0          # 中心 0 → 端点 ~0.20s
+		get_tree().create_timer(delay).timeout.connect(_flash.bind(pt, glow, 66.0, 0.24))
+	# 沿线两侧火花(复用)。
 	_beam_sparks(from, to, color)
 
 ## 中心亮闪(bokeh 放大 + 淡出)。

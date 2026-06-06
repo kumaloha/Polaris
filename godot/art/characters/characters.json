@@ -1,0 +1,258 @@
+{
+  "source": "resources/characters/*.png",
+  "source_size": null,
+  "characters": [
+    {
+      "order": 0,
+      "id": "lucky",
+      "name": "默认精灵",
+      "subtitle": "幸运吉祥物",
+      "accent": "#cc9324",
+      "image": "res://art/characters/lucky.png",
+      "card": "res://art/characters/lucky.png",
+      "portrait": "res://art/characters/lucky.png",
+      "skill_name": "基础提示",
+      "skill_desc": "无战斗技能;对局中给基础提示(高亮可走的步,引路降挫败)。",
+      "type": "常驻门面·非可玩",
+      "growth": "提示克制(卡住才提示)",
+      "playable": false,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 1,
+      "id": "borrrower",
+      "name": "借贷",
+      "subtitle": "核心·首抽必得",
+      "accent": "#9d6cf0",
+      "image": "res://art/characters/borrrower.png",
+      "card": "res://art/characters/borrrower.png",
+      "portrait": "res://art/characters/borrrower.png",
+      "skill_name": "借贷",
+      "skill_desc": "借一个特效(4连直线/T·L爆炸/5连彩球效果),本关内必须还;不还不算过关。",
+      "type": "质变·一局一次",
+      "growth": "高级可借更强特效",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 2,
+      "id": "timerewind",
+      "name": "时间回退",
+      "subtitle": "回退最近 5 步",
+      "accent": "#c99024",
+      "image": "res://art/characters/timerewind.png",
+      "card": "res://art/characters/timerewind.png",
+      "portrait": "res://art/characters/timerewind.png",
+      "skill_name": "时间回退",
+      "skill_desc": "回退最近 5 步。",
+      "type": "质变·一局一次",
+      "growth": "高级回退更多步",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 3,
+      "id": "snapshot",
+      "name": "存档快照",
+      "subtitle": "存档并跳回",
+      "accent": "#7761a9",
+      "image": "res://art/characters/snapshot.png",
+      "card": "res://art/characters/snapshot.png",
+      "portrait": "res://art/characters/snapshot.png",
+      "skill_name": "存档快照",
+      "skill_desc": "存一个局面,可一键跳回。",
+      "type": "质变·一局一次",
+      "growth": "高级可多存",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 4,
+      "id": "longswap",
+      "name": "隔位对换",
+      "subtitle": "相邻 2 步交换",
+      "accent": "#2bb6cf",
+      "image": "res://art/characters/longswap.png",
+      "card": "res://art/characters/longswap.png",
+      "portrait": "res://art/characters/longswap.png",
+      "skill_name": "隔位对换",
+      "skill_desc": "正常只能换相邻1步,这个能换相邻2步(隔一个)。",
+      "type": "质变·一局一次",
+      "growth": "—",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 5,
+      "id": "gravityflip",
+      "name": "重力翻转",
+      "subtitle": "反向下落重排",
+      "accent": "#536d9a",
+      "image": "res://art/characters/gravityflip.png",
+      "card": "res://art/characters/gravityflip.png",
+      "portrait": "res://art/characters/gravityflip.png",
+      "skill_name": "重力翻转",
+      "skill_desc": "翻转盘面重力一次,全部反向下落重排。",
+      "type": "质变·一局一次",
+      "growth": "—",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 6,
+      "id": "colorshield",
+      "name": "彩球护盾",
+      "subtitle": "保彩球一次",
+      "accent": "#6db6ff",
+      "image": "res://art/characters/colorshield.png",
+      "card": "res://art/characters/colorshield.png",
+      "portrait": "res://art/characters/colorshield.png",
+      "skill_name": "彩球护盾",
+      "skill_desc": "这局保彩球一次(被碰只掉护盾,彩球保留)。",
+      "type": "质变·一局一次",
+      "growth": "高级保更多次",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 7,
+      "id": "sametypeclear",
+      "name": "同类消除",
+      "subtitle": "厉害款",
+      "accent": "#55c6ba",
+      "image": "res://art/characters/sametypeclear.png",
+      "card": "res://art/characters/sametypeclear.png",
+      "portrait": "res://art/characters/sametypeclear.png",
+      "skill_name": "同类消除",
+      "skill_desc": "选一种棋子,消除全场所有该种类。",
+      "type": "质变·一局一次",
+      "growth": "高级额外触发连锁/给特效",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 8,
+      "id": "foresight",
+      "name": "预知",
+      "subtitle": "求解器玩家化",
+      "accent": "#7761a9",
+      "image": "res://art/characters/foresight.png",
+      "card": "res://art/characters/foresight.png",
+      "portrait": "res://art/characters/foresight.png",
+      "skill_name": "预知",
+      "skill_desc": "高亮接下来最优的几步走法(基于当前盘面,不剧透掉落)。",
+      "type": "质变·一局一次",
+      "growth": "低级亮1步,高级亮3-5步",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 9,
+      "id": "breaker",
+      "name": "破障",
+      "subtitle": "清障碍",
+      "accent": "#f06b6b",
+      "image": "res://art/characters/breaker.png",
+      "card": "res://art/characters/breaker.png",
+      "portrait": "res://art/characters/breaker.png",
+      "skill_name": "破障",
+      "skill_desc": "直接清除场上障碍(冰/锁等)。",
+      "type": "质变·一局一次",
+      "growth": "破几个看等级:1级破1个→高级破2-3个",
+      "playable": true,
+      "passive": false,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 10,
+      "id": "chainbonus",
+      "name": "连消奖步",
+      "subtitle": "被动·整局生效",
+      "accent": "#ff8fc9",
+      "image": "res://art/characters/chainbonus.png",
+      "card": "res://art/characters/chainbonus.png",
+      "portrait": "res://art/characters/chainbonus.png",
+      "skill_name": "连消奖步",
+      "skill_desc": "打连锁时奖励步数,递进式;始终靠打连锁技巧才给,不白送。",
+      "type": "被动型·整局生效",
+      "growth": "高级所需连锁更低",
+      "playable": true,
+      "passive": true,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    },
+    {
+      "order": 11,
+      "id": "collector",
+      "name": "连击收集",
+      "subtitle": "被动·整局生效",
+      "accent": "#55c6ba",
+      "image": "res://art/characters/collector.png",
+      "card": "res://art/characters/collector.png",
+      "portrait": "res://art/characters/collector.png",
+      "skill_name": "连击收集",
+      "skill_desc": "打连击时额外收集铭文碎片,奖励打连击这个核心爽点。",
+      "type": "被动型·整局生效",
+      "growth": "高级收集更多",
+      "playable": true,
+      "passive": true,
+      "doc_ref": "docs/02_META系统.md §1.1",
+      "image_size": [
+        1254,
+        1254
+      ]
+    }
+  ]
+}

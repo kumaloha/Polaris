@@ -223,6 +223,12 @@ func _fx_color(sp: int) -> Color:
 		return Color(1, 1, 1)
 	return (GEM_COLORS[GEM_KEYS[sp]] as Color).lightened(0.25)
 
+## species → 宝石饱和原色(不提亮)。碎裂粒子专用：提亮会让红冲成粉、蓝冲成青白(additive 重叠更甚)。
+func _gem_raw_color(sp: int) -> Color:
+	if sp < 0 or sp >= GEM_KEYS.size():
+		return Color(1, 1, 1)
+	return GEM_COLORS[GEM_KEYS[sp]]
+
 func load_level(idx: int) -> void:
 	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
 	var cfg: Dictionary
@@ -1243,7 +1249,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		elif fine_budget > 0:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
-				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 1.1)
+				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
 				fine_budget -= 1
 	await get_tree().create_timer(0.30).timeout   # 让爆发可见
 	# 清除: grid/fx 置空, 删节点。
@@ -1342,6 +1348,20 @@ func _resolve_cascades() -> void:
 
 ## 阶段5 消除表现: 遍历 to_clear——被触发的已存在特效格放对应 Fx; 普通格碎裂; 非 spawn 格淡出。
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
+	# 本级若有行/列特效被触发(横竖横扫): 让流星波当主角, 路径棋子碎成基础爆炸粒子,
+	# 且整条线粒子统一成横扫波的颜色(触发特效棋子色), 而非各格原色(否则一行彩虹)。
+	var line_blast := false
+	var row_color := {}   # 行 r → 该行 SP_LINE_H 横扫色
+	var col_color := {}   # 列 c → 该列 SP_LINE_V 横扫色
+	for p in to_clear:
+		if not spawn_set.has(p):
+			var fk: int = board.fx[p.y][p.x]
+			if fk == ME.SP_LINE_H:
+				line_blast = true
+				row_color[p.y] = _gem_raw_color(board.grid[p.y][p.x])
+			elif fk == ME.SP_LINE_V:
+				line_blast = true
+				col_color[p.x] = _gem_raw_color(board.grid[p.y][p.x])
 	var t := create_tween().set_parallel(true)
 	var any := false
 	for p in to_clear:
@@ -1350,10 +1370,15 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
 			_play_special_fx(p, fx_kind)
 		else:
-			# 普通格: 棋子本体淡出破碎(下方tween) + 该色魔法消除特效(蓄力→炸裂→消散)
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
-				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 1.1)
+				if line_blast:
+					# 横竖横扫: 不叠加三帧, 路径棋子碎成纯色粒子(整条线统一波色, 饱和原色)
+					var sc: Color = row_color[p.y] if row_color.has(p.y) else (col_color[p.x] if col_color.has(p.x) else _gem_raw_color(sp))
+					Fx.spawn_shatter(_cell_center(p.y, p.x), sc)
+				else:
+					# 普通消除: 染色后的三帧基础爆炸特效(蓄力→炸裂→消散)
+					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
 		# spawn 格不淡出(它要变特效棋子, 留住节点); 非 spawn 格缩放淡出
 		if not spawn_set.has(p):
 			var n: Sprite2D = _gem_nodes[p.y][p.x]
@@ -1372,11 +1397,11 @@ func _play_special_fx(pos: Vector2i, kind: int) -> void:
 	var c: Vector2 = _cell_center(pos.y, pos.x)
 	match kind:
 		ME.SP_LINE_H:
-			Fx.spawn_beam(_cell_center(pos.y, 0), _cell_center(pos.y, board.width - 1), col)
+			Fx.spawn_line_blast(_cell_center(pos.y, 0), _cell_center(pos.y, board.width - 1), col)
 		ME.SP_LINE_V:
-			Fx.spawn_beam(_cell_center(0, pos.x), _cell_center(board.height - 1, pos.x), col)
+			Fx.spawn_line_blast(_cell_center(0, pos.x), _cell_center(board.height - 1, pos.x), col)
 		ME.SP_BOMB:
-			Fx.spawn_explosion(c, col, 2.0)
+			Fx.spawn_local_burst(c, col, cell_size * 1.5)   # 3x3 范围内粒子爆裂, 不超实际清除边界
 		ME.SP_COLORBOMB:
 			Fx.spawn_explosion(c, col, 3.0)
 		_:

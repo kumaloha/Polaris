@@ -1,0 +1,53 @@
+extends "res://tests/test_lib.gd"
+
+const CharacterData := preload("res://ui/character_data.gd")
+const AppScript := preload("res://ui/app.gd")
+
+
+func test_character_manifest_loads_available_png_characters() -> void:
+	var characters := CharacterData.load_characters()
+	var image_paths := CharacterData.discover_character_images()
+	assert_eq(characters.size(), image_paths.size(), "one playable character per PNG")
+	var ids := []
+	for character in characters:
+		ids.append(character["id"])
+	assert_eq(ids[0], "lucky", "default mascot follows docs order")
+	assert_true(ids.has("longswap"), "new flat character resources are loaded")
+	assert_true(ids.has("gravityflip"), "new flat character resources are loaded")
+	assert_true(ids.has("timerewind"), "new flat character resources are loaded")
+
+
+func test_character_image_paths_exist() -> void:
+	for character in CharacterData.load_characters():
+		var card_path := CharacterData.resolve_file_path(character["card"])
+		var portrait_path := CharacterData.resolve_file_path(character["portrait"])
+		assert_true(FileAccess.file_exists(card_path), "card exists: %s" % card_path)
+		assert_true(FileAccess.file_exists(portrait_path), "portrait exists: %s" % portrait_path)
+		assert_false(String(character["portrait"]).contains("/portraits/"), "flat character path")
+		assert_false(String(character["card"]).contains("/cards/"), "flat character path")
+
+
+func test_character_metadata_comes_from_docs() -> void:
+	var by_id := {}
+	for character in CharacterData.load_characters():
+		by_id[character["id"]] = character
+	assert_eq(by_id["lucky"]["name"], "默认精灵", "doc row #0")
+	assert_eq(by_id["lucky"]["playable"], false, "default mascot is not playable")
+	assert_eq(by_id["borrrower"]["skill_desc"], "借一个特效(4连直线/T·L爆炸/5连彩球效果),本关内必须还;不还不算过关。", "borrower skill from docs")
+	assert_eq(by_id["chainbonus"]["type"], "被动型·整局生效", "passive type from docs")
+
+
+func test_main_scene_uses_app_shell() -> void:
+	var scene: PackedScene = load("res://main.tscn")
+	var root := scene.instantiate()
+	assert_eq(root.name, "App", "main scene root is UI app")
+	assert_eq(root.get_script(), AppScript, "main scene uses app.gd")
+	root.free()
+
+
+func test_app_home_builds_when_added_to_tree() -> void:
+	var scene: PackedScene = load("res://main.tscn")
+	var root := scene.instantiate()
+	root._ready()
+	assert_true(root.get_child_count() >= 8, "home screen builds visible UI nodes in _ready")
+	root.free()
