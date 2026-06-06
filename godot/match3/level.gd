@@ -65,13 +65,29 @@ const BG_SCALE := 1.5
 const PAUSE_C := Vector2(58, 58)
 const PAUSE_W := 92.0
 const TITLE_C := Vector2(360, 46)
-const TITLE_W := 278.0
-const TITLE_H := 68.0
+const TITLE_W := 384.0
+const TITLE_H := 76.0
+const TITLE_FRAME := "res://assets/ui_frames/title_frame.png"
+const TITLE_BG_COLOR := Color(0.165, 0.10, 0.29)  # 深紫 #2a1a4a
+const TITLE_ML := 140.0
+const TITLE_MTB := 32.0
 const COIN_C := Vector2(602, 50)
 const COIN_W := 56.0
-const OBJPANEL_C := Vector2(360, 166)
-const OBJPANEL_W := 436.0
-const OBJPANEL_H := 142.0
+const OBJPANEL_C := Vector2(360, 196)
+const OBJPANEL_W := 446.0
+const OBJPANEL_H := 160.0
+const OBJ_FRAME := "res://assets/ui_frames/objective_frame.png"
+const OBJ_BG_COLOR := Color(0.91, 0.835, 0.628)  # 米黄羊皮纸 #e8d5a0
+const OBJ_ML := 88.0
+const OBJ_MT := 46.0
+const OBJ_MB := 30.0
+const PURPLE_BG := "res://assets/ui_frames/purple_bg.png"
+const PARCHMENT := "res://assets/ui_frames/parchment_bg_shaped.png"
+const TITLE_BANNER := "res://assets/ui_frames/title_banner.png"
+const GEM_PENDANT := "res://assets/ui_frames/gem_pendant.png"
+const CONNECTOR_LINE := "res://assets/ui_frames/connector_line.png"
+const BANNER_W := 214.0
+const BANNER_H := 50.0
 const STEP_C := Vector2(62, 212)
 const STEP_W := 118.0
 const STAR_C := Vector2(636, 130)   # 中星
@@ -308,32 +324,97 @@ func _render_chrome(cfg: Dictionary) -> void:
 	_clear_layer(skill_bar)
 	_render_characters()
 	_render_topbar(cfg)
+	_render_title_connector()
 	_render_objective_panel()
 	_render_step_badge()
 	_render_stars()
 	_render_skillbar()
 
+## 镂空金框 + 后方垫底色：底色填镂空区(略小不溢出金边)，NinePatch 金框盖最上。
+func _framed_panel(layer: CanvasLayer, frame_path: String, center: Vector2, w: float, h: float, ml: float, mt: float, mb: float, bg_color: Color) -> void:
+	var ix: float = ml * 0.5
+	var bg := ColorRect.new()
+	bg.color = bg_color
+	bg.size = Vector2(w - ix * 2.0, h - mt - mb)
+	bg.position = Vector2(center.x - bg.size.x * 0.5, center.y - h * 0.5 + mt)
+	layer.add_child(bg)
+	if not ResourceLoader.exists(frame_path):
+		return
+	var np := NinePatchRect.new()
+	np.texture = load(frame_path)
+	np.position = center - Vector2(w, h) * 0.5
+	np.size = Vector2(w, h)
+	np.patch_margin_left = int(ml)
+	np.patch_margin_right = int(ml)
+	np.patch_margin_top = int(mt)
+	np.patch_margin_bottom = int(mb)
+	layer.add_child(np)
+
 func _render_topbar(cfg: Dictionary) -> void:
 	# 暂停按钮（圆徽底 + ❚❚）
 	_sprite_w(ui_layer, STEP_FRAME, PAUSE_C, PAUSE_W, false)
 	_label(ui_layer, "❚❚", PAUSE_C, 30, Color(1, 0.95, 0.75), 80)
-	# 第 N 关 横幅(深色金边 + 金字)
-	_ninepatch(ui_layer, PANEL_DARK, TITLE_C, TITLE_W, TITLE_H, 28)
-	_label(ui_layer, "第 %d 关" % cfg["id"], TITLE_C, 38, Color(1.0, 0.86, 0.4), TITLE_W)
+	# 第 N 关 标题框: title_frame 整体等比缩放(紫钻不变形) + 后垫 purple_bg 深紫底 + 白字
+	_sprite_w(ui_layer, PURPLE_BG, TITLE_C, TITLE_W * 0.72, false)
+	_sprite_w(ui_layer, TITLE_FRAME, TITLE_C, TITLE_W, false)
+	_label(ui_layer, "第 %d 关" % cfg["id"], TITLE_C, 28, Color.WHITE, TITLE_W)
 	# 金币
 	_sprite_w(ui_layer, COIN_TEX, COIN_C, COIN_W, false)
 	_label(ui_layer, "2350", COIN_C + Vector2(58, 0), 34, Color(1, 0.92, 0.5), 140)
 
+## NinePatch 素材(金框/横幅/底纹),四边 patch_margin。
+func _nine(layer: CanvasLayer, path: String, center: Vector2, w: float, h: float, ml: int, mt: int, mb: int) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var np := NinePatchRect.new()
+	np.texture = load(path)
+	np.position = center - Vector2(w, h) * 0.5
+	np.size = Vector2(w, h)
+	np.patch_margin_left = ml
+	np.patch_margin_right = ml
+	np.patch_margin_top = mt
+	np.patch_margin_bottom = mb
+	layer.add_child(np)
+
+## 串联：紫钻吊坠(挂标题框底中央) + 八字斜线(两根镜像,从吊坠下斜向目标框顶)
+func _render_title_connector() -> void:
+	var anchor: Vector2 = Vector2(TITLE_C.x, TITLE_C.y + TITLE_H * 0.5 + 18.0)
+	_connector(anchor, false)
+	_connector(anchor, true)
+	_sprite_w(ui_layer, GEM_PENDANT, Vector2(TITLE_C.x, TITLE_C.y + TITLE_H * 0.5 + 2.0), 42.0, false)
+
+func _connector(anchor: Vector2, mirror: bool) -> void:
+	if not ResourceLoader.exists(CONNECTOR_LINE):
+		return
+	var s := Sprite2D.new()
+	s.texture = load(CONNECTOR_LINE)
+	s.flip_h = mirror
+	var sc: float = 54.0 / float(s.texture.get_width())
+	s.scale = Vector2(sc, sc)
+	var dir: float = 1.0 if mirror else -1.0
+	s.position = anchor + Vector2(dir * 30.0, 26.0)
+	ui_layer.add_child(s)
+
 func _render_objective_panel() -> void:
-	_ninepatch(ui_layer, PANEL_BEIGE, OBJPANEL_C, OBJPANEL_W, OBJPANEL_H, 38)
-	_label(ui_layer, "关卡目标", OBJPANEL_C + Vector2(0, -OBJPANEL_H * 0.5 + 26), 26, Color(0.32, 0.16, 0.05), OBJPANEL_W)
+	var c: Vector2 = OBJPANEL_C
+	var w: float = OBJPANEL_W
+	var h: float = OBJPANEL_H
+	# 1. parchment 异形米黄底(按宽缩放居中,上下超出由金框盖)
+	_sprite_w(ui_layer, PARCHMENT, c, w - 30.0, false)
+	# 2. objective_frame 金框(NinePatch,四角紫钻)
+	_nine(ui_layer, OBJ_FRAME, c, w, h, int(OBJ_ML), int(OBJ_MT), int(OBJ_MB))
+	# 3. 三目标(图标 + 数字白字描边)在米黄底上
 	var n: int = OBJECTIVES_DEMO.size()
 	for i in range(n):
 		var item: Dictionary = OBJECTIVES_DEMO[i]
-		var cx: float = OBJPANEL_C.x + (float(i) - float(n - 1) * 0.5) * 124.0
-		var icy: float = OBJPANEL_C.y + 6.0
-		_sprite_w(ui_layer, item["icon"], Vector2(cx, icy), 60, false)
-		_label(ui_layer, str(item["n"]), Vector2(cx, icy + 50.0), 28, Color(0.32, 0.16, 0.05), 110)
+		var cx: float = c.x + (float(i) - float(n - 1) * 0.5) * 134.0
+		var icy: float = c.y - 2.0
+		_sprite_w(ui_layer, item["icon"], Vector2(cx, icy), 66, false)
+		_label(ui_layer, str(item["n"]), Vector2(cx, icy + 46.0), 30, Color.WHITE, 120)
+	# 4. title_banner 横幅(骑目标框顶中央) + "关卡目标"白字
+	var bc: Vector2 = Vector2(c.x, c.y - h * 0.5)
+	_nine(ui_layer, TITLE_BANNER, bc, BANNER_W, BANNER_H, 70, 30, 30)
+	_label(ui_layer, "关卡目标", bc, 22, Color.WHITE, BANNER_W)
 
 func _render_step_badge() -> void:
 	_sprite_w(ui_layer, STEP_FRAME, STEP_C, STEP_W, false)
