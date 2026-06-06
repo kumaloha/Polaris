@@ -59,7 +59,7 @@ const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
 const BG_CRYSTAL_UV := Vector2(0.632, 0.41)   # 水晶球在 bg_scene 图中的归一化位置(白核扫描 px594,330)
 const BG_CRYSTAL_TARGET := Vector2(360, 344)  # 对齐到狐狸与 Boss 正中间
-const BG_SCALE := 1.95
+const BG_SCALE := 1.5
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const PAUSE_C := Vector2(58, 58)
@@ -91,11 +91,16 @@ const HPBAR_W := 364.0
 const HPBAR_H := 46.0
 const BOARD_TOP := 464.0
 const BOARD_BOTTOM := 1198.0
-const BOARD_RATIO := 0.96
-const CELL_FILL := 0.90
+const BOARD_EDGE := 10.0        # 棋盘距屏幕左右边
+const BAND_T := 22.0            # 紫条厚度(细边框)
+const LINE_T := 4.0             # 金线粗细
+const FRAME_C := 88.0           # 四角花显示大小
+const FRAME_CORNER := "res://assets/ui_frames/corner.png"
+const FRAME_BAND := "res://assets/ui_frames/band_purple.png"
+const FRAME_LINE := "res://assets/ui_frames/line_gold.png"
+const BOARD_BG_COLOR := Color(0.12, 0.09, 0.20, 1.0)  # 棋盘深紫不透明实底(不透出后面,不金色)
+const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
-const BOARD_PANEL_PAD := 0.40
-const BOARD_PANEL_MARGIN := 80
 const TRAY_TOP := 1206.0
 const SKILL_AV_Y := 1306.0
 const SKILL_AV_W := 132.0
@@ -149,12 +154,14 @@ func load_level(idx: int) -> void:
 		% [cfg["id"], board.width, board.height, int(cell_size), str(ME.has_legal_move(board.grid))])
 
 func _compute_layout() -> void:
-	var avail_w: float = DESIGN_W * BOARD_RATIO
-	var avail_h: float = BOARD_BOTTOM - BOARD_TOP
-	cell_size = floor(min(avail_w / float(board.width), avail_h / float(board.height)))
+	var avail_w: float = DESIGN_W - 2.0 * BOARD_EDGE - 2.0 * BAND_T
+	cell_size = floor(avail_w / float(board.width))  # 占满屏宽(留紫条边框厚度)
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
-	board_origin = Vector2((DESIGN_W - board_w) * 0.5, BOARD_TOP + (avail_h - board_h) * 0.5)
+	# 水平居中; 边框外缘底贴技能栏(消下方灰)
+	var frame_bottom: float = TRAY_TOP - 6.0
+	var y: float = frame_bottom - BAND_T - board_h
+	board_origin = Vector2((DESIGN_W - board_w) * 0.5, y)
 
 func _cell_center(row: int, col: int) -> Vector2:
 	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
@@ -170,6 +177,12 @@ func _pos_to_cell(p: Vector2) -> Vector2i:
 
 func _render_background() -> void:
 	_clear_layer(background_layer)
+	# 全屏深色兜底：bg_scene 缩放后未覆盖到的区域不再露出 viewport 默认灰
+	var base := ColorRect.new()
+	base.color = Color(0.05, 0.035, 0.10, 1.0)
+	base.position = Vector2.ZERO
+	base.size = Vector2(DESIGN_W, DESIGN_H)
+	background_layer.add_child(base)
 	if not ResourceLoader.exists(BG_TEXTURE):
 		return
 	var tex: Texture2D = load(BG_TEXTURE)
@@ -187,20 +200,74 @@ func _render_background() -> void:
 	background_layer.add_child(spr)
 
 func _render_board_panel() -> void:
-	if not ResourceLoader.exists(BOARD_PANEL_TEXTURE):
-		return
+	# 棋盘深紫实底,覆盖格区+边框区(盖住边框转角后面,避免露背景灰)
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
-	var pad: float = cell_size * BOARD_PANEL_PAD
-	var np := NinePatchRect.new()
-	np.texture = load(BOARD_PANEL_TEXTURE)
-	np.position = board_origin - Vector2(pad, pad)
-	np.size = Vector2(board_w + pad * 2.0, board_h + pad * 2.0)
-	np.patch_margin_left = BOARD_PANEL_MARGIN
-	np.patch_margin_right = BOARD_PANEL_MARGIN
-	np.patch_margin_top = BOARD_PANEL_MARGIN
-	np.patch_margin_bottom = BOARD_PANEL_MARGIN
-	board_layer.add_child(np)
+	var bg := ColorRect.new()
+	bg.color = BOARD_BG_COLOR
+	bg.position = board_origin - Vector2(BAND_T, BAND_T)
+	bg.size = Vector2(board_w + BAND_T * 2.0, board_h + BAND_T * 2.0)
+	board_layer.add_child(bg)
+
+# 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
+func _render_board_frame() -> void:
+	var bx: float = board_origin.x
+	var by: float = board_origin.y
+	var bw: float = board.width * cell_size
+	var bh: float = board.height * cell_size
+	# 紫条(横边正常,竖边旋转90°使光泽方向一致),中心在棋盘各边外侧 BAND_T/2 处
+	_frame_strip(FRAME_BAND, Vector2(bx + bw * 0.5, by - BAND_T * 0.5), bw, BAND_T, false)
+	_frame_strip(FRAME_BAND, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, BAND_T, false)
+	_frame_strip(FRAME_BAND, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
+	_frame_strip(FRAME_BAND, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
+	# 金线(在紫条正中央,一条)
+	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by - BAND_T * 0.5), bw, LINE_T, false)
+	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, LINE_T, false)
+	_frame_strip(FRAME_LINE, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
+	_frame_strip(FRAME_LINE, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
+	# 四角花(最上层,盖接头)
+	_frame_corner(Vector2(bx, by), false, false)
+	_frame_corner(Vector2(bx + bw, by), true, false)
+	_frame_corner(Vector2(bx, by + bh), false, true)
+	_frame_corner(Vector2(bx + bw, by + bh), true, true)
+
+func _frame_edge(path: String, pos: Vector2, sz: Vector2, flip_h: bool, flip_v: bool) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var tr := TextureRect.new()
+	tr.texture = load(path)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.flip_h = flip_h
+	tr.flip_v = flip_v
+	tr.position = pos
+	tr.size = sz
+	board_layer.add_child(tr)
+
+## 一条边/线：横向素材(长×短)拉到 length×thick；vertical 时旋转90°使光泽方向一致。Sprite2D 居中。
+func _frame_strip(path: String, center: Vector2, length: float, thick: float, vertical: bool) -> void:
+	if not ResourceLoader.exists(path):
+		return
+	var s := Sprite2D.new()
+	s.texture = load(path)
+	var tw: float = float(s.texture.get_width())
+	var th: float = float(s.texture.get_height())
+	if vertical:
+		s.rotation = PI * 0.5
+	s.scale = Vector2(length / tw, thick / th)
+	s.position = center
+	board_layer.add_child(s)
+
+func _frame_corner(center: Vector2, flip_h: bool, flip_v: bool) -> void:
+	if not ResourceLoader.exists(FRAME_CORNER):
+		return
+	var s := Sprite2D.new()
+	s.texture = load(FRAME_CORNER)
+	s.flip_h = flip_h
+	s.flip_v = flip_v
+	s.scale = _fit_scale(s.texture, FRAME_C)
+	s.position = center
+	board_layer.add_child(s)
 
 func _render_board() -> void:
 	_clear_layer(board_layer)
@@ -220,6 +287,7 @@ func _render_board() -> void:
 				board_layer.add_child(cs)
 			node_row.append(_make_gem(board.grid[r][c], center))
 		_gem_nodes.append(node_row)
+	_render_board_frame()  # 金边框(最上层,盖格子边缘)
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	if sp < 0 or sp >= GEM_TEXTURES.size() or not ResourceLoader.exists(GEM_TEXTURES[sp]):
