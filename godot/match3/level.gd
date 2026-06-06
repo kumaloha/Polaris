@@ -183,9 +183,9 @@ var _hl_markers: Array = []
 var _busy := false
 var _key_mat: ShaderMaterial = null
 var _aged_parch_mat: ShaderMaterial = null
-# 阶段7: 技能冷却状态。idx 与 SKILLS 对齐。
-var _skill_cd := [0.0, 0.0, 0.0, 0.0]          # 当前剩余冷却(秒); 0=就绪
-var _skill_cd_max := [8.0, 12.0, 20.0, 15.0]   # 各技能冷却时长(占位可调)
+# 阶段7: 技能充能状态(改: 不再按时间冷却, 而是消除对应色宝石才涨)。idx 与 SKILLS 对齐。
+const SKILL_CHARGE_REQ := 20.0                  # 满充能所需消除数(可调)
+var _skill_charge := [0.0, 0.0, 0.0, 0.0]      # 各技能当前充能数(消对应色宝石累加, 满=可用)
 var _skill_btns: Array = []                     # 4 个 TextureButton 引用(随 disabled/置灰)
 var _skill_bar_fills: Array = []                # 4 个冷却条填充 Panel 引用(随 ratio 改宽)
 var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 改填充宽度复用
@@ -244,6 +244,7 @@ func load_level(idx: int) -> void:
 	_hl_markers = []
 	_busy = false
 	_settled = false
+	_skill_charge = [0.0, 0.0, 0.0, 0.0]   # 新关重置技能充能
 	_compute_layout()
 	_render_background()
 	_render_board()
@@ -683,13 +684,11 @@ func _render_skillbar() -> void:
 		var sk: Dictionary = SKILLS[i]
 		var cx: float = DESIGN_W * (float(i) + 0.5) / float(n)
 		_skill_button(sk["av"], Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
-		# 冷却条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前冷却态。
+		# 充能条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前充能数。
 		var gem_col: Color = GEM_COLORS.get(sk.get("gem", "purple"), Color(0.82, 0.45, 1.0))
 		var track_col: Color = gem_col.darkened(0.72)
 		track_col.a = 0.95
-		var ratio0: float = 1.0
-		if _skill_cd_max[i] > 0.0:
-			ratio0 = clampf(1.0 - _skill_cd[i] / _skill_cd_max[i], 0.0, 1.0)
+		var ratio0: float = clampf(_skill_charge[i] / SKILL_CHARGE_REQ, 0.0, 1.0)
 		_cd_bar(i, Vector2(cx, SKILL_CD_Y + 4.0), SKILL_AV_W * 0.56, 18.0, ratio0, gem_col, track_col)
 		_label(skill_bar, str(sk["name"]), Vector2(cx, SKILL_NAME_Y), 22, Color(1, 0.95, 0.8), SKILL_AV_W + 20)
 		_label(skill_bar, str(sk["skill"]), Vector2(cx, SKILL_SKILLNAME_Y), 19, Color(0.85, 0.8, 0.95), SKILL_AV_W + 20)
@@ -744,26 +743,32 @@ func _cd_bar(idx: int, center: Vector2, w: float, h: float, ratio: float, fill_c
 	_skill_bar_fills.append(fl)
 	_skill_bar_geo.append({"center": center, "w": w, "h": h, "inset": inset, "ih": ih})
 
-## 冷却递减(每帧)。只在有冷却在跑时刷新视觉(changed 标志避免空转)。
-func _process(delta: float) -> void:
+## 消除对应色宝石→给该技能充能。by_species: dict(species:int → count)。
+## 每个技能按其 gem 对应的 species 累加, 封顶 SKILL_CHARGE_REQ。多个技能可同色, 都涨。
+func _charge_skills(by_species: Dictionary) -> void:
+	if by_species.is_empty():
+		return
 	var changed := false
-	for i in range(_skill_cd.size()):
-		if _skill_cd[i] > 0.0:
-			_skill_cd[i] = maxf(_skill_cd[i] - delta, 0.0)
-			changed = true
+	for i in range(SKILLS.size()):
+		var sp: int = GEM_KEYS.find(SKILLS[i].get("gem", ""))
+		if sp < 0:
+			continue
+		var gained: int = by_species.get(sp, 0)
+		if gained <= 0:
+			continue
+		_skill_charge[i] = minf(_skill_charge[i] + float(gained), SKILL_CHARGE_REQ)
+		changed = true
 	if changed:
 		_update_skill_cd_visual()
 
-## 刷新每条冷却填充宽度 + 头像禁用/置灰。ratio = 1 - cd/cd_max(0=刚放就绪从0涨满)。
+## 刷新每条充能填充宽度 + 头像禁用/置灰。ratio = charge/REQ(满=1, 可点)。
 func _update_skill_cd_visual() -> void:
 	for i in range(_skill_bar_fills.size()):
 		var fl = _skill_bar_fills[i]
 		if fl == null or not is_instance_valid(fl):
 			continue
 		var geo: Dictionary = _skill_bar_geo[i]
-		var ratio: float = 1.0
-		if _skill_cd_max[i] > 0.0:
-			ratio = clampf(1.0 - _skill_cd[i] / _skill_cd_max[i], 0.0, 1.0)
+		var ratio: float = clampf(_skill_charge[i] / SKILL_CHARGE_REQ, 0.0, 1.0)
 		var w: float = geo["w"]
 		var inset: float = geo["inset"]
 		var ih: float = geo["ih"]
@@ -772,13 +777,13 @@ func _update_skill_cd_visual() -> void:
 		var btn = _skill_btns[i]
 		if btn == null or not is_instance_valid(btn):
 			continue
-		var cd_active: bool = _skill_cd[i] > 0.0
-		btn.disabled = cd_active
-		btn.modulate.a = 0.45 if cd_active else 1.0
+		var ready: bool = _skill_charge[i] >= SKILL_CHARGE_REQ
+		btn.disabled = not ready
+		btn.modulate.a = 1.0 if ready else 0.45
 
-## 点技能: 守卫(忙/结算/冷却中→忽略) → 分派 → 成功后置冷却。技能不消耗步数。
+## 点技能: 守卫(忙/结算/未充满→忽略) → 分派 → 成功后充能清零(重攒)。技能不消耗步数。
 func _on_skill_pressed(idx: int) -> void:
-	if _busy or _settled or _skill_cd[idx] > 0.0:
+	if _busy or _settled or _skill_charge[idx] < SKILL_CHARGE_REQ:
 		return
 	if board == null:
 		return
@@ -793,7 +798,7 @@ func _on_skill_pressed(idx: int) -> void:
 		"幸运祝福":
 			did = await _skill_blessing()
 	if did:
-		_skill_cd[idx] = _skill_cd_max[idx]
+		_skill_charge[idx] = 0.0   # 放完清零重攒
 		_update_skill_cd_visual()
 
 # ── idx0 星鹿/提示: 高亮最优一步两格 2.5s 自动清除。不改盘/不resolve/不扣步。 ──
@@ -1161,6 +1166,21 @@ func _deselect() -> void:
 	_sel_node = null
 
 func _try_swap(a: Vector2i, b: Vector2i) -> void:
+	# 问题2: 彩球参与的交换(彩球+任意相邻格)是激活组合, 不走 is_legal_swap。
+	var cb_pos := Vector2i(-1, -1)
+	var partner := Vector2i(-1, -1)
+	if board.fx[a.y][a.x] == ME.SP_COLORBOMB:
+		cb_pos = a
+		partner = b
+	elif board.fx[b.y][b.x] == ME.SP_COLORBOMB:
+		cb_pos = b
+		partner = a
+	if cb_pos.x >= 0:
+		# partner 必须非墙/非空(普通宝石或特效宝石); 否则当非法, 不消耗、不动作。
+		if board.grid[partner.y][partner.x] < 0:
+			return
+		await _resolve_colorbomb(cb_pos, partner)
+		return
 	_busy = true
 	_clear_highlights()
 	var legal: bool = ME.is_legal_swap(board.grid, a, b)
@@ -1184,6 +1204,60 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	board.moves_left -= 1
 	_refresh_hud()        # 重画目标卡进度 + 步数徽章
 	_check_settlement()   # 通关/失败结算
+	_busy = false
+
+## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_set 读交换前 fx/grid)。
+## 彩球+普通=该色全消; 彩球+条纹=全场该色变条纹引爆; 彩球+十字=全场该色变十字引爆; 双彩球=全盘消。
+func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
+	_busy = true
+	_clear_highlights()
+	_deselect()
+	# 引擎纯函数算好全部清除格(含触发链)。用交换前坐标。
+	var cells: Array = ME.colorbomb_clear_set(board.grid, board.fx, cb_pos, partner)
+	if cells.is_empty():
+		_busy = false
+		return
+	board.moves_left -= 1
+	# 算账(在清空前读 species/fx): 目标计数 + 计分 + 技能充能。复用 board 累加逻辑。
+	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
+	board._accumulate(acc.get("by_species", {}))
+	board._accumulate_progress(acc)
+	_charge_skills(acc.get("by_species", {}))
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var scored: int = 0
+	for p in cells:
+		if not locked.has(p):
+			scored += 1
+	board._gain(ME.score_for_clear(scored, 1))
+	# 表现: 彩球本体大爆发(白金) + 对清除格放特效(限量精细, 避免一次太多卡顿)。
+	Fx.spawn_explosion(_cell_center(cb_pos.y, cb_pos.x), Color(1.0, 0.95, 0.7), 3.0)
+	var fine_budget: int = 36   # 精细特效上限(超出只清不放, 防卡顿)
+	for p in cells:
+		if p == cb_pos:
+			continue
+		var fk: int = board.fx[p.y][p.x]
+		if fk != ME.SP_NONE:
+			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
+		elif fine_budget > 0:
+			var sp: int = board.grid[p.y][p.x]
+			if sp >= 0 and sp < GEM_KEYS.size():
+				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 1.1)
+				fine_budget -= 1
+	await get_tree().create_timer(0.30).timeout   # 让爆发可见
+	# 清除: grid/fx 置空, 删节点。
+	for p in cells:
+		board.grid[p.y][p.x] = ME.EMPTY
+		board.fx[p.y][p.x] = ME.SP_NONE
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+		_gem_nodes[p.y][p.x] = null
+	await _collapse_and_refill()
+	await _resolve_cascades()   # 收尾连锁(下落后可能形成新匹配)
+	_refresh_hud()
+	_check_settlement()
 	_busy = false
 
 func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> void:
@@ -1242,6 +1316,7 @@ func _resolve_cascades() -> void:
 		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
+		_charge_skills(acc.get("by_species", {}))      # 问题1: 消对应色宝石→技能充能
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}
 		for p in acc.get("locked", []):
