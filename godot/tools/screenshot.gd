@@ -5,13 +5,15 @@ extends SceneTree
 # 运行：godot --path godot -s res://tools/screenshot.gd
 
 const ME := preload("res://core/match_engine.gd")
+const GameScript := preload("res://view/game.gd")
 const PLAY_MOVES := 12
 
 var _frames := 0
 var _game: Node
 
 func _initialize() -> void:
-	_game = load("res://main.tscn").instantiate()
+	_game = Node2D.new()
+	_game.set_script(GameScript)
 	get_root().add_child(_game)
 
 func _process(_delta: float) -> bool:
@@ -25,6 +27,10 @@ func _process(_delta: float) -> bool:
 			if mv.is_empty():
 				break
 			b.try_swap(mv[0], mv[1])
+		if b.fx.size() >= 4 and b.fx[0].size() >= 4:
+			b.fx[1][1] = ME.SP_LINE_H
+			b.fx[1][2] = ME.SP_LINE_V
+			b.fx[1][3] = ME.SP_BOMB
 		_game._render()
 	if _frames == 9:
 		var img := get_root().get_texture().get_image()

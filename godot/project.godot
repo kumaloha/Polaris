@@ -9,6 +9,10 @@ config/name="Magic Match Core Prototype"
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.6")
 
+[autoload]
+
+Fx="*res://match3/effect_manager.gd"
+
 [display]
 
 window/size/viewport_width=720

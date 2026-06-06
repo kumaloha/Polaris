@@ -11,17 +11,33 @@ extends Node2D
 const CoreBoard := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
+const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
-	"red": Color(1.0, 0.24, 0.24), "blue": Color(0.31, 0.63, 1.0),
-	"green": Color(0.3, 1.0, 0.4), "gold": Color(1.0, 0.78, 0.2),
-	"purple": Color(0.7, 0.3, 1.0), "pink": Color(1.0, 0.4, 0.7),
+	# 从宝石贴图实采的主体色(高饱和中亮像素均值), 与宝石一致
+	"red": Color(0.691, 0.108, 0.048), "blue": Color(0.052, 0.297, 0.789),
+	"green": Color(0.373, 0.635, 0.045), "gold": Color(0.746, 0.426, 0.058),
+	"purple": Color(0.326, 0.061, 0.728), "pink": Color(0.780, 0.120, 0.411),
 }
+const COLOR_GOLD := Color(1.0, 0.92, 0.5)  # 统一金色文字(金币数/第N关/步数)
+const GEM_KEYS := ["red", "blue", "green", "gold", "purple", "pink"]  # species 顺序→宝石色(同 GEM_TEXTURES)
 const GEM_TEXTURES := [
 	"res://assets/gems/gem_ruby.png", "res://assets/gems/gem_water.png",
 	"res://assets/gems/gem_clover.png", "res://assets/gems/gem_star.png",
 	"res://assets/gems/gem_orb.png", "res://assets/gems/gem_heart.png",
 ]
+# 特殊棋子(阶段5) shine 贴图：横/竖直线、3x3爆炸(叠在宝石上)。
+# 彩球(SP_COLORBOMB)用专用整张贴图 extra.png(彩虹星河球)直接替换宝石，不叠 shine。
+const SHINE_LINE_H := "res://assets/gems/shine/fx2_horizontal.png"
+const SHINE_LINE_V := "res://assets/gems/shine/fx2_vertical.png"
+const SHINE_BOMB := "res://assets/gems/shine/fx2_cross.png"
+const EXTRA_TEXTURE := "res://assets/gems/colorbomb.png"  # 彩球(5连)专用贴图(透明底, 用户提供)
+const FX_TEXTURES := {
+	ME.SP_LINE_H: SHINE_LINE_H,
+	ME.SP_LINE_V: SHINE_LINE_V,
+	ME.SP_BOMB: SHINE_BOMB,
+}
 const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOARD_PANEL_TEXTURE := "res://assets/board/bg_board.png"
 const BG_TEXTURE := "res://assets/ui/bg_scene.png"
@@ -38,6 +54,8 @@ const HERO_TEX := "res://assets/ui/char_fox_hero.png"
 const PROP_TEX := "res://assets/ui/ui_magic_book.png"
 const ORB_TEX := "res://assets/gems/gem_orb.png"
 const KEY_SHADER := "res://match3/magenta_key.gdshader"
+const AGED_PARCH_SHADER := "res://match3/aged_parchment.gdshader"  # 米色框做旧
+const FLOW_SHADER := "res://match3/flow_light.gdshader"  # 技能栏金色流光
 
 # 关卡目标(占位) 与 技能(占位)
 const OBJECTIVES_DEMO := [
@@ -46,10 +64,11 @@ const OBJECTIVES_DEMO := [
 	{"icon": "res://assets/avatars/av_raccoon_miner.png", "n": "2"},
 ]
 const SKILLS := [
-	{"av": "res://assets/avatars/av_deer_oracle.png", "name": "星鹿", "skill": "提示"},
-	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障"},
-	{"av": "res://assets/avatars/av_dragon_red.png", "name": "龙宝宝", "skill": "龙息大招"},
-	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福"},
+	# gem: 该萌宠对应的宝石颜色(消该色宝石→给该萌宠加进度条), 决定冷却条颜色
+	{"av": "res://assets/avatars/av_deer_oracle.png", "name": "星鹿", "skill": "提示", "gem": "purple"},
+	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障", "gem": "blue"},
+	{"av": "res://assets/avatars/av_dragon_red.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
+	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
 ]
 
 const DESIGN_W := 720.0
@@ -59,36 +78,54 @@ const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
 const BG_CRYSTAL_UV := Vector2(0.632, 0.41)   # 水晶球在 bg_scene 图中的归一化位置(白核扫描 px594,330)
 const BG_CRYSTAL_TARGET := Vector2(360, 344)  # 对齐到狐狸与 Boss 正中间
-const BG_SCALE := 1.5
+const BG_SCALE := 1.05
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const PAUSE_C := Vector2(58, 58)
 const PAUSE_W := 92.0
 const TITLE_C := Vector2(360, 46)
-const TITLE_W := 384.0
+const TITLE_W := 256.0  # 金框横向长度(= 米色框宽, 两者等宽)
 const TITLE_H := 76.0
-const TITLE_FRAME := "res://assets/ui_frames/title_frame.png"
+const TITLE_FRAME := "res://assets/ui_frames/title_frame_centered.png"  # 尖饰已修正到框中心(原图偏左35px)
 const TITLE_BG_COLOR := Color(0.165, 0.10, 0.29)  # 深紫 #2a1a4a
 const TITLE_ML := 140.0
 const TITLE_MTB := 32.0
+# title_frame 金框内窗(从 alpha 实测, 见 tools/measure_frame.gd): 紫底刚好填满金框内孔
+const TITLE_FRAME_AR := 159.0 / 922.0  # 金框原始高/宽
+const TITLE_FRAME_H := 56.1  # 金框竖向厚度(66 ×0.85)
+const TITLE_WIN_U0 := 0.0564
+const TITLE_WIN_U1 := 0.9371
+const TITLE_WIN_V0 := 0.1509
+const TITLE_WIN_V1 := 0.8176
+const TITLE_WIN_BLEED := 8.0  # 紫底外扩(总量), 塞进金边下消 AA 缝
 const COIN_C := Vector2(602, 50)
 const COIN_W := 56.0
-const OBJPANEL_C := Vector2(360, 196)
+const OBJPANEL_C := Vector2(360, 135.0)  # 框顶~88(间距~9), 中心=88+高/2(高×0.8后)
 const OBJPANEL_W := 446.0
 const OBJPANEL_H := 160.0
+const OBJ_PARCH_W := TITLE_W  # 米色框宽度 = 标题框宽度(两者等宽锁定)
+const OBJ_PARCH_H := OBJ_PARCH_W * 0.4617 * 0.8  # 自然比例(1566×723)再竖压到 0.8
+const OBJ_GAP := 80.0  # 三目标水平间距(框变窄随之收)
+const OBJ_ICON_W := 42.0  # 目标图标宽(框变窄→图标再缩, 防顶框)
+const OBJ_NUM_FONT := 20  # 目标数字字号
+const OBJ_NUM_COLOR := Color(0.16, 0.09, 0.04)  # 深褐墨色(配做旧米纸, 像墨水写的)
+const OBJ_NUM_DY := 30.0  # 数字在图标下方的偏移
 const OBJ_FRAME := "res://assets/ui_frames/objective_frame.png"
 const OBJ_BG_COLOR := Color(0.91, 0.835, 0.628)  # 米黄羊皮纸 #e8d5a0
 const OBJ_ML := 88.0
 const OBJ_MT := 46.0
 const OBJ_MB := 30.0
 const PURPLE_BG := "res://assets/ui_frames/purple_bg.png"
-const PARCHMENT := "res://assets/ui_frames/parchment_bg_shaped.png"
+const PARCHMENT := "res://assets/ui_frames/parchment_fused.png"  # 融合暗黑紫金调(脚本生成)
 const TITLE_BANNER := "res://assets/ui_frames/title_banner.png"
 const GEM_PENDANT := "res://assets/ui_frames/gem_pendant.png"
 const CONNECTOR_LINE := "res://assets/ui_frames/connector_line.png"
+const CONN_NAIL_DY := -2.0  # 钉点(上端)相对标题下边的 y 微调
+const CONN_HOOK_DY := 4.0  # 吊点(下端)落到米色框顶下方多少
+const CONN_HOOK_INSET := 24.0  # 吊点离米色框左右边的内收量
 const BANNER_W := 214.0
 const BANNER_H := 50.0
-const STEP_C := Vector2(62, 212)
+const STEP_C := Vector2(166, OBJPANEL_C.y)  # 米色框左侧, 与米色框同高(中心对齐)
 const STEP_W := 118.0
 const STAR_C := Vector2(636, 130)   # 中星
 const STAR_GAP := 50.0
@@ -127,13 +164,27 @@ const SKILL_SKILLNAME_Y := 1438.0
 var board
 var board_origin: Vector2
 var cell_size: float = 0.0
-var _level_idx: int = 0
+var _levels: Array = []          # 真实关卡库(levels.json 的 levels 数组), 空=回退 LevelConfig
+var _playable: Array = []        # 可玩关索引(跳过 objectives 为空的关), 元素是 _levels 的下标
+var _play_pos: int = 0           # 当前在 _playable 列表中的位置(翻关用)
+var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]); _levels 空时复用为 LevelConfig 下标
+var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
+var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
 var _gem_nodes: Array = []
 var _sel := Vector2i(-1, -1)
-var _sel_marker: Sprite2D = null
+var _sel_node: Sprite2D = null  # 当前选中的棋子节点(放大提亮置顶)
+var _sel_node_scale := Vector2.ONE
+var _sel_node_mod := Color.WHITE
 var _hl_markers: Array = []
 var _busy := false
 var _key_mat: ShaderMaterial = null
+var _aged_parch_mat: ShaderMaterial = null
+# 阶段7: 技能冷却状态。idx 与 SKILLS 对齐。
+var _skill_cd := [0.0, 0.0, 0.0, 0.0]          # 当前剩余冷却(秒); 0=就绪
+var _skill_cd_max := [8.0, 12.0, 20.0, 15.0]   # 各技能冷却时长(占位可调)
+var _skill_btns: Array = []                     # 4 个 TextureButton 引用(随 disabled/置灰)
+var _skill_bar_fills: Array = []                # 4 个冷却条填充 Panel 引用(随 ratio 改宽)
+var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 改填充宽度复用
 
 @onready var background_layer: CanvasLayer = $BackgroundLayer
 @onready var board_layer: CanvasLayer = $BoardLayer
@@ -149,34 +200,63 @@ func _ready() -> void:
 	board_layer.layer = 2
 	gem_layer.layer = 3
 	$FXLayer.layer = 4
+	Fx.attach($FXLayer, gem_layer)  # 特效挂 FXLayer, 震动抖棋子层
+	# 阶段6: 接真实 126 关。读 levels.json → 构建"可玩关索引"(跳过 18 个空 objectives 关,
+	# 否则空目标 → is_won 退化为 score>=target_score(=0) → 进关即赢)。json 缺失则回退 LevelConfig。
+	_levels = LevelLibrary.load_file(LEVELS_PATH)
+	_playable = []
+	for i in range(_levels.size()):
+		var objs = _levels[i].get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			_playable.append(i)
+	_play_pos = 0
+	_level_idx = _playable[0] if not _playable.is_empty() else 0
 	load_level(_level_idx)
 
+## species → 特效染色(取宝石色并提亮便于可见)。
+func _fx_color(sp: int) -> Color:
+	if sp < 0 or sp >= GEM_KEYS.size():
+		return Color(1, 1, 1)
+	return (GEM_COLORS[GEM_KEYS[sp]] as Color).lightened(0.25)
+
 func load_level(idx: int) -> void:
-	var cfg: Dictionary = LevelConfig.get_level(idx)
-	var ncolors: int = int(cfg.get("colors", 6))
-	var species: Array = []
-	for i in range(ncolors):
-		species.append(i)
-	board = CoreBoard.new(cfg["cols"], cfg["rows"], species, 999999, 999, 12345 + idx)
+	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
+	var cfg: Dictionary
+	if not _levels.is_empty() and idx >= 0 and idx < _levels.size():
+		# 阶段6: 用现成的"JSON一关→可玩Board"工厂(配齐 objectives/move_limit/障碍/盘面)。
+		board = LevelLibrary.to_board(_levels[idx])
+		cfg = {"id": _play_pos + 1}   # 显示用可玩关序号(1-based)
+	else:
+		# 回退: levels.json 缺失时仍能跑旧 LevelConfig 占位关(防 json 缺失白屏)。
+		var lc: Dictionary = LevelConfig.get_level(idx)
+		var ncolors: int = int(lc.get("colors", 6))
+		var species: Array = []
+		for i in range(ncolors):
+			species.append(i)
+		board = CoreBoard.new(lc["cols"], lc["rows"], species, 999999, 999, 12345 + idx)
+		cfg = {"id": lc["id"]}
 	_sel = Vector2i(-1, -1)
-	_sel_marker = null
+	_sel_node = null
 	_hl_markers = []
 	_busy = false
+	_settled = false
 	_compute_layout()
 	_render_background()
 	_render_board()
 	_render_chrome(cfg)
-	print("[前端框架] 关卡 #%d  %d×%d  cell=%d  合法移动=%s"
-		% [cfg["id"], board.width, board.height, int(cell_size), str(ME.has_legal_move(board.grid))])
+	print("[阶段6] 关卡 #%d  %d×%d  cell=%d  目标=%s  步数=%d  合法移动=%s"
+		% [cfg["id"], board.width, board.height, int(cell_size), str(board.objectives), board.moves_left, str(ME.has_legal_move(board.grid, board._layers()))])
 
 func _compute_layout() -> void:
-	var avail_w: float = DESIGN_W - 2.0 * BOARD_EDGE - 2.0 * BAND_T
-	cell_size = floor(avail_w / float(board.width))  # 占满屏宽(留紫条边框厚度)
+	# 预留边框外凸: 角花(FRAME_C/2)比紫条(BAND_T)伸得更远, 取较大值, 防四角被屏幕切掉
+	var frame_out: float = maxf(BAND_T, FRAME_C * 0.5)
+	var avail_w: float = DESIGN_W - 2.0 * BOARD_EDGE - 2.0 * frame_out
+	cell_size = floor(avail_w / float(board.width))  # 占满屏宽(留边框+角花外凸)
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
 	# 水平居中; 边框外缘底贴技能栏(消下方灰)
 	var frame_bottom: float = TRAY_TOP - 6.0
-	var y: float = frame_bottom - BAND_T - board_h
+	var y: float = frame_bottom - frame_out - board_h  # 按角花外凸锚定, 底部角花不被托盘切
 	board_origin = Vector2((DESIGN_W - board_w) * 0.5, y)
 
 func _cell_center(row: int, col: int) -> Vector2:
@@ -198,6 +278,7 @@ func _render_background() -> void:
 	base.color = Color(0.05, 0.035, 0.10, 1.0)
 	base.position = Vector2.ZERO
 	base.size = Vector2(DESIGN_W, DESIGN_H)
+	base.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 装饰底,勿吞棋盘点击
 	background_layer.add_child(base)
 	if not ResourceLoader.exists(BG_TEXTURE):
 		return
@@ -223,6 +304,7 @@ func _render_board_panel() -> void:
 	bg.color = BOARD_BG_COLOR
 	bg.position = board_origin - Vector2(BAND_T, BAND_T)
 	bg.size = Vector2(board_w + BAND_T * 2.0, board_h + BAND_T * 2.0)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 棋盘实底,勿吞格点击(否则点棋盘无反应)
 	board_layer.add_child(bg)
 
 # 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
@@ -301,7 +383,11 @@ func _render_board() -> void:
 				cs.position = center
 				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
 				board_layer.add_child(cs)
-			node_row.append(_make_gem(board.grid[r][c], center))
+			var gnode: Sprite2D = _make_gem(board.grid[r][c], center)
+			# 阶段5: 若该格已是特效棋子(交换后/续局), 叠 shine 标记
+			if gnode != null and board.fx[r][c] != ME.SP_NONE:
+				_apply_fx_overlay(gnode, board.fx[r][c])
+			node_row.append(gnode)
 		_gem_nodes.append(node_row)
 	_render_board_frame()  # 金边框(最上层,盖格子边缘)
 
@@ -316,19 +402,63 @@ func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	gem_layer.add_child(gs)
 	return gs
 
+## 阶段5: 给宝石节点叠/移 shine 子节点(命名"shine"), 标记其为特效棋子。
+## 作为子 Sprite2D 居中铺满格, 父节点下落 tween 时自动跟随。kind==SP_NONE 则移除。
+func _apply_fx_overlay(node: Sprite2D, kind: int) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var old: Node = node.get_node_or_null("shine")
+	if old != null:
+		old.queue_free()
+	# 彩球(5连): 整张换成 extra.png 彩虹球, 不叠 shine
+	if kind == ME.SP_COLORBOMB:
+		var et: Texture2D = load(EXTRA_TEXTURE)
+		if et != null:
+			node.texture = et
+			node.scale = _fit_scale(et, cell_size * GEM_FILL)
+		return
+	if kind == ME.SP_NONE or not FX_TEXTURES.has(kind):
+		return
+	var path: String = FX_TEXTURES[kind]
+	if not ResourceLoader.exists(path):
+		return
+	var tex: Texture2D = load(path)
+	var shine := Sprite2D.new()
+	shine.name = "shine"
+	shine.texture = tex
+	# 子节点缩放需抵消父节点 scale, 使 shine 实际铺满 cell。
+	var parent_s: Vector2 = node.scale
+	var fit: Vector2 = _fit_scale(tex, cell_size * CELL_FILL)
+	shine.scale = Vector2(
+		fit.x / (parent_s.x if parent_s.x != 0.0 else 1.0),
+		fit.y / (parent_s.y if parent_s.y != 0.0 else 1.0))
+	shine.z_index = 1  # 盖在宝石之上
+	node.add_child(shine)
+
 # ───────── 整页 UI（对齐参考图） ─────────
 
 func _render_chrome(cfg: Dictionary) -> void:
+	_cur_cfg = cfg
 	_clear_layer(character_layer)
 	_clear_layer(ui_layer)
 	_clear_layer(skill_bar)
 	_render_characters()
-	_render_topbar(cfg)
+	_render_ui_layer()
+	_render_skillbar()
+
+# 阶段6: ui_layer(顶栏+吊坠绳+目标卡+步数徽章+星级)整层重画。
+# HUD 刷新只动 ui_layer(不重画角色/技能栏/棋盘), 目标进度/步数随每步更新。
+func _render_ui_layer() -> void:
+	_render_topbar(_cur_cfg)
 	_render_title_connector()
 	_render_objective_panel()
 	_render_step_badge()
 	_render_stars()
-	_render_skillbar()
+
+# 阶段6: 每步 resolve/swap 后刷新 HUD(目标卡进度 + 步数徽章)——只重画 ui_layer。
+func _refresh_hud() -> void:
+	_clear_layer(ui_layer)
+	_render_ui_layer()
 
 ## 镂空金框 + 后方垫底色：底色填镂空区(略小不溢出金边)，NinePatch 金框盖最上。
 func _framed_panel(layer: CanvasLayer, frame_path: String, center: Vector2, w: float, h: float, ml: float, mt: float, mb: float, bg_color: Color) -> void:
@@ -354,13 +484,25 @@ func _render_topbar(cfg: Dictionary) -> void:
 	# 暂停按钮（圆徽底 + ❚❚）
 	_sprite_w(ui_layer, STEP_FRAME, PAUSE_C, PAUSE_W, false)
 	_label(ui_layer, "❚❚", PAUSE_C, 30, Color(1, 0.95, 0.75), 80)
-	# 第 N 关 标题框: title_frame 整体等比缩放(紫钻不变形) + 后垫 purple_bg 深紫底 + 白字
-	_sprite_w(ui_layer, PURPLE_BG, TITLE_C, TITLE_W * 0.72, false)
-	_sprite_w(ui_layer, TITLE_FRAME, TITLE_C, TITLE_W, false)
-	_label(ui_layer, "第 %d 关" % cfg["id"], TITLE_C, 28, Color.WHITE, TITLE_W)
+	# 第 N 关 标题框: title_frame 整体等比缩放(紫钻不变形) + 紫底刚好填满金框内窗 + 白字
+	# 内窗按 alpha 实测 UV 反算到屏幕(随 TITLE_C/TITLE_W 自动跟随), 紫底外扩塞进金边下
+	var f_w := TITLE_W
+	var f_h := TITLE_FRAME_H  # 厚度固定, 只缩横向长度
+	# 贴图已修正(尖饰=框中心), 框居中画在 TITLE_C 即可, 尖饰自然落正中
+	var f_l := TITLE_C.x - f_w * 0.5
+	var f_t := TITLE_C.y - f_h * 0.5
+	var win_c := Vector2(
+		f_l + (TITLE_WIN_U0 + TITLE_WIN_U1) * 0.5 * f_w,
+		f_t + (TITLE_WIN_V0 + TITLE_WIN_V1) * 0.5 * f_h)
+	var win_w := (TITLE_WIN_U1 - TITLE_WIN_U0) * f_w + TITLE_WIN_BLEED
+	var win_h := (TITLE_WIN_V1 - TITLE_WIN_V0) * f_h + TITLE_WIN_BLEED
+	_sprite_wh(ui_layer, PURPLE_BG, win_c, win_w, win_h, false)
+	_sprite_wh(ui_layer, TITLE_FRAME, TITLE_C, f_w, f_h, false)
+	# "第 N 关": "1"字对齐正中(=尖饰列), 竖向居中于内窗
+	_label(ui_layer, "第 %d 关" % cfg["id"], Vector2(TITLE_C.x, win_c.y), 28, COLOR_GOLD, TITLE_W)
 	# 金币
 	_sprite_w(ui_layer, COIN_TEX, COIN_C, COIN_W, false)
-	_label(ui_layer, "2350", COIN_C + Vector2(58, 0), 34, Color(1, 0.92, 0.5), 140)
+	_label(ui_layer, "2350", COIN_C + Vector2(58, 0), 34, COLOR_GOLD, 140)
 
 ## NinePatch 素材(金框/横幅/底纹),四边 patch_margin。
 func _nine(layer: CanvasLayer, path: String, center: Vector2, w: float, h: float, ml: int, mt: int, mb: int) -> void:
@@ -378,48 +520,98 @@ func _nine(layer: CanvasLayer, path: String, center: Vector2, w: float, h: float
 
 ## 串联：紫钻吊坠(挂标题框底中央) + 八字斜线(两根镜像,从吊坠下斜向目标框顶)
 func _render_title_connector() -> void:
-	var anchor: Vector2 = Vector2(TITLE_C.x, TITLE_C.y + TITLE_H * 0.5 + 18.0)
-	_connector(anchor, false)
-	_connector(anchor, true)
-	_sprite_w(ui_layer, GEM_PENDANT, Vector2(TITLE_C.x, TITLE_C.y + TITLE_H * 0.5 + 2.0), 42.0, false)
+	# 标题下尖饰=钉子, 两条 connector_line 像绳子从钉子吊住米色框顶两角
+	var nail := Vector2(TITLE_C.x, TITLE_C.y + TITLE_FRAME_H * 0.5 + CONN_NAIL_DY)
+	var top_y := OBJPANEL_C.y - OBJ_PARCH_H * 0.5 + CONN_HOOK_DY
+	var half := OBJ_PARCH_W * 0.5 - CONN_HOOK_INSET
+	_connector(nail, Vector2(OBJPANEL_C.x - half, top_y))  # 左绳(负x缩放=镜像)
+	_connector(nail, Vector2(OBJPANEL_C.x + half, top_y))  # 右绳
 
-func _connector(anchor: Vector2, mirror: bool) -> void:
+## 把 connector_line 的原生两端(顶3,0 / 底211,241)精确映射到 钉点n→框角c。
+func _connector(n: Vector2, c: Vector2) -> void:
 	if not ResourceLoader.exists(CONNECTOR_LINE):
 		return
+	var t := Vector2(3.0, 0.0)
+	var b := Vector2(211.0, 241.0)
 	var s := Sprite2D.new()
 	s.texture = load(CONNECTOR_LINE)
-	s.flip_h = mirror
-	var sc: float = 54.0 / float(s.texture.get_width())
-	s.scale = Vector2(sc, sc)
-	var dir: float = 1.0 if mirror else -1.0
-	s.position = anchor + Vector2(dir * 30.0, 26.0)
+	s.centered = false
+	var sx: float = (c.x - n.x) / (b.x - t.x)
+	var sy: float = (c.y - n.y) / (b.y - t.y)
+	s.scale = Vector2(sx, sy)
+	s.position = n - Vector2(sx * t.x, sy * t.y)
 	ui_layer.add_child(s)
 
 func _render_objective_panel() -> void:
 	var c: Vector2 = OBJPANEL_C
-	var w: float = OBJPANEL_W
-	var h: float = OBJPANEL_H
-	# 1. parchment 异形米黄底(按宽缩放居中,上下超出由金框盖)
-	_sprite_w(ui_layer, PARCHMENT, c, w - 30.0, false)
-	# 2. objective_frame 金框(NinePatch,四角紫钻)
-	_nine(ui_layer, OBJ_FRAME, c, w, h, int(OBJ_ML), int(OBJ_MT), int(OBJ_MB))
-	# 3. 三目标(图标 + 数字白字描边)在米黄底上
-	var n: int = OBJECTIVES_DEMO.size()
+	# 1. parchment_panel 自带边框, 按自然比例画(无变形), 不加特效直接用
+	_sprite_wh(ui_layer, PARCHMENT, c, OBJ_PARCH_W, OBJ_PARCH_H, false)
+	# 2. objective_frame 金框已按需移除(只留米黄底)
+	# 3. 目标(图标 + "进度/目标"深墨色数字)在米黄底上, 走真数据(_objectives_view)。
+	# 布局循环用 size() 居中 → 1/2/3 目标自适应; 框宽/位置/绳子等视觉不变(只换数据源)。
+	var view: Array = _objectives_view()
+	if view.is_empty():
+		view = OBJECTIVES_DEMO   # fallback: 无真数据(回退关)时仍画占位, 防空白框
+	var n: int = view.size()
 	for i in range(n):
-		var item: Dictionary = OBJECTIVES_DEMO[i]
-		var cx: float = c.x + (float(i) - float(n - 1) * 0.5) * 134.0
-		var icy: float = c.y - 2.0
-		_sprite_w(ui_layer, item["icon"], Vector2(cx, icy), 66, false)
-		_label(ui_layer, str(item["n"]), Vector2(cx, icy + 46.0), 30, Color.WHITE, 120)
-	# 4. title_banner 横幅(骑目标框顶中央) + "关卡目标"白字
-	var bc: Vector2 = Vector2(c.x, c.y - h * 0.5)
-	_nine(ui_layer, TITLE_BANNER, bc, BANNER_W, BANNER_H, 70, 30, 30)
-	_label(ui_layer, "关卡目标", bc, 22, Color.WHITE, BANNER_W)
+		var item: Dictionary = view[i]
+		var cx: float = c.x + (float(i) - float(n - 1) * 0.5) * OBJ_GAP
+		# 图标在上, 数字在下(深墨色), 簇竖向居中于框
+		var icy: float = c.y - 9.5
+		_sprite_w(ui_layer, item["icon"], Vector2(cx, icy), OBJ_ICON_W, false)
+		# 真目标画 "进度/目标"; 占位(无 progress/target)退化为单数字。
+		var txt: String = item["n"] if item.has("n") else "%d/%d" % [int(item.get("progress", 0)), int(item.get("target", 0))]
+		_label(ui_layer, txt, Vector2(cx, icy + OBJ_NUM_DY), OBJ_NUM_FONT, OBJ_NUM_COLOR, 90, 2, Color(1.0, 0.97, 0.86, 0.5))
+	# "关卡目标"横幅(title_banner)与文字已按需移除
+
+# 阶段6: 遍历 board.objectives 产出目标卡视图数据(图标+进度+目标)。
+# type→进度取值: COLLECT 用 collected[species]; 其余障碍类用对应 *_cleared/*_collected/... 计数器。
+# COLLECT 用该色宝石图标; 非 COLLECT 类暂用矿工头像占位(TODO 美术: 给障碍目标各出专属图标)。
+const OBJ_PLACEHOLDER_ICON := "res://assets/avatars/av_raccoon_miner.png"
+func _objectives_view() -> Array:
+	var out: Array = []
+	if board == null or board.objectives == null:
+		return out
+	for o in board.objectives:
+		var t: String = String(o.get("type", ""))
+		var sp: int = int(o.get("species", -1))
+		var target: int = int(o.get("target", 0))
+		var icon: String = OBJ_PLACEHOLDER_ICON
+		var progress: int = 0
+		match t:
+			"COLLECT":
+				if sp >= 0 and sp < GEM_TEXTURES.size():
+					icon = GEM_TEXTURES[sp]
+				progress = int(board.collected.get(sp, 0))
+			"CLEAR_JELLY":
+				progress = board.jelly_cleared
+			"CLEAR_BLOCKER":
+				progress = board.blocker_cleared
+			"CLEAR_CHOCO":
+				progress = board.choco_cleared
+			"COLLECT_INGREDIENT":
+				progress = board.ingredient_collected
+			"DEFUSE_BOMB":
+				progress = board.bomb_defused
+			"POP_POPCORN":
+				progress = board.popcorn_hit
+			"DESTROY_CAKE":
+				progress = board.cake_destroyed
+			"REVEAL_MYSTERY":
+				progress = board.mystery_revealed
+			"SCORE":
+				progress = board.score
+			_:
+				progress = 0
+		# 进度封顶到 target(已达成不显示溢出, 如 25/21 → 21/21)。
+		out.append({"icon": icon, "progress": mini(progress, target), "target": target})
+	return out
 
 func _render_step_badge() -> void:
 	_sprite_w(ui_layer, STEP_FRAME, STEP_C, STEP_W, false)
-	_label(ui_layer, "26", STEP_C + Vector2(0, -8), 42, Color.WHITE, STEP_W)
-	_label(ui_layer, "剩余步数", STEP_C + Vector2(0, 26), 17, Color(0.9, 0.9, 0.95), STEP_W + 10)
+	var moves: int = board.moves_left if board != null else 0
+	_label(ui_layer, str(maxi(moves, 0)), STEP_C + Vector2(0, -8), 42, COLOR_GOLD, STEP_W)
+	_label(ui_layer, "剩余步数", STEP_C + Vector2(0, 26), 17, COLOR_GOLD, STEP_W + 10)
 
 func _render_stars() -> void:
 	var paths: Array = [STAR_GOLD, STAR_GRAY, STAR_GRAY]
@@ -468,22 +660,319 @@ func _render_skillbar() -> void:
 	tray.size = Vector2(DESIGN_W, DESIGN_H - TRAY_TOP)
 	tray.position = Vector2(0, TRAY_TOP)
 	skill_bar.add_child(tray)
-	var line := ColorRect.new()
-	line.color = Color(0.85, 0.7, 0.3, 0.9)
-	line.size = Vector2(DESIGN_W, 3)
-	line.position = Vector2(0, TRAY_TOP)
-	skill_bar.add_child(line)
-	# 4 技能头像 + 冷却条 + 名字 + 技能名
+	# 流光层: 金色柔和光带缓慢横向飘移(背景氛围光), 在托盘之上 / 头像之下
+	var flow := ColorRect.new()
+	flow.name = "FlowLight"
+	flow.size = Vector2(DESIGN_W, DESIGN_H - TRAY_TOP)
+	flow.position = Vector2(0, TRAY_TOP)
+	var fm := ShaderMaterial.new()
+	fm.shader = load(FLOW_SHADER)
+	flow.material = fm
+	skill_bar.add_child(flow)
+	# 4 技能头像(可点) + 冷却条(接真冷却) + 名字 + 技能名(在流光之上)
+	# 阶段7: 头像改 TextureButton(吃点击触发技能); 冷却条持有填充节点引用, 随 _process 改宽。
+	_skill_btns = []
+	_skill_bar_fills = []
+	_skill_bar_geo = []
 	var n: int = SKILLS.size()
 	for i in range(n):
 		var sk: Dictionary = SKILLS[i]
 		var cx: float = DESIGN_W * (float(i) + 0.5) / float(n)
-		_sprite_w(skill_bar, sk["av"], Vector2(cx, SKILL_AV_Y), SKILL_AV_W, true)
-		# 冷却条(圆角胶囊)
-		_rounded_bar(skill_bar, Vector2(cx, SKILL_CD_Y + 4.0), SKILL_AV_W * 0.56, 18.0,
-			0.85, Color(0.82, 0.45, 1.0, 1.0), Color(0.16, 0.09, 0.26, 0.95))
+		_skill_button(sk["av"], Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
+		# 冷却条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前冷却态。
+		var gem_col: Color = GEM_COLORS.get(sk.get("gem", "purple"), Color(0.82, 0.45, 1.0))
+		var track_col: Color = gem_col.darkened(0.72)
+		track_col.a = 0.95
+		var ratio0: float = 1.0
+		if _skill_cd_max[i] > 0.0:
+			ratio0 = clampf(1.0 - _skill_cd[i] / _skill_cd_max[i], 0.0, 1.0)
+		_cd_bar(i, Vector2(cx, SKILL_CD_Y + 4.0), SKILL_AV_W * 0.56, 18.0, ratio0, gem_col, track_col)
 		_label(skill_bar, str(sk["name"]), Vector2(cx, SKILL_NAME_Y), 22, Color(1, 0.95, 0.8), SKILL_AV_W + 20)
 		_label(skill_bar, str(sk["skill"]), Vector2(cx, SKILL_SKILLNAME_Y), 19, Color(0.85, 0.8, 0.95), SKILL_AV_W + 20)
+	_update_skill_cd_visual()  # 同步初始置灰/宽度(重画 ui 后冷却态仍在时保持一致)
+
+# ───────── 阶段7: 技能按钮 / 冷却 / 四技能 ─────────
+
+## 可点技能头像: TextureButton(品红抠像), 按宽等比缩放, Control 左上角定位(中心-半尺寸)。
+## 存进 _skill_btns 供 _process 置灰/禁用。
+func _skill_button(path: String, center: Vector2, width: float, idx: int) -> void:
+	if not ResourceLoader.exists(path):
+		_skill_btns.append(null)
+		return
+	var tex: Texture2D = load(path)
+	var btn := TextureButton.new()
+	btn.texture_normal = tex
+	btn.ignore_texture_size = true
+	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	var sz: Vector2 = tex.get_size()
+	var h: float = width * (sz.y / sz.x) if sz.x > 0.0 else width
+	btn.size = Vector2(width, h)
+	btn.position = center - btn.size * 0.5   # TextureButton 是左上角定位 → 减半尺寸居中
+	btn.material = _magenta_material()        # 品红抠像(与静态头像一致)
+	btn.pressed.connect(_on_skill_pressed.bind(idx))
+	skill_bar.add_child(btn)
+	_skill_btns.append(btn)
+
+## 冷却条(圆角胶囊): 与 _rounded_bar 同款外观, 但持有填充 Panel 引用(存 _skill_bar_fills),
+## 并记录几何(_skill_bar_geo) 供 _process 改宽。ratio 0..1。
+func _cd_bar(idx: int, center: Vector2, w: float, h: float, ratio: float, fill_color: Color, bg_color: Color) -> void:
+	var r: int = int(h * 0.5)
+	var bg := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg_color
+	sb.set_corner_radius_all(r)
+	sb.set_border_width_all(2)
+	sb.border_color = Color(0.95, 0.8, 0.42)
+	bg.add_theme_stylebox_override("panel", sb)
+	bg.size = Vector2(w, h)
+	bg.position = center - Vector2(w, h) * 0.5
+	skill_bar.add_child(bg)
+	var inset := 2.0
+	var ih: float = h - inset * 2.0
+	var fl := Panel.new()
+	var sbf := StyleBoxFlat.new()
+	sbf.bg_color = fill_color
+	sbf.set_corner_radius_all(int(ih * 0.5))
+	fl.add_theme_stylebox_override("panel", sbf)
+	fl.position = center - Vector2(w, h) * 0.5 + Vector2(inset, inset)
+	fl.size = Vector2(maxf((w - inset * 2.0) * clampf(ratio, 0.0, 1.0), ih), ih)
+	skill_bar.add_child(fl)
+	_skill_bar_fills.append(fl)
+	_skill_bar_geo.append({"center": center, "w": w, "h": h, "inset": inset, "ih": ih})
+
+## 冷却递减(每帧)。只在有冷却在跑时刷新视觉(changed 标志避免空转)。
+func _process(delta: float) -> void:
+	var changed := false
+	for i in range(_skill_cd.size()):
+		if _skill_cd[i] > 0.0:
+			_skill_cd[i] = maxf(_skill_cd[i] - delta, 0.0)
+			changed = true
+	if changed:
+		_update_skill_cd_visual()
+
+## 刷新每条冷却填充宽度 + 头像禁用/置灰。ratio = 1 - cd/cd_max(0=刚放就绪从0涨满)。
+func _update_skill_cd_visual() -> void:
+	for i in range(_skill_bar_fills.size()):
+		var fl = _skill_bar_fills[i]
+		if fl == null or not is_instance_valid(fl):
+			continue
+		var geo: Dictionary = _skill_bar_geo[i]
+		var ratio: float = 1.0
+		if _skill_cd_max[i] > 0.0:
+			ratio = clampf(1.0 - _skill_cd[i] / _skill_cd_max[i], 0.0, 1.0)
+		var w: float = geo["w"]
+		var inset: float = geo["inset"]
+		var ih: float = geo["ih"]
+		fl.size = Vector2(maxf((w - inset * 2.0) * ratio, ih), ih)
+	for i in range(_skill_btns.size()):
+		var btn = _skill_btns[i]
+		if btn == null or not is_instance_valid(btn):
+			continue
+		var cd_active: bool = _skill_cd[i] > 0.0
+		btn.disabled = cd_active
+		btn.modulate.a = 0.45 if cd_active else 1.0
+
+## 点技能: 守卫(忙/结算/冷却中→忽略) → 分派 → 成功后置冷却。技能不消耗步数。
+func _on_skill_pressed(idx: int) -> void:
+	if _busy or _settled or _skill_cd[idx] > 0.0:
+		return
+	if board == null:
+		return
+	var did := false
+	match SKILLS[idx]["skill"]:
+		"提示":
+			did = await _skill_hint()
+		"破障":
+			did = await _skill_break()
+		"龙息大招":
+			did = await _skill_dragon()
+		"幸运祝福":
+			did = await _skill_blessing()
+	if did:
+		_skill_cd[idx] = _skill_cd_max[idx]
+		_update_skill_cd_visual()
+
+# ── idx0 星鹿/提示: 高亮最优一步两格 2.5s 自动清除。不改盘/不resolve/不扣步。 ──
+func _skill_hint() -> bool:
+	var mv: Array = ME.best_moves(board.grid, 1, board.coat, board.objectives)
+	if mv.is_empty():
+		return false
+	_clear_highlights()
+	var pair: Array = mv[0]   # [a, b]，a/b 为 Vector2i(col,row)
+	for cell in pair:
+		var mk := Sprite2D.new()
+		mk.texture = load(CELL_TEXTURE)
+		mk.modulate = Color(0.4, 1.0, 0.5, 0.7)
+		mk.scale = _fit_scale(mk.texture, cell_size * 1.04)
+		mk.position = _cell_center(cell.y, cell.x)   # cell=(col,row) → (y=row, x=col)
+		mk.z_index = 2
+		gem_layer.add_child(mk)
+		_hl_markers.append(mk)
+		var tw := create_tween().set_loops(0)
+		tw.tween_property(mk, "modulate:a", 0.25, 0.45)
+		tw.tween_property(mk, "modulate:a", 0.75, 0.45)
+	# 2.5s 后自动清除高亮(无阻塞 await: 用一次性计时器)
+	get_tree().create_timer(2.5).timeout.connect(_clear_highlights)
+	return true
+
+# ── idx1 矿工程/破障: 占位——随机清 N 个普通格 + 连锁收尾。(关接 coat 层后改 ME.break_blockers) ──
+func _skill_break() -> bool:
+	# TODO(关卡): 当前关多无障碍 coat → 占位随机破普通格。接 coat 层后改调 ME.break_blockers 真破障。
+	var cands: Array = []
+	for r in range(board.height):
+		for c in range(board.width):
+			if board.grid[r][c] >= 0 and board.fx[r][c] == ME.SP_NONE:
+				cands.append(Vector2i(c, r))
+	if cands.is_empty():
+		return false
+	for i in range(cands.size() - 1, 0, -1):   # Fisher-Yates(用 board.rng 保确定性)
+		var j: int = board.rng.randi() % (i + 1)
+		var tmp = cands[i]; cands[i] = cands[j]; cands[j] = tmp
+	var n: int = mini(3, cands.size())
+	var cells: Array = cands.slice(0, n)
+	_busy = true
+	for p in cells:
+		Fx.spawn_explosion(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]), 1.2)
+	Fx.shake(7.0)
+	ME._apply_clears(board.grid, board.fx, cells, [])
+	for p in cells:
+		var node: Sprite2D = _gem_nodes[p.y][p.x]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+		_gem_nodes[p.y][p.x] = null
+	await _collapse_and_refill()
+	await _resolve_cascades()   # 收尾连锁 + 计数
+	_busy = false
+	return true
+
+# ── idx2 龙宝宝/龙息大招: 清盘上最多色的全部 + 中间一整行非空格 + beam/爆炸/强震。 ──
+func _skill_dragon() -> bool:
+	# 找数量最多的 species
+	var best_sp: int = -1
+	var best_n: int = 0
+	for sp in board.species:
+		var cnt: int = ME.cells_of_species(board.grid, sp).size()
+		if cnt > best_n:
+			best_n = cnt
+			best_sp = sp
+	if best_sp < 0:
+		return false
+	var cell_set := {}   # 去重(同色 ∪ 中间行)
+	for p in ME.cells_of_species(board.grid, best_sp):
+		cell_set[p] = true
+	var mid: int = board.height / 2
+	for c in range(board.width):
+		if board.grid[mid][c] >= 0:
+			cell_set[Vector2i(c, mid)] = true
+	var cells: Array = cell_set.keys()
+	if cells.is_empty():
+		return false
+	_busy = true
+	# 龙息: 盘顶 → 盘中央一道光束 + 多点爆炸 + 强震
+	var top: Vector2 = _cell_center(0, board.width / 2) - Vector2(0, cell_size)
+	Fx.spawn_beam(top, _cell_center(mid, board.width / 2), _fx_color(best_sp))
+	for p in cells:
+		Fx.spawn_explosion(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]), 1.4)
+	Fx.shake(14.0)
+	ME._apply_clears(board.grid, board.fx, cells, [])
+	for p in cells:
+		var node: Sprite2D = _gem_nodes[p.y][p.x]
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+		_gem_nodes[p.y][p.x] = null
+	await _collapse_and_refill()
+	await _resolve_cascades()
+	_busy = false
+	return true
+
+# ── idx3 瓢虫/幸运祝福: 随机一普通格埋炸弹(fx=SP_BOMB, 阶段5渲染显示 shine), 金色庆祝特效。不清盘。 ──
+func _skill_blessing() -> bool:
+	# 选项A(本实现): 埋个炸弹给玩家下步引爆——不清盘, 留策略空间。
+	var cands: Array = []
+	for r in range(board.height):
+		for c in range(board.width):
+			if board.grid[r][c] >= 0 and board.fx[r][c] == ME.SP_NONE:
+				cands.append(Vector2i(c, r))
+	if cands.is_empty():
+		return false
+	var p: Vector2i = cands[board.rng.randi() % cands.size()]
+	board.fx[p.y][p.x] = ME.SP_BOMB
+	var node: Sprite2D = _gem_nodes[p.y][p.x]
+	if node != null and is_instance_valid(node):
+		_apply_fx_overlay(node, ME.SP_BOMB)
+	Fx.spawn_explosion(_cell_center(p.y, p.x), Color(1.0, 0.85, 0.3), 1.5)
+	return true
+
+# ───────── 阶段6: 结算(通关/失败) ─────────
+
+# 一步完整结算后判定: 赢→通关面板 / 输→失败面板。须在扣步+刷HUD之后调。
+func _check_settlement() -> void:
+	if _settled:
+		return
+	if board.is_won():
+		_show_result(true)
+	elif board.is_lost():
+		_show_result(false)
+
+# 程序绘制居中半透明遮罩 + 结算面板(标题 + 下一关/重试按钮)。无现成素材, 纯绘制。
+# 锁输入(_settled=true), 按钮: 通关→下一关 / 失败→重试本关。
+func _show_result(win: bool) -> void:
+	_settled = true
+	_busy = true
+	# 半透明遮罩(吃满屏点击, 防穿透到棋盘)
+	var veil := ColorRect.new()
+	veil.color = Color(0.02, 0.01, 0.05, 0.72)
+	veil.size = Vector2(DESIGN_W, DESIGN_H)
+	veil.position = Vector2.ZERO
+	veil.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_layer.add_child(veil)
+	# 居中面板(深紫底+金边, 复用 StyleBoxFlat 风格)
+	var pw := 480.0
+	var ph := 320.0
+	var pc := Vector2(DESIGN_W * 0.5, DESIGN_H * 0.5)
+	var panel := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.14, 0.09, 0.24, 0.98)
+	sb.set_corner_radius_all(24)
+	sb.set_border_width_all(5)
+	sb.border_color = Color(0.88, 0.70, 0.32)
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.size = Vector2(pw, ph)
+	panel.position = pc - Vector2(pw, ph) * 0.5
+	ui_layer.add_child(panel)
+	# 标题(金色)
+	_label(ui_layer, "通关!" if win else "失败", pc + Vector2(0, -86), 56, COLOR_GOLD, pw)
+	# 副信息: 分数 / 剩余步数
+	_label(ui_layer, "得分 %d" % board.score, pc + Vector2(0, -20), 26, Color(1, 0.95, 0.82), pw)
+	_label(ui_layer, "剩余步数 %d" % maxi(board.moves_left, 0), pc + Vector2(0, 18), 22, Color(0.85, 0.8, 0.95), pw)
+	# 按钮(金底深字, 可点 Button): 通关→下一关 / 失败→重试本关
+	var btn := Button.new()
+	btn.text = "下一关" if win else "重试"
+	btn.add_theme_font_size_override("font_size", 30)
+	btn.add_theme_color_override("font_color", Color(0.16, 0.09, 0.04))
+	var bsb := StyleBoxFlat.new()
+	bsb.bg_color = Color(0.95, 0.80, 0.42)
+	bsb.set_corner_radius_all(18)
+	btn.add_theme_stylebox_override("normal", bsb)
+	var bhsb := bsb.duplicate()
+	bhsb.bg_color = Color(1.0, 0.88, 0.55)
+	btn.add_theme_stylebox_override("hover", bhsb)
+	btn.add_theme_stylebox_override("pressed", bhsb)
+	var bw := 220.0
+	var bh := 70.0
+	btn.size = Vector2(bw, bh)
+	btn.position = pc + Vector2(-bw * 0.5, 70.0)
+	btn.pressed.connect(_on_result_button.bind(win))
+	ui_layer.add_child(btn)
+
+# 结算按钮点击: 通关→下一关; 失败→重载本关。先解锁结算态再 load。
+func _on_result_button(win: bool) -> void:
+	_settled = false
+	_busy = false
+	if win:
+		_goto_relative(1)   # 下一关(可玩关循环)
+	else:
+		load_level(_level_idx)   # 重试本关
 
 # ───────── 渲染 helper ─────────
 
@@ -495,6 +984,23 @@ func _sprite_w(layer: CanvasLayer, path: String, center: Vector2, width: float, 
 	s.texture = tex
 	s.position = center
 	s.scale = _scale_to_width(tex, width)
+	if use_key:
+		s.material = _magenta_material()
+	layer.add_child(s)
+	return s
+
+# 非等比填充: 把整图拉到精确 w×h(实心面板填窗口用, 与 _sprite_w 的等比不同)
+func _sprite_wh(layer: CanvasLayer, path: String, center: Vector2, w: float, h: float, use_key: bool) -> Sprite2D:
+	if not ResourceLoader.exists(path):
+		return null
+	var tex: Texture2D = load(path)
+	var sz := tex.get_size()
+	if sz.x <= 0.0 or sz.y <= 0.0:
+		return null
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.position = center
+	s.scale = Vector2(w / sz.x, h / sz.y)
 	if use_key:
 		s.material = _magenta_material()
 	layer.add_child(s)
@@ -514,13 +1020,13 @@ func _ninepatch(layer: CanvasLayer, path: String, center: Vector2, w: float, h: 
 	layer.add_child(np)
 	return np
 
-func _label(layer: CanvasLayer, text: String, center: Vector2, font_size: int, color: Color, box_w: float) -> Label:
+func _label(layer: CanvasLayer, text: String, center: Vector2, font_size: int, color: Color, box_w: float, outline_size: int = 5, outline_color: Color = Color(0, 0, 0, 0.7)) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", font_size)
 	l.add_theme_color_override("font_color", color)
-	l.add_theme_constant_override("outline_size", 5)
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	l.add_theme_constant_override("outline_size", outline_size)
+	l.add_theme_color_override("font_outline_color", outline_color)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.size = Vector2(box_w, float(font_size) + 16.0)
@@ -533,6 +1039,14 @@ func _magenta_material() -> ShaderMaterial:
 		_key_mat = ShaderMaterial.new()
 		_key_mat.shader = load(KEY_SHADER)
 	return _key_mat
+
+func _aged_parchment_material() -> ShaderMaterial:
+	if _aged_parch_mat == null:
+		_aged_parch_mat = ShaderMaterial.new()
+		_aged_parch_mat.shader = load(AGED_PARCH_SHADER)
+		_aged_parch_mat.set_shader_parameter("edge_darken", 0.0)  # 不额外压暗
+		_aged_parch_mat.set_shader_parameter("edge_lighten", 0.7)  # 提亮边缘抵消贴图烤进去的暗边(去阴影)
+	return _aged_parch_mat
 
 func _fit_scale(tex: Texture2D, target: float) -> Vector2:
 	var sz: Vector2 = tex.get_size()
@@ -577,18 +1091,27 @@ func _clear_layer(layer: CanvasLayer) -> void:
 
 # ───────── 交互（阶段2） ─────────
 
+# 翻到相对当前的第 step 关(+1下一关/-1上一关), 在可玩关列表里循环。
+# _levels 为空(回退)时改用 LevelConfig 下标循环。
+func _goto_relative(step: int) -> void:
+	if not _playable.is_empty():
+		_play_pos = (_play_pos + step + _playable.size()) % _playable.size()
+		_level_idx = _playable[_play_pos]
+	else:
+		var n: int = LevelConfig.count()
+		_level_idx = (_level_idx + step + n) % n
+	load_level(_level_idx)
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.keycode:
 			KEY_RIGHT, KEY_SPACE:
-				_level_idx = (_level_idx + 1) % LevelConfig.count()
-				load_level(_level_idx)
+				_goto_relative(1)
 			KEY_LEFT:
-				_level_idx = (_level_idx - 1 + LevelConfig.count()) % LevelConfig.count()
-				load_level(_level_idx)
+				_goto_relative(-1)
 		return
-	if _busy:
-		return
+	if _busy or _settled:
+		return   # 结算遮罩展示中 → 棋盘交互锁死(只接结算面板按钮)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var cell: Vector2i = _pos_to_cell(event.position)
 		if cell.x < 0:
@@ -615,19 +1138,23 @@ func _is_adjacent(a: Vector2i, b: Vector2i) -> bool:
 
 func _select(cell: Vector2i) -> void:
 	_sel = cell
-	if _sel_marker == null or not is_instance_valid(_sel_marker):
-		_sel_marker = Sprite2D.new()
-		_sel_marker.texture = load(CELL_TEXTURE)
-		_sel_marker.modulate = Color(1.0, 0.85, 0.3, 0.55)
-		gem_layer.add_child(_sel_marker)
-	_sel_marker.scale = _fit_scale(_sel_marker.texture, cell_size * 1.02)
-	_sel_marker.position = _cell_center(cell.y, cell.x)
-	_sel_marker.visible = true
+	var n: Sprite2D = _gem_nodes[cell.y][cell.x]
+	if n == null or not is_instance_valid(n):
+		return
+	_sel_node = n
+	_sel_node_scale = n.scale
+	_sel_node_mod = n.modulate
+	n.scale = _sel_node_scale * 1.25       # 放大
+	n.modulate = Color(1.5, 1.42, 1.18)    # 提亮(暖金光)
+	n.z_index = 20                          # 置顶, 不被相邻棋子盖住(修"偶尔不显示")
 
 func _deselect() -> void:
 	_sel = Vector2i(-1, -1)
-	if _sel_marker != null and is_instance_valid(_sel_marker):
-		_sel_marker.visible = false
+	if _sel_node != null and is_instance_valid(_sel_node):
+		_sel_node.scale = _sel_node_scale
+		_sel_node.modulate = _sel_node_mod
+		_sel_node.z_index = 0
+	_sel_node = null
 
 func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	_busy = true
@@ -649,6 +1176,10 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	_gem_nodes[b.y][b.x] = na
 	# 阶段3: 消除-下落-补充-连锁
 	await _resolve_cascades()
+	# 阶段6: 合法交换并完成 resolve 后扣 1 步(非法换回不减, 上面已 return)。
+	board.moves_left -= 1
+	_refresh_hud()        # 重画目标卡进度 + 步数徽章
+	_check_settlement()   # 通关/失败结算
 	_busy = false
 
 func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> void:
@@ -671,6 +1202,7 @@ func _flash_matches() -> void:
 		mk.color = Color(1.0, 0.9, 0.2, 0.5)
 		mk.size = Vector2(cell_size, cell_size) * 0.96
 		mk.position = _cell_center(m.y, m.x) - mk.size * 0.5
+		mk.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 高亮标记勿吞点击
 		gem_layer.add_child(mk)
 		_hl_markers.append(mk)
 		var t := create_tween().set_loops(0)
@@ -683,35 +1215,92 @@ func _clear_highlights() -> void:
 			mk.queue_free()
 	_hl_markers = []
 
-## 阶段3: 连锁循环——消除所有匹配 → 下落补充 → 再检测，直到无匹配。
+## 阶段5: 引擎驱动逐级连锁——引擎算"清哪些格/生成什么特效"，视图负责逐级动画。
+## 每级: collect_clears → 播特效+淡出 → _apply_clears(落特效/清格) → 节点同步 → 下落补充。
 func _resolve_cascades() -> void:
 	var guard: int = 0
+	var cascade_level: int = 0   # 连锁级数(1起): 越深计分倍率越高, 与引擎 resolve 同口径
 	while guard < 30:
 		guard += 1
-		var matches: Array = ME.find_matches(board.grid)
-		if matches.is_empty():
+		var c: Dictionary = ME.collect_clears(board.grid, board.fx, board._layers())
+		var to_clear: Array = c["to_clear"]
+		var spawns: Array = c["spawns"]
+		if to_clear.is_empty():
 			break
-		await _animate_clear(matches)
-		for m in matches:
-			board.grid[m.y][m.x] = ME.EMPTY
-			var n: Sprite2D = _gem_nodes[m.y][m.x]
-			if n != null and is_instance_valid(n):
-				n.queue_free()
-			_gem_nodes[m.y][m.x] = null
+		cascade_level += 1
+		# spawn_set: 这些格变特效棋子(节点不删/不淡出, 只叠 shine)
+		var spawn_set := {}
+		for s in spawns:
+			spawn_set[s["pos"]] = true
+		# 阶段6: 目标计数(路线A 手动累加)。account_clears 须在 _apply_clears 之前调(要读未清空的 species),
+		# 它会原地递减 board 的障碍层数组(经 _layers() 引用), 与 board.try_swap 路径同口径。
+		# 严格复用 board 内部累加逻辑(_accumulate / _accumulate_progress), 字段名/key 类型完全一致, 杜绝分叉。
+		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
+		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
+		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
+		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
+		var locked := {}
+		for p in acc.get("locked", []):
+			locked[p] = true
+		var scored: int = 0
+		for p in to_clear:
+			if not locked.has(p):
+				scored += 1
+		board._gain(ME.score_for_clear(scored, cascade_level))
+		await _play_clear(to_clear, spawns, spawn_set)
+		# 引擎执行清除: spawn 格落特效(保留 species), 其余格 grid=EMPTY/fx=SP_NONE
+		ME._apply_clears(board.grid, board.fx, to_clear, spawns)
+		# 节点同步: 非 spawn 格删节点置 null; spawn 格给节点叠 shine(此时 board.fx 已是新 kind)
+		for p in to_clear:
+			if spawn_set.has(p):
+				_apply_fx_overlay(_gem_nodes[p.y][p.x], board.fx[p.y][p.x])
+			else:
+				var n: Sprite2D = _gem_nodes[p.y][p.x]
+				if n != null and is_instance_valid(n):
+					n.queue_free()
+				_gem_nodes[p.y][p.x] = null
 		await _collapse_and_refill()
 
-## 消除动画：匹配格缩放淡出。
-func _animate_clear(matches: Array) -> void:
+## 阶段5 消除表现: 遍历 to_clear——被触发的已存在特效格放对应 Fx; 普通格碎裂; 非 spawn 格淡出。
+func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 	var t := create_tween().set_parallel(true)
 	var any := false
-	for m in matches:
-		var n: Sprite2D = _gem_nodes[m.y][m.x]
-		if n != null and is_instance_valid(n):
-			t.tween_property(n, "scale", n.scale * 0.1, CLEAR_TIME)
-			t.tween_property(n, "modulate:a", 0.0, CLEAR_TIME)
-			any = true
+	var did_special := false
+	for p in to_clear:
+		var fx_kind: int = board.fx[p.y][p.x]
+		# 被卷入消除的【已存在】特效棋子(它不在本级 spawn_set): 放对应 Fx 表现
+		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
+			_play_special_fx(p, fx_kind)
+			did_special = true
+		else:
+			# 普通格碎裂(染成该宝石色)
+			Fx.spawn_shatter(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]))
+		# spawn 格不淡出(它要变特效棋子, 留住节点); 非 spawn 格缩放淡出
+		if not spawn_set.has(p):
+			var n: Sprite2D = _gem_nodes[p.y][p.x]
+			if n != null and is_instance_valid(n):
+				t.tween_property(n, "scale", n.scale * 0.1, CLEAR_TIME)
+				t.tween_property(n, "modulate:a", 0.0, CLEAR_TIME)
+				any = true
+	Fx.shake(8.0 if did_special else 5.0)
 	if any:
 		await t.finished
+
+## 某已存在特效棋子被触发时的几何表现: 行/列用 beam, 3x3/彩球用 explosion。
+func _play_special_fx(pos: Vector2i, kind: int) -> void:
+	var col: Color = _fx_color(board.grid[pos.y][pos.x])
+	var c: Vector2 = _cell_center(pos.y, pos.x)
+	match kind:
+		ME.SP_LINE_H:
+			Fx.spawn_beam(_cell_center(pos.y, 0), _cell_center(pos.y, board.width - 1), col)
+		ME.SP_LINE_V:
+			Fx.spawn_beam(_cell_center(0, pos.x), _cell_center(board.height - 1, pos.x), col)
+		ME.SP_BOMB:
+			Fx.spawn_explosion(c, col, 2.0)
+		ME.SP_COLORBOMB:
+			Fx.spawn_explosion(c, col, 3.0)
+		_:
+			Fx.spawn_shatter(c, col)
 
 ## 每列下落填空 + 顶部补新棋子，节点 Tween 落入。
 func _collapse_and_refill() -> void:
@@ -724,6 +1313,9 @@ func _collapse_and_refill() -> void:
 				if row != write:
 					board.grid[write][col] = board.grid[row][col]
 					board.grid[row][col] = ME.EMPTY
+					# 阶段5: fx 随 grid 同步搬运(特效棋子下落后标记不与真身错位)
+					board.fx[write][col] = board.fx[row][col]
+					board.fx[row][col] = ME.SP_NONE
 					var n: Sprite2D = _gem_nodes[row][col]
 					_gem_nodes[write][col] = n
 					_gem_nodes[row][col] = null
@@ -735,6 +1327,7 @@ func _collapse_and_refill() -> void:
 		for row in range(write, -1, -1):
 			var sp: int = board.species[board.rng.randi() % board.species.size()]
 			board.grid[row][col] = sp
+			board.fx[row][col] = ME.SP_NONE  # 新补格无特效
 			var center: Vector2 = _cell_center(row, col)
 			var n: Sprite2D = _make_gem(sp, center)
 			_gem_nodes[row][col] = n
