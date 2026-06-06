@@ -505,7 +505,10 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 
 
 # 彩球被交换引爆：清掉 partner 的整种颜色（+彩球+partner），双彩球则清全盘。
-# 返回要清的格（含被卷入的直线/爆炸特效的触发链；不再触发其他彩球）。纯函数。
+# 返回清除计划：
+#   cells    = 要清的格（含被卷入的直线/爆炸特效的触发链；不再触发其他彩球）。
+#   override = Vector2i -> 特效 kind；彩球+条纹/包装时，表现层用它播放"虚拟特效"动画。
+# 纯函数。
 #
 # CC 式组合精度（对标 Candy Crush）：
 #   彩球 + 条纹(SP_LINE_H/V) → 全盘该色棋子【先全部变成条纹糖，再一起引爆】(每个清整行/列，满屏连锁)。
@@ -515,7 +518,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 # 实现：把"该色每格当 partner 特效引爆"用 override 表达——BFS 触发时该格按 override 的特效几何展开，
 #   而非它自身 fx(多为 SP_NONE)。其余被卷入格仍按各自现有 fx 展开。彩球不触发彩球(避免自激/递归)。
 #   override 行号决定条纹方向(偶数行→清行 LINE_H、奇数行→清列 LINE_V)，确定性且行列兼顾、清除量最大化。
-static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partner_pos: Vector2i) -> Array:
+static func colorbomb_clear_plan(grid: Array, fx: Array, cb_pos: Vector2i, partner_pos: Vector2i) -> Dictionary:
 	var seeds := []
 	var override := {}   # Vector2i -> 特效 kind：该格强制按此特效几何引爆（彩球把该色格"染"成 partner 特效）
 	var partner_fx: int = fx[partner_pos.y][partner_pos.x]
@@ -564,7 +567,10 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 				var ke: int = override.get(e, fx[e.y][e.x])
 				if ke != SP_NONE and ke != SP_COLORBOMB:
 					queue.append(e)
-	return to_clear.keys()
+	return {"cells": to_clear.keys(), "override": override}
+
+static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partner_pos: Vector2i) -> Array:
+	return colorbomb_clear_plan(grid, fx, cb_pos, partner_pos)["cells"]
 
 
 static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}) -> Dictionary:

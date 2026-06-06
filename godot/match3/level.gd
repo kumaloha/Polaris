@@ -12,6 +12,7 @@ const CoreBoard := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const ClearVisuals := preload("res://match3/clear_visuals.gd")
 const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
@@ -223,11 +224,14 @@ func _fx_color(sp: int) -> Color:
 		return Color(1, 1, 1)
 	return (GEM_COLORS[GEM_KEYS[sp]] as Color).lightened(0.25)
 
-## species → 宝石饱和原色(不提亮)。碎裂粒子专用：提亮会让红冲成粉、蓝冲成青白(additive 重叠更甚)。
-func _gem_raw_color(sp: int) -> Color:
+static func gem_raw_color_for_species(sp: int) -> Color:
 	if sp < 0 or sp >= GEM_KEYS.size():
 		return Color(1, 1, 1)
 	return GEM_COLORS[GEM_KEYS[sp]]
+
+## species → 宝石饱和原色(不提亮)。碎裂粒子专用：提亮会让红冲成粉、蓝冲成青白(additive 重叠更甚)。
+func _gem_raw_color(sp: int) -> Color:
+	return gem_raw_color_for_species(sp)
 
 func load_level(idx: int) -> void:
 	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
@@ -1212,14 +1216,18 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	_check_settlement()   # 通关/失败结算
 	_busy = false
 
-## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_set 读交换前 fx/grid)。
+## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_plan 读交换前 fx/grid)。
 ## 彩球+普通=该色全消; 彩球+条纹=全场该色变条纹引爆; 彩球+十字=全场该色变十字引爆; 双彩球=全盘消。
 func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	_busy = true
 	_clear_highlights()
 	_deselect()
 	# 引擎纯函数算好全部清除格(含触发链)。用交换前坐标。
-	var cells: Array = ME.colorbomb_clear_set(board.grid, board.fx, cb_pos, partner)
+	# override 记录彩球+条纹/十字星时的"虚拟特效"爆点，表现层据此播放同几何的动画。
+	var plan: Dictionary = ME.colorbomb_clear_plan(board.grid, board.fx, cb_pos, partner)
+	var cells: Array = plan["cells"]
+	var virtual_fx: Dictionary = plan.get("override", {})
+	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, cells, {}, virtual_fx)
 	if cells.is_empty():
 		_busy = false
 		return
@@ -1244,8 +1252,13 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		if p == cb_pos:
 			continue
 		var fk: int = board.fx[p.y][p.x]
+		var vk: int = int(virtual_fx.get(p, ME.SP_NONE))
 		if fk != ME.SP_NONE:
 			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
+		elif vk != ME.SP_NONE:
+			_play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
+		elif visual_species.has(p):
+			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
 		elif fine_budget > 0:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
@@ -1348,20 +1361,8 @@ func _resolve_cascades() -> void:
 
 ## 阶段5 消除表现: 遍历 to_clear——被触发的已存在特效格放对应 Fx; 普通格碎裂; 非 spawn 格淡出。
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
-	# 本级若有行/列特效被触发(横竖横扫): 让流星波当主角, 路径棋子碎成基础爆炸粒子,
-	# 且整条线粒子统一成横扫波的颜色(触发特效棋子色), 而非各格原色(否则一行彩虹)。
-	var line_blast := false
-	var row_color := {}   # 行 r → 该行 SP_LINE_H 横扫色
-	var col_color := {}   # 列 c → 该列 SP_LINE_V 横扫色
-	for p in to_clear:
-		if not spawn_set.has(p):
-			var fk: int = board.fx[p.y][p.x]
-			if fk == ME.SP_LINE_H:
-				line_blast = true
-				row_color[p.y] = _gem_raw_color(board.grid[p.y][p.x])
-			elif fk == ME.SP_LINE_V:
-				line_blast = true
-				col_color[p.x] = _gem_raw_color(board.grid[p.y][p.x])
+	# 行/列横扫、十字星爆炸：路径棋子碎成触发特效的原色粒子，避免按各格颜色炸成彩虹。
+	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, to_clear, spawn_set)
 	var t := create_tween().set_parallel(true)
 	var any := false
 	for p in to_clear:
@@ -1372,10 +1373,9 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 		else:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
-				if line_blast:
-					# 横竖横扫: 不叠加三帧, 路径棋子碎成纯色粒子(整条线统一波色, 饱和原色)
-					var sc: Color = row_color[p.y] if row_color.has(p.y) else (col_color[p.x] if col_color.has(p.x) else _gem_raw_color(sp))
-					Fx.spawn_shatter(_cell_center(p.y, p.x), sc)
+				if visual_species.has(p):
+					# 横竖横扫/十字星: 不叠加三帧, 路径棋子碎成触发特效的纯色粒子
+					Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
 				else:
 					# 普通消除: 染色后的三帧基础爆炸特效(蓄力→炸裂→消散)
 					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)

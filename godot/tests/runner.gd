@@ -9,6 +9,8 @@ func _initialize() -> void:
 		preload("res://tests/test_board.gd").new(),
 		preload("res://tests/test_view_smoke.gd").new(),
 		preload("res://tests/test_ui_assets.gd").new(),
+		preload("res://tests/test_effect_manager.gd").new(),
+		preload("res://tests/test_level_visuals.gd").new(),
 		preload("res://tests/test_meta.gd").new(),
 		preload("res://tests/test_chocolate.gd").new(),
 		preload("res://tests/test_ingredient.gd").new(),

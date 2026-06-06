@@ -9,6 +9,10 @@ const TRAIL := "res://assets/fx/fx_trail.png"       # 拖尾/光束
 const SHOCK := "res://assets/fx/fx_shockwave.png"   # 冲击波
 const BOKEH := "res://assets/fx/fx_bokeh.png"       # 光斑
 const COMET := "res://assets/fx/beam_comet_white.png"  # 流星拖尾(纯白, 行列横扫波, modulate 染色)
+const LOCAL_BURST_CLEAR_CELLS := 9
+const LOCAL_BURST_FLASH_DIAMETER_RATIO := 0.85
+const LOCAL_BURST_FLASH_PEAK_SCALE := 1.05
+const LOCAL_BURST_PARTICLE_TRAVEL_RATIO := 0.72
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
@@ -123,10 +127,21 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 
 ## 局部爆裂(炸弹/十字 3x3): 纯粒子全向爆发 + 小中心闪, 扩散严格卡在 radius_px(实际清除边界)内,
 ## 不放冲击波环(那个会外溢)。美术原则: 动画范围 ≤ 实际效果范围。
+static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
+	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
+	return {
+		"clear_cells": LOCAL_BURST_CLEAR_CELLS,
+		"clear_radius_px": clear_radius_px,
+		"flash_diameter_px": flash_diameter,
+		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,
+		"particle_max_distance_px": clear_radius_px * LOCAL_BURST_PARTICLE_TRAVEL_RATIO,
+	}
+
 func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 	var life := 0.40
+	var bounds := local_burst_bounds(radius_px)
 	# 中心闪: 直径压在范围内
-	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), radius_px * 0.85, 0.18)
+	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], 0.18)
 	# 粒子: 匀速(无重力) dist=v*t, 最远飞到 ~0.72*radius(加粒子自身大小仍不碰边界)
 	var p := CPUParticles2D.new()
 	p.texture = load(SPARK)
@@ -137,7 +152,7 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 	p.lifetime = life
 	p.direction = Vector2(0, -1)
 	p.spread = 180.0
-	var vmax: float = (radius_px * 0.72) / life
+	var vmax: float = bounds["particle_max_distance_px"] / life
 	p.initial_velocity_min = vmax * 0.4
 	p.initial_velocity_max = vmax
 	p.gravity = Vector2.ZERO

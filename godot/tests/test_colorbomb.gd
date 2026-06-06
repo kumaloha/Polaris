@@ -1,6 +1,6 @@
 extends "res://tests/test_lib.gd"
 # 彩球(SP_COLORBOMB)组合精度测试 —— 对标 Candy Crush 的"彩球+特效"满屏连锁。
-# 增强点(仅在 match_engine.gd 的 colorbomb_clear_set + board.gd 的 _activate_colorbomb)：
+# 增强点(在 match_engine.gd 的 colorbomb_clear_plan/colorbomb_clear_set + board.gd 的 _activate_colorbomb)：
 #   ① 彩球+条纹(SP_LINE_H/V)：全盘该色【先全部变条纹糖再一起引爆】，每个清整行/列 → 清除量远多于该色原始格数。
 #   ② 彩球+包装(SP_BOMB)：全盘该色【先变包装糖再引爆】，每个 3x3 连锁。
 #   ③ 彩球+普通棋子：清掉该色(行为不退)。
@@ -143,6 +143,26 @@ func test_colorbomb_plus_bomb_chains_multiple() -> void:
 	# 两个 1-格各染包装 → 两个不相交 3x3 = 18 格，远多于 2。
 	assert_true(n > color_count, "bomb-chain cleared %d cells >> 2 original color cells" % n)
 	assert_true(n >= 18, "two 3x3 blasts (non-overlapping) -> >=18 cells, got %d" % n)
+
+func test_colorbomb_plan_marks_virtual_bombs_for_bounded_visuals() -> void:
+	# 彩球+包装会把全盘目标色都临时视为包装糖。清除集合已能体现 3x3，
+	# 表现层也需要知道哪些格是"虚拟包装爆点"，否则只会播普通三帧消除。
+	var grid := [
+		[2, 3, 4, 5, 6, 7, 2],
+		[3, 1, 5, 6, 7, 2, 3],  # partner 包装，目标色=1
+		[4, 5, 6, 7, 2, 3, 4],
+		[5, 6, 7, 2, 3, 4, 5],
+		[6, 7, 2, 3, 4, 5, 6],
+		[7, 2, 3, 4, 5, 1, 7],  # 这个 1 应作为虚拟包装爆点，播 3x3 有界动画
+		[2, 3, 4, 5, 6, 7, 2],
+	]
+	var fx := _none_fx(7, 7)
+	fx[0][0] = ME.SP_COLORBOMB
+	fx[1][1] = ME.SP_BOMB
+	var plan: Dictionary = ME.colorbomb_clear_plan(grid, fx, Vector2i(0, 0), Vector2i(1, 1))
+	var override: Dictionary = plan["override"]
+	assert_eq(override.get(Vector2i(5, 5), ME.SP_NONE), ME.SP_BOMB, "other target-color cells are virtual 3x3 bombs")
+	assert_false(override.has(Vector2i(1, 1)), "the real partner bomb is already represented by board.fx")
 
 
 # ───────────── 断言③：彩球 + 普通棋子 → 清掉该色(行为不退) ─────────────
