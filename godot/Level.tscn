@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://match3/level.gd" id="1_level"]
+
+[node name="Level" type="Node2D"]
+script = ExtResource("1_level")
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="BoardLayer" type="CanvasLayer" parent="."]
+layer = 1
+
+[node name="GemLayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="FXLayer" type="CanvasLayer" parent="."]
+layer = 3
+
+[node name="CharacterLayer" type="CanvasLayer" parent="."]
+layer = 4
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="SkillBar" type="CanvasLayer" parent="."]
+layer = 6
