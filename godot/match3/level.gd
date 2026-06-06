@@ -76,6 +76,7 @@ const DESIGN_H := 1520.0
 const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
+const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
 const BG_CRYSTAL_UV := Vector2(0.632, 0.41)   # 水晶球在 bg_scene 图中的归一化位置(白核扫描 px594,330)
 const BG_CRYSTAL_TARGET := Vector2(360, 344)  # 对齐到狐狸与 Boss 正中间
 const BG_SCALE := 1.05
@@ -144,17 +145,19 @@ const HPBAR_W := 364.0
 const HPBAR_H := 46.0
 const BOARD_TOP := 464.0
 const BOARD_BOTTOM := 1198.0
-const BOARD_EDGE := 10.0        # 棋盘距屏幕左右边
+const BOARD_EDGE := 0.0         # 棋盘距屏幕左右边(0=角花顶点刚好贴边)
 const BAND_T := 22.0            # 紫条厚度(细边框)
 const LINE_T := 4.0             # 金线粗细
-const FRAME_C := 88.0           # 四角花显示大小
+const FRAME_C := 88.0           # 四角向外凸出预留(布局留边用; 角件紫钻略凸于此内)
 const FRAME_CORNER := "res://assets/ui_frames/corner.png"
 const FRAME_BAND := "res://assets/ui_frames/band_purple.png"
 const FRAME_LINE := "res://assets/ui_frames/line_gold.png"
+# corner.png = 居中对称的金框紫钻小角花; 居中贴在棋盘四角。边用 FRAME_LINE 金线。
+const CORNER_DISPLAY := FRAME_C * 0.375  # 角花显示大小(0.3×1.25; 同时决定布局预留→贴边)
 const BOARD_BG_COLOR := Color(0.12, 0.09, 0.20, 1.0)  # 棋盘深紫不透明实底(不透出后面,不金色)
 const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
-const TRAY_TOP := 1206.0
+const TRAY_TOP := 1236.0  # 技能栏顶(棋盘底锚定于此); 下移让棋盘整体下移, 露出更多角色
 const SKILL_AV_Y := 1306.0
 const SKILL_AV_W := 132.0
 const SKILL_CD_Y := 1372.0
@@ -248,8 +251,8 @@ func load_level(idx: int) -> void:
 		% [cfg["id"], board.width, board.height, int(cell_size), str(board.objectives), board.moves_left, str(ME.has_legal_move(board.grid, board._layers()))])
 
 func _compute_layout() -> void:
-	# 预留边框外凸: 角花(FRAME_C/2)比紫条(BAND_T)伸得更远, 取较大值, 防四角被屏幕切掉
-	var frame_out: float = maxf(BAND_T, FRAME_C * 0.5)
+	# 预留边框外凸: 角花顶点离格角 = 紫条中线偏移 + 角花半径; 取与紫条厚度的较大值
+	var frame_out: float = maxf(BAND_T, BAND_T * 0.5 + CORNER_DISPLAY * 0.5)
 	var avail_w: float = DESIGN_W - 2.0 * BOARD_EDGE - 2.0 * frame_out
 	cell_size = floor(avail_w / float(board.width))  # 占满屏宽(留边框+角花外凸)
 	var board_w: float = board.width * cell_size
@@ -318,16 +321,17 @@ func _render_board_frame() -> void:
 	_frame_strip(FRAME_BAND, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, BAND_T, false)
 	_frame_strip(FRAME_BAND, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
 	_frame_strip(FRAME_BAND, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
-	# 金线(在紫条正中央,一条)
+	# 金线(在紫条正中央,一条) —— 原样保留, 做边框
 	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by - BAND_T * 0.5), bw, LINE_T, false)
 	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, LINE_T, false)
 	_frame_strip(FRAME_LINE, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
 	_frame_strip(FRAME_LINE, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
-	# 四角花(最上层,盖接头)
-	_frame_corner(Vector2(bx, by), false, false)
-	_frame_corner(Vector2(bx + bw, by), true, false)
-	_frame_corner(Vector2(bx, by + bh), false, true)
-	_frame_corner(Vector2(bx + bw, by + bh), true, true)
+	# 四角紫钻小角花: 中心放在金线交叉点(紫条中线角), 使金线连到菱形宝石的顶点
+	var hb: float = BAND_T * 0.5
+	_frame_corner(Vector2(bx - hb, by - hb))
+	_frame_corner(Vector2(bx + bw + hb, by - hb))
+	_frame_corner(Vector2(bx - hb, by + bh + hb))
+	_frame_corner(Vector2(bx + bw + hb, by + bh + hb))
 
 func _frame_edge(path: String, pos: Vector2, sz: Vector2, flip_h: bool, flip_v: bool) -> void:
 	if not ResourceLoader.exists(path):
@@ -356,14 +360,13 @@ func _frame_strip(path: String, center: Vector2, length: float, thick: float, ve
 	s.position = center
 	board_layer.add_child(s)
 
-func _frame_corner(center: Vector2, flip_h: bool, flip_v: bool) -> void:
+## 角花: 居中对称的金框紫钻, 居中贴在棋盘角, 缩到 FRAME_C。
+func _frame_corner(center: Vector2) -> void:
 	if not ResourceLoader.exists(FRAME_CORNER):
 		return
 	var s := Sprite2D.new()
 	s.texture = load(FRAME_CORNER)
-	s.flip_h = flip_h
-	s.flip_v = flip_v
-	s.scale = _fit_scale(s.texture, FRAME_C)
+	s.scale = _fit_scale(s.texture, CORNER_DISPLAY)
 	s.position = center
 	board_layer.add_child(s)
 
@@ -1265,16 +1268,16 @@ func _resolve_cascades() -> void:
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 	var t := create_tween().set_parallel(true)
 	var any := false
-	var did_special := false
 	for p in to_clear:
 		var fx_kind: int = board.fx[p.y][p.x]
 		# 被卷入消除的【已存在】特效棋子(它不在本级 spawn_set): 放对应 Fx 表现
 		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
 			_play_special_fx(p, fx_kind)
-			did_special = true
 		else:
-			# 普通格碎裂(染成该宝石色)
-			Fx.spawn_shatter(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]))
+			# 普通格: 棋子本体淡出破碎(下方tween) + 该色魔法消除特效(蓄力→炸裂→消散)
+			var sp: int = board.grid[p.y][p.x]
+			if sp >= 0 and sp < GEM_KEYS.size():
+				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 1.1)
 		# spawn 格不淡出(它要变特效棋子, 留住节点); 非 spawn 格缩放淡出
 		if not spawn_set.has(p):
 			var n: Sprite2D = _gem_nodes[p.y][p.x]
@@ -1282,9 +1285,10 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 				t.tween_property(n, "scale", n.scale * 0.1, CLEAR_TIME)
 				t.tween_property(n, "modulate:a", 0.0, CLEAR_TIME)
 				any = true
-	Fx.shake(8.0 if did_special else 5.0)
+	# (按需移除消除震动)
 	if any:
-		await t.finished
+		# 等消除特效炸裂完再返回(下落发生在消除之后); 棋子淡出 tween 在此期间并行跑完
+		await get_tree().create_timer(ELIM_HOLD).timeout
 
 ## 某已存在特效棋子被触发时的几何表现: 行/列用 beam, 3x3/彩球用 explosion。
 func _play_special_fx(pos: Vector2i, kind: int) -> void:
