@@ -55,6 +55,8 @@ const SKILLS := [
 const DESIGN_W := 720.0
 const DESIGN_H := 1520.0
 const SWAP_TIME := 0.14
+const CLEAR_TIME := 0.16
+const FALL_TIME := 0.22
 const BG_CRYSTAL_UV := Vector2(0.632, 0.41)   # 水晶球在 bg_scene 图中的归一化位置(白核扫描 px594,330)
 const BG_CRYSTAL_TARGET := Vector2(360, 344)  # 对齐到狐狸与 Boss 正中间
 const BG_SCALE := 1.95
@@ -487,14 +489,17 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	var pa: Vector2 = _cell_center(a.y, a.x)
 	var pb: Vector2 = _cell_center(b.y, b.x)
 	await _animate_swap(na, nb, pa, pb)
-	if legal:
-		ME._swap_cells(board.grid, a, b)
-		ME._swap_cells(board.fx, a, b)
-		_gem_nodes[a.y][a.x] = nb
-		_gem_nodes[b.y][b.x] = na
-		_flash_matches()
-	else:
-		await _animate_swap(na, nb, pb, pa)
+	if not legal:
+		await _animate_swap(na, nb, pb, pa)  # 非法换回
+		_busy = false
+		return
+	# 提交交换(数据 + 节点引用)
+	ME._swap_cells(board.grid, a, b)
+	ME._swap_cells(board.fx, a, b)
+	_gem_nodes[a.y][a.x] = nb
+	_gem_nodes[b.y][b.x] = na
+	# 阶段3: 消除-下落-补充-连锁
+	await _resolve_cascades()
 	_busy = false
 
 func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> void:
@@ -528,6 +533,69 @@ func _clear_highlights() -> void:
 		if mk != null and is_instance_valid(mk):
 			mk.queue_free()
 	_hl_markers = []
+
+## 阶段3: 连锁循环——消除所有匹配 → 下落补充 → 再检测，直到无匹配。
+func _resolve_cascades() -> void:
+	var guard: int = 0
+	while guard < 30:
+		guard += 1
+		var matches: Array = ME.find_matches(board.grid)
+		if matches.is_empty():
+			break
+		await _animate_clear(matches)
+		for m in matches:
+			board.grid[m.y][m.x] = ME.EMPTY
+			var n: Sprite2D = _gem_nodes[m.y][m.x]
+			if n != null and is_instance_valid(n):
+				n.queue_free()
+			_gem_nodes[m.y][m.x] = null
+		await _collapse_and_refill()
+
+## 消除动画：匹配格缩放淡出。
+func _animate_clear(matches: Array) -> void:
+	var t := create_tween().set_parallel(true)
+	var any := false
+	for m in matches:
+		var n: Sprite2D = _gem_nodes[m.y][m.x]
+		if n != null and is_instance_valid(n):
+			t.tween_property(n, "scale", n.scale * 0.1, CLEAR_TIME)
+			t.tween_property(n, "modulate:a", 0.0, CLEAR_TIME)
+			any = true
+	if any:
+		await t.finished
+
+## 每列下落填空 + 顶部补新棋子，节点 Tween 落入。
+func _collapse_and_refill() -> void:
+	var t := create_tween().set_parallel(true)
+	var moved := false
+	for col in range(board.width):
+		var write: int = board.height - 1
+		for row in range(board.height - 1, -1, -1):
+			if board.grid[row][col] != ME.EMPTY:
+				if row != write:
+					board.grid[write][col] = board.grid[row][col]
+					board.grid[row][col] = ME.EMPTY
+					var n: Sprite2D = _gem_nodes[row][col]
+					_gem_nodes[write][col] = n
+					_gem_nodes[row][col] = null
+					if n != null and is_instance_valid(n):
+						t.tween_property(n, "position", _cell_center(write, col), FALL_TIME)
+						moved = true
+				write -= 1
+		var spawn_i: int = 0
+		for row in range(write, -1, -1):
+			var sp: int = board.species[board.rng.randi() % board.species.size()]
+			board.grid[row][col] = sp
+			var center: Vector2 = _cell_center(row, col)
+			var n: Sprite2D = _make_gem(sp, center)
+			_gem_nodes[row][col] = n
+			if n != null:
+				n.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
+				t.tween_property(n, "position", center, FALL_TIME)
+				moved = true
+			spawn_i += 1
+	if moved:
+		await t.finished
 
 func debug_first_legal_swap() -> bool:
 	for y in range(board.height):
