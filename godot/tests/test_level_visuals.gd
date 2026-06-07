@@ -55,3 +55,27 @@ func test_colorbomb_virtual_stripes_have_separate_conversion_phase() -> void:
 	assert_true(ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx) >= 0.45, "conversion phase is held long enough to read before detonation")
 	assert_false(ClearVisuals.colorbomb_combo_has_conversion_phase({}), "plain colorbomb clears do not add a conversion phase")
 	assert_eq(ClearVisuals.colorbomb_virtual_conversion_delay({}), 0.0, "plain colorbomb clears have no conversion delay")
+
+
+func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _play_endgame_bonus()")
+	assert_true(start >= 0, "_play_endgame_bonus exists")
+	if start < 0:
+		return
+	var end: int = src.find("# 程序绘制", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	var clear_idx: int = body.find("ME._apply_clears(board.grid, board.fx, to_clear, [])")
+	var collapse_idx: int = body.find("await _collapse_and_refill()", clear_idx)
+	var cascade_idx: int = body.find("await _resolve_cascades()", clear_idx)
+	var result_idx: int = body.find("ENDGAME_BONUS_RESULT_HOLD", clear_idx)
+	assert_true(clear_idx >= 0, "endgame bonus applies clears")
+	assert_true(collapse_idx > clear_idx, "endgame bonus refills after reward blasts")
+	assert_true(cascade_idx > collapse_idx, "endgame bonus waits for cascades after refill")
+	assert_true(result_idx > cascade_idx, "result panel waits until the board is stable")

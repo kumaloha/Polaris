@@ -1109,6 +1109,8 @@ func _play_endgame_bonus() -> void:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 		_gem_nodes[p.y][p.x] = null
+	await _collapse_and_refill()
+	await _resolve_cascades()
 	await get_tree().create_timer(ENDGAME_BONUS_RESULT_HOLD).timeout
 
 # 程序绘制居中半透明遮罩 + 结算面板(标题 + 下一关/重试按钮)。无现成素材, 纯绘制。
