@@ -110,8 +110,10 @@ const OBJ_PARCH_H := OBJ_PARCH_W * 0.4617 * 0.8  # 自然比例(1566×723)再竖
 const OBJ_GAP := 80.0  # 三目标水平间距(框变窄随之收)
 const OBJ_ICON_W := 42.0  # 目标图标宽(框变窄→图标再缩, 防顶框)
 const OBJ_NUM_FONT := 20  # 目标数字字号
+const OBJ_LABEL_FONT := 15  # 目标类型短标签字号(例如"果冻")
 const OBJ_NUM_COLOR := Color(0.16, 0.09, 0.04)  # 深褐墨色(配做旧米纸, 像墨水写的)
 const OBJ_NUM_DY := 30.0  # 数字在图标下方的偏移
+const OBJ_LABEL_DY := 52.0  # 类型标签在数字下方, 让 0/65 不再靠猜图标
 const OBJ_FRAME := "res://assets/ui_frames/objective_frame.png"
 const OBJ_BG_COLOR := Color(0.91, 0.835, 0.628)  # 米黄羊皮纸 #e8d5a0
 const OBJ_ML := 88.0
@@ -607,12 +609,40 @@ func _render_objective_panel() -> void:
 		# 真目标画 "进度/目标"; 占位(无 progress/target)退化为单数字。
 		var txt: String = item["n"] if item.has("n") else "%d/%d" % [int(item.get("progress", 0)), int(item.get("target", 0))]
 		_label(ui_layer, txt, Vector2(cx, icy + OBJ_NUM_DY), OBJ_NUM_FONT, OBJ_NUM_COLOR, 90, 2, Color(1.0, 0.97, 0.86, 0.5))
+		var label_text := String(item.get("label", ""))
+		if not label_text.is_empty():
+			_label(ui_layer, label_text, Vector2(cx, icy + OBJ_LABEL_DY), OBJ_LABEL_FONT, OBJ_NUM_COLOR, 90, 1, Color(1.0, 0.97, 0.86, 0.5))
 	# "关卡目标"横幅(title_banner)与文字已按需移除
 
 # 阶段6: 遍历 board.objectives 产出目标卡视图数据(图标+进度+目标)。
 # type→进度取值: COLLECT 用 collected[species]; 其余障碍类用对应 *_cleared/*_collected/... 计数器。
 # COLLECT 用该色宝石图标; 非 COLLECT 类暂用矿工头像占位(TODO 美术: 给障碍目标各出专属图标)。
 const OBJ_PLACEHOLDER_ICON := "res://assets/avatars/av_raccoon_miner.png"
+func _objective_label(t: String) -> String:
+	match t:
+		"COLLECT":
+			return "收集"
+		"CLEAR_JELLY":
+			return "果冻"
+		"CLEAR_BLOCKER":
+			return "涂层"
+		"CLEAR_CHOCO":
+			return "巧克力"
+		"COLLECT_INGREDIENT":
+			return "原料"
+		"DEFUSE_BOMB":
+			return "炸弹"
+		"POP_POPCORN":
+			return "爆米花"
+		"DESTROY_CAKE":
+			return "蛋糕"
+		"REVEAL_MYSTERY":
+			return "神秘"
+		"SCORE":
+			return "分数"
+		_:
+			return ""
+
 func _objectives_view() -> Array:
 	var out: Array = []
 	if board == null or board.objectives == null:
@@ -649,7 +679,7 @@ func _objectives_view() -> Array:
 			_:
 				progress = 0
 		# 进度封顶到 target(已达成不显示溢出, 如 25/21 → 21/21)。
-		out.append({"icon": icon, "progress": mini(progress, target), "target": target})
+		out.append({"icon": icon, "label": _objective_label(t), "progress": mini(progress, target), "target": target})
 	return out
 
 func _render_step_badge() -> void:

@@ -2,6 +2,17 @@ extends "res://tests/test_lib.gd"
 
 const CharacterData := preload("res://ui/character_data.gd")
 const AppScript := preload("res://ui/app.gd")
+const Board := preload("res://core/board.gd")
+
+
+func _filled_layer(w: int, h: int, value: int) -> Array:
+	var out := []
+	for y in range(h):
+		var row := []
+		for x in range(w):
+			row.append(value)
+		out.append(row)
+	return out
 
 
 func test_character_manifest_loads_available_png_characters() -> void:
@@ -77,4 +88,17 @@ func test_level_scene_launch_level_arg_is_one_based() -> void:
 	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], 126), 4, "--level=5 opens raw exported level 5")
 	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "0"], 126), -1, "Level.tscn level numbers are one-based")
 	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "127"], 126), -1, "out of range Level.tscn levels are ignored")
+	level.free()
+
+
+func test_level_objective_view_names_clear_jelly() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	var objs := [{"type": "CLEAR_JELLY", "species": -1, "target": 65}]
+	level.board = Board.new(8, 9, [0, 1, 2, 3, 4, 5], 0, 25, 1, [], objs, _filled_layer(8, 9, 1))
+	var view: Array = level.call("_objectives_view")
+	assert_eq(view.size(), 1, "one objective card")
+	assert_eq(view[0].get("label", ""), "果冻", "jelly objective is named in the Level.tscn HUD data")
+	assert_eq(view[0].get("progress", -1), 0, "jelly starts at zero progress")
+	assert_eq(view[0].get("target", -1), 65, "fifth-level jelly target is shown")
 	level.free()
