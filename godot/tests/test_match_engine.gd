@@ -408,6 +408,15 @@ func test_special_fusion_bomb_vertical_makes_three_vertical_columns() -> void:
 	assert_false(s.has(Vector2i(4, 2)), "cross + vertical must not add extra horizontal rows")
 
 
+func test_special_fusion_two_bombs_makes_5x5_blast() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_BOMB, ME.SP_BOMB)
+	var s := _cells_set(cells)
+	assert_eq(cells.size(), 25, "cross + cross clears a full 5x5 blast")
+	for y in 5:
+		for x in 5:
+			assert_true(s.has(Vector2i(x, y)), "5x5 blast includes (%d,%d)" % [x, y])
+
+
 func test_effect_colorbomb_clears_all_of_target() -> void:
 	var grid := [[0, 1, 0], [2, 0, 3], [0, 1, 0]]  # 五个 0
 	var cells: Array = ME.special_effect_cells(grid, Vector2i(1, 1), ME.SP_COLORBOMB, 0)

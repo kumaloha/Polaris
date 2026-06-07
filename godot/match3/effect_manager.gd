@@ -130,13 +130,13 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.65)
 
-## 局部爆裂(炸弹/十字 3x3): 纯粒子全向爆发 + 小中心闪, 扩散严格卡在 radius_px(实际清除边界)内,
+## 局部爆裂(炸弹/十字 3x3 或十字+十字 5x5): 纯粒子全向爆发 + 小中心闪, 扩散严格卡在 radius_px(实际清除边界)内,
 ## 不放冲击波环(那个会外溢)。美术原则: 动画范围 ≤ 实际效果范围。
-static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
+static func local_burst_bounds(clear_radius_px: float, clear_cells: int = LOCAL_BURST_CLEAR_CELLS) -> Dictionary:
 	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
 	var outer_wisp_radius := clear_radius_px * LOCAL_BURST_OUTER_WISP_RADIUS_RATIO
 	return {
-		"clear_cells": LOCAL_BURST_CLEAR_CELLS,
+		"clear_cells": clear_cells,
 		"clear_radius_px": clear_radius_px,
 		"flash_diameter_px": flash_diameter,
 		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,
@@ -148,8 +148,8 @@ static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 		"spiral_turn_radians": LOCAL_BURST_SPIRAL_TURN_RADIANS,
 	}
 
-func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
-	var bounds := local_burst_bounds(radius_px)
+func spawn_local_burst(pos: Vector2, color: Color, radius_px: float, clear_cells: int = LOCAL_BURST_CLEAR_CELLS) -> void:
+	var bounds := local_burst_bounds(radius_px, clear_cells)
 	# 中心闪: 直径压在范围内
 	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], 0.18)
 	var star_color: Color = color.lerp(Color(1, 1, 1, 1), 0.30)

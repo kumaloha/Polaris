@@ -21,3 +21,12 @@ func test_local_burst_profile_has_layered_magic_distribution() -> void:
 	assert_true(bounds["outer_wisp_radius_px"] <= clear_radius, "outer wisps stay inside the 3x3 clear radius")
 	assert_true(bounds["inner_star_radius_px"] < bounds["outer_wisp_radius_px"], "inner stars sit inside the outer wisps")
 	assert_true(bounds["spiral_turn_radians"] > 0.0, "magic burst uses a visible spiral motion")
+
+
+func test_local_burst_bounds_can_represent_5x5_radius() -> void:
+	var cell_size := 88.0
+	var clear_radius := cell_size * 2.5
+	var bounds: Dictionary = FxScript.local_burst_bounds(clear_radius, 25)
+	assert_eq(bounds["clear_cells"], 25, "cross + cross local burst represents a 5x5 clear")
+	assert_true(bounds["flash_peak_radius_px"] <= clear_radius, "flash peak stays inside the 5x5 clear radius")
+	assert_true(bounds["particle_max_distance_px"] <= clear_radius, "particles stay inside the 5x5 clear radius")

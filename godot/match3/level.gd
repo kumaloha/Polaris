@@ -1485,8 +1485,7 @@ func _play_fusion_fx_after_swap(a: Vector2i, b: Vector2i, ka: int, kb: int) -> v
 	elif a_line and b_bomb:
 		_play_wide_line_fx(a_after, ka, _fx_color(board.grid[a_after.y][a_after.x]))
 	elif a_bomb and b_bomb:
-		Fx.spawn_explosion(_cell_center(a_after.y, a_after.x), _fx_color(board.grid[a_after.y][a_after.x]), 2.0)
-		Fx.spawn_explosion(_cell_center(b_after.y, b_after.x), _fx_color(board.grid[b_after.y][b_after.x]), 2.0)
+		Fx.spawn_local_burst(_cell_center(a_after.y, a_after.x), _fx_color(board.grid[a_after.y][a_after.x]), cell_size * 2.5, 25)
 
 
 func _play_wide_line_fx(pos: Vector2i, kind: int, col: Color) -> void:
