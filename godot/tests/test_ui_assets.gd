@@ -3,8 +3,10 @@ extends "res://tests/test_lib.gd"
 const CharacterData := preload("res://ui/character_data.gd")
 const AppScript := preload("res://ui/app.gd")
 const Board := preload("res://core/board.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
+const BARRIER_MARKER_NAME := "CoatBarrierSprite"
 
 
 func _filled_layer(w: int, h: int, value: int) -> Array:
@@ -19,6 +21,52 @@ func _filled_layer(w: int, h: int, value: int) -> Array:
 
 func _repo_path(path: String) -> String:
 	return ProjectSettings.globalize_path("res://../%s" % path).simplify_path()
+
+
+func _count_positive_layer(layer: Array) -> int:
+	var count := 0
+	for row in layer:
+		for value in row:
+			if int(value) > 0:
+				count += 1
+	return count
+
+
+func _count_group_nodes(root: Node, group_name: String) -> int:
+	var count := 0
+	if root.is_in_group(group_name):
+		count += 1
+	for child in root.get_children():
+		count += _count_group_nodes(child, group_name)
+	return count
+
+
+func _find_named_node(root: Node, node_name: String) -> Node:
+	if root.name == node_name:
+		return root
+	for child in root.get_children():
+		var found := _find_named_node(child, node_name)
+		if found != null:
+			return found
+	return null
+
+
+func _prepare_level_scene() -> Node:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.background_layer = level.get_node("BackgroundLayer")
+	level.board_layer = level.get_node("BoardLayer")
+	level.gem_layer = level.get_node("GemLayer")
+	level.character_layer = level.get_node("CharacterLayer")
+	level.ui_layer = level.get_node("UILayer")
+	level.skill_bar = level.get_node("SkillBar")
+	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._playable = []
+	for i in range(level._levels.size()):
+		var objs = level._levels[i].get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			level._playable.append(i)
+	return level
 
 
 func test_character_manifest_loads_available_png_characters() -> void:
@@ -120,4 +168,21 @@ func test_level_blocker_objective_uses_resources_barrier_ice_icon() -> void:
 	var view: Array = level.call("_objectives_view")
 	assert_eq(view.size(), 1, "one objective card")
 	assert_eq(view[0].get("icon", ""), BARRIER_ICE_SYNCED, "blocker objective uses resources/barrier synced art")
+	level.free()
+
+
+func test_level_scene_renders_blockers_as_keyed_barrier_ice_sprites() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(5)
+	var expected := _count_positive_layer(level.board.coat)
+	assert_true(expected > 0, "raw level 6 contains blocker coat cells")
+	assert_eq(_count_group_nodes(level, BARRIER_MARKER_NAME), expected, "every blocker coat cell renders one visible barrier sprite")
+	var marker := _find_named_node(level, BARRIER_MARKER_NAME)
+	assert_true(marker is Sprite2D, "barrier marker is a sprite")
+	if marker is Sprite2D:
+		var sprite := marker as Sprite2D
+		assert_eq(sprite.texture.resource_path, BARRIER_ICE_SYNCED, "barriers use resources/barrier synced ice art")
+		assert_true(sprite.material is ShaderMaterial, "barriers key out the magenta source background")
+		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
+		assert_true(drawn_size.x <= level.cell_size * 0.90 and drawn_size.y <= level.cell_size * 0.90, "barrier art stays inside one board cell")
 	level.free()

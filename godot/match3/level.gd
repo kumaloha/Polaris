@@ -43,6 +43,8 @@ const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOARD_PANEL_TEXTURE := "res://assets/board/bg_board.png"
 const BG_TEXTURE := "res://assets/ui/bg_scene.png"
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
+const BARRIER_MARKER_NAME := "CoatBarrierSprite"
+const BARRIER_FILL := 0.86
 # UI 素材
 const PANEL_BEIGE := "res://assets/ui/ui_panel_beige.png"
 const PANEL_DARK := "res://assets/ui/ui_panel_dark.png"
@@ -179,6 +181,7 @@ var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]);
 var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
 var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
 var _gem_nodes: Array = []
+var _coat_nodes: Array = []
 var _sel := Vector2i(-1, -1)
 var _sel_node: Sprite2D = null  # 当前选中的棋子节点(放大提亮置顶)
 var _sel_node_scale := Vector2.ONE
@@ -418,6 +421,7 @@ func _frame_corner(center: Vector2) -> void:
 func _render_board() -> void:
 	_clear_layer(board_layer)
 	_clear_layer(gem_layer)
+	_coat_nodes = []
 	_render_board_panel()
 	_gem_nodes = []
 	var cell_tex: Texture2D = load(CELL_TEXTURE) if ResourceLoader.exists(CELL_TEXTURE) else null
@@ -437,6 +441,7 @@ func _render_board() -> void:
 				_apply_fx_overlay(gnode, board.fx[r][c])
 			node_row.append(gnode)
 		_gem_nodes.append(node_row)
+	_render_coat_visuals()
 	_render_board_frame()  # 金边框(最上层,盖格子边缘)
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
@@ -449,6 +454,50 @@ func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	gs.scale = _fit_scale(tex, cell_size * GEM_FILL)
 	gem_layer.add_child(gs)
 	return gs
+
+func _layer_value(layer: Array, row: int, col: int) -> int:
+	if layer.is_empty() or row < 0 or row >= layer.size():
+		return 0
+	var row_data = layer[row]
+	if not (row_data is Array) or col < 0 or col >= row_data.size():
+		return 0
+	return int(row_data[col])
+
+func _free_layer_visual_rows(rows: Array) -> void:
+	for row in rows:
+		for node in row:
+			if node != null and is_instance_valid(node):
+				node.queue_free()
+
+func _refresh_coat_visuals() -> void:
+	_free_layer_visual_rows(_coat_nodes)
+	_render_coat_visuals()
+
+func _render_coat_visuals() -> void:
+	_coat_nodes = []
+	if board == null or gem_layer == null or not ResourceLoader.exists(BARRIER_ICE_ICON):
+		return
+	var tex: Texture2D = load(BARRIER_ICE_ICON)
+	for r in range(board.height):
+		var row: Array = []
+		for c in range(board.width):
+			row.append(_make_coat_marker(r, c, tex))
+		_coat_nodes.append(row)
+
+func _make_coat_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
+	var layers := _layer_value(board.coat, row, col)
+	if layers <= 0 or board.grid[row][col] == ME.WALL:
+		return null
+	var marker := Sprite2D.new()
+	marker.name = BARRIER_MARKER_NAME
+	marker.add_to_group(BARRIER_MARKER_NAME)
+	marker.texture = tex
+	marker.material = _magenta_material()
+	marker.position = _cell_center(row, col)
+	marker.scale = _fit_scale(tex, cell_size * BARRIER_FILL)
+	marker.z_index = 8
+	gem_layer.add_child(marker)
+	return marker
 
 ## 阶段5: 给宝石节点叠/移 shine 子节点(命名"shine"), 标记其为特效棋子。
 ## 作为子 Sprite2D 居中铺满格, 父节点下落 tween 时自动跟随。kind==SP_NONE 则移除。
@@ -606,7 +655,8 @@ func _render_objective_panel() -> void:
 		var cx: float = c.x + (float(i) - float(n - 1) * 0.5) * OBJ_GAP
 		# 图标在上, 数字在下(深墨色), 簇竖向居中于框
 		var icy: float = c.y - 9.5
-		_sprite_w(ui_layer, item["icon"], Vector2(cx, icy), OBJ_ICON_W, false)
+		var icon_path := String(item["icon"])
+		_sprite_w(ui_layer, icon_path, Vector2(cx, icy), OBJ_ICON_W, icon_path == BARRIER_ICE_ICON)
 		# 真目标画 "进度/目标"; 占位(无 progress/target)退化为单数字。
 		var txt: String = item["n"] if item.has("n") else "%d/%d" % [int(item.get("progress", 0)), int(item.get("target", 0))]
 		_label(ui_layer, txt, Vector2(cx, icy + OBJ_NUM_DY), OBJ_NUM_FONT, OBJ_NUM_COLOR, 90, 2, Color(1.0, 0.97, 0.86, 0.5))
@@ -1256,7 +1306,7 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		return
 	_busy = true
 	_clear_highlights()
-	var legal: bool = ME.is_legal_swap(board.grid, a, b)
+	var legal: bool = ME.is_legal_swap(board.grid, a, b, 1, board._layers())
 	var na: Sprite2D = _gem_nodes[a.y][a.x]
 	var nb: Sprite2D = _gem_nodes[b.y][b.x]
 	var pa: Vector2 = _cell_center(a.y, a.x)
@@ -1299,6 +1349,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
+	_refresh_coat_visuals()
 	_charge_skills(acc.get("by_species", {}))
 	var locked := {}
 	for p in acc.get("locked", []):
@@ -1356,7 +1407,7 @@ func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> 
 
 func _flash_matches() -> void:
 	_clear_highlights()
-	var matches: Array = ME.find_matches(board.grid)
+	var matches: Array = ME.find_matches(board.grid, board._layers())
 	for m in matches:
 		var mk := ColorRect.new()
 		mk.color = Color(1.0, 0.9, 0.2, 0.5)
@@ -1398,6 +1449,7 @@ func _resolve_cascades() -> void:
 		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
+		_refresh_coat_visuals()                       # 同步已破冰锁, 避免数据清了画面还在
 		_charge_skills(acc.get("by_species", {}))      # 问题1: 消对应色宝石→技能充能
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}
@@ -1513,7 +1565,7 @@ func debug_first_legal_swap() -> bool:
 			var a := Vector2i(x, y)
 			for d in [Vector2i(1, 0), Vector2i(0, 1)]:
 				var b: Vector2i = a + d
-				if b.x < board.width and b.y < board.height and ME.is_legal_swap(board.grid, a, b):
+				if b.x < board.width and b.y < board.height and ME.is_legal_swap(board.grid, a, b, 1, board._layers()):
 					_try_swap(a, b)
 					return true
 	return false
