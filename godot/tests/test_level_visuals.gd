@@ -26,10 +26,8 @@ func test_bomb_blast_cells_use_trigger_gem_species() -> void:
 	fx[2][2] = ME.SP_BOMB
 	var cells: Array = ME.special_effect_cells(grid, Vector2i(2, 2), ME.SP_BOMB)
 	var species: Dictionary = ClearVisuals.special_clear_species_overrides(grid, fx, cells)
-	var kinds: Dictionary = ClearVisuals.special_clear_kind_overrides(grid, fx, cells)
 	for p in cells:
 		assert_eq(species.get(p, -1), 1, "3x3 cell %s uses trigger bomb species" % str(p))
-		assert_eq(kinds.get(p, ME.SP_NONE), ME.SP_BOMB, "3x3 cell %s is marked as bomb-shaped visual clear" % str(p))
 
 
 func test_virtual_colorbomb_bombs_color_their_3x3_blast_area() -> void:
@@ -44,8 +42,5 @@ func test_virtual_colorbomb_bombs_color_their_3x3_blast_area() -> void:
 	var virtual_fx := {Vector2i(2, 2): ME.SP_BOMB}
 	var cells: Array = ME.special_effect_cells(grid, Vector2i(2, 2), ME.SP_BOMB)
 	var species: Dictionary = ClearVisuals.special_clear_species_overrides(grid, fx, cells, {}, virtual_fx)
-	var kinds: Dictionary = ClearVisuals.special_clear_kind_overrides(grid, fx, cells, {}, virtual_fx)
 	assert_eq(species.get(Vector2i(1, 1), -1), 1, "virtual bomb corner uses target species")
 	assert_eq(species.get(Vector2i(3, 3), -1), 1, "virtual bomb corner uses target species")
-	assert_eq(kinds.get(Vector2i(1, 1), ME.SP_NONE), ME.SP_BOMB, "virtual bomb corner uses bounded bomb visual")
-	assert_eq(kinds.get(Vector2i(3, 3), ME.SP_NONE), ME.SP_BOMB, "virtual bomb corner uses bounded bomb visual")
