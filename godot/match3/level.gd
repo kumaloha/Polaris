@@ -42,9 +42,6 @@ const FX_TEXTURES := {
 const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOARD_PANEL_TEXTURE := "res://assets/board/bg_board.png"
 const BG_TEXTURE := "res://assets/ui/bg_scene.png"
-const COAT_TEXTURE := "res://assets/obstacles/ob_ice.png"  # resources/barrier/ob_ice.png 的 Godot 同步副本
-const JELLY_MARKER_NAME := "JellyLayerMarker"
-const COAT_MARKER_NAME := "CoatBarrierMarker"
 # UI 素材
 const PANEL_BEIGE := "res://assets/ui/ui_panel_beige.png"
 const PANEL_DARK := "res://assets/ui/ui_panel_dark.png"
@@ -181,8 +178,6 @@ var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]);
 var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
 var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
 var _gem_nodes: Array = []
-var _jelly_nodes: Array = []
-var _coat_nodes: Array = []
 var _sel := Vector2i(-1, -1)
 var _sel_node: Sprite2D = null  # 当前选中的棋子节点(放大提亮置顶)
 var _sel_node_scale := Vector2.ONE
@@ -422,8 +417,6 @@ func _frame_corner(center: Vector2) -> void:
 func _render_board() -> void:
 	_clear_layer(board_layer)
 	_clear_layer(gem_layer)
-	_jelly_nodes = []
-	_coat_nodes = []
 	_render_board_panel()
 	_gem_nodes = []
 	var cell_tex: Texture2D = load(CELL_TEXTURE) if ResourceLoader.exists(CELL_TEXTURE) else null
@@ -443,7 +436,6 @@ func _render_board() -> void:
 				_apply_fx_overlay(gnode, board.fx[r][c])
 			node_row.append(gnode)
 		_gem_nodes.append(node_row)
-	_render_layer_visuals()
 	_render_board_frame()  # 金边框(最上层,盖格子边缘)
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
@@ -456,82 +448,6 @@ func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	gs.scale = _fit_scale(tex, cell_size * GEM_FILL)
 	gem_layer.add_child(gs)
 	return gs
-
-func _layer_value(layer: Array, row: int, col: int) -> int:
-	if layer.is_empty() or row < 0 or row >= layer.size():
-		return 0
-	var row_data = layer[row]
-	if not (row_data is Array) or col < 0 or col >= row_data.size():
-		return 0
-	return int(row_data[col])
-
-func _free_layer_visual_rows(rows: Array) -> void:
-	for row in rows:
-		for node in row:
-			if node != null and is_instance_valid(node):
-				node.queue_free()
-
-func _refresh_layer_visuals() -> void:
-	_free_layer_visual_rows(_jelly_nodes)
-	_free_layer_visual_rows(_coat_nodes)
-	_render_layer_visuals()
-
-func _render_layer_visuals() -> void:
-	_jelly_nodes = []
-	_coat_nodes = []
-	if board == null or gem_layer == null:
-		return
-	for r in range(board.height):
-		var jelly_row: Array = []
-		var coat_row: Array = []
-		for c in range(board.width):
-			jelly_row.append(_make_jelly_marker(r, c))
-			coat_row.append(_make_coat_marker(r, c))
-		_jelly_nodes.append(jelly_row)
-		_coat_nodes.append(coat_row)
-
-func _make_jelly_marker(row: int, col: int) -> ColorRect:
-	var layers := _layer_value(board.jelly, row, col)
-	if layers <= 0 or board.grid[row][col] == ME.WALL:
-		return null
-	var marker := ColorRect.new()
-	marker.name = JELLY_MARKER_NAME
-	marker.add_to_group(JELLY_MARKER_NAME)
-	var alpha: float = minf(0.38 + 0.16 * float(layers - 1), 0.74)
-	marker.color = Color(0.12, 0.92, 0.96, alpha)
-	marker.position = board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.06
-	marker.size = Vector2(cell_size, cell_size) * 0.88
-	marker.z_index = -8
-	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	gem_layer.add_child(marker)
-	return marker
-
-func _make_coat_marker(row: int, col: int) -> CanvasItem:
-	var layers := _layer_value(board.coat, row, col)
-	if layers <= 0 or board.grid[row][col] == ME.WALL:
-		return null
-	if ResourceLoader.exists(COAT_TEXTURE):
-		var tex: Texture2D = load(COAT_TEXTURE)
-		var marker := Sprite2D.new()
-		marker.name = COAT_MARKER_NAME
-		marker.add_to_group(COAT_MARKER_NAME)
-		marker.texture = tex
-		marker.position = _cell_center(row, col)
-		marker.scale = _fit_scale(tex, cell_size * 0.98)
-		marker.modulate = Color(1, 1, 1, 0.96)
-		marker.z_index = 12
-		gem_layer.add_child(marker)
-		return marker
-	var fallback := ColorRect.new()
-	fallback.name = COAT_MARKER_NAME
-	fallback.add_to_group(COAT_MARKER_NAME)
-	fallback.color = Color(0.62, 0.85, 1.0, 0.68)
-	fallback.position = board_origin + Vector2(col, row) * cell_size
-	fallback.size = Vector2(cell_size, cell_size)
-	fallback.z_index = 12
-	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	gem_layer.add_child(fallback)
-	return fallback
 
 ## 阶段5: 给宝石节点叠/移 shine 子节点(命名"shine"), 标记其为特效棋子。
 ## 作为子 Sprite2D 居中铺满格, 父节点下落 tween 时自动跟随。kind==SP_NONE 则移除。
@@ -745,8 +661,6 @@ func _objectives_view() -> Array:
 			"CLEAR_JELLY":
 				progress = board.jelly_cleared
 			"CLEAR_BLOCKER":
-				if ResourceLoader.exists(COAT_TEXTURE):
-					icon = COAT_TEXTURE
 				progress = board.blocker_cleared
 			"CLEAR_CHOCO":
 				progress = board.choco_cleared
@@ -1481,7 +1395,6 @@ func _resolve_cascades() -> void:
 		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
-		_refresh_layer_visuals()                       # 同步已破的果冻/冰锁, 避免数据清了画面还在
 		_charge_skills(acc.get("by_species", {}))      # 问题1: 消对应色宝石→技能充能
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}

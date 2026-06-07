@@ -3,7 +3,6 @@ extends "res://tests/test_lib.gd"
 const CharacterData := preload("res://ui/character_data.gd")
 const AppScript := preload("res://ui/app.gd")
 const Board := preload("res://core/board.gd")
-const LevelLibrary := preload("res://core/level_library.gd")
 
 
 func _filled_layer(w: int, h: int, value: int) -> Array:
@@ -14,52 +13,6 @@ func _filled_layer(w: int, h: int, value: int) -> Array:
 			row.append(value)
 		out.append(row)
 	return out
-
-
-func _count_positive_layer(layer: Array) -> int:
-	var count := 0
-	for row in layer:
-		for value in row:
-			if int(value) > 0:
-				count += 1
-	return count
-
-
-func _count_group_nodes(root: Node, group_name: String) -> int:
-	var count := 0
-	if root.is_in_group(group_name):
-		count += 1
-	for child in root.get_children():
-		count += _count_group_nodes(child, group_name)
-	return count
-
-
-func _find_named_node(root: Node, node_name: String) -> Node:
-	if root.name == node_name:
-		return root
-	for child in root.get_children():
-		var found := _find_named_node(child, node_name)
-		if found != null:
-			return found
-	return null
-
-
-func _prepare_level_scene() -> Node:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	level.background_layer = level.get_node("BackgroundLayer")
-	level.board_layer = level.get_node("BoardLayer")
-	level.gem_layer = level.get_node("GemLayer")
-	level.character_layer = level.get_node("CharacterLayer")
-	level.ui_layer = level.get_node("UILayer")
-	level.skill_bar = level.get_node("SkillBar")
-	level._levels = LevelLibrary.load_file("res://levels.json")
-	level._playable = []
-	for i in range(level._levels.size()):
-		var objs = level._levels[i].get("objectives", [])
-		if objs is Array and not objs.is_empty():
-			level._playable.append(i)
-	return level
 
 
 func test_character_manifest_loads_available_png_characters() -> void:
@@ -148,23 +101,4 @@ func test_level_objective_view_names_clear_jelly() -> void:
 	assert_eq(view[0].get("label", ""), "果冻", "jelly objective is named in the Level.tscn HUD data")
 	assert_eq(view[0].get("progress", -1), 0, "jelly starts at zero progress")
 	assert_eq(view[0].get("target", -1), 65, "fifth-level jelly target is shown")
-	level.free()
-
-
-func test_level_scene_renders_fifth_level_jelly_layer() -> void:
-	var level := _prepare_level_scene()
-	level.load_level(4)
-	assert_eq(_count_group_nodes(level, "JellyLayerMarker"), 72, "raw level 5 has visible jelly markers on every cell")
-	level.free()
-
-
-func test_level_scene_renders_barrier_asset_for_blockers() -> void:
-	var level := _prepare_level_scene()
-	level.load_level(5)
-	assert_eq(_count_group_nodes(level, "CoatBarrierMarker"), _count_positive_layer(level.board.coat), "raw level 6 shows every blocker coat as a barrier marker")
-	var marker := _find_named_node(level, "CoatBarrierMarker")
-	assert_true(marker is Sprite2D, "blocker marker is a sprite")
-	if marker is Sprite2D:
-		var tex: Texture2D = (marker as Sprite2D).texture
-		assert_eq(tex.resource_path, "res://assets/obstacles/ob_ice.png", "blockers use the synced resources/barrier ice asset")
 	level.free()
