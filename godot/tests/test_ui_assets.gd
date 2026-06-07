@@ -3,6 +3,8 @@ extends "res://tests/test_lib.gd"
 const CharacterData := preload("res://ui/character_data.gd")
 const AppScript := preload("res://ui/app.gd")
 const Board := preload("res://core/board.gd")
+const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
+const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
 
 
 func _filled_layer(w: int, h: int, value: int) -> Array:
@@ -13,6 +15,10 @@ func _filled_layer(w: int, h: int, value: int) -> Array:
 			row.append(value)
 		out.append(row)
 	return out
+
+
+func _repo_path(path: String) -> String:
+	return ProjectSettings.globalize_path("res://../%s" % path).simplify_path()
 
 
 func test_character_manifest_loads_available_png_characters() -> void:
@@ -101,4 +107,17 @@ func test_level_objective_view_names_clear_jelly() -> void:
 	assert_eq(view[0].get("label", ""), "果冻", "jelly objective is named in the Level.tscn HUD data")
 	assert_eq(view[0].get("progress", -1), 0, "jelly starts at zero progress")
 	assert_eq(view[0].get("target", -1), 65, "fifth-level jelly target is shown")
+	level.free()
+
+
+func test_level_blocker_objective_uses_resources_barrier_ice_icon() -> void:
+	assert_true(FileAccess.file_exists(_repo_path(BARRIER_ICE_SOURCE)), "source barrier image exists")
+	assert_true(FileAccess.file_exists(BARRIER_ICE_SYNCED), "synced Godot barrier image exists")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 9}]
+	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1, [], objs, [], _filled_layer(3, 3, 1))
+	var view: Array = level.call("_objectives_view")
+	assert_eq(view.size(), 1, "one objective card")
+	assert_eq(view[0].get("icon", ""), BARRIER_ICE_SYNCED, "blocker objective uses resources/barrier synced art")
 	level.free()

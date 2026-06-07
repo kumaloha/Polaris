@@ -42,6 +42,7 @@ const FX_TEXTURES := {
 const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOARD_PANEL_TEXTURE := "res://assets/board/bg_board.png"
 const BG_TEXTURE := "res://assets/ui/bg_scene.png"
+const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
 # UI 素材
 const PANEL_BEIGE := "res://assets/ui/ui_panel_beige.png"
 const PANEL_DARK := "res://assets/ui/ui_panel_dark.png"
@@ -661,6 +662,8 @@ func _objectives_view() -> Array:
 			"CLEAR_JELLY":
 				progress = board.jelly_cleared
 			"CLEAR_BLOCKER":
+				if ResourceLoader.exists(BARRIER_ICE_ICON):
+					icon = BARRIER_ICE_ICON
 				progress = board.blocker_cleared
 			"CLEAR_CHOCO":
 				progress = board.choco_cleared
