@@ -1,6 +1,7 @@
 extends "res://tests/test_lib.gd"
 
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
+const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
 
 
@@ -103,3 +104,39 @@ func test_opening_drop_starts_gems_above_the_board() -> void:
 	assert_true(bottom_delay < top_delay, "bottom row starts first so the board fills from bottom to top")
 	assert_true(top_delay - bottom_delay >= 0.25, "opening drop is slow enough to read")
 	level.free()
+
+
+func test_opening_drop_uses_temporary_gems_for_ice_cells() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_opening_visual_species"), "Level exposes opening visual species calculation")
+	if not level.has_method("_opening_visual_species"):
+		level.free()
+		return
+	var coat := [
+		[1, 0],
+		[0, 0],
+	]
+	level.board = Board.new(2, 2, [0, 1], 0, 10, 1, [], [], [], coat)
+	assert_eq(level.board.grid[0][0], ME.EMPTY, "ice logic cell still has no hidden gem")
+	var visual_sp: int = level.call("_opening_visual_species", 0, 0)
+	assert_true(level.board.species.has(visual_sp), "ice opening visual uses a temporary falling gem species")
+	level.free()
+
+
+func test_opening_freeze_casts_from_boss_before_unlock() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var freeze_start: int = src.find("func _play_opening_freeze")
+	assert_true(freeze_start >= 0, "opening freeze phase exists")
+	if freeze_start < 0:
+		return
+	var finish_idx: int = src.find("_finish_opening_drop(generation)", freeze_start)
+	var beam_idx: int = src.find("Fx.spawn_beam(BOSS_C", freeze_start)
+	var marker_idx: int = src.find("_show_opening_coat_marker", freeze_start)
+	assert_true(beam_idx > freeze_start, "opening freeze casts beams from the boss position")
+	assert_true(marker_idx > beam_idx, "ice marker appears after the boss beam")
+	assert_true(finish_idx > marker_idx, "input unlock waits until freezing is done")

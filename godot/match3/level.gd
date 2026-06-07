@@ -83,6 +83,9 @@ const FALL_TIME := 0.22
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
 const OPENING_DROP_TIME := 0.56
 const OPENING_DROP_ROW_STAGGER := 0.045
+const OPENING_FREEZE_STAGGER := 0.035
+const OPENING_FREEZE_SETTLE := 0.24
+const OPENING_FREEZE_COLOR := Color(0.45, 0.78, 1.0)
 const ENDGAME_BONUS_CONVERT_STEP := 0.08
 const ENDGAME_BONUS_CONVERT_HOLD := 0.70
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
@@ -457,7 +460,8 @@ func _render_board(opening_drop: bool = false) -> void:
 				cs.position = center
 				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
 				board_layer.add_child(cs)
-			var gnode: Sprite2D = _make_gem(board.grid[r][c], center)
+			var visual_sp: int = _opening_visual_species(r, c) if opening_drop else board.grid[r][c]
+			var gnode: Sprite2D = _make_gem(visual_sp, center)
 			if gnode != null and opening_drop:
 				gnode.position = _opening_drop_start_position(center, r)
 			# 阶段5: 若该格已是特效棋子(交换后/续局), 叠 shine 标记
@@ -465,8 +469,28 @@ func _render_board(opening_drop: bool = false) -> void:
 				_apply_fx_overlay(gnode, board.fx[r][c])
 			node_row.append(gnode)
 		_gem_nodes.append(node_row)
-	_render_coat_visuals()
+	if opening_drop:
+		_coat_nodes = _blank_visual_rows()
+	else:
+		_render_coat_visuals()
 	_render_board_frame()  # 金边框(最上层,盖格子边缘)
+
+func _blank_visual_rows() -> Array:
+	var rows := []
+	for r in range(board.height):
+		var row := []
+		for c in range(board.width):
+			row.append(null)
+		rows.append(row)
+	return rows
+
+func _opening_visual_species(row: int, col: int) -> int:
+	var sp: int = board.grid[row][col]
+	if sp >= 0:
+		return sp
+	if _layer_value(board.coat, row, col) <= 0 or board.species.is_empty():
+		return sp
+	return int(board.species[abs(row * 31 + col * 17) % board.species.size()])
 
 func _opening_drop_start_position(final_center: Vector2, row: int) -> Vector2:
 	return final_center - Vector2(0.0, cell_size * float(row + 1.5))
@@ -475,9 +499,65 @@ func _opening_drop_delay(row: int, height: int = -1) -> float:
 	var h: int = height if height > 0 else board.height
 	return float(h - 1 - row) * OPENING_DROP_ROW_STAGGER
 
+func _opening_coat_cells() -> Array:
+	var cells := []
+	for r in range(board.height):
+		for c in range(board.width):
+			if _layer_value(board.coat, r, c) > 0 and board.grid[r][c] != ME.WALL:
+				cells.append(Vector2i(c, r))
+	return cells
+
+func _settle_opening_gems(generation: int) -> bool:
+	if generation != _level_generation:
+		return false
+	for r in range(board.height):
+		for c in range(board.width):
+			var n: Sprite2D = _gem_nodes[r][c]
+			if n != null and is_instance_valid(n):
+				n.position = _cell_center(r, c)
+	return true
+
+func _show_opening_coat_marker(pos: Vector2i, animate: bool) -> void:
+	_clear_gem_node_at(pos.y, pos.x)
+	if _coat_nodes.is_empty():
+		_coat_nodes = _blank_visual_rows()
+	var tex: Texture2D = load(BARRIER_ICE_ICON) if ResourceLoader.exists(BARRIER_ICE_ICON) else null
+	if tex == null:
+		return
+	var marker := _make_coat_marker(pos.y, pos.x, tex)
+	_coat_nodes[pos.y][pos.x] = marker
+	if marker == null or not animate or not is_inside_tree():
+		return
+	var base_scale: Vector2 = marker.scale
+	marker.modulate.a = 0.0
+	marker.scale = base_scale * 0.55
+	var t := create_tween().set_parallel(true)
+	t.tween_property(marker, "modulate:a", 1.0, 0.16)
+	t.tween_property(marker, "scale", base_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+func _play_opening_freeze(generation: int) -> void:
+	var cells: Array = _opening_coat_cells()
+	if cells.is_empty() or generation != _level_generation:
+		return
+	for p in cells:
+		if generation != _level_generation:
+			return
+		Fx.spawn_beam(BOSS_C, _cell_center(p.y, p.x), OPENING_FREEZE_COLOR)
+		_show_opening_coat_marker(p, true)
+		await get_tree().create_timer(OPENING_FREEZE_STAGGER).timeout
+	await get_tree().create_timer(OPENING_FREEZE_SETTLE).timeout
+
+func _apply_opening_freeze_instant(generation: int) -> void:
+	if generation != _level_generation:
+		return
+	for p in _opening_coat_cells():
+		_show_opening_coat_marker(p, false)
+
 func _play_opening_drop(generation: int) -> void:
 	if not is_inside_tree():
-		_finish_opening_drop(generation)
+		if _settle_opening_gems(generation):
+			_apply_opening_freeze_instant(generation)
+			_finish_opening_drop(generation)
 		return
 	var t := create_tween().set_parallel(true)
 	var any := false
@@ -488,20 +568,19 @@ func _play_opening_drop(generation: int) -> void:
 				continue
 			var target := _cell_center(r, c)
 			var delay := _opening_drop_delay(r)
-			t.tween_property(n, "position", target, OPENING_DROP_TIME).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			var tw := t.tween_property(n, "position", target, OPENING_DROP_TIME)
+			tw.set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			any = true
 	if any:
 		await t.finished
+	if not _settle_opening_gems(generation):
+		return
+	await _play_opening_freeze(generation)
 	_finish_opening_drop(generation)
 
 func _finish_opening_drop(generation: int) -> void:
 	if generation != _level_generation:
 		return
-	for r in range(board.height):
-		for c in range(board.width):
-			var n: Sprite2D = _gem_nodes[r][c]
-			if n != null and is_instance_valid(n):
-				n.position = _cell_center(r, c)
 	_busy = false
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
