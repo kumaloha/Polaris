@@ -81,6 +81,9 @@ const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
+const ENDGAME_BONUS_CONVERT_STEP := 0.08
+const ENDGAME_BONUS_CONVERT_HOLD := 0.70
+const ENDGAME_BONUS_RESULT_HOLD := 0.45
 const BG_CRYSTAL_UV := Vector2(0.632, 0.41)   # 水晶球在 bg_scene 图中的归一化位置(白核扫描 px594,330)
 const BG_CRYSTAL_TARGET := Vector2(360, 344)  # 对齐到狐狸与 Boss 正中间
 const BG_SCALE := 1.05
@@ -1076,7 +1079,8 @@ func _play_endgame_bonus() -> void:
 		var n: Sprite2D = _gem_nodes[p.y][p.x]
 		if n != null and is_instance_valid(n):
 			_apply_fx_overlay(n, int(item["kind"]))
-	await get_tree().create_timer(0.34).timeout
+			await get_tree().create_timer(ENDGAME_BONUS_CONVERT_STEP).timeout
+	await get_tree().create_timer(ENDGAME_BONUS_CONVERT_HOLD).timeout
 	var seeds := []
 	for item in picks:
 		seeds.append(item["pos"])
@@ -1105,6 +1109,7 @@ func _play_endgame_bonus() -> void:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 		_gem_nodes[p.y][p.x] = null
+	await get_tree().create_timer(ENDGAME_BONUS_RESULT_HOLD).timeout
 
 # 程序绘制居中半透明遮罩 + 结算面板(标题 + 下一关/重试按钮)。无现成素材, 纯绘制。
 # 锁输入(_settled=true), 按钮: 通关→下一关 / 失败→重试本关。
