@@ -13,6 +13,11 @@ const LOCAL_BURST_CLEAR_CELLS := 9
 const LOCAL_BURST_FLASH_DIAMETER_RATIO := 0.85
 const LOCAL_BURST_FLASH_PEAK_SCALE := 1.05
 const LOCAL_BURST_PARTICLE_TRAVEL_RATIO := 0.72
+const LOCAL_BURST_INNER_STAR_COUNT := 9
+const LOCAL_BURST_OUTER_WISP_COUNT := 7
+const LOCAL_BURST_INNER_STAR_RADIUS_RATIO := 0.46
+const LOCAL_BURST_OUTER_WISP_RADIUS_RATIO := 0.82
+const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
@@ -129,40 +134,67 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 ## 不放冲击波环(那个会外溢)。美术原则: 动画范围 ≤ 实际效果范围。
 static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
+	var outer_wisp_radius := clear_radius_px * LOCAL_BURST_OUTER_WISP_RADIUS_RATIO
 	return {
 		"clear_cells": LOCAL_BURST_CLEAR_CELLS,
 		"clear_radius_px": clear_radius_px,
 		"flash_diameter_px": flash_diameter,
 		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,
-		"particle_max_distance_px": clear_radius_px * LOCAL_BURST_PARTICLE_TRAVEL_RATIO,
+		"particle_max_distance_px": maxf(clear_radius_px * LOCAL_BURST_PARTICLE_TRAVEL_RATIO, outer_wisp_radius),
+		"inner_star_count": LOCAL_BURST_INNER_STAR_COUNT,
+		"outer_wisp_count": LOCAL_BURST_OUTER_WISP_COUNT,
+		"inner_star_radius_px": clear_radius_px * LOCAL_BURST_INNER_STAR_RADIUS_RATIO,
+		"outer_wisp_radius_px": outer_wisp_radius,
+		"spiral_turn_radians": LOCAL_BURST_SPIRAL_TURN_RADIANS,
 	}
 
 func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
-	var life := 0.40
 	var bounds := local_burst_bounds(radius_px)
 	# 中心闪: 直径压在范围内
 	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], 0.18)
-	# 粒子: 匀速(无重力) dist=v*t, 最远飞到 ~0.72*radius(加粒子自身大小仍不碰边界)
-	var p := CPUParticles2D.new()
-	p.texture = load(SPARK)
-	p.position = pos
-	p.one_shot = true
-	p.explosiveness = 1.0
-	p.amount = 16
-	p.lifetime = life
-	p.direction = Vector2(0, -1)
-	p.spread = 180.0
-	var vmax: float = bounds["particle_max_distance_px"] / life
-	p.initial_velocity_min = vmax * 0.4
-	p.initial_velocity_max = vmax
-	p.gravity = Vector2.ZERO
-	p.scale_amount_min = 0.09
-	p.scale_amount_max = 0.20
-	p.color = color
-	p.material = _add_mat()
-	p.emitting = true
-	_layer().add_child(p)
-	_auto_free(p, life + 0.25)
+	var star_color: Color = color.lerp(Color(1, 1, 1, 1), 0.30)
+	var wisp_color: Color = color.lerp(Color(1, 1, 1, 1), 0.42)
+	wisp_color.a = 0.78
+	var inner_count: int = int(bounds["inner_star_count"])
+	for i in range(inner_count):
+		var f: float = float(i) / float(inner_count)
+		var angle: float = TAU * f + (0.18 if i % 2 == 0 else -0.11)
+		var twist: float = bounds["spiral_turn_radians"] * (1.0 if i % 2 == 0 else -0.72)
+		var end_radius: float = bounds["inner_star_radius_px"] * (0.82 + 0.07 * float(i % 3))
+		var delay: float = 0.012 * float(i % 3)
+		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.15, radius_px * 0.045, delay, 0.36)
+	var outer_count: int = int(bounds["outer_wisp_count"])
+	for i in range(outer_count):
+		var f: float = (float(i) + 0.5) / float(outer_count)
+		var angle: float = TAU * f
+		var twist: float = -bounds["spiral_turn_radians"] * (0.45 + 0.08 * float(i % 2))
+		var end_radius: float = bounds["outer_wisp_radius_px"] * (0.86 + 0.05 * float(i % 3))
+		var delay: float = 0.024 + 0.014 * float(i % 4)
+		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.18, end_radius, twist, radius_px * 0.18, radius_px * 0.07, delay, 0.44)
+
+func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float) -> void:
+	if not ResourceLoader.exists(tex_path):
+		return
+	var tex: Texture2D = load(tex_path)
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.position = pos + Vector2.RIGHT.rotated(angle) * start_radius
+	s.modulate = color
+	s.rotation = angle
+	s.material = _add_mat()
+	var start_scale: float = start_diameter / maxf(float(tex.get_width()), 1.0)
+	var end_scale: float = end_diameter / maxf(float(tex.get_width()), 1.0)
+	s.scale = Vector2(start_scale, start_scale)
+	_layer().add_child(s)
+	var t := create_tween()
+	if delay > 0.0:
+		t.tween_interval(delay)
+	t.set_parallel(true)
+	t.tween_property(s, "position", pos + Vector2.RIGHT.rotated(angle + twist) * end_radius, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(s, "rotation", angle + twist * 1.6, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(s, "scale", Vector2(end_scale, end_scale), dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(s, "modulate:a", 0.0, dur).set_delay(dur * 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	_auto_free(s, delay + dur + 0.12)
 
 ## 行列光束: 宽彩辉光 + 白热核(厚度 pop) + 沿线火花。比单条更有冲击力。
 func spawn_beam(from: Vector2, to: Vector2, color: Color) -> void:
