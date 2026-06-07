@@ -132,16 +132,22 @@ func test_app_launch_level_arg_is_one_based() -> void:
 
 
 func test_level_scene_launch_level_arg_is_one_based() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
+	var level := _prepare_level_scene()
 	assert_true(level.has_method("_launch_level_idx_from_args"), "Level.tscn path parses direct level launch args")
 	if not level.has_method("_launch_level_idx_from_args"):
 		level.free()
 		return
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "5"], 126), 4, "--level 5 opens raw exported level 5")
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], 126), 4, "--level=5 opens raw exported level 5")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "5"], level._levels.size()), 5, "--level 5 opens the fifth playable level, raw exported level 6")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], level._levels.size()), 5, "--level=5 opens the fifth playable level, raw exported level 6")
 	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "0"], 126), -1, "Level.tscn level numbers are one-based")
 	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "127"], 126), -1, "out of range Level.tscn levels are ignored")
+	level.free()
+
+
+func test_level_scene_displays_playable_level_number() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(5)
+	assert_eq(level._cur_cfg.get("id", -1), 5, "raw exported level 6 is player-facing level 5")
 	level.free()
 
 

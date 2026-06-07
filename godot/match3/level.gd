@@ -245,14 +245,27 @@ func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 			continue
 		if not raw.is_valid_int():
 			return -1
-		var level_number := raw.to_int()
-		var level_idx := level_number - 1
-		if level_idx < 0:
-			return -1
-		if level_count > 0 and level_idx >= level_count:
-			return -1
-		return level_idx
+		return _player_level_to_raw_idx(raw.to_int(), level_count)
 	return -1
+
+func _player_level_to_raw_idx(level_number: int, level_count: int) -> int:
+	var player_idx := level_number - 1
+	if player_idx < 0:
+		return -1
+	if not _playable.is_empty():
+		if player_idx >= _playable.size():
+			return -1
+		return int(_playable[player_idx])
+	if level_count > 0 and player_idx >= level_count:
+		return -1
+	return player_idx
+
+func _display_level_number(raw_idx: int) -> int:
+	if not _playable.is_empty():
+		var player_idx := _playable.find(raw_idx)
+		if player_idx >= 0:
+			return player_idx + 1
+	return raw_idx + 1
 
 ## species → 特效染色(取宝石色并提亮便于可见)。
 func _fx_color(sp: int) -> Color:
@@ -275,7 +288,7 @@ func load_level(idx: int) -> void:
 	if not _levels.is_empty() and idx >= 0 and idx < _levels.size():
 		# 阶段6: 用现成的"JSON一关→可玩Board"工厂(配齐 objectives/move_limit/障碍/盘面)。
 		board = LevelLibrary.to_board(_levels[idx])
-		cfg = {"id": idx + 1}   # 显示用导出关卡序号(1-based)
+		cfg = {"id": _display_level_number(idx)}
 	else:
 		# 回退: levels.json 缺失时仍能跑旧 LevelConfig 占位关(防 json 缺失白屏)。
 		var lc: Dictionary = LevelConfig.get_level(idx)
