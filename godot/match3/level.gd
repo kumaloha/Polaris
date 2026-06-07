@@ -1377,16 +1377,18 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	board._gain(ME.score_for_clear(scored, 1))
 	# 表现: 彩球本体大爆发(白金) + 对清除格放特效(限量精细, 避免一次太多卡顿)。
 	Fx.spawn_explosion(_cell_center(cb_pos.y, cb_pos.x), Color(1.0, 0.95, 0.7), 3.0)
+	if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
+		await _show_colorbomb_virtual_conversion(virtual_fx)
 	var fine_budget: int = 36   # 精细特效上限(超出只清不放, 防卡顿)
 	for p in cells:
 		if p == cb_pos:
 			continue
 		var fk: int = board.fx[p.y][p.x]
 		var vk: int = int(virtual_fx.get(p, ME.SP_NONE))
-		if fk != ME.SP_NONE:
-			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
-		elif vk != ME.SP_NONE:
+		if vk != ME.SP_NONE:
 			_play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
+		elif fk != ME.SP_NONE:
+			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
 		elif visual_species.has(p):
 			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
 		elif fine_budget > 0:
@@ -1408,6 +1410,28 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	_refresh_hud()
 	_check_settlement()
 	_busy = false
+
+
+func _show_colorbomb_virtual_conversion(virtual_fx: Dictionary) -> void:
+	if not ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
+		return
+	var tween := create_tween().set_parallel(true)
+	for p in virtual_fx:
+		var kind: int = int(virtual_fx[p])
+		if kind == ME.SP_NONE:
+			continue
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n == null or not is_instance_valid(n):
+			continue
+		_apply_fx_overlay(n, kind)
+		var base_scale: Vector2 = n.scale
+		var base_mod: Color = n.modulate
+		var glow_mod := base_mod.lerp(Color(1.0, 0.96, 0.62, base_mod.a), 0.62)
+		tween.tween_property(n, "scale", base_scale * 1.13, ClearVisuals.COLORBOMB_CONVERT_TIME * 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tween.tween_property(n, "modulate", glow_mod, ClearVisuals.COLORBOMB_CONVERT_TIME * 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(n, "scale", base_scale, ClearVisuals.COLORBOMB_CONVERT_TIME * 0.45).set_delay(ClearVisuals.COLORBOMB_CONVERT_TIME * 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(n, "modulate", base_mod, ClearVisuals.COLORBOMB_CONVERT_TIME * 0.45).set_delay(ClearVisuals.COLORBOMB_CONVERT_TIME * 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await get_tree().create_timer(ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx)).timeout
 
 
 func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:

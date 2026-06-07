@@ -4,6 +4,9 @@ extends RefCounted
 
 const ME := preload("res://core/match_engine.gd")
 
+const COLORBOMB_CONVERT_TIME := 0.24
+const COLORBOMB_CONVERT_HOLD := 0.26
+
 
 static func special_clear_species_overrides(grid: Array, fx: Array, to_clear: Array, spawn_set: Dictionary = {}, override_fx: Dictionary = {}) -> Dictionary:
 	var species := {}
@@ -20,3 +23,13 @@ static func special_clear_species_overrides(grid: Array, fx: Array, to_clear: Ar
 			if not species.has(e):
 				species[e] = sp
 	return species
+
+
+static func colorbomb_combo_has_conversion_phase(virtual_fx: Dictionary) -> bool:
+	return not virtual_fx.is_empty()
+
+
+static func colorbomb_virtual_conversion_delay(virtual_fx: Dictionary) -> float:
+	if not colorbomb_combo_has_conversion_phase(virtual_fx):
+		return 0.0
+	return COLORBOMB_CONVERT_TIME + COLORBOMB_CONVERT_HOLD

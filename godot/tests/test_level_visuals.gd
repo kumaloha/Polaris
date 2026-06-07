@@ -44,3 +44,14 @@ func test_virtual_colorbomb_bombs_color_their_3x3_blast_area() -> void:
 	var species: Dictionary = ClearVisuals.special_clear_species_overrides(grid, fx, cells, {}, virtual_fx)
 	assert_eq(species.get(Vector2i(1, 1), -1), 1, "virtual bomb corner uses target species")
 	assert_eq(species.get(Vector2i(3, 3), -1), 1, "virtual bomb corner uses target species")
+
+
+func test_colorbomb_virtual_stripes_have_separate_conversion_phase() -> void:
+	var virtual_fx := {
+		Vector2i(1, 0): ME.SP_LINE_H,
+		Vector2i(2, 1): ME.SP_LINE_V,
+	}
+	assert_true(ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx), "colorbomb + 4-match specials first show converted stripes")
+	assert_true(ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx) >= 0.45, "conversion phase is held long enough to read before detonation")
+	assert_false(ClearVisuals.colorbomb_combo_has_conversion_phase({}), "plain colorbomb clears do not add a conversion phase")
+	assert_eq(ClearVisuals.colorbomb_virtual_conversion_delay({}), 0.0, "plain colorbomb clears have no conversion delay")
