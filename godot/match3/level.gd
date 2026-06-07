@@ -81,6 +81,8 @@ const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
+const OPENING_DROP_TIME := 0.34
+const OPENING_DROP_ROW_STAGGER := 0.024
 const ENDGAME_BONUS_CONVERT_STEP := 0.08
 const ENDGAME_BONUS_CONVERT_HOLD := 0.70
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
@@ -191,6 +193,7 @@ var _sel_node_scale := Vector2.ONE
 var _sel_node_mod := Color.WHITE
 var _hl_markers: Array = []
 var _busy := false
+var _level_generation: int = 0
 var _key_mat: ShaderMaterial = null
 var _aged_parch_mat: ShaderMaterial = null
 # 阶段7: 技能充能状态(改: 不再按时间冷却, 而是消除对应色宝石才涨)。idx 与 SKILLS 对齐。
@@ -286,6 +289,8 @@ func _gem_raw_color(sp: int) -> Color:
 	return gem_raw_color_for_species(sp)
 
 func load_level(idx: int) -> void:
+	_level_generation += 1
+	var generation := _level_generation
 	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
 	var cfg: Dictionary
 	if not _levels.is_empty() and idx >= 0 and idx < _levels.size():
@@ -304,13 +309,14 @@ func load_level(idx: int) -> void:
 	_sel = Vector2i(-1, -1)
 	_sel_node = null
 	_hl_markers = []
-	_busy = false
+	_busy = true
 	_settled = false
 	_skill_charge = [0.0, 0.0, 0.0, 0.0]   # 新关重置技能充能
 	_compute_layout()
 	_render_background()
-	_render_board()
+	_render_board(true)
 	_render_chrome(cfg)
+	_play_opening_drop(generation)
 	print("[阶段6] 关卡 #%d  %d×%d  cell=%d  目标=%s  步数=%d  合法移动=%s"
 		% [cfg["id"], board.width, board.height, int(cell_size), str(board.objectives), board.moves_left, str(ME.has_legal_move(board.grid, board._layers()))])
 
@@ -434,7 +440,7 @@ func _frame_corner(center: Vector2) -> void:
 	s.position = center
 	board_layer.add_child(s)
 
-func _render_board() -> void:
+func _render_board(opening_drop: bool = false) -> void:
 	_clear_layer(board_layer)
 	_clear_layer(gem_layer)
 	_coat_nodes = []
@@ -452,6 +458,8 @@ func _render_board() -> void:
 				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
 				board_layer.add_child(cs)
 			var gnode: Sprite2D = _make_gem(board.grid[r][c], center)
+			if gnode != null and opening_drop:
+				gnode.position = _opening_drop_start_position(center, r)
 			# 阶段5: 若该格已是特效棋子(交换后/续局), 叠 shine 标记
 			if gnode != null and board.fx[r][c] != ME.SP_NONE:
 				_apply_fx_overlay(gnode, board.fx[r][c])
@@ -459,6 +467,38 @@ func _render_board() -> void:
 		_gem_nodes.append(node_row)
 	_render_coat_visuals()
 	_render_board_frame()  # 金边框(最上层,盖格子边缘)
+
+func _opening_drop_start_position(final_center: Vector2, row: int) -> Vector2:
+	return final_center - Vector2(0.0, cell_size * float(row + 1.5))
+
+func _play_opening_drop(generation: int) -> void:
+	if not is_inside_tree():
+		_finish_opening_drop(generation)
+		return
+	var t := create_tween().set_parallel(true)
+	var any := false
+	for r in range(board.height):
+		for c in range(board.width):
+			var n: Sprite2D = _gem_nodes[r][c]
+			if n == null or not is_instance_valid(n):
+				continue
+			var target := _cell_center(r, c)
+			var delay := float(r) * OPENING_DROP_ROW_STAGGER
+			t.tween_property(n, "position", target, OPENING_DROP_TIME).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			any = true
+	if any:
+		await t.finished
+	_finish_opening_drop(generation)
+
+func _finish_opening_drop(generation: int) -> void:
+	if generation != _level_generation:
+		return
+	for r in range(board.height):
+		for c in range(board.width):
+			var n: Sprite2D = _gem_nodes[r][c]
+			if n != null and is_instance_valid(n):
+				n.position = _cell_center(r, c)
+	_busy = false
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	if sp < 0 or sp >= GEM_TEXTURES.size() or not ResourceLoader.exists(GEM_TEXTURES[sp]):

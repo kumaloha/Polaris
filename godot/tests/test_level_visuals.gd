@@ -79,3 +79,22 @@ func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
 	assert_true(collapse_idx > clear_idx, "endgame bonus refills after reward blasts")
 	assert_true(cascade_idx > collapse_idx, "endgame bonus waits for cascades after refill")
 	assert_true(result_idx > cascade_idx, "result panel waits until the board is stable")
+
+
+func test_opening_drop_starts_gems_above_the_board() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_opening_drop_start_position"), "Level exposes opening drop start calculation")
+	if not level.has_method("_opening_drop_start_position"):
+		level.free()
+		return
+	level.board_origin = Vector2(90, 420)
+	level.cell_size = 70.0
+	var top_center := Vector2(125, 455)
+	var low_center := Vector2(125, 455 + 5.0 * level.cell_size)
+	var top_start: Vector2 = level.call("_opening_drop_start_position", top_center, 0)
+	var low_start: Vector2 = level.call("_opening_drop_start_position", low_center, 5)
+	assert_true(top_start.y < level.board_origin.y, "top-row gem begins above the board")
+	assert_true(low_start.y < level.board_origin.y, "lower-row gem also begins above the board")
+	assert_eq(top_start.y, low_start.y, "all opening gems enter from the same empty-board line")
+	level.free()
