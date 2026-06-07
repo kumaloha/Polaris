@@ -3,6 +3,7 @@ extends "res://tests/test_lib.gd"
 const CharacterData := preload("res://ui/character_data.gd")
 const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const ME := preload("res://core/match_engine.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
@@ -165,6 +166,10 @@ func test_level_scene_renders_blockers_as_keyed_barrier_ice_sprites() -> void:
 	level.load_level(5)
 	var expected := _count_positive_layer(level.board.coat)
 	assert_true(expected > 0, "raw level 6 contains blocker coat cells")
+	for y in level.board.coat.size():
+		for x in level.board.coat[y].size():
+			if level.board.coat[y][x] > 0:
+				assert_eq(level.board.grid[y][x], ME.EMPTY, "visible blocker has no hidden gem underneath")
 	assert_eq(_count_group_nodes(level, BARRIER_MARKER_NAME), expected, "every blocker coat cell renders one visible barrier sprite")
 	var marker := _find_named_node(level, BARRIER_MARKER_NAME)
 	assert_true(marker is Sprite2D, "barrier marker is a sprite")

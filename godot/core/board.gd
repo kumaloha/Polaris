@@ -143,6 +143,7 @@ func start() -> void:
 	jelly = init_jelly.duplicate(true)
 	jelly_cleared = 0
 	coat = init_coat.duplicate(true)
+	ME.apply_blocker_occupancy(grid, fx, coat)
 	blocker_cleared = 0
 	choco = init_choco.duplicate(true)
 	choco_cleared = 0
@@ -471,7 +472,7 @@ func _settle_deadlock() -> void:
 # 滚动关消除时不补(resolve do_refill=false)；普通关维持原样随机补。
 func _refill_unless_scroll() -> void:
 	if not is_scrolling:
-		ME.refill(grid, species, rng, fx, feed)
+		ME.refill(grid, species, rng, fx, feed, _layers())
 
 # 一页清到≥70% → 往下拉一截：批量从 feed 补满空格(补到一页为止)，再结算拉下来内容的级联(仍只挖空)。
 # feed 已空又清到70% = 储备挖光 = 挖穿通关。每步收口(_settle_deadlock)调一次。
@@ -481,7 +482,7 @@ func _scroll_advance() -> void:
 	if _feed_empty():
 		_dug_through = true   # 没有储备可拉 + 已清70% = 4页挖穿
 		return
-	ME.refill(grid, species, rng, fx, feed)   # 拉新页：批量补满空格(feed 不足的列留空)
+	ME.refill(grid, species, rng, fx, feed, _layers())   # 拉新页：批量补满空格(feed 不足的列留空)
 	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, false, null, _layers())  # 拉下来只结算级联，仍不补
 	_gain(res.get("score", 0))
 	_accumulate(res.get("by_species", {}))
@@ -634,11 +635,15 @@ func skill_break(n: int = 0) -> bool:
 		return false
 	if n <= 0:
 		n = skill_level   # 等级越高破越多（1级破1，高级破2-3）
-	var broke := ME.break_blockers(coat, n)
+	var broke := ME.break_blockers(coat, n, grid, fx)
+	if broke <= 0:
+		return false
 	blocker_cleared += broke
+	ME.apply_gravity(grid, fx, false, _layers())
+	_refill_unless_scroll()
+	_settle_after_skill()
 	active_used = true
-	_settle_deadlock()
-	return broke > 0
+	return true
 
 # 预知(#8)：返回最优的 k 步走法（不改盘面，供视图高亮）。
 func skill_foresight(k: int = 0) -> Array:

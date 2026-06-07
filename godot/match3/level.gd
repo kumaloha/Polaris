@@ -1655,39 +1655,62 @@ func _play_special_fx(pos: Vector2i, kind: int) -> void:
 			Fx.spawn_shatter(c, col)
 
 ## 每列下落填空 + 顶部补新棋子，节点 Tween 落入。
+func _fall_barrier_at(row: int, col: int) -> bool:
+	return board.grid[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
+
+func _clear_gem_node_at(row: int, col: int) -> void:
+	var n: Sprite2D = _gem_nodes[row][col]
+	_gem_nodes[row][col] = null
+	if n != null and is_instance_valid(n):
+		n.queue_free()
+
+func _collapse_segment(col: int, seg_start: int, seg_end: int, t: Tween) -> bool:
+	var moved := false
+	var write: int = seg_end
+	for row in range(seg_end, seg_start - 1, -1):
+		if board.grid[row][col] != ME.EMPTY:
+			if row != write:
+				board.grid[write][col] = board.grid[row][col]
+				board.grid[row][col] = ME.EMPTY
+				board.fx[write][col] = board.fx[row][col]
+				board.fx[row][col] = ME.SP_NONE
+				var n: Sprite2D = _gem_nodes[row][col]
+				_gem_nodes[write][col] = n
+				_gem_nodes[row][col] = null
+				if n != null and is_instance_valid(n):
+					t.tween_property(n, "position", _cell_center(write, col), FALL_TIME)
+					moved = true
+			write -= 1
+	var spawn_i: int = 0
+	for row in range(write, seg_start - 1, -1):
+		var sp: int = board.species[board.rng.randi() % board.species.size()]
+		board.grid[row][col] = sp
+		board.fx[row][col] = ME.SP_NONE
+		var center: Vector2 = _cell_center(row, col)
+		var n: Sprite2D = _make_gem(sp, center)
+		_gem_nodes[row][col] = n
+		if n != null:
+			n.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
+			t.tween_property(n, "position", center, FALL_TIME)
+			moved = true
+		spawn_i += 1
+	return moved
+
 func _collapse_and_refill() -> void:
 	var t := create_tween().set_parallel(true)
 	var moved := false
 	for col in range(board.width):
-		var write: int = board.height - 1
-		for row in range(board.height - 1, -1, -1):
-			if board.grid[row][col] != ME.EMPTY:
-				if row != write:
-					board.grid[write][col] = board.grid[row][col]
-					board.grid[row][col] = ME.EMPTY
-					# 阶段5: fx 随 grid 同步搬运(特效棋子下落后标记不与真身错位)
-					board.fx[write][col] = board.fx[row][col]
-					board.fx[row][col] = ME.SP_NONE
-					var n: Sprite2D = _gem_nodes[row][col]
-					_gem_nodes[write][col] = n
-					_gem_nodes[row][col] = null
-					if n != null and is_instance_valid(n):
-						t.tween_property(n, "position", _cell_center(write, col), FALL_TIME)
-						moved = true
-				write -= 1
-		var spawn_i: int = 0
-		for row in range(write, -1, -1):
-			var sp: int = board.species[board.rng.randi() % board.species.size()]
-			board.grid[row][col] = sp
-			board.fx[row][col] = ME.SP_NONE  # 新补格无特效
-			var center: Vector2 = _cell_center(row, col)
-			var n: Sprite2D = _make_gem(sp, center)
-			_gem_nodes[row][col] = n
-			if n != null:
-				n.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
-				t.tween_property(n, "position", center, FALL_TIME)
-				moved = true
-			spawn_i += 1
+		var seg_end: int = board.height - 1
+		for row in range(board.height - 1, -2, -1):
+			if row >= 0 and not _fall_barrier_at(row, col):
+				continue
+			if row + 1 <= seg_end:
+				moved = _collapse_segment(col, row + 1, seg_end, t) or moved
+			if row >= 0 and _layer_value(board.coat, row, col) > 0:
+				board.grid[row][col] = ME.EMPTY
+				board.fx[row][col] = ME.SP_NONE
+				_clear_gem_node_at(row, col)
+			seg_end = row - 1
 	if moved:
 		await t.finished
 

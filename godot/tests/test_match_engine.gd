@@ -97,6 +97,28 @@ func test_refill_fills_all_empties_within_species_set() -> void:
 	assert_eq(grid[1][0], 2, "existing tile kept")
 	assert_eq(grid[1][2], 3, "existing tile kept")
 
+func test_refill_skips_active_coat_cells() -> void:
+	var E := ME.EMPTY
+	var grid := [
+		[E, E],
+		[E, E],
+	]
+	var fx := [
+		[ME.SP_LINE_H, ME.SP_LINE_V],
+		[ME.SP_BOMB, ME.SP_COLORBOMB],
+	]
+	var coat := [
+		[0, 1],
+		[0, 0],
+	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 12
+	ME.refill(grid, [0, 1], rng, fx, [], {"coat": coat})
+	assert_ne(grid[0][0], E, "normal empty cell refilled")
+	assert_eq(grid[0][1], E, "active coat cell remains empty")
+	assert_eq(fx[0][1], ME.SP_NONE, "active coat cell keeps no hidden special")
+	assert_ne(grid[1][0], E, "other normal cell refilled")
+
 func test_refill_is_deterministic_with_seed() -> void:
 	var E := ME.EMPTY
 	var species := [0, 1, 2, 3, 4]
@@ -614,6 +636,28 @@ func test_account_clears_counts_coat() -> void:
 	assert_eq(acc["blocker_cleared"], 2, "both adjacent coats damaged once")
 	assert_eq(coat[0][0], 0, "(0,0) coat 1->0")
 	assert_eq(coat[1][1], 1, "(1,1) coat 2->1")
+	assert_eq(grid[0][0], ME.EMPTY, "destroyed coat leaves no gem underneath")
+	assert_eq(grid[1][1], ME.EMPTY, "still-coated cell also has no hidden gem")
+
+func test_coat_occupancy_removes_underlying_gem() -> void:
+	var grid := [
+		[0, 1, 2],
+		[3, 4, 5],
+	]
+	var fx := [
+		[ME.SP_NONE, ME.SP_LINE_H, ME.SP_NONE],
+		[ME.SP_NONE, ME.SP_BOMB, ME.SP_NONE],
+	]
+	var coat := [
+		[0, 1, 0],
+		[0, 2, 0],
+	]
+	ME.apply_blocker_occupancy(grid, fx, coat)
+	assert_eq(grid[0][1], ME.EMPTY, "coat cell has no underlying gem at start")
+	assert_eq(grid[1][1], ME.EMPTY, "multi-layer coat cell also occupies the tile")
+	assert_eq(fx[0][1], ME.SP_NONE, "coat clears any hidden special")
+	assert_eq(fx[1][1], ME.SP_NONE, "coat clears any hidden bomb special")
+	assert_eq(grid[0][0], 0, "normal cells stay untouched")
 
 # ───────────────── 经典锁(licorice)语义：锁住格不可消、相邻破锁、重力固定 ─────────────────
 
@@ -632,17 +676,17 @@ func test_find_matches_skips_locked() -> void:
 	assert_true(ME.find_matches(grid, {"coat": coat}).is_empty(), "locked middle breaks the run")
 
 func test_gravity_blocks_locked() -> void:
-	var grid := [[0], [6], [ME.EMPTY]]   # 列：[0, 6(锁), EMPTY]
+	var grid := [[0], [ME.EMPTY], [ME.EMPTY]]   # 列：[0, ice占位, EMPTY]
 	var coat := [[0], [1], [0]]          # (0,1) 锁住
 	ME.apply_gravity(grid, [], false, {"coat": coat})
 	assert_eq(grid[0][0], 0, "tile above lock stays (can't fall through)")
-	assert_eq(grid[1][0], 6, "locked cell stays put under gravity")
+	assert_eq(grid[1][0], ME.EMPTY, "locked blocker cell has no hidden gem")
 	assert_eq(grid[2][0], ME.EMPTY, "below-lock empty stays empty")
 
 func test_resolve_locked_broken_by_adjacency() -> void:
 	var grid := [
 		[0, 0, 0, 1],
-		[2, 1, 3, 2],
+		[ME.EMPTY, 1, 3, 2],
 		[3, 4, 2, 3],
 	]
 	var coat := [
@@ -655,7 +699,17 @@ func test_resolve_locked_broken_by_adjacency() -> void:
 	var r := ME.resolve(grid, [0, 1, 2, 3], rng, [], [], true, null, {"coat": coat})
 	assert_true(r["blocker_cleared"] >= 1, "adjacent clear breaks >=1 lock layer")
 	assert_true(coat[1][0] < 5 and coat[1][0] > 0, "lock decreased but still locked")
-	assert_eq(grid[1][0], 2, "locked tile preserved (not cleared/moved)")
+	assert_eq(grid[1][0], ME.EMPTY, "still-locked ice keeps the cell occupied without a gem")
+
+func test_destroyed_coat_slot_fills_by_gravity() -> void:
+	var grid := [[9], [ME.EMPTY], [2]]
+	var coat := [[0], [1], [0]]
+	var acc: Dictionary = ME.account_clears(grid, [Vector2i(0, 0)], [], null, [], {"coat": coat})
+	assert_eq(acc["blocker_cleared"], 1, "adjacent clear destroys the one-layer ice")
+	assert_eq(coat[1][0], 0, "ice layer gone")
+	assert_eq(grid[1][0], ME.EMPTY, "destroyed ice becomes an empty slot before gravity")
+	ME.apply_gravity(grid, [], false, {"coat": coat})
+	assert_eq(grid[1][0], 9, "tile above drops into the former ice slot")
 
 # ───────────── Meta 技能原语（10 §7 B 第一批）─────────────
 

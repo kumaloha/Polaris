@@ -158,17 +158,56 @@ static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers:
 				seg_start = y + 1
 
 
+# 冰块是占位障碍：有 coat 的格子没有底层宝石，也不能藏特效。
+static func apply_blocker_occupancy(grid: Array, fx: Array, coat: Array) -> void:
+	if coat.is_empty():
+		return
+	var has_fx := not fx.is_empty()
+	for y in coat.size():
+		for x in coat[y].size():
+			if coat[y][x] > 0:
+				grid[y][x] = EMPTY
+				if has_fx:
+					fx[y][x] = SP_NONE
+
+
+static func _damage_coat(grid: Array, fx: Array, coat: Array, cleared_set: Dictionary) -> int:
+	var damaged := 0
+	if coat.is_empty():
+		return damaged
+	var has_fx := not fx.is_empty()
+	for cy in coat.size():
+		for cx in coat[cy].size():
+			if coat[cy][cx] <= 0:
+				continue
+			if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
+				coat[cy][cx] -= 1
+				damaged += 1
+				grid[cy][cx] = EMPTY
+				if has_fx:
+					fx[cy][cx] = SP_NONE
+				if coat[cy][cx] <= 0:
+					coat[cy][cx] = 0
+	return damaged
+
+
 # 随机补充：把所有 EMPTY 填成 species_set 里的随机 species（用注入的 rng → 可复现）。
 # fx 可选：传入则新补的棋子特效置 SP_NONE（新棋子无特效）。
-static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = []) -> void:
+static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = [], layers: Dictionary = {}) -> void:
 	var n := species_set.size()
 	var has_fx := not fx.is_empty()
 	var has_feed := not feed.is_empty()
+	var coat: Array = layers.get("coat", [])
+	var has_coat := not coat.is_empty()
 	# 滚动关：补充【只】按列从预设 feed 队列出(长盘内容自然下流)；feed[x] 空 = 该列挖穿 → 留空，不补随机(上面不掉落新棋子)。
 	# 行序自上而下遍历 → feed 前端先填进最上方的空格，长盘从顶部下流。
 	for y in grid.size():
 		for x in grid[y].size():
 			if grid[y][x] == EMPTY:
+				if has_coat and coat[y][x] > 0:
+					if has_fx:
+						fx[y][x] = SP_NONE
+					continue
 				if has_feed:
 					if x < feed.size() and not feed[x].is_empty():
 						grid[y][x] = feed[x].pop_front()
@@ -437,13 +476,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		for p in matched:
 			matched_set[p] = true
 		if has_coat:
-			for cy in grid.size():
-				for cx in grid[cy].size():
-					if coat[cy][cx] <= 0:
-						continue
-					if matched_set.has(Vector2i(cx, cy)) or matched_set.has(Vector2i(cx - 1, cy)) or matched_set.has(Vector2i(cx + 1, cy)) or matched_set.has(Vector2i(cx, cy - 1)) or matched_set.has(Vector2i(cx, cy + 1)):
-						coat[cy][cx] -= 1
-						blocker_cleared += 1
+			blocker_cleared += _damage_coat(grid, [], coat, matched_set)
 		if has_choco:
 			choco_cleared += _eat_chocolate(choco, matched_set)  # 巧克力被相邻消除则 -1
 		# 神秘糖：被消除的神秘糖格【不清空】，揭开为随机内容(mystery→0)。揭开的格本轮不计入清除/收集。
@@ -495,12 +528,12 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)  # 落到出口的原料即收
 		if do_refill:
-			refill(grid, species_set, rng, [], feed)
+			refill(grid, species_set, rng, [], feed, layers)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉（纯重力不触发上面的 match 循环）。
 	if has_ing:
 		ingredient_collected += _drain_ingredients(grid, [], false, layers)
 		if do_refill:
-			refill(grid, species_set, rng, [], feed)
+			refill(grid, species_set, rng, [], feed, layers)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": 0, "cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed}
 
 
@@ -629,13 +662,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 				locked_start[p] = true   # 神秘糖格不被直清：下方揭开为随机内容（mystery→0），本轮不清空
 		# 破锁：被清除格的内/相邻的锁住格 -1（锁住格本身不被清）
 		if has_coat:
-			for cy in grid.size():
-				for cx in grid[cy].size():
-					if coat[cy][cx] <= 0:
-						continue
-					if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
-						coat[cy][cx] -= 1
-						blocker_cleared += 1
+			blocker_cleared += _damage_coat(grid, fx, coat, cleared_set)
 		if has_choco:
 			choco_cleared += _eat_chocolate(choco, cleared_set)  # 巧克力被相邻消除则 -1
 		# 爆米花命中：被特效清除波及(格自身在清除集)的爆米花 -1，归0变彩球。须在 _apply_clears(不清这些格)前结算。
@@ -707,12 +734,12 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)
 		if do_refill:
-			refill(grid, species_set, rng, fx, feed)
+			refill(grid, species_set, rng, fx, feed, layers)
 	# 消除稳定后，把仍悬在出口上方、已落定的原料一路沉到出口收掉。
 	if has_ing:
 		ingredient_collected += _drain_ingredients(grid, fx, false, layers)
 		if do_refill:
-			refill(grid, species_set, rng, fx, feed)
+			refill(grid, species_set, rng, fx, feed, layers)
 	return {"score": total_score, "cascades": cascades, "cleared": cleared_total, "by_species": by_species, "jelly_cleared": jelly_cleared, "blocker_cleared": blocker_cleared, "choco_cleared": choco_cleared, "ingredient_collected": ingredient_collected, "bomb_defused": bomb_defused, "popcorn_hit": popcorn_hit, "cake_destroyed": cake_destroyed, "mystery_revealed": mystery_revealed}
 
 
@@ -1025,7 +1052,7 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 			fx[pos.y][pos.x] = SP_NONE
 
 
-# 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat，不改 grid。
+# 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat；冰块格保持空底。
 # 用于彩球直清等不经 resolve 匹配循环的清除路径，使其与普通消除同样推进目标。
 # 涂层语义与 resolve 一致：清除格内或正交相邻的涂层 -1 层。须在清空 grid 前调用（读 species）。
 # popcorn 可选：彩球/融合等直清路径波及的爆米花格 -1(不清、记 locked)，归0变彩球(fx=SP_COLORBOMB)。
@@ -1064,13 +1091,7 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 		for p in cells:
 			if coat[p.y][p.x] > 0:
 				locked[p] = true
-		for cy in grid.size():
-			for cx in grid[cy].size():
-				if coat[cy][cx] <= 0:
-					continue
-				if cleared_set.has(Vector2i(cx, cy)) or cleared_set.has(Vector2i(cx - 1, cy)) or cleared_set.has(Vector2i(cx + 1, cy)) or cleared_set.has(Vector2i(cx, cy - 1)) or cleared_set.has(Vector2i(cx, cy + 1)):
-					coat[cy][cx] -= 1
-					blocker_cleared += 1
+		blocker_cleared += _damage_coat(grid, fx, coat, cleared_set)
 	if has_choco:
 		for p in cells:
 			if choco[p.y][p.x] > 0:
@@ -1340,15 +1361,21 @@ static func count_cannons(cannon: Array) -> int:
 	return n
 
 
-# 破障(#9)：清掉至多 n 个锁住格（coat 归 0），返回实际破掉的格数。原地改 coat。
-static func break_blockers(coat: Array, n: int) -> int:
+# 破障(#9)：清掉至多 n 个冰块（coat 归 0），返回实际破掉的格数。传 grid/fx 时同步留下空格。
+static func break_blockers(coat: Array, n: int, grid: Array = [], fx: Array = []) -> int:
 	var broken := 0
+	var has_grid := not grid.is_empty()
+	var has_fx := not fx.is_empty()
 	for y in coat.size():
 		for x in coat[y].size():
 			if broken >= n:
 				return broken
 			if coat[y][x] > 0:
 				coat[y][x] = 0
+				if has_grid:
+					grid[y][x] = EMPTY
+				if has_fx:
+					fx[y][x] = SP_NONE
 				broken += 1
 	return broken
 

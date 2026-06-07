@@ -3,6 +3,7 @@ extends RefCounted
 # 运行时只读库摆盘、不跑算法（合 05 §一·五）。两端 RNG 不同序列，故读「确切盘面」而非凭 seed 重生成。
 
 const Board := preload("res://core/board.gd")
+const ME := preload("res://core/match_engine.gd")
 
 # 解析 JSON 文本 → Array[Dictionary]（每项是一关）。失败返回 []。
 static func load_string(json_text: String) -> Array:
@@ -48,6 +49,7 @@ static func to_board(d: Dictionary) -> Board:
 	if not init_grid.is_empty():
 		b.grid = init_grid   # 用导出盘面覆盖随机生成的 make_board 结果
 		b.fx = b._blank_fx()
+		ME.apply_blocker_occupancy(b.grid, b.fx, b.coat)
 	if bool(d.get("is_scrolling", false)):   # 滚动/挖矿关：补充从预设 feed 出，挖穿通关
 		b.is_scrolling = true
 		var fd := []
