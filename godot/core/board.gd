@@ -689,6 +689,38 @@ func ad_continue() -> bool:
 	ad_continues += 1
 	return true
 
+# 通关奖励：剩余 N 步 → 随机 N 个普通棋子先变成 4 合 1 线特效，表现层随后统一触发。
+func prepare_endgame_bonus_lines() -> Array:
+	var count := maxi(moves_left, 0)
+	if count <= 0:
+		return []
+	var candidates := []
+	for y in height:
+		for x in width:
+			if _can_receive_endgame_bonus_line(y, x):
+				candidates.append(Vector2i(x, y))
+	var picked := []
+	while picked.size() < count and not candidates.is_empty():
+		var idx: int = rng.randi() % candidates.size()
+		var pos: Vector2i = candidates[idx]
+		candidates.remove_at(idx)
+		var kind := ME.SP_LINE_H if (rng.randi() % 2 == 0) else ME.SP_LINE_V
+		fx[pos.y][pos.x] = kind
+		picked.append({"pos": pos, "kind": kind})
+	moves_left = 0
+	return picked
+
+func _can_receive_endgame_bonus_line(y: int, x: int) -> bool:
+	if grid[y][x] < 0 or fx[y][x] != ME.SP_NONE:
+		return false
+	if (not coat.is_empty() and coat[y][x] > 0) or (not choco.is_empty() and choco[y][x] > 0):
+		return false
+	if (not ing.is_empty() and ing[y][x] > 0) or (not bomb.is_empty() and bomb[y][x] > 0):
+		return false
+	if (not popcorn.is_empty() and popcorn[y][x] > 0) or (not mystery.is_empty() and mystery[y][x] > 0):
+		return false
+	return true
+
 # 一局结算数据（给 UI 的 result 界面）。星级/碎片是占位公式，数值待策划调。
 func result() -> Dictionary:
 	var won := is_won()

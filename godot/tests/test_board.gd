@@ -544,6 +544,48 @@ func test_result_summary() -> void:
 	assert_false(b2.result()["won"], "not won")
 	assert_true(b2.result()["lost"], "lost (moves out, below target)")
 
+func test_endgame_bonus_converts_remaining_moves_to_lines() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 20, 5)
+	b.grid = [
+		[0, 1, 2, 3],
+		[1, 2, 3, 0],
+		[2, 3, 0, 1],
+		[3, 0, 1, 2],
+	]
+	b.fx = b._blank_fx()
+	b.moves_left = 3
+	var picks: Array = b.prepare_endgame_bonus_lines()
+	assert_eq(picks.size(), 3, "one random line special per remaining move")
+	assert_eq(b.moves_left, 0, "remaining moves are spent by the endgame bonus")
+	var seen := {}
+	for item in picks:
+		var p: Vector2i = item["pos"]
+		assert_false(seen.has(p), "bonus picks unique cells")
+		seen[p] = true
+		assert_true(b.fx[p.y][p.x] == ME.SP_LINE_H or b.fx[p.y][p.x] == ME.SP_LINE_V, "picked cell becomes a line special")
+
+func test_endgame_bonus_skips_blockers_and_existing_specials() -> void:
+	var coat_layer := []
+	for y in 3:
+		var row := []
+		for x in 3:
+			row.append(0)
+		coat_layer.append(row)
+	coat_layer[0][0] = 1
+	var b := Board.new(3, 3, [0, 1, 2], 999999, 20, 9, [], [], [], coat_layer)
+	b.grid = [
+		[ME.EMPTY, 1, 2],
+		[0, 1, 2],
+		[0, 1, 2],
+	]
+	b.fx = b._blank_fx()
+	b.fx[0][1] = ME.SP_BOMB
+	b.moves_left = 9
+	var picks: Array = b.prepare_endgame_bonus_lines()
+	assert_eq(picks.size(), 7, "bonus only converts eligible ordinary gem cells")
+	assert_eq(b.fx[0][0], ME.SP_NONE, "ice cell is not converted")
+	assert_eq(b.fx[0][1], ME.SP_BOMB, "existing special is not overwritten")
+
 func test_special_fusion_line_line() -> void:
 	# 两个直线特效相邻交换 → 融合（十字），始终合法、无需普通消除。
 	var b := Board.new(5, 5, [0, 1, 2, 3, 4], 999999, 10, 1)

@@ -1055,9 +1055,56 @@ func _check_settlement() -> void:
 	if _settled:
 		return
 	if board.is_won():
-		_show_result(true)
+		_settled = true
+		_busy = true
+		_run_win_bonus_and_show()
 	elif board.is_lost():
 		_show_result(false)
+
+func _run_win_bonus_and_show() -> void:
+	await _play_endgame_bonus()
+	_refresh_hud()
+	_show_result(true)
+
+func _play_endgame_bonus() -> void:
+	var picks: Array = board.prepare_endgame_bonus_lines()
+	if picks.is_empty():
+		return
+	_refresh_hud()
+	for item in picks:
+		var p: Vector2i = item["pos"]
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n != null and is_instance_valid(n):
+			_apply_fx_overlay(n, int(item["kind"]))
+	await get_tree().create_timer(0.34).timeout
+	var seeds := []
+	for item in picks:
+		seeds.append(item["pos"])
+	var clear_set: Dictionary = ME._expand_triggers(board.grid, board.fx, seeds)
+	var cells: Array = clear_set.keys()
+	if cells.is_empty():
+		return
+	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
+	board._accumulate(acc.get("by_species", {}))
+	board._accumulate_progress(acc)
+	_refresh_coat_visuals()
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked.has(p):
+			to_clear.append(p)
+	for bp in acc.get("cake_blast", []):
+		to_clear.append(bp)
+	board._gain(ME.score_for_clear(to_clear.size(), 1))
+	await _play_clear(to_clear, [], {})
+	ME._apply_clears(board.grid, board.fx, to_clear, [])
+	for p in to_clear:
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+		_gem_nodes[p.y][p.x] = null
 
 # 程序绘制居中半透明遮罩 + 结算面板(标题 + 下一关/重试按钮)。无现成素材, 纯绘制。
 # 锁输入(_settled=true), 按钮: 通关→下一关 / 失败→重试本关。
