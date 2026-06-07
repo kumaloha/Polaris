@@ -1,7 +1,6 @@
 extends "res://tests/test_lib.gd"
 
 const CharacterData := preload("res://ui/character_data.gd")
-const AppScript := preload("res://ui/app.gd")
 const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
@@ -102,33 +101,17 @@ func test_character_metadata_comes_from_docs() -> void:
 	assert_eq(by_id["chainbonus"]["type"], "被动型·整局生效", "passive type from docs")
 
 
-func test_main_scene_uses_app_shell() -> void:
+func test_project_default_scene_uses_level_entry() -> void:
+	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://Level.tscn", "project starts directly in Level.tscn")
+
+
+func test_main_scene_aliases_level_entry() -> void:
 	var scene: PackedScene = load("res://main.tscn")
 	var root := scene.instantiate()
-	assert_eq(root.name, "App", "main scene root is UI app")
-	assert_eq(root.get_script(), AppScript, "main scene uses app.gd")
+	assert_eq(root.name, "Level", "main.tscn aliases the Level entry scene")
+	assert_eq(root.get_script().resource_path, "res://match3/level.gd", "main.tscn uses the Level scene script, not the old app shell")
+	assert_true(root.has_node("GemLayer"), "main.tscn keeps the Level scene children")
 	root.free()
-
-
-func test_app_home_builds_when_added_to_tree() -> void:
-	var scene: PackedScene = load("res://main.tscn")
-	var root := scene.instantiate()
-	root._ready()
-	assert_true(root.get_child_count() >= 8, "home screen builds visible UI nodes in _ready")
-	root.free()
-
-
-func test_app_launch_level_arg_is_one_based() -> void:
-	var app: AppScript = AppScript.new()
-	assert_true(app.has_method("_launch_level_index_from_args"), "app parses direct level launch args")
-	if not app.has_method("_launch_level_index_from_args"):
-		app.free()
-		return
-	assert_eq(app.call("_launch_level_index_from_args", ["--level", "5"], 126), 4, "--level 5 opens the fifth player-facing level")
-	assert_eq(app.call("_launch_level_index_from_args", ["--level=5"], 126), 4, "--level=5 opens the fifth player-facing level")
-	assert_eq(app.call("_launch_level_index_from_args", ["--level", "0"], 126), -1, "level numbers are one-based")
-	assert_eq(app.call("_launch_level_index_from_args", ["--level", "127"], 126), -1, "out of range levels are ignored")
-	app.free()
 
 
 func test_level_scene_launch_level_arg_is_one_based() -> void:
