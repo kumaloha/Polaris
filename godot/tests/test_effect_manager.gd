@@ -21,3 +21,14 @@ func test_local_burst_profile_has_layered_magic_distribution() -> void:
 	assert_true(bounds["outer_wisp_radius_px"] <= clear_radius, "outer wisps stay inside the 3x3 clear radius")
 	assert_true(bounds["inner_star_radius_px"] < bounds["outer_wisp_radius_px"], "inner stars sit inside the outer wisps")
 	assert_true(bounds["spiral_turn_radians"] > 0.0, "magic burst uses a visible spiral motion")
+
+
+func test_local_burst_rendered_edge_keeps_margin_inside_3x3() -> void:
+	var cell_size := 88.0
+	var clear_radius := cell_size * 1.5
+	var bounds: Dictionary = FxScript.local_burst_bounds(clear_radius)
+	assert_true(bounds["visual_safe_radius_ratio"] < 1.0, "burst keeps a visual safety margin inside the 3x3 clear radius")
+	assert_true(
+		bounds["max_rendered_radius_px"] <= clear_radius * bounds["visual_safe_radius_ratio"],
+		"sprite centers plus sprite radius stay comfortably inside the 3x3 clear radius"
+	)

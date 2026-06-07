@@ -10,13 +10,18 @@ const SHOCK := "res://assets/fx/fx_shockwave.png"   # 冲击波
 const BOKEH := "res://assets/fx/fx_bokeh.png"       # 光斑
 const COMET := "res://assets/fx/beam_comet_white.png"  # 流星拖尾(纯白, 行列横扫波, modulate 染色)
 const LOCAL_BURST_CLEAR_CELLS := 9
+const LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO := 0.72
 const LOCAL_BURST_FLASH_DIAMETER_RATIO := 0.85
 const LOCAL_BURST_FLASH_PEAK_SCALE := 1.05
 const LOCAL_BURST_PARTICLE_TRAVEL_RATIO := 0.72
 const LOCAL_BURST_INNER_STAR_COUNT := 9
 const LOCAL_BURST_OUTER_WISP_COUNT := 7
-const LOCAL_BURST_INNER_STAR_RADIUS_RATIO := 0.46
-const LOCAL_BURST_OUTER_WISP_RADIUS_RATIO := 0.82
+const LOCAL_BURST_INNER_STAR_RADIUS_RATIO := 0.42
+const LOCAL_BURST_OUTER_WISP_RADIUS_RATIO := 0.76
+const LOCAL_BURST_INNER_STAR_END_RADIUS_MAX_RATIO := 0.90
+const LOCAL_BURST_OUTER_WISP_END_RADIUS_MAX_RATIO := 0.86
+const LOCAL_BURST_INNER_STAR_END_DIAMETER_RATIO := 0.04
+const LOCAL_BURST_OUTER_WISP_END_DIAMETER_RATIO := 0.05
 const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
 
 var _target: Node = null      # 特效挂载层(FXLayer)
@@ -134,17 +139,40 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 ## 不放冲击波环(那个会外溢)。美术原则: 动画范围 ≤ 实际效果范围。
 static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
+	var safe_radius := clear_radius_px * LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO
+	var inner_star_radius := clear_radius_px * LOCAL_BURST_INNER_STAR_RADIUS_RATIO
 	var outer_wisp_radius := clear_radius_px * LOCAL_BURST_OUTER_WISP_RADIUS_RATIO
+	var inner_star_end_diameter := clear_radius_px * LOCAL_BURST_INNER_STAR_END_DIAMETER_RATIO
+	var outer_wisp_end_diameter := clear_radius_px * LOCAL_BURST_OUTER_WISP_END_DIAMETER_RATIO
+	var inner_star_end_radius := minf(
+		inner_star_radius * LOCAL_BURST_INNER_STAR_END_RADIUS_MAX_RATIO,
+		safe_radius - inner_star_end_diameter * 0.5
+	)
+	var outer_wisp_end_radius := minf(
+		outer_wisp_radius * LOCAL_BURST_OUTER_WISP_END_RADIUS_MAX_RATIO,
+		safe_radius - outer_wisp_end_diameter * 0.5
+	)
+	var inner_star_rendered_radius := inner_star_end_radius + inner_star_end_diameter * 0.5
+	var outer_wisp_rendered_radius := outer_wisp_end_radius + outer_wisp_end_diameter * 0.5
+	var max_rendered_radius := maxf(inner_star_rendered_radius, outer_wisp_rendered_radius)
 	return {
 		"clear_cells": LOCAL_BURST_CLEAR_CELLS,
 		"clear_radius_px": clear_radius_px,
+		"visual_safe_radius_ratio": LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO,
 		"flash_diameter_px": flash_diameter,
 		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,
-		"particle_max_distance_px": maxf(clear_radius_px * LOCAL_BURST_PARTICLE_TRAVEL_RATIO, outer_wisp_radius),
+		"particle_max_distance_px": max_rendered_radius,
 		"inner_star_count": LOCAL_BURST_INNER_STAR_COUNT,
 		"outer_wisp_count": LOCAL_BURST_OUTER_WISP_COUNT,
-		"inner_star_radius_px": clear_radius_px * LOCAL_BURST_INNER_STAR_RADIUS_RATIO,
+		"inner_star_radius_px": inner_star_radius,
 		"outer_wisp_radius_px": outer_wisp_radius,
+		"inner_star_end_radius_px": inner_star_end_radius,
+		"outer_wisp_end_radius_px": outer_wisp_end_radius,
+		"inner_star_end_diameter_px": inner_star_end_diameter,
+		"outer_wisp_end_diameter_px": outer_wisp_end_diameter,
+		"inner_star_rendered_radius_px": inner_star_rendered_radius,
+		"outer_wisp_rendered_radius_px": outer_wisp_rendered_radius,
+		"max_rendered_radius_px": max_rendered_radius,
 		"spiral_turn_radians": LOCAL_BURST_SPIRAL_TURN_RADIANS,
 	}
 
@@ -160,17 +188,17 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 		var f: float = float(i) / float(inner_count)
 		var angle: float = TAU * f + (0.18 if i % 2 == 0 else -0.11)
 		var twist: float = bounds["spiral_turn_radians"] * (1.0 if i % 2 == 0 else -0.72)
-		var end_radius: float = bounds["inner_star_radius_px"] * (0.82 + 0.07 * float(i % 3))
+		var end_radius: float = bounds["inner_star_end_radius_px"] * (0.78 + 0.11 * float(i % 3))
 		var delay: float = 0.012 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.15, radius_px * 0.045, delay, 0.36)
+		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.14, bounds["inner_star_end_diameter_px"], delay, 0.36)
 	var outer_count: int = int(bounds["outer_wisp_count"])
 	for i in range(outer_count):
 		var f: float = (float(i) + 0.5) / float(outer_count)
 		var angle: float = TAU * f
 		var twist: float = -bounds["spiral_turn_radians"] * (0.45 + 0.08 * float(i % 2))
-		var end_radius: float = bounds["outer_wisp_radius_px"] * (0.86 + 0.05 * float(i % 3))
+		var end_radius: float = bounds["outer_wisp_end_radius_px"] * (0.82 + 0.09 * float(i % 3))
 		var delay: float = 0.024 + 0.014 * float(i % 4)
-		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.18, end_radius, twist, radius_px * 0.18, radius_px * 0.07, delay, 0.44)
+		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.16, end_radius, twist, radius_px * 0.15, bounds["outer_wisp_end_diameter_px"], delay, 0.44)
 
 func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float) -> void:
 	if not ResourceLoader.exists(tex_path):
