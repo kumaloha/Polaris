@@ -9,6 +9,7 @@ extends "res://tests/test_lib.gd"
 const Game := preload("res://view/game.gd")  # 编译期即验证 game.gd 无语法错误
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
 func test_view_script_loads() -> void:
 	var v: Game = Game.new()
@@ -43,6 +44,18 @@ func test_battle_screen_builds_reference_layout_shell() -> void:
 	assert_true(v.piece_asset_rects[0][0].texture != null, "board uses cropped reference piece textures")
 	assert_true(v.ORIGIN.y >= 480.0 and v.ORIGIN.y <= 540.0, "board starts below combat hero band")
 	assert_true(v.ORIGIN.y + v.H * v.CELL + (v.H - 1) * v.GAP <= 1230.0, "board leaves room for pet skills")
+	v.free()
+
+func test_algorithm_levels_keep_exported_species_contract() -> void:
+	var v: Game = Game.new()
+	v._load_pieces()
+	v._build_hud()
+	v.algo_levels = LevelLibrary.load_file("res://levels.json")
+	v.demo_idx = 4
+	v._new_game()
+	assert_false(v.board.species.has(6), "real exported levels must not inject the extra blue-square showcase species")
+	for row in v.board.grid:
+		assert_false(row.has(6), "real exported level grid must contain only exported species")
 	v.free()
 
 func test_all_demo_levels_build_valid_board() -> void:

@@ -274,7 +274,6 @@ func _new_game() -> void:
 		equipped_skill = board.skill                           # 同步给技能按钮逻辑
 	else:
 		board.skill = equipped_skill
-	_ensure_reference_piece_set()
 	_skill_aim = ""
 	selected = Vector2i(-1, -1)
 	input_locked = false
@@ -286,23 +285,6 @@ func _new_game() -> void:
 	_relayout()                      # 居中 + 更新框/圆环/技能条/提示位置
 	_render()
 	_update_skill_button()
-
-
-func _ensure_reference_piece_set() -> void:
-	if board == null:
-		return
-	if not board.species.has(6):
-		board.species.append(6)
-	var placed := 0
-	for y in board.height:
-		for x in board.width:
-			if board.grid[y][x] < 0:
-				continue
-			if (x * 3 + y * 5 + cur_seed) % 17 == 0:
-				board.grid[y][x] = 6
-				placed += 1
-	if placed == 0 and board.height > 0 and board.width > 0 and board.grid[0][0] >= 0:
-		board.grid[0][0] = 6
 
 
 # 全 false 的 H×W 掩码模板。
