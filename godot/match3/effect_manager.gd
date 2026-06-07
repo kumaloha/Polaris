@@ -29,13 +29,15 @@ const LOCAL_BURST_OUTER_WISP_END_RADIUS_MAX_RATIO := 0.86
 const LOCAL_BURST_INNER_STAR_END_DIAMETER_RATIO := 0.04
 const LOCAL_BURST_OUTER_WISP_END_DIAMETER_RATIO := 0.05
 const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
-const LOCAL_CELL_SHATTER_COUNT := 5
-const LOCAL_CELL_SHATTER_DURATION := 0.24
-const LOCAL_CELL_SHATTER_SAFE_RADIUS_RATIO := 0.36
-const LOCAL_CELL_SHATTER_LAST_VISIBLE_SAFE_RADIUS_RATIO := 0.34
+const LOCAL_CELL_SHATTER_COUNT := 9
+const LOCAL_CELL_SHATTER_DURATION := 0.34
+const LOCAL_CELL_SHATTER_FADE_START_RATIO := 0.18
+const LOCAL_CELL_SHATTER_FADE_END_RATIO := 0.92
+const LOCAL_CELL_SHATTER_SAFE_RADIUS_RATIO := 0.42
+const LOCAL_CELL_SHATTER_LAST_VISIBLE_SAFE_RADIUS_RATIO := 0.45
 const LOCAL_CELL_SHATTER_START_RADIUS_RATIO := 0.05
-const LOCAL_CELL_SHATTER_START_DIAMETER_RATIO := 0.12
-const LOCAL_CELL_SHATTER_END_DIAMETER_RATIO := 0.055
+const LOCAL_CELL_SHATTER_START_DIAMETER_RATIO := 0.16
+const LOCAL_CELL_SHATTER_END_DIAMETER_RATIO := 0.085
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
@@ -77,12 +79,15 @@ static func local_cell_shatter_bounds(cell_px: float) -> Dictionary:
 	var end_diameter := cell_px * LOCAL_CELL_SHATTER_END_DIAMETER_RATIO
 	var end_radius := cell_px * LOCAL_CELL_SHATTER_SAFE_RADIUS_RATIO - end_diameter * 0.5
 	var max_rendered_radius := end_radius + end_diameter * 0.5
-	var visible_progress := _ease_out_cubic(LOCAL_BURST_FADE_END_RATIO)
+	var visible_progress := _ease_out_cubic(LOCAL_CELL_SHATTER_FADE_END_RATIO)
 	var last_visible_radius := lerpf(cell_px * LOCAL_CELL_SHATTER_START_RADIUS_RATIO, end_radius, visible_progress) + end_diameter * 0.5
 	return {
 		"count": LOCAL_CELL_SHATTER_COUNT,
 		"duration_sec": LOCAL_CELL_SHATTER_DURATION,
 		"approx_frames_60fps": int(round(LOCAL_CELL_SHATTER_DURATION * 60.0)),
+		"fade_start_ratio": LOCAL_CELL_SHATTER_FADE_START_RATIO,
+		"fade_end_ratio": LOCAL_CELL_SHATTER_FADE_END_RATIO,
+		"visible_duration_sec": LOCAL_CELL_SHATTER_DURATION * (LOCAL_CELL_SHATTER_FADE_END_RATIO - LOCAL_CELL_SHATTER_FADE_START_RATIO),
 		"start_radius_px": cell_px * LOCAL_CELL_SHATTER_START_RADIUS_RATIO,
 		"end_radius_px": end_radius,
 		"start_diameter_px": cell_px * LOCAL_CELL_SHATTER_START_DIAMETER_RATIO,
@@ -98,10 +103,10 @@ func spawn_local_cell_shatter(pos: Vector2, color: Color, cell_px: float) -> voi
 	var count: int = int(bounds["count"])
 	for i in range(count):
 		var angle: float = TAU * (float(i) / float(count)) + 0.24 * float(i % 2)
-		var end_radius: float = bounds["end_radius_px"] * (0.74 + 0.10 * float(i % 3))
+		var end_radius: float = bounds["end_radius_px"] * (0.76 + 0.09 * float(i % 3))
 		var twist: float = LOCAL_BURST_SPIRAL_TURN_RADIANS * (0.35 if i % 2 == 0 else -0.28)
 		var delay: float = 0.008 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, spark_color, angle, bounds["start_radius_px"], end_radius, twist, bounds["start_diameter_px"], bounds["end_diameter_px"], delay, bounds["duration_sec"])
+		_magic_burst_sprite(SPARK, pos, spark_color, angle, bounds["start_radius_px"], end_radius, twist, bounds["start_diameter_px"], bounds["end_diameter_px"], delay, bounds["duration_sec"], bounds["fade_start_ratio"], bounds["fade_end_ratio"])
 
 ## 消除魔法特效: 3帧发光帧(蓄力charge_up→炸裂burst→消散dissipate), additive。
 ## 双精灵 alpha 交叉淡化平滑过渡, 约0.34s。
@@ -251,7 +256,7 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 		var twist: float = bounds["spiral_turn_radians"] * (1.0 if i % 2 == 0 else -0.72)
 		var end_radius: float = bounds["inner_star_end_radius_px"] * (0.78 + 0.11 * float(i % 3))
 		var delay: float = 0.012 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.14, bounds["inner_star_end_diameter_px"], delay, bounds["inner_star_duration_sec"])
+		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.14, bounds["inner_star_end_diameter_px"], delay, bounds["inner_star_duration_sec"], LOCAL_BURST_FADE_START_RATIO, LOCAL_BURST_FADE_END_RATIO)
 	var outer_count: int = int(bounds["outer_wisp_count"])
 	for i in range(outer_count):
 		var f: float = (float(i) + 0.5) / float(outer_count)
@@ -259,9 +264,9 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 		var twist: float = -bounds["spiral_turn_radians"] * (0.45 + 0.08 * float(i % 2))
 		var end_radius: float = bounds["outer_wisp_end_radius_px"] * (0.82 + 0.09 * float(i % 3))
 		var delay: float = 0.024 + 0.014 * float(i % 4)
-		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.16, end_radius, twist, radius_px * 0.15, bounds["outer_wisp_end_diameter_px"], delay, bounds["outer_wisp_duration_sec"])
+		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.16, end_radius, twist, radius_px * 0.15, bounds["outer_wisp_end_diameter_px"], delay, bounds["outer_wisp_duration_sec"], LOCAL_BURST_FADE_START_RATIO, LOCAL_BURST_FADE_END_RATIO)
 
-func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float) -> void:
+func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float, fade_start_ratio: float, fade_end_ratio: float) -> void:
 	if not ResourceLoader.exists(tex_path):
 		return
 	var tex: Texture2D = load(tex_path)
@@ -282,8 +287,8 @@ func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: fl
 	t.tween_property(s, "position", pos + Vector2.RIGHT.rotated(angle + twist) * end_radius, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_property(s, "rotation", angle + twist * 1.6, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	t.tween_property(s, "scale", Vector2(end_scale, end_scale), dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	var fade_start := dur * LOCAL_BURST_FADE_START_RATIO
-	var fade_duration := dur * maxf(LOCAL_BURST_FADE_END_RATIO - LOCAL_BURST_FADE_START_RATIO, 0.01)
+	var fade_start := dur * fade_start_ratio
+	var fade_duration := dur * maxf(fade_end_ratio - fade_start_ratio, 0.01)
 	t.tween_property(s, "modulate:a", 0.0, fade_duration).set_delay(fade_start).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_auto_free(s, delay + dur + 0.12)
 

@@ -54,3 +54,12 @@ func test_local_cell_shatter_stays_inside_one_cell() -> void:
 	var bounds: Dictionary = FxScript.local_cell_shatter_bounds(cell_size)
 	assert_true(bounds["max_rendered_radius_px"] <= cell_size * 0.5, "local cell shatter stays inside its own cell")
 	assert_true(bounds["last_visible_rendered_radius_px"] <= cell_size * 0.45, "last visible cell shatter frame keeps margin inside the cell")
+
+
+func test_local_cell_shatter_remains_visibly_present() -> void:
+	var cell_size := 88.0
+	var bounds: Dictionary = FxScript.local_cell_shatter_bounds(cell_size)
+	assert_true(bounds["count"] >= 8, "bounded cell shatter keeps enough particles to read as an animation")
+	assert_true(bounds["duration_sec"] >= 0.30, "bounded cell shatter lasts long enough to be seen")
+	assert_true(bounds["visible_duration_sec"] >= 0.20, "bounded cell shatter does not fade out immediately")
+	assert_true(bounds["start_diameter_px"] >= cell_size * 0.14, "bounded cell shatter starts with readable spark size")
