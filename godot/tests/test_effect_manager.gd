@@ -47,3 +47,10 @@ func test_local_burst_fades_before_the_outermost_frame() -> void:
 		bounds["last_visible_rendered_radius_px"] <= clear_radius * bounds["last_visible_safe_radius_ratio"],
 		"last visible frame keeps an extra safety margin inside 3x3"
 	)
+
+
+func test_local_cell_shatter_stays_inside_one_cell() -> void:
+	var cell_size := 88.0
+	var bounds: Dictionary = FxScript.local_cell_shatter_bounds(cell_size)
+	assert_true(bounds["max_rendered_radius_px"] <= cell_size * 0.5, "local cell shatter stays inside its own cell")
+	assert_true(bounds["last_visible_rendered_radius_px"] <= cell_size * 0.45, "last visible cell shatter frame keeps margin inside the cell")

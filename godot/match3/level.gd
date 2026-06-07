@@ -1228,6 +1228,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var cells: Array = plan["cells"]
 	var virtual_fx: Dictionary = plan.get("override", {})
 	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, cells, {}, virtual_fx)
+	var visual_kind: Dictionary = ClearVisuals.special_clear_kind_overrides(board.grid, board.fx, cells, {}, virtual_fx)
 	if cells.is_empty():
 		_busy = false
 		return
@@ -1258,7 +1259,11 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		elif vk != ME.SP_NONE:
 			_play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
 		elif visual_species.has(p):
-			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
+			var visual_color := _gem_raw_color(int(visual_species[p]))
+			if int(visual_kind.get(p, ME.SP_NONE)) == ME.SP_BOMB:
+				Fx.spawn_local_cell_shatter(_cell_center(p.y, p.x), visual_color, cell_size)
+			else:
+				Fx.spawn_shatter(_cell_center(p.y, p.x), visual_color)
 		elif fine_budget > 0:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
@@ -1363,6 +1368,7 @@ func _resolve_cascades() -> void:
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 	# 行/列横扫、十字星爆炸：路径棋子碎成触发特效的原色粒子，避免按各格颜色炸成彩虹。
 	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, to_clear, spawn_set)
+	var visual_kind: Dictionary = ClearVisuals.special_clear_kind_overrides(board.grid, board.fx, to_clear, spawn_set)
 	var t := create_tween().set_parallel(true)
 	var any := false
 	for p in to_clear:
@@ -1375,7 +1381,11 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 			if sp >= 0 and sp < GEM_KEYS.size():
 				if visual_species.has(p):
 					# 横竖横扫/十字星: 不叠加三帧, 路径棋子碎成触发特效的纯色粒子
-					Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
+					var visual_color := _gem_raw_color(int(visual_species[p]))
+					if int(visual_kind.get(p, ME.SP_NONE)) == ME.SP_BOMB:
+						Fx.spawn_local_cell_shatter(_cell_center(p.y, p.x), visual_color, cell_size)
+					else:
+						Fx.spawn_shatter(_cell_center(p.y, p.x), visual_color)
 				else:
 					# 普通消除: 染色后的三帧基础爆炸特效(蓄力→炸裂→消散)
 					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
