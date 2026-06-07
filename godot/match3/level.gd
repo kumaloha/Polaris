@@ -24,16 +24,21 @@ const GEM_COLORS := {
 const COLOR_GOLD := Color(1.0, 0.92, 0.5)  # 统一金色文字(金币数/第N关/步数)
 const GEM_KEYS := ["red", "blue", "green", "gold", "purple", "pink"]  # species 顺序→宝石色(同 GEM_TEXTURES)
 const GEM_TEXTURES := [
-	"res://assets/gems/gem_ruby.png", "res://assets/gems/gem_water.png",
-	"res://assets/gems/gem_clover.png", "res://assets/gems/gem_star.png",
-	"res://assets/gems/gem_orb.png", "res://assets/gems/gem_heart.png",
+	"res://art/gems/base/gem_ruby.png", "res://art/gems/base/gem_water.png",
+	"res://art/gems/base/gem_clover.png", "res://art/gems/base/gem_star.png",
+	"res://art/gems/base/gem_orb.png", "res://art/gems/base/gem_heart.png",
 ]
 # 特殊棋子(阶段5) shine 贴图：横/竖直线、3x3爆炸(叠在宝石上)。
-# 彩球(SP_COLORBOMB)用专用整张贴图 extra.png(彩虹星河球)直接替换宝石，不叠 shine。
-const SHINE_LINE_H := "res://assets/gems/shine/fx2_horizontal.png"
-const SHINE_LINE_V := "res://assets/gems/shine/fx2_vertical.png"
-const SHINE_BOMB := "res://assets/gems/shine/fx2_cross.png"
-const EXTRA_TEXTURE := "res://assets/gems/colorbomb.png"  # 彩球(5连)专用贴图(透明底, 用户提供)
+# 4合1 = 普通宝石本体 + special_4 overlay；5合1 = 独立分层水晶球，不套普通阴影。
+const SHINE_LINE_H := "res://art/gems/special_4/special_4_horizontal_overlay.png"
+const SHINE_LINE_V := "res://art/gems/special_4/special_4_vertical_overlay.png"
+const SHINE_BOMB := "res://art/gems/special_4/special_4_area_overlay.png"
+const COLORBOMB_CORE := "res://art/gems/special_5/special_5_core_ball.png"
+const COLORBOMB_GOLD_GLOW := "res://art/gems/special_5/special_5_gold_ground_glow.png"
+const COLORBOMB_INNER_SWIRL := "res://art/gems/special_5/special_5_inner_swirl.png"
+const COLORBOMB_INNER_STARS := "res://art/gems/special_5/special_5_inner_stars.png"
+const COLORBOMB_CUBE_RING := "res://art/gems/special_5/special_5_cube_ring.png"
+const COLORBOMB_LAYER_NAMES := ["GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
 const FX_TEXTURES := {
 	ME.SP_LINE_H: SHINE_LINE_H,
 	ME.SP_LINE_V: SHINE_LINE_V,
@@ -197,6 +202,7 @@ var _sel_node_mod := Color.WHITE
 var _hl_markers: Array = []
 var _busy := false
 var _level_generation: int = 0
+var _opening_drop_tween: Tween = null
 var _key_mat: ShaderMaterial = null
 var _aged_parch_mat: ShaderMaterial = null
 # 阶段7: 技能充能状态(改: 不再按时间冷却, 而是消除对应色宝石才涨)。idx 与 SKILLS 对齐。
@@ -239,6 +245,10 @@ func _ready() -> void:
 	else:
 		_level_idx = launch_level_idx if launch_level_idx >= 0 else 0
 	load_level(_level_idx)
+
+func _exit_tree() -> void:
+	_level_generation += 1
+	_kill_opening_drop_tween()
 
 func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 	for i in range(args.size()):
@@ -291,7 +301,27 @@ static func gem_raw_color_for_species(sp: int) -> Color:
 func _gem_raw_color(sp: int) -> Color:
 	return gem_raw_color_for_species(sp)
 
+func _asset_exists(path: String) -> bool:
+	return ResourceLoader.exists(path) or FileAccess.file_exists(path)
+
+func _load_texture(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		var tex := load(path) as Texture2D
+		if tex != null:
+			return tex
+	if not FileAccess.file_exists(path):
+		return null
+	var image := Image.new()
+	var err := image.load(ProjectSettings.globalize_path(path))
+	if err != OK:
+		err = image.load(path)
+	if err != OK:
+		push_warning("Unable to load PNG texture: %s" % path)
+		return null
+	return ImageTexture.create_from_image(image)
+
 func load_level(idx: int) -> void:
+	_kill_opening_drop_tween()
 	_level_generation += 1
 	var generation := _level_generation
 	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
@@ -559,24 +589,38 @@ func _play_opening_drop(generation: int) -> void:
 			_apply_opening_freeze_instant(generation)
 			_finish_opening_drop(generation)
 		return
-	var t := create_tween().set_parallel(true)
+	var t: Tween = null
 	var any := false
 	for r in range(board.height):
 		for c in range(board.width):
 			var n: Sprite2D = _gem_nodes[r][c]
 			if n == null or not is_instance_valid(n):
 				continue
+			if t == null:
+				t = create_tween().set_parallel(true)
+				_opening_drop_tween = t
 			var target := _cell_center(r, c)
 			var delay := _opening_drop_delay(r)
 			var tw := t.tween_property(n, "position", target, OPENING_DROP_TIME)
 			tw.set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			any = true
-	if any:
-		await t.finished
+	if any and t != null:
+		t.finished.connect(_on_opening_drop_finished.bind(generation, t), CONNECT_ONE_SHOT)
+		return
+	_on_opening_drop_finished(generation, null)
+
+func _on_opening_drop_finished(generation: int, tween: Tween) -> void:
+	if _opening_drop_tween == tween:
+		_opening_drop_tween = null
 	if not _settle_opening_gems(generation):
 		return
 	await _play_opening_freeze(generation)
 	_finish_opening_drop(generation)
+
+func _kill_opening_drop_tween() -> void:
+	if _opening_drop_tween != null and _opening_drop_tween.is_valid():
+		_opening_drop_tween.kill()
+	_opening_drop_tween = null
 
 func _finish_opening_drop(generation: int) -> void:
 	if generation != _level_generation:
@@ -584,9 +628,11 @@ func _finish_opening_drop(generation: int) -> void:
 	_busy = false
 
 func _make_gem(sp: int, center: Vector2) -> Sprite2D:
-	if sp < 0 or sp >= GEM_TEXTURES.size() or not ResourceLoader.exists(GEM_TEXTURES[sp]):
+	if sp < 0 or sp >= GEM_TEXTURES.size() or not _asset_exists(GEM_TEXTURES[sp]):
 		return null
-	var tex: Texture2D = load(GEM_TEXTURES[sp])
+	var tex := _load_texture(GEM_TEXTURES[sp])
+	if tex == null:
+		return null
 	var gs := Sprite2D.new()
 	gs.texture = tex
 	gs.position = center
@@ -646,19 +692,18 @@ func _apply_fx_overlay(node: Sprite2D, kind: int) -> void:
 	var old: Node = node.get_node_or_null("shine")
 	if old != null:
 		old.queue_free()
-	# 彩球(5连): 整张换成 extra.png 彩虹球, 不叠 shine
+	_clear_colorbomb_layers(node)
 	if kind == ME.SP_COLORBOMB:
-		var et: Texture2D = load(EXTRA_TEXTURE)
-		if et != null:
-			node.texture = et
-			node.scale = _fit_scale(et, cell_size * COLORBOMB_FILL)  # 比格子小一圈
+		_apply_colorbomb_layers(node)
 		return
 	if kind == ME.SP_NONE or not FX_TEXTURES.has(kind):
 		return
 	var path: String = FX_TEXTURES[kind]
-	if not ResourceLoader.exists(path):
+	if not _asset_exists(path):
 		return
-	var tex: Texture2D = load(path)
+	var tex := _load_texture(path)
+	if tex == null:
+		return
 	var shine := Sprite2D.new()
 	shine.name = "shine"
 	shine.texture = tex
@@ -670,6 +715,71 @@ func _apply_fx_overlay(node: Sprite2D, kind: int) -> void:
 		fit.y / (parent_s.y if parent_s.y != 0.0 else 1.0))
 	shine.z_index = 1  # 盖在宝石之上
 	node.add_child(shine)
+
+func _clear_colorbomb_layers(node: Sprite2D) -> void:
+	node.offset = Vector2.ZERO
+	for layer_name in COLORBOMB_LAYER_NAMES:
+		var child := node.get_node_or_null(String(layer_name))
+		if child != null:
+			child.queue_free()
+
+func _apply_colorbomb_layers(node: Sprite2D) -> void:
+	if not _asset_exists(COLORBOMB_CORE):
+		push_warning("Missing colorbomb crystal art: %s" % COLORBOMB_CORE)
+		return
+	var core := _load_texture(COLORBOMB_CORE)
+	if core == null:
+		return
+	node.texture = core
+	node.offset = Vector2.ZERO
+	node.scale = _fit_scale(core, cell_size * COLORBOMB_FILL)
+	node.z_index = 2
+	var glow := _add_colorbomb_layer(node, "GoldGroundGlow", COLORBOMB_GOLD_GLOW, Vector2(0.0, cell_size * 0.20), 1.25, -2, 0.72)
+	var swirl := _add_colorbomb_layer(node, "CoreInnerSwirl", COLORBOMB_INNER_SWIRL, Vector2.ZERO, 0.96, 1, 0.78)
+	var stars := _add_colorbomb_layer(node, "CoreInnerStars", COLORBOMB_INNER_STARS, Vector2.ZERO, 0.96, 2, 0.88)
+	var ring := _add_colorbomb_layer(node, "CubeRing", COLORBOMB_CUBE_RING, Vector2.ZERO, 1.02, 3, 0.86)
+	_play_colorbomb_idle(node, glow, swirl, stars, ring)
+
+func _add_colorbomb_layer(parent: Sprite2D, layer_name: String, path: String, offset: Vector2, relative_size: float, z: int, alpha: float) -> Sprite2D:
+	if not _asset_exists(path):
+		push_warning("Missing colorbomb layer art: %s" % path)
+		return null
+	var tex := _load_texture(path)
+	if tex == null:
+		return null
+	var child := Sprite2D.new()
+	child.name = layer_name
+	child.texture = tex
+	child.position = offset / maxf(parent.scale.y, 0.001)
+	child.scale = Vector2.ONE * relative_size
+	child.z_index = z
+	child.modulate.a = alpha
+	parent.add_child(child)
+	return child
+
+func _play_colorbomb_idle(root: Sprite2D, glow: Sprite2D, swirl: Sprite2D, stars: Sprite2D, ring: Sprite2D) -> void:
+	var bob := root.create_tween().set_loops()
+	bob.tween_property(root, "offset", Vector2(0, -3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	bob.tween_property(root, "offset", Vector2(0, 3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var bob_units := 3.0 / maxf(root.scale.y, 0.001)
+	for layer in [glow, swirl, stars, ring]:
+		if layer == null:
+			continue
+		var layer_node := layer as Sprite2D
+		var layer_bob: Tween = layer_node.create_tween().set_loops()
+		var base_layer_pos: Vector2 = layer_node.position
+		layer_bob.tween_property(layer_node, "position", base_layer_pos + Vector2(0, -bob_units), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		layer_bob.tween_property(layer_node, "position", base_layer_pos + Vector2(0, bob_units), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	if swirl != null:
+		var sw := swirl.create_tween().set_loops()
+		sw.tween_property(swirl, "rotation", TAU, 4.8).as_relative()
+	if ring != null:
+		var rg := ring.create_tween().set_loops()
+		rg.tween_property(ring, "rotation", -TAU, 6.2).as_relative()
+	if stars != null:
+		var st := stars.create_tween().set_loops()
+		st.tween_property(stars, "modulate:a", 0.45, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		st.tween_property(stars, "modulate:a", 0.95, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 # ───────── 整页 UI（对齐参考图） ─────────
 
@@ -1552,8 +1662,8 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		if not locked.has(p):
 			scored += 1
 	board._gain(ME.score_for_clear(scored, 1))
-	# 表现: 彩球本体大爆发(白金) + 对清除格放特效(限量精细, 避免一次太多卡顿)。
-	Fx.spawn_explosion(_cell_center(cb_pos.y, cb_pos.x), Color(1.0, 0.95, 0.7), 3.0)
+	# 表现: 彩球吸收预览 + 对清除格放特效(限量精细, 避免一次太多卡顿)。
+	await _play_colorbomb_absorb_preview(cb_pos, cells)
 	if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
 		await _show_colorbomb_virtual_conversion(virtual_fx)
 	var fine_budget: int = 36   # 精细特效上限(超出只清不放, 防卡顿)
@@ -1587,6 +1697,82 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	_refresh_hud()
 	_check_settlement()
 	_busy = false
+
+
+func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array) -> void:
+	var end_pos := _cell_center(cb_pos.y, cb_pos.x) + Vector2(0.0, cell_size * 0.18)
+	var targets := []
+	for p in cells:
+		if p == cb_pos:
+			continue
+		if board.grid[p.y][p.x] < 0:
+			continue
+		if _gem_nodes[p.y][p.x] == null:
+			continue
+		targets.append(p)
+	targets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return _cell_center(a.y, a.x).distance_squared_to(end_pos) < _cell_center(b.y, b.x).distance_squared_to(end_pos)
+	)
+	var budget: int = mini(targets.size(), 30)
+	var max_arrival := 0.0
+	for i in range(budget):
+		var p: Vector2i = targets[i]
+		var start := _cell_center(p.y, p.x)
+		var sp: int = board.grid[p.y][p.x]
+		var col := _fx_color(sp)
+		var delay := 0.05 + 0.055 * float(i % 5) + 0.018 * float(i / 5)
+		var orb_dur := 0.42
+		if delay > 0.0:
+			get_tree().create_timer(delay).timeout.connect(Fx.spawn_absorb_residue.bind(start, col), CONNECT_ONE_SHOT)
+		else:
+			Fx.spawn_absorb_residue(start, col)
+		Fx.spawn_target_outline(start, col, cell_size * 0.88, delay * 0.35)
+		Fx.spawn_color_absorb_orb(start, end_pos, col, delay, orb_dur)
+		var arrival := delay + orb_dur * 1.22
+		max_arrival = maxf(max_arrival, arrival)
+		_pulse_colorbomb_gold_glow(cb_pos, arrival)
+	if budget > 0:
+		await get_tree().create_timer(max_arrival + 0.08).timeout
+		_pulse_colorbomb_inner_stars(cb_pos)
+		await get_tree().create_timer(0.18).timeout
+	else:
+		await get_tree().create_timer(0.08).timeout
+
+func _colorbomb_layer_at(cb_pos: Vector2i, layer_name: String) -> Sprite2D:
+	if cb_pos.y < 0 or cb_pos.y >= _gem_nodes.size() or cb_pos.x < 0 or cb_pos.x >= _gem_nodes[cb_pos.y].size():
+		return null
+	var root: Sprite2D = _gem_nodes[cb_pos.y][cb_pos.x]
+	if root == null or not is_instance_valid(root):
+		return null
+	return root.get_node_or_null(layer_name) as Sprite2D
+
+func _pulse_colorbomb_gold_glow(cb_pos: Vector2i, delay: float = 0.0) -> void:
+	if delay > 0.0 and is_inside_tree():
+		get_tree().create_timer(delay).timeout.connect(_pulse_colorbomb_gold_glow.bind(cb_pos, 0.0), CONNECT_ONE_SHOT)
+		return
+	var glow := _colorbomb_layer_at(cb_pos, "GoldGroundGlow")
+	if glow == null:
+		return
+	var base_self := glow.self_modulate
+	var base_scale := glow.scale
+	var bright := Color(1.35, 1.18, 0.72, 1.0)
+	var t := create_tween()
+	t.tween_property(glow, "self_modulate", bright, 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(glow, "scale", base_scale * 1.10, 0.08).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(glow, "self_modulate", base_self, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.parallel().tween_property(glow, "scale", base_scale, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+func _pulse_colorbomb_inner_stars(cb_pos: Vector2i) -> void:
+	var stars := _colorbomb_layer_at(cb_pos, "CoreInnerStars")
+	if stars == null:
+		return
+	var base_self := stars.self_modulate
+	var bright := Color(1.38, 1.34, 1.0, 1.0)
+	var t := create_tween()
+	t.tween_property(stars, "self_modulate", bright, 0.07).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(stars, "self_modulate", base_self, 0.10).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.tween_property(stars, "self_modulate", bright, 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(stars, "self_modulate", base_self, 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 
 func _show_colorbomb_virtual_conversion(virtual_fx: Dictionary) -> void:
@@ -1750,8 +1936,14 @@ func _resolve_cascades() -> void:
 		cascade_level += 1
 		# spawn_set: 这些格变特效棋子(节点不删/不淡出, 只叠 shine)
 		var spawn_set := {}
+		var triggered_spawn_set: Dictionary = c.get("triggered_spawns", {})
+		var triggered_spawn_fx: Dictionary = c.get("triggered_spawn_fx", {})
+		var protected_spawn_set := {}
 		for s in spawns:
-			spawn_set[s["pos"]] = true
+			var sp_pos: Vector2i = s["pos"]
+			spawn_set[sp_pos] = true
+			if not triggered_spawn_set.has(sp_pos):
+				protected_spawn_set[sp_pos] = true
 		# 阶段6: 目标计数(路线A 手动累加)。account_clears 须在 _apply_clears 之前调(要读未清空的 species),
 		# 它会原地递减 board 的障碍层数组(经 _layers() 引用), 与 board.try_swap 路径同口径。
 		# 严格复用 board 内部累加逻辑(_accumulate / _accumulate_progress), 字段名/key 类型完全一致, 杜绝分叉。
@@ -1769,12 +1961,16 @@ func _resolve_cascades() -> void:
 			if not locked.has(p):
 				scored += 1
 		board._gain(ME.score_for_clear(scored, cascade_level))
-		await _play_clear(to_clear, spawns, spawn_set)
+		for s in spawns:
+			var sp_pos: Vector2i = s["pos"]
+			board.fx[sp_pos.y][sp_pos.x] = int(triggered_spawn_fx.get(sp_pos, s["kind"]))
+			_apply_fx_overlay(_gem_nodes[sp_pos.y][sp_pos.x], board.fx[sp_pos.y][sp_pos.x])
+		await _play_clear(to_clear, spawns, protected_spawn_set)
 		# 引擎执行清除: spawn 格落特效(保留 species), 其余格 grid=EMPTY/fx=SP_NONE
-		ME._apply_clears(board.grid, board.fx, to_clear, spawns)
+		ME._apply_clears(board.grid, board.fx, to_clear, spawns, triggered_spawn_set)
 		# 节点同步: 非 spawn 格删节点置 null; spawn 格给节点叠 shine(此时 board.fx 已是新 kind)
 		for p in to_clear:
-			if spawn_set.has(p):
+			if protected_spawn_set.has(p):
 				_apply_fx_overlay(_gem_nodes[p.y][p.x], board.fx[p.y][p.x])
 			else:
 				var n: Sprite2D = _gem_nodes[p.y][p.x]

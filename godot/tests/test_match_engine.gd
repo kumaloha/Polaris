@@ -488,6 +488,60 @@ func test_collect_line_hit_triggers_indirect_line() -> void:
 	assert_true(tc.has(Vector2i(4, 2)), "indirect vertical line clears below its hit cell")
 	assert_true(tc.has(Vector2i(4, 3)), "indirect vertical line reaches the column tail")
 
+func test_collect_forms_colorbomb_before_same_step_line_blast_hits_it() -> void:
+	var grid := [
+		[1, 2, 3, 4, 5],
+		[0, 0, 0, 0, 0],
+		[1, 2, 3, 4, 5],
+		[2, 3, 4, 0, 5],
+		[1, 2, 3, 4, 5],
+	]
+	var fx := _none_fx(5, 5)
+	fx[1][0] = ME.SP_LINE_H
+	var c := ME.collect_clears(grid, fx)
+	var tc: Array = c["to_clear"]
+	assert_eq(c["spawns"].size(), 1, "the 5-match still produces one colorbomb")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_COLORBOMB, "the 5-match product is a colorbomb")
+	assert_true(tc.has(Vector2i(3, 3)), "same-step line blast hits the new colorbomb, then the colorbomb clears other matching species")
+	assert_true(c.has("triggered_spawns") and c["triggered_spawns"].has(Vector2i(2, 1)), "the spawn hit by the line is reported as triggered")
+	ME._apply_clears(grid, fx, tc, c["spawns"], c["triggered_spawns"])
+	assert_eq(grid[1][2], ME.EMPTY, "the newly formed colorbomb is consumed when hit in the same step")
+	assert_eq(fx[1][2], ME.SP_NONE, "the consumed colorbomb leaves no effect behind")
+
+func test_same_step_horizontal_four_line_triggers_horizontally() -> void:
+	var grid := [
+		[1, 2, 3, 4, 5],
+		[0, 0, 0, 0, 9],
+		[1, 2, 3, 4, 5],
+		[2, 3, 4, 5, 1],
+		[3, 4, 5, 1, 2],
+	]
+	var fx := _none_fx(5, 5)
+	fx[1][0] = ME.SP_BOMB
+	var c := ME.collect_clears(grid, fx)
+	var spawn_pos := Vector2i(1, 1)
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "persistent horizontal 4 product keeps the existing stored convention")
+	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed horizontal 4 special")
+	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_H, "same-step trigger follows the horizontal match direction")
+	assert_true((c["to_clear"] as Array).has(Vector2i(4, 1)), "same-step horizontal special clears the row tail")
+
+func test_same_step_vertical_four_line_triggers_vertically() -> void:
+	var grid := [
+		[1, 0, 3, 4, 5],
+		[2, 0, 4, 5, 1],
+		[3, 0, 5, 1, 2],
+		[4, 0, 1, 2, 3],
+		[5, 9, 2, 3, 4],
+	]
+	var fx := _none_fx(5, 5)
+	fx[0][1] = ME.SP_BOMB
+	var c := ME.collect_clears(grid, fx)
+	var spawn_pos := Vector2i(1, 1)
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "persistent vertical 4 product keeps the existing stored convention")
+	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed vertical 4 special")
+	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_V, "same-step trigger follows the vertical match direction")
+	assert_true((c["to_clear"] as Array).has(Vector2i(1, 4)), "same-step vertical special clears the column tail")
+
 func test_existing_line_on_spawn_cell_is_triggered_not_respawned() -> void:
 	var grid := [
 		[9, 8, 7, 6, 5],

@@ -58,6 +58,61 @@ func test_colorbomb_virtual_stripes_have_separate_conversion_phase() -> void:
 	assert_eq(ClearVisuals.colorbomb_virtual_conversion_delay({}), 0.0, "plain colorbomb clears have no conversion delay")
 
 
+func test_colorbomb_idle_does_not_tween_board_position() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _play_colorbomb_idle")
+	assert_true(start >= 0, "_play_colorbomb_idle exists")
+	if start < 0:
+		return
+	var end: int = src.find("# ───────── 整页 UI", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_false(body.contains("root, \"position\""), "colorbomb idle must not tween root.position; fall/swap owns board position")
+	assert_true(body.contains("\"offset\""), "colorbomb bob uses visual offset instead of board position")
+
+
+func test_colorbomb_absorb_preview_leaves_residue_and_pulses_crystal() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _play_colorbomb_absorb_preview")
+	assert_true(start >= 0, "_play_colorbomb_absorb_preview exists")
+	if start < 0:
+		return
+	var end: int = src.find("func _show_colorbomb_virtual_conversion", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("Fx.spawn_absorb_residue"), "each absorbed gem leaves residue stardust at its source cell")
+	assert_true(body.contains("_pulse_colorbomb_gold_glow"), "orb impact pulses the gold ground glow")
+	assert_true(body.contains("_pulse_colorbomb_inner_stars"), "absorbed batch lights the crystal ball inner stars")
+
+
+func test_colorbomb_resolve_has_no_final_particle_burst() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _resolve_colorbomb")
+	assert_true(start >= 0, "_resolve_colorbomb exists")
+	if start < 0:
+		return
+	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("await _play_colorbomb_absorb_preview"), "colorbomb still plays the absorb sequence")
+	assert_false(body.contains("Fx.spawn_explosion"), "colorbomb absorb should not add a final generic particle burst")
+
+
 func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")

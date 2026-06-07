@@ -7,6 +7,38 @@ const ME := preload("res://core/match_engine.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
+const MAGIC_ART_REQUIRED := [
+	"res://art/gems/base/gem_water.png",
+	"res://art/gems/base/gem_clover.png",
+	"res://art/gems/base/gem_heart.png",
+	"res://art/gems/base/gem_orb.png",
+	"res://art/gems/base/gem_ruby.png",
+	"res://art/gems/base/gem_star.png",
+	"res://art/gems/base/gem_shadow_soft.png",
+	"res://art/gems/special_4/special_4_horizontal_overlay.png",
+	"res://art/gems/special_4/special_4_vertical_overlay.png",
+	"res://art/gems/special_4/special_4_area_overlay.png",
+	"res://art/gems/special_5/special_5_core_ball.png",
+	"res://art/gems/special_5/special_5_gold_ground_glow.png",
+	"res://art/gems/special_5/special_5_inner_swirl.png",
+	"res://art/gems/special_5/special_5_inner_stars.png",
+	"res://art/gems/special_5/special_5_cube_ring.png",
+	"res://art/vfx/basic_pop/vfx_basic_flash_blob.png",
+	"res://art/vfx/basic_pop/vfx_basic_flash_star.png",
+	"res://art/vfx/basic_pop/vfx_basic_ring_soft.png",
+	"res://art/vfx/line_blast/vfx_beam_core.png",
+	"res://art/vfx/line_blast/vfx_beam_glow.png",
+	"res://art/vfx/line_blast/vfx_beam_cap.png",
+	"res://art/vfx/area_blast/vfx_area_square_wave.png",
+	"res://art/vfx/area_blast/vfx_area_cube_frame.png",
+	"res://art/vfx/area_blast/vfx_area_grid_3x3.png",
+	"res://art/vfx/color_absorb/vfx_absorb_orb.png",
+	"res://art/vfx/color_absorb/vfx_absorb_trail.png",
+	"res://art/vfx/color_absorb/cell_target_outline.png",
+	"res://art/vfx/transform/vfx_transform_flash.png",
+	"res://art/vfx/reward/vfx_reward_magic_ball.png",
+	"res://art/vfx/movement/vfx_landing_ring.png",
+]
 
 
 func _filled_layer(w: int, h: int, value: int) -> Array:
@@ -100,6 +132,21 @@ func test_character_metadata_comes_from_docs() -> void:
 	assert_eq(by_id["lucky"]["playable"], false, "default mascot is not playable")
 	assert_eq(by_id["borrrower"]["skill_desc"], "借一个特效(4连直线/T·L爆炸/5连彩球效果),本关内必须还;不还不算过关。", "borrower skill from docs")
 	assert_eq(by_id["chainbonus"]["type"], "被动型·整局生效", "passive type from docs")
+
+
+func test_magic_match_art_pack_is_available_under_res_art() -> void:
+	for path in MAGIC_ART_REQUIRED:
+		assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "magic art asset exists: %s" % path)
+
+
+func test_level_can_load_magic_match_pngs_before_import_metadata_exists() -> void:
+	var level := _prepare_level_scene()
+	assert_true(level.has_method("_load_texture"), "Level has a PNG fallback texture loader")
+	var tex := level.call("_load_texture", "res://art/gems/base/gem_ruby.png") as Texture2D
+	assert_true(tex != null, "raw magic art PNG loads as Texture2D")
+	if tex != null:
+		assert_true(tex.get_width() > 0 and tex.get_height() > 0, "loaded magic art texture has dimensions")
+	level.free()
 
 
 func test_project_default_scene_uses_level_entry() -> void:

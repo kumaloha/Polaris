@@ -681,8 +681,11 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 		cleared_total += to_clear.size()
 		total_score += score_for_clear(to_clear.size(), cascades)
 		var spawn_set := {}
+		var triggered_spawns: Dictionary = c.get("triggered_spawns", {})
 		for s in c["spawns"]:
-			spawn_set[s["pos"]] = true
+			var sp_pos: Vector2i = s["pos"]
+			if not triggered_spawns.has(sp_pos):
+				spawn_set[sp_pos] = true
 		for pos in to_clear:
 			if not spawn_set.has(pos):
 				var sp_p: int = grid[pos.y][pos.x]
@@ -729,7 +732,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 						jelly_cleared += 1
 					to_clear.append(bp)
 					cleared_total += 1
-		_apply_clears(grid, fx, to_clear, c["spawns"])
+		_apply_clears(grid, fx, to_clear, c["spawns"], triggered_spawns)
 		apply_gravity(grid, fx, false, layers)   # 原料/炸弹/爆米花/神秘糖随重力下落（随 grid/fx 同步移动）
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)
@@ -1014,15 +1017,67 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 # 返回 {to_clear: Array[Vector2i], spawns: Array[{pos,kind}]}（spawns 来自匹配形状）。
 # 纯函数，不修改 grid/fx。
 static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}) -> Dictionary:
-	var to_clear := _expand_triggers(grid, fx, find_matches(grid, layers))
 	var cls := classify_matches(grid, layers)
 	var spawns := []
+	var virtual_trigger_fx := {}
 	for s in cls["spawns"]:
 		var pos: Vector2i = s["pos"]
 		if not fx.is_empty() and fx[pos.y][pos.x] != SP_NONE:
 			continue
 		spawns.append(s)
-	return {"to_clear": to_clear.keys(), "spawns": spawns}
+		virtual_trigger_fx[pos] = _same_step_trigger_kind(int(s["kind"]))
+	var expanded := _expand_triggers_after_spawns(grid, fx, find_matches(grid, layers), virtual_trigger_fx)
+	return {
+		"to_clear": expanded["to_clear"].keys(),
+		"spawns": spawns,
+		"triggered_spawns": expanded["triggered_spawns"],
+		"triggered_spawn_fx": expanded["triggered_spawn_fx"],
+	}
+
+static func _same_step_trigger_kind(kind: int) -> int:
+	match kind:
+		SP_LINE_H:
+			return SP_LINE_V
+		SP_LINE_V:
+			return SP_LINE_H
+		_:
+			return kind
+
+static func _special_kind_at(fx: Array, virtual_fx: Dictionary, pos: Vector2i) -> int:
+	if virtual_fx.has(pos):
+		return int(virtual_fx[pos])
+	if not fx.is_empty():
+		return int(fx[pos.y][pos.x])
+	return SP_NONE
+
+static func _expand_triggers_after_spawns(grid: Array, fx: Array, seeds: Array, virtual_fx: Dictionary) -> Dictionary:
+	var to_clear := {}
+	var queue := []
+	var queued := {}
+	var triggered_spawns := {}
+	var triggered_spawn_fx := {}
+	for c in seeds:
+		if not to_clear.has(c):
+			to_clear[c] = true
+		if not fx.is_empty() and fx[c.y][c.x] != SP_NONE and not queued.has(c):
+			queue.append(c)
+			queued[c] = true
+	while not queue.is_empty():
+		var c: Vector2i = queue.pop_back()
+		var kind := _special_kind_at(fx, virtual_fx, c)
+		if kind == SP_NONE:
+			continue
+		for e in special_effect_cells(grid, c, kind, grid[c.y][c.x]):
+			if not to_clear.has(e):
+				to_clear[e] = true
+			var ek := _special_kind_at(fx, virtual_fx, e)
+			if ek != SP_NONE and not queued.has(e):
+				queue.append(e)
+				queued[e] = true
+				if virtual_fx.has(e):
+					triggered_spawns[e] = true
+					triggered_spawn_fx[e] = ek
+	return {"to_clear": to_clear, "triggered_spawns": triggered_spawns, "triggered_spawn_fx": triggered_spawn_fx}
 
 # 从 seed 格出发，沿特效触发链 BFS 展开，返回所有应清的格（Dictionary 当 set）。
 static func _expand_triggers(grid: Array, fx: Array, seeds: Array) -> Dictionary:
@@ -1044,14 +1099,14 @@ static func _expand_triggers(grid: Array, fx: Array, seeds: Array) -> Dictionary
 
 
 # 执行清除：spawn 格落特效（保留 species），其余格清空（grid=EMPTY, fx=NONE）。原地修改。
-static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array) -> void:
+static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array, triggered_spawns: Dictionary = {}) -> void:
 	var spawn_map := {}
 	for s in spawns:
 		spawn_map[s["pos"]] = s["kind"]
 	for pos in to_clear:
 		if grid[pos.y][pos.x] == WALL:
 			continue  # 兜底：墙绝不被清、不落特效（异形棋盘契约：不可消、不可动）
-		if spawn_map.has(pos):
+		if spawn_map.has(pos) and not triggered_spawns.has(pos):
 			fx[pos.y][pos.x] = spawn_map[pos]  # 落特效，保留 species
 		else:
 			grid[pos.y][pos.x] = EMPTY

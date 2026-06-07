@@ -1,0 +1,411 @@
+{
+  "assets": [
+    {
+      "path": "art/gems/base/gem_water.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_clover.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_heart.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_orb.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_ruby.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_star.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/base/gem_shadow_soft.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_5/special_5_core_ball.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_5/special_5_gold_ground_glow.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_5/special_5_inner_swirl.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_5/special_5_inner_stars.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_5/special_5_cube_ring.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_4/special_4_horizontal_overlay.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_4/special_4_vertical_overlay.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/gems/special_4/special_4_area_overlay.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_basic_flash_blob.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_basic_flash_star.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_basic_ring_soft.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_01.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_02.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_03.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_04.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_05.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_gem_shard_06.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_dust_dot.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/basic_pop/vfx_dust_star.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/vfx_beam_core.png",
+      "size": [
+        512,
+        64
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/vfx_beam_glow.png",
+      "size": [
+        512,
+        128
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/vfx_beam_cap.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/vfx_beam_spark.png",
+      "size": [
+        256,
+        128
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/cell_glow_horizontal.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/line_blast/cell_glow_vertical.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_area_square_wave.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_area_cube_frame.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_area_grid_3x3.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_cube_shard_01.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_cube_shard_02.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_cube_shard_03.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/area_blast/vfx_cube_shard_04.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/color_absorb/vfx_absorb_orb.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/color_absorb/vfx_absorb_trail.png",
+      "size": [
+        512,
+        128
+      ]
+    },
+    {
+      "path": "art/vfx/color_absorb/vfx_absorb_line.png",
+      "size": [
+        512,
+        64
+      ]
+    },
+    {
+      "path": "art/vfx/color_absorb/vfx_absorb_hit_flash.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/color_absorb/cell_target_outline.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/transform/vfx_transform_flash.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/transform/vfx_skill_symbol_horizontal.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/transform/vfx_skill_symbol_vertical.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/transform/vfx_skill_symbol_area.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/movement/cell_glow_square.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/movement/vfx_landing_dust.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/movement/vfx_spawn_glow.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/movement/vfx_swap_streak.png",
+      "size": [
+        512,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/movement/vfx_select_ring.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/movement/vfx_landing_ring.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/reward/vfx_reward_magic_ball.png",
+      "size": [
+        512,
+        512
+      ]
+    },
+    {
+      "path": "art/vfx/reward/vfx_reward_trail.png",
+      "size": [
+        512,
+        128
+      ]
+    },
+    {
+      "path": "art/vfx/reward/vfx_reward_confetti_star.png",
+      "size": [
+        256,
+        256
+      ]
+    },
+    {
+      "path": "art/vfx/reward/vfx_reward_pop_flash.png",
+      "size": [
+        512,
+        512
+      ]
+    }
+  ],
+  "count": 58
+}
