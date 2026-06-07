@@ -1261,7 +1261,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		elif visual_species.has(p):
 			var visual_color := _gem_raw_color(int(visual_species[p]))
 			if int(visual_kind.get(p, ME.SP_NONE)) == ME.SP_BOMB:
-				Fx.spawn_local_cell_shatter(_cell_center(p.y, p.x), visual_color, cell_size)
+				Fx.spawn_local_cell_flash(_cell_center(p.y, p.x), visual_color, cell_size)
 			else:
 				Fx.spawn_shatter(_cell_center(p.y, p.x), visual_color)
 		elif fine_budget > 0:
@@ -1383,7 +1383,7 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 					# 横竖横扫/十字星: 不叠加三帧, 路径棋子碎成触发特效的纯色粒子
 					var visual_color := _gem_raw_color(int(visual_species[p]))
 					if int(visual_kind.get(p, ME.SP_NONE)) == ME.SP_BOMB:
-						Fx.spawn_local_cell_shatter(_cell_center(p.y, p.x), visual_color, cell_size)
+						Fx.spawn_local_cell_flash(_cell_center(p.y, p.x), visual_color, cell_size)
 					else:
 						Fx.spawn_shatter(_cell_center(p.y, p.x), visual_color)
 				else:

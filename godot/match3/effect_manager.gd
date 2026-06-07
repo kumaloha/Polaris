@@ -29,15 +29,10 @@ const LOCAL_BURST_OUTER_WISP_END_RADIUS_MAX_RATIO := 0.86
 const LOCAL_BURST_INNER_STAR_END_DIAMETER_RATIO := 0.04
 const LOCAL_BURST_OUTER_WISP_END_DIAMETER_RATIO := 0.05
 const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
-const LOCAL_CELL_SHATTER_COUNT := 9
-const LOCAL_CELL_SHATTER_DURATION := 0.34
-const LOCAL_CELL_SHATTER_FADE_START_RATIO := 0.18
-const LOCAL_CELL_SHATTER_FADE_END_RATIO := 0.92
-const LOCAL_CELL_SHATTER_SAFE_RADIUS_RATIO := 0.42
-const LOCAL_CELL_SHATTER_LAST_VISIBLE_SAFE_RADIUS_RATIO := 0.45
-const LOCAL_CELL_SHATTER_START_RADIUS_RATIO := 0.05
-const LOCAL_CELL_SHATTER_START_DIAMETER_RATIO := 0.16
-const LOCAL_CELL_SHATTER_END_DIAMETER_RATIO := 0.085
+const LOCAL_CELL_FLASH_DURATION := 0.24
+const LOCAL_CELL_FLASH_DIAMETER_RATIO := 0.78
+const LOCAL_CELL_FLASH_PEAK_SCALE := 1.05
+const LOCAL_CELL_FLASH_SAFE_RADIUS_RATIO := 0.45
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
@@ -75,38 +70,22 @@ func spawn_shatter(pos: Vector2, color: Color) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.55)
 
-static func local_cell_shatter_bounds(cell_px: float) -> Dictionary:
-	var end_diameter := cell_px * LOCAL_CELL_SHATTER_END_DIAMETER_RATIO
-	var end_radius := cell_px * LOCAL_CELL_SHATTER_SAFE_RADIUS_RATIO - end_diameter * 0.5
-	var max_rendered_radius := end_radius + end_diameter * 0.5
-	var visible_progress := _ease_out_cubic(LOCAL_CELL_SHATTER_FADE_END_RATIO)
-	var last_visible_radius := lerpf(cell_px * LOCAL_CELL_SHATTER_START_RADIUS_RATIO, end_radius, visible_progress) + end_diameter * 0.5
+static func local_cell_flash_bounds(cell_px: float) -> Dictionary:
+	var diameter := cell_px * LOCAL_CELL_FLASH_DIAMETER_RATIO
+	var peak_diameter := diameter * LOCAL_CELL_FLASH_PEAK_SCALE
 	return {
-		"count": LOCAL_CELL_SHATTER_COUNT,
-		"duration_sec": LOCAL_CELL_SHATTER_DURATION,
-		"approx_frames_60fps": int(round(LOCAL_CELL_SHATTER_DURATION * 60.0)),
-		"fade_start_ratio": LOCAL_CELL_SHATTER_FADE_START_RATIO,
-		"fade_end_ratio": LOCAL_CELL_SHATTER_FADE_END_RATIO,
-		"visible_duration_sec": LOCAL_CELL_SHATTER_DURATION * (LOCAL_CELL_SHATTER_FADE_END_RATIO - LOCAL_CELL_SHATTER_FADE_START_RATIO),
-		"start_radius_px": cell_px * LOCAL_CELL_SHATTER_START_RADIUS_RATIO,
-		"end_radius_px": end_radius,
-		"start_diameter_px": cell_px * LOCAL_CELL_SHATTER_START_DIAMETER_RATIO,
-		"end_diameter_px": end_diameter,
-		"max_rendered_radius_px": max_rendered_radius,
-		"last_visible_rendered_radius_px": last_visible_radius,
-		"last_visible_safe_radius_px": cell_px * LOCAL_CELL_SHATTER_LAST_VISIBLE_SAFE_RADIUS_RATIO,
+		"style": "flash",
+		"duration_sec": LOCAL_CELL_FLASH_DURATION,
+		"approx_frames_60fps": int(round(LOCAL_CELL_FLASH_DURATION * 60.0)),
+		"diameter_px": diameter,
+		"peak_diameter_px": peak_diameter,
+		"peak_radius_px": peak_diameter * 0.5,
+		"safe_radius_ratio": LOCAL_CELL_FLASH_SAFE_RADIUS_RATIO,
 	}
 
-func spawn_local_cell_shatter(pos: Vector2, color: Color, cell_px: float) -> void:
-	var bounds := local_cell_shatter_bounds(cell_px)
-	var spark_color: Color = color.lerp(Color(1, 1, 1, 1), 0.28)
-	var count: int = int(bounds["count"])
-	for i in range(count):
-		var angle: float = TAU * (float(i) / float(count)) + 0.24 * float(i % 2)
-		var end_radius: float = bounds["end_radius_px"] * (0.76 + 0.09 * float(i % 3))
-		var twist: float = LOCAL_BURST_SPIRAL_TURN_RADIANS * (0.35 if i % 2 == 0 else -0.28)
-		var delay: float = 0.008 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, spark_color, angle, bounds["start_radius_px"], end_radius, twist, bounds["start_diameter_px"], bounds["end_diameter_px"], delay, bounds["duration_sec"], bounds["fade_start_ratio"], bounds["fade_end_ratio"])
+func spawn_local_cell_flash(pos: Vector2, color: Color, cell_px: float) -> void:
+	var bounds := local_cell_flash_bounds(cell_px)
+	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.45), bounds["diameter_px"], bounds["duration_sec"])
 
 ## 消除魔法特效: 3帧发光帧(蓄力charge_up→炸裂burst→消散dissipate), additive。
 ## 双精灵 alpha 交叉淡化平滑过渡, 约0.34s。
