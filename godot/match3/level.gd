@@ -214,9 +214,39 @@ func _ready() -> void:
 		var objs = _levels[i].get("objectives", [])
 		if objs is Array and not objs.is_empty():
 			_playable.append(i)
+	var launch_level_idx := _launch_level_idx_from_args(OS.get_cmdline_user_args(), _levels.size() if not _levels.is_empty() else LevelConfig.count())
 	_play_pos = 0
-	_level_idx = _playable[0] if not _playable.is_empty() else 0
+	if not _levels.is_empty():
+		_level_idx = _playable[0] if not _playable.is_empty() else 0
+		if launch_level_idx >= 0 and _playable.has(launch_level_idx):
+			_level_idx = launch_level_idx
+			_play_pos = _playable.find(launch_level_idx)
+	else:
+		_level_idx = launch_level_idx if launch_level_idx >= 0 else 0
 	load_level(_level_idx)
+
+func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
+	for i in range(args.size()):
+		var arg := String(args[i])
+		var raw := ""
+		if arg == "--level":
+			if i + 1 >= args.size():
+				return -1
+			raw = String(args[i + 1])
+		elif arg.begins_with("--level="):
+			raw = arg.substr("--level=".length())
+		if raw.is_empty():
+			continue
+		if not raw.is_valid_int():
+			return -1
+		var level_number := raw.to_int()
+		var level_idx := level_number - 1
+		if level_idx < 0:
+			return -1
+		if level_count > 0 and level_idx >= level_count:
+			return -1
+		return level_idx
+	return -1
 
 ## species → 特效染色(取宝石色并提亮便于可见)。
 func _fx_color(sp: int) -> Color:
@@ -239,7 +269,7 @@ func load_level(idx: int) -> void:
 	if not _levels.is_empty() and idx >= 0 and idx < _levels.size():
 		# 阶段6: 用现成的"JSON一关→可玩Board"工厂(配齐 objectives/move_limit/障碍/盘面)。
 		board = LevelLibrary.to_board(_levels[idx])
-		cfg = {"id": _play_pos + 1}   # 显示用可玩关序号(1-based)
+		cfg = {"id": idx + 1}   # 显示用导出关卡序号(1-based)
 	else:
 		# 回退: levels.json 缺失时仍能跑旧 LevelConfig 占位关(防 json 缺失白屏)。
 		var lc: Dictionary = LevelConfig.get_level(idx)

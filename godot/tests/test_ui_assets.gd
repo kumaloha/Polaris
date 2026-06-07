@@ -64,3 +64,17 @@ func test_app_launch_level_arg_is_one_based() -> void:
 	assert_eq(app.call("_launch_level_index_from_args", ["--level", "0"], 126), -1, "level numbers are one-based")
 	assert_eq(app.call("_launch_level_index_from_args", ["--level", "127"], 126), -1, "out of range levels are ignored")
 	app.free()
+
+
+func test_level_scene_launch_level_arg_is_one_based() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_launch_level_idx_from_args"), "Level.tscn path parses direct level launch args")
+	if not level.has_method("_launch_level_idx_from_args"):
+		level.free()
+		return
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "5"], 126), 4, "--level 5 opens raw exported level 5")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], 126), 4, "--level=5 opens raw exported level 5")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "0"], 126), -1, "Level.tscn level numbers are one-based")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "127"], 126), -1, "out of range Level.tscn levels are ignored")
+	level.free()
