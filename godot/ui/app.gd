@@ -59,7 +59,36 @@ func _ready() -> void:
 	_rng.randomize()
 	_lib = LevelLibrary.load_file("res://levels.json")
 	_sync_selected_to_equipped()
-	_show_home()
+	var launch_level_idx := _launch_level_index_from_args(OS.get_cmdline_user_args(), _lib.size())
+	if launch_level_idx >= 0:
+		_home_level = launch_level_idx
+		_show_game(launch_level_idx)
+	else:
+		_show_home()
+
+
+func _launch_level_index_from_args(args: Array, level_count: int) -> int:
+	for i in range(args.size()):
+		var arg := String(args[i])
+		var raw := ""
+		if arg == "--level":
+			if i + 1 >= args.size():
+				return -1
+			raw = String(args[i + 1])
+		elif arg.begins_with("--level="):
+			raw = arg.substr("--level=".length())
+		if raw.is_empty():
+			continue
+		if not raw.is_valid_int():
+			return -1
+		var level_number := raw.to_int()
+		var idx := level_number - 1
+		if idx < 0:
+			return -1
+		if level_count > 0 and idx >= level_count:
+			return -1
+		return idx
+	return -1
 
 
 # 窗口高度贴合本机屏幕(可用区)，宽度按画布比例(9:19)推导。后续可按收集机型自适应。

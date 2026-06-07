@@ -51,3 +51,16 @@ func test_app_home_builds_when_added_to_tree() -> void:
 	root._ready()
 	assert_true(root.get_child_count() >= 8, "home screen builds visible UI nodes in _ready")
 	root.free()
+
+
+func test_app_launch_level_arg_is_one_based() -> void:
+	var app: AppScript = AppScript.new()
+	assert_true(app.has_method("_launch_level_index_from_args"), "app parses direct level launch args")
+	if not app.has_method("_launch_level_index_from_args"):
+		app.free()
+		return
+	assert_eq(app.call("_launch_level_index_from_args", ["--level", "5"], 126), 4, "--level 5 opens the fifth player-facing level")
+	assert_eq(app.call("_launch_level_index_from_args", ["--level=5"], 126), 4, "--level=5 opens the fifth player-facing level")
+	assert_eq(app.call("_launch_level_index_from_args", ["--level", "0"], 126), -1, "level numbers are one-based")
+	assert_eq(app.call("_launch_level_index_from_args", ["--level", "127"], 126), -1, "out of range levels are ignored")
+	app.free()
