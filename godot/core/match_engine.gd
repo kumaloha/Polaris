@@ -1367,9 +1367,11 @@ static func legal_moves(grid: Array, coat: Array = []) -> Array:
 				out.append([Vector2i(x, y), Vector2i(x, y + 1)])
 	return out
 
-# 特效主动融合：两个特效相邻交换时的合并清除几何（排除墙）。pos=融合点。
-# 直线×直线 → 十字(整行+整列)；爆炸×爆炸 → 5x5；直线×爆炸 → 粗十字(3行+3列)。
-static func special_fusion_cells(grid: Array, pos: Vector2i, ka: int, kb: int) -> Array:
+# 特效主动融合：两个特效相邻交换时的合并清除几何（排除墙）。
+# a/b 是交换前坐标；ka/kb 是交换前这两个坐标上的特效。几何按交换后位置生效：
+# 横+横/竖+竖 → 各自在交换后位置触发行/列；横+竖 → 横清行、竖清列；
+# 十字+横 → 横向三排；十字+竖 → 竖向三列；十字+十字保留 5x5。
+static func special_fusion_cells(grid: Array, a: Vector2i, b: Vector2i, ka: int, kb: int) -> Array:
 	var h := grid.size()
 	var w: int = grid[0].size()
 	var cset := {}
@@ -1377,34 +1379,53 @@ static func special_fusion_cells(grid: Array, pos: Vector2i, ka: int, kb: int) -
 	var b_line := kb == SP_LINE_H or kb == SP_LINE_V
 	var a_bomb := ka == SP_BOMB
 	var b_bomb := kb == SP_BOMB
+	var a_after := b
+	var b_after := a
 	if a_line and b_line:
-		for x in w:
-			cset[Vector2i(x, pos.y)] = true
-		for y in h:
-			cset[Vector2i(pos.x, y)] = true
+		_add_fusion_line(cset, w, h, a_after, ka)
+		_add_fusion_line(cset, w, h, b_after, kb)
 	elif a_bomb and b_bomb:
 		for dy in range(-2, 3):
 			for dx in range(-2, 3):
-				var nx := pos.x + dx
-				var ny := pos.y + dy
+				var nx := a_after.x + dx
+				var ny := a_after.y + dy
 				if nx >= 0 and nx < w and ny >= 0 and ny < h:
 					cset[Vector2i(nx, ny)] = true
-	else:  # 直线 + 爆炸 → 粗十字(3 行 + 3 列)
-		for dy in range(-1, 2):
-			var ry := pos.y + dy
-			if ry >= 0 and ry < h:
-				for x in w:
-					cset[Vector2i(x, ry)] = true
-		for dx in range(-1, 2):
-			var rx := pos.x + dx
-			if rx >= 0 and rx < w:
-				for y in h:
-					cset[Vector2i(rx, y)] = true
+	elif a_bomb and b_line:
+		_add_fusion_wide_line(cset, w, h, b_after, kb)
+	elif a_line and b_bomb:
+		_add_fusion_wide_line(cset, w, h, a_after, ka)
 	var out := []
 	for c in cset:
 		if grid[c.y][c.x] != WALL:
 			out.append(c)
 	return out
+
+
+static func _add_fusion_line(cset: Dictionary, w: int, h: int, pos: Vector2i, kind: int) -> void:
+	if kind == SP_LINE_H:
+		for x in w:
+			cset[Vector2i(x, pos.y)] = true
+	elif kind == SP_LINE_V:
+		for y in h:
+			cset[Vector2i(pos.x, y)] = true
+
+
+static func _add_fusion_wide_line(cset: Dictionary, w: int, h: int, pos: Vector2i, kind: int) -> void:
+	if kind == SP_LINE_H:
+		for dy in range(-1, 2):
+			var ry := pos.y + dy
+			if ry < 0 or ry >= h:
+				continue
+			for x in w:
+				cset[Vector2i(x, ry)] = true
+	elif kind == SP_LINE_V:
+		for dx in range(-1, 2):
+			var rx := pos.x + dx
+			if rx < 0 or rx >= w:
+				continue
+			for y in h:
+				cset[Vector2i(rx, y)] = true
 
 
 # 预知(#8)：运行时轻量 1-ply 求解器——按"即时消除格数 + 目标推进"给合法交换打分，返回最优 k 步。

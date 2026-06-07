@@ -1317,6 +1317,9 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 			return
 		await _resolve_colorbomb(cb_pos, partner)
 		return
+	if board.fx[a.y][a.x] != ME.SP_NONE and board.fx[b.y][b.x] != ME.SP_NONE:
+		await _resolve_fusion(a, b)
+		return
 	_busy = true
 	_clear_highlights()
 	var legal: bool = ME.is_legal_swap(board.grid, a, b, 1, board._layers())
@@ -1405,6 +1408,99 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	_refresh_hud()
 	_check_settlement()
 	_busy = false
+
+
+func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
+	_busy = true
+	_clear_highlights()
+	_deselect()
+	var ka: int = board.fx[a.y][a.x]
+	var kb: int = board.fx[b.y][b.x]
+	var na: Sprite2D = _gem_nodes[a.y][a.x]
+	var nb: Sprite2D = _gem_nodes[b.y][b.x]
+	var pa: Vector2 = _cell_center(a.y, a.x)
+	var pb: Vector2 = _cell_center(b.y, b.x)
+	await _animate_swap(na, nb, pa, pb)
+	ME._swap_cells(board.grid, a, b)
+	ME._swap_cells(board.fx, a, b)
+	_gem_nodes[a.y][a.x] = nb
+	_gem_nodes[b.y][b.x] = na
+	var seeds: Array = ME.special_fusion_cells(board.grid, a, b, ka, kb)
+	var fusion_fx: Array = board.fx.duplicate(true)
+	fusion_fx[a.y][a.x] = ME.SP_NONE
+	fusion_fx[b.y][b.x] = ME.SP_NONE
+	var to_set: Dictionary = ME._expand_triggers(board.grid, fusion_fx, seeds)
+	var cells: Array = to_set.keys()
+	if cells.is_empty():
+		board.moves_left -= 1
+		_refresh_hud()
+		_check_settlement()
+		_busy = false
+		return
+	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
+	board._accumulate(acc.get("by_species", {}))
+	board._accumulate_progress(acc)
+	_refresh_coat_visuals()
+	_charge_skills(acc.get("by_species", {}))
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked.has(p):
+			to_clear.append(p)
+	for bp in acc.get("cake_blast", []):
+		to_clear.append(bp)
+	board._gain(ME.score_for_clear(to_clear.size(), 1))
+	_play_fusion_fx_after_swap(a, b, ka, kb)
+	board.fx[a.y][a.x] = ME.SP_NONE
+	board.fx[b.y][b.x] = ME.SP_NONE
+	await _play_clear(to_clear, [], {})
+	ME._apply_clears(board.grid, board.fx, to_clear, [])
+	for p in to_clear:
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n != null and is_instance_valid(n):
+			n.queue_free()
+		_gem_nodes[p.y][p.x] = null
+	await _collapse_and_refill()
+	await _resolve_cascades()
+	board.moves_left -= 1
+	_refresh_hud()
+	_check_settlement()
+	_busy = false
+
+
+func _play_fusion_fx_after_swap(a: Vector2i, b: Vector2i, ka: int, kb: int) -> void:
+	var a_after := b
+	var b_after := a
+	var a_line := ka == ME.SP_LINE_H or ka == ME.SP_LINE_V
+	var b_line := kb == ME.SP_LINE_H or kb == ME.SP_LINE_V
+	var a_bomb := ka == ME.SP_BOMB
+	var b_bomb := kb == ME.SP_BOMB
+	if a_line and b_line:
+		_play_special_fx(a_after, ka)
+		_play_special_fx(b_after, kb)
+	elif a_bomb and b_line:
+		_play_wide_line_fx(b_after, kb, _fx_color(board.grid[b_after.y][b_after.x]))
+	elif a_line and b_bomb:
+		_play_wide_line_fx(a_after, ka, _fx_color(board.grid[a_after.y][a_after.x]))
+	elif a_bomb and b_bomb:
+		Fx.spawn_explosion(_cell_center(a_after.y, a_after.x), _fx_color(board.grid[a_after.y][a_after.x]), 2.0)
+		Fx.spawn_explosion(_cell_center(b_after.y, b_after.x), _fx_color(board.grid[b_after.y][b_after.x]), 2.0)
+
+
+func _play_wide_line_fx(pos: Vector2i, kind: int, col: Color) -> void:
+	if kind == ME.SP_LINE_H:
+		for dy in range(-1, 2):
+			var row := pos.y + dy
+			if row >= 0 and row < board.height:
+				Fx.spawn_line_blast(_cell_center(row, 0), _cell_center(row, board.width - 1), col)
+	elif kind == ME.SP_LINE_V:
+		for dx in range(-1, 2):
+			var col_idx := pos.x + dx
+			if col_idx >= 0 and col_idx < board.width:
+				Fx.spawn_line_blast(_cell_center(0, col_idx), _cell_center(board.height - 1, col_idx), col)
+
 
 func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> void:
 	var t := create_tween().set_parallel(true)

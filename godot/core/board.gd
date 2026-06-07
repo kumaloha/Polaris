@@ -383,15 +383,16 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	_settle_deadlock()
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
 
-# 两个特效融合引爆：按几何(十字/粗十字/5x5)清除 + 链式展开被卷入的特效，锁住格只破锁不清。
+# 两个特效融合引爆：按交换后方向几何清除 + 链式展开被卷入的特效，锁住格只破锁不清。
 func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var ka: int = fx[a.y][a.x]
 	var kb: int = fx[b.y][b.x]
-	var seeds := ME.special_fusion_cells(grid, b, ka, kb)
-	seeds.append(a)
-	seeds.append(b)
+	var seeds := ME.special_fusion_cells(grid, a, b, ka, kb)
 	_push_history()
-	var to_set := ME._expand_triggers(grid, fx, seeds)   # 链式展开被卷入的直线/爆炸
+	var fusion_fx: Array = fx.duplicate(true)
+	fusion_fx[a.y][a.x] = ME.SP_NONE
+	fusion_fx[b.y][b.x] = ME.SP_NONE
+	var to_set := ME._expand_triggers(grid, fusion_fx, seeds)   # 链式展开被卷入的直线/爆炸；交换双方只按融合几何触发
 	var cells: Array = to_set.keys()
 	var acc := ME.account_clears(grid, cells, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])

@@ -351,6 +351,63 @@ func test_effect_bomb_clears_3x3_and_clamps() -> void:
 	assert_eq(ME.special_effect_cells(grid, Vector2i(2, 1), ME.SP_BOMB).size(), 9, "3x3 interior")
 	assert_eq(ME.special_effect_cells(grid, Vector2i(0, 0), ME.SP_BOMB).size(), 4, "3x3 clamped at corner")
 
+
+func _latin_5() -> Array:
+	return [
+		[0, 1, 2, 3, 4],
+		[1, 2, 3, 4, 0],
+		[2, 3, 4, 0, 1],
+		[3, 4, 0, 1, 2],
+		[4, 0, 1, 2, 3],
+	]
+
+
+func _cells_set(cells: Array) -> Dictionary:
+	var out := {}
+	for c in cells:
+		out[c] = true
+	return out
+
+
+func test_special_fusion_two_horizontal_lines_clears_horizontal_rows_only() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_LINE_H, ME.SP_LINE_H)
+	var s := _cells_set(cells)
+	assert_eq(cells.size(), 5, "two horizontal line specials on the same row clear that row once")
+	for x in 5:
+		assert_true(s.has(Vector2i(x, 2)), "horizontal fusion clears row 2 at x=%d" % x)
+	assert_false(s.has(Vector2i(2, 0)), "horizontal + horizontal must not add a vertical blast")
+
+
+func test_special_fusion_horizontal_vertical_uses_each_post_swap_position() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_LINE_H, ME.SP_LINE_V)
+	var s := _cells_set(cells)
+	for x in 5:
+		assert_true(s.has(Vector2i(x, 2)), "horizontal special clears its post-swap row at x=%d" % x)
+	for y in 5:
+		assert_true(s.has(Vector2i(1, y)), "vertical special clears its post-swap column at y=%d" % y)
+	assert_false(s.has(Vector2i(2, 0)), "vertical special must not stay anchored to the pre-swap column")
+
+
+func test_special_fusion_bomb_horizontal_makes_three_horizontal_rows() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_BOMB, ME.SP_LINE_H)
+	var s := _cells_set(cells)
+	assert_eq(cells.size(), 15, "cross + horizontal clears exactly three full rows on a 5x5 board")
+	for y in range(1, 4):
+		for x in 5:
+			assert_true(s.has(Vector2i(x, y)), "cross + horizontal clears row %d at x=%d" % [y, x])
+	assert_false(s.has(Vector2i(1, 0)), "cross + horizontal must not add extra vertical columns")
+
+
+func test_special_fusion_bomb_vertical_makes_three_vertical_columns() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_BOMB, ME.SP_LINE_V)
+	var s := _cells_set(cells)
+	assert_eq(cells.size(), 15, "cross + vertical clears exactly three full columns on a 5x5 board")
+	for x in range(0, 3):
+		for y in 5:
+			assert_true(s.has(Vector2i(x, y)), "cross + vertical clears column %d at y=%d" % [x, y])
+	assert_false(s.has(Vector2i(4, 2)), "cross + vertical must not add extra horizontal rows")
+
+
 func test_effect_colorbomb_clears_all_of_target() -> void:
 	var grid := [[0, 1, 0], [2, 0, 3], [0, 1, 0]]  # 五个 0
 	var cells: Array = ME.special_effect_cells(grid, Vector2i(1, 1), ME.SP_COLORBOMB, 0)
