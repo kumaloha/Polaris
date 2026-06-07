@@ -228,7 +228,7 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
@@ -240,7 +240,7 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 	#   结果里附带 mystery_revealed = 本步被揭开的神秘糖数。两条路径(纯三消/特效)都支持；揭开内容按 70/20/10 概率(rng 确定性)。
 	if fx.is_empty():
 		return _resolve_plain(grid, species_set, rng, feed, do_refill, cascades_out, layers)
-	return _resolve_fx(grid, species_set, rng, fx, feed, do_refill, cascades_out, layers)
+	return _resolve_fx(grid, species_set, rng, fx, feed, do_refill, cascades_out, layers, preferred_spawn)
 
 
 # 原料下沉收集循环：消除稳定后，原料可能仍悬在出口上方（或刚补充落下）。
@@ -606,7 +606,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return colorbomb_clear_plan(grid, fx, cb_pos, partner_pos)["cells"]
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var jelly: Array = layers.get("jelly", [])
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
@@ -636,8 +636,10 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var has_pop := not popcorn.is_empty()
 	var has_cake := not cake.is_empty()
 	var has_mystery := not mystery.is_empty()
+	var cascade_preferred := preferred_spawn
 	while true:
-		var c := collect_clears(grid, fx, layers)
+		var c := collect_clears(grid, fx, layers, cascade_preferred)
+		cascade_preferred = Vector2i(-1, -1)
 		var raw: Array = c["to_clear"]
 		if raw.is_empty():
 			break
@@ -885,7 +887,7 @@ static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
 # 返回 {clear: Array[Vector2i] 要清空的格, spawns: Array[{pos, kind}] 要生成的特效格}。
 # 规则（v1.1 直线串）：>=5 连→彩球；==4 连→直线(横H/竖V)；==3 连→普通清除。
 # （T/L 形爆炸在后续步骤补。spawns 的 pos 不进 clear——它变成特效而非清空。）
-static func classify_matches(grid: Array, layers: Dictionary = {}) -> Dictionary:
+static func classify_matches(grid: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
 	var ing: Array = layers.get("ing", [])
@@ -951,30 +953,39 @@ static func classify_matches(grid: Array, layers: Dictionary = {}) -> Dictionary
 	var spawn_at := {}     # pos -> true（一个格只生成一个特效）
 
 	for r in (h_runs + v_runs):
-		if r["len"] >= 5 and not spawn_at.has(r["mid"]):
-			spawns.append({"pos": r["mid"], "kind": SP_COLORBOMB})
-			spawn_at[r["mid"]] = true
+		var spawn_pos: Vector2i = _preferred_spawn_pos(r["cells"], r["mid"], preferred_spawn)
+		if r["len"] >= 5 and not spawn_at.has(spawn_pos):
+			spawns.append({"pos": spawn_pos, "kind": SP_COLORBOMB})
+			spawn_at[spawn_pos] = true
 
 	for c in matched.keys():
-		if in_h.has(c) and in_v.has(c) and not spawn_at.has(c):
-			spawns.append({"pos": c, "kind": SP_BOMB})  # T/L/+ 交点
-			spawn_at[c] = true
+		var spawn_pos: Vector2i = preferred_spawn if matched.has(preferred_spawn) else c
+		if in_h.has(c) and in_v.has(c) and not spawn_at.has(spawn_pos):
+			spawns.append({"pos": spawn_pos, "kind": SP_BOMB})  # T/L/+：真实交换时落在移动棋子的新位置，否则落交点
+			spawn_at[spawn_pos] = true
 
-	# 垂直约定(对齐 Candy Crush)：横向4连→竖直特效(清列)、纵向4连→横向特效(清行)。
+	# 直观约定：横向4连→横向特效(清行)、纵向4连→纵向特效(清列)。
 	for r in h_runs:
-		if r["len"] == 4 and not _run_intersects(r["cells"], in_v) and not spawn_at.has(r["mid"]):
-			spawns.append({"pos": r["mid"], "kind": SP_LINE_V})
-			spawn_at[r["mid"]] = true
+		var spawn_pos: Vector2i = _preferred_spawn_pos(r["cells"], r["mid"], preferred_spawn)
+		if r["len"] == 4 and not _run_intersects(r["cells"], in_v) and not spawn_at.has(spawn_pos):
+			spawns.append({"pos": spawn_pos, "kind": SP_LINE_H})
+			spawn_at[spawn_pos] = true
 	for r in v_runs:
-		if r["len"] == 4 and not _run_intersects(r["cells"], in_h) and not spawn_at.has(r["mid"]):
-			spawns.append({"pos": r["mid"], "kind": SP_LINE_H})
-			spawn_at[r["mid"]] = true
+		var spawn_pos: Vector2i = _preferred_spawn_pos(r["cells"], r["mid"], preferred_spawn)
+		if r["len"] == 4 and not _run_intersects(r["cells"], in_h) and not spawn_at.has(spawn_pos):
+			spawns.append({"pos": spawn_pos, "kind": SP_LINE_V})
+			spawn_at[spawn_pos] = true
 
 	var clear_list := []
 	for pos in matched.keys():
 		if not spawn_at.has(pos):
 			clear_list.append(pos)
 	return {"clear": clear_list, "spawns": spawns}
+
+static func _preferred_spawn_pos(cells: Array, fallback: Vector2i, preferred_spawn: Vector2i) -> Vector2i:
+	if preferred_spawn.x >= 0 and cells.has(preferred_spawn):
+		return preferred_spawn
+	return fallback
 
 static func _run_intersects(cells: Array, other_membership: Dictionary) -> bool:
 	for c in cells:
@@ -1016,8 +1027,8 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 # 汇总一次消除要清的全部格：>=3 匹配 + 命中的特效触发链（特效连特效）。
 # 返回 {to_clear: Array[Vector2i], spawns: Array[{pos,kind}]}（spawns 来自匹配形状）。
 # 纯函数，不修改 grid/fx。
-static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}) -> Dictionary:
-	var cls := classify_matches(grid, layers)
+static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictionary:
+	var cls := classify_matches(grid, layers, preferred_spawn)
 	var spawns := []
 	var virtual_trigger_fx := {}
 	for s in cls["spawns"]:
@@ -1035,13 +1046,7 @@ static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}) -> D
 	}
 
 static func _same_step_trigger_kind(kind: int) -> int:
-	match kind:
-		SP_LINE_H:
-			return SP_LINE_V
-		SP_LINE_V:
-			return SP_LINE_H
-		_:
-			return kind
+	return kind
 
 static func _special_kind_at(fx: Array, virtual_fx: Dictionary, pos: Vector2i) -> int:
 	if virtual_fx.has(pos):
@@ -1144,7 +1149,8 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 	var has_pop := not popcorn.is_empty()
 	var has_cake := not cake.is_empty()
 	var has_mystery := not mystery.is_empty() and rng != null
-	var locked := {}  # 开始时锁住/巧克力/爆米花/神秘糖的格：只破层啃食/命中/揭开，不被清/不计入收集·果冻
+	var has_ing := not ing.is_empty()
+	var locked := {}  # 开始时锁住/巧克力/原料/爆米花/神秘糖的格：只破层啃食/命中/揭开，不被清/不计入收集·果冻
 	var cleared_set := {}
 	for p in cells:
 		cleared_set[p] = true
@@ -1158,6 +1164,10 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 			if choco[p.y][p.x] > 0:
 				locked[p] = true   # 巧克力格不被直清（直清路径同样只能相邻啃食）
 		choco_cleared += _eat_chocolate(choco, cleared_set)
+	if has_ing:
+		for p in cells:
+			if ing[p.y][p.x] > 0:
+				locked[p] = true   # 原料格不被彩球/融合/同类等直清清空，保持与普通 resolve 路径一致
 	if has_pop and not fx.is_empty():
 		for p in cells:
 			if popcorn[p.y][p.x] > 0:
@@ -1173,7 +1183,7 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 		mystery_revealed += rv["count"]
 	for pos in cells:
 		if locked.has(pos):
-			continue  # 锁住/巧克力/爆米花/神秘糖格不被清除，不计入收集/果冻（仅上面破层/啃食/命中/揭开）
+			continue  # 锁住/巧克力/原料/爆米花/神秘糖格不被清除，不计入收集/果冻（仅上面破层/啃食/命中/揭开）
 		var sp_p: int = grid[pos.y][pos.x]
 		if sp_p >= 0:
 			by_species[sp_p] = by_species.get(sp_p, 0) + 1
@@ -1193,8 +1203,10 @@ static func account_clears(grid: Array, cells: Array, fx: Array = [], rng: Rando
 			if cleared_set.has(bp):
 				continue   # 已在直清集里，避免重复计账
 			cleared_set[bp] = true
-			# 蛋糕引爆同样尊重锁住/巧克力/爆米花：这些格只破层/啃食/命中、不被引爆直清。
+			# 蛋糕引爆同样尊重锁住/巧克力/原料/爆米花：这些格只破层/啃食/命中、不被引爆直清。
 			if (has_coat and coat[bp.y][bp.x] > 0) or (has_choco and choco[bp.y][bp.x] > 0):
+				continue
+			if has_ing and ing[bp.y][bp.x] > 0:
 				continue
 			if has_pop and popcorn[bp.y][bp.x] > 0:
 				# 蛋糕引爆/大爆炸波及的爆米花格 → 当作特效命中：popcorn-1、归0变彩球(SP_COLORBOMB)、不清空。
@@ -1440,8 +1452,14 @@ static func break_blockers(coat: Array, n: int, grid: Array = [], fx: Array = []
 				broken += 1
 	return broken
 
-# 枚举全部合法交换（预知/默认提示用）。返回 [[a:Vector2i, b:Vector2i], ...]，coat 感知。
-static func legal_moves(grid: Array, coat: Array = []) -> Array:
+static func _normalize_layers_arg(layers_or_coat = {}) -> Dictionary:
+	if layers_or_coat is Dictionary:
+		return layers_or_coat
+	return {"coat": layers_or_coat}
+
+# 枚举全部合法交换（预知/默认提示用）。返回 [[a:Vector2i, b:Vector2i], ...]，完整障碍层感知。
+static func legal_moves(grid: Array, layers_or_coat = {}) -> Array:
+	var layers := _normalize_layers_arg(layers_or_coat)
 	var h := grid.size()
 	if h == 0:
 		return []
@@ -1449,9 +1467,9 @@ static func legal_moves(grid: Array, coat: Array = []) -> Array:
 	var out := []
 	for y in h:
 		for x in w:
-			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), 1, {"coat": coat}):
+			if x + 1 < w and is_legal_swap(grid, Vector2i(x, y), Vector2i(x + 1, y), 1, layers):
 				out.append([Vector2i(x, y), Vector2i(x + 1, y)])
-			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), 1, {"coat": coat}):
+			if y + 1 < h and is_legal_swap(grid, Vector2i(x, y), Vector2i(x, y + 1), 1, layers):
 				out.append([Vector2i(x, y), Vector2i(x, y + 1)])
 	return out
 
@@ -1518,12 +1536,13 @@ static func _add_fusion_wide_line(cset: Dictionary, w: int, h: int, pos: Vector2
 
 # 预知(#8)：运行时轻量 1-ply 求解器——按"即时消除格数 + 目标推进"给合法交换打分，返回最优 k 步。
 # 目标感知：objectives 里 COLLECT 的目标色被消到则加权（呼应 C++ move_value）。不跑随机补充（确定性提示，不剧透掉落）。
-static func best_moves(grid: Array, k: int, coat: Array = [], objectives: Array = []) -> Array:
-	var moves := legal_moves(grid, coat)
+static func best_moves(grid: Array, k: int, layers_or_coat = {}, objectives: Array = []) -> Array:
+	var layers := _normalize_layers_arg(layers_or_coat)
+	var moves := legal_moves(grid, layers)
 	var scored := []
 	for mv in moves:
 		_swap_cells(grid, mv[0], mv[1])
-		var m: Array = find_matches(grid, {"coat": coat})
+		var m: Array = find_matches(grid, layers)
 		var val := m.size()
 		if not objectives.is_empty():
 			for o in objectives:

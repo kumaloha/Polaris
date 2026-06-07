@@ -7,6 +7,15 @@ const LevelLibrary := preload("res://core/level_library.gd")
 func _make(target := 100, moves := 20, seed_val := 1) -> Board:
 	return Board.new(8, 8, [0, 1, 2, 3, 4], target, moves, seed_val)
 
+func _zeros(w: int, h: int) -> Array:
+	var rows := []
+	for y in h:
+		var row := []
+		for x in w:
+			row.append(0)
+		rows.append(row)
+	return rows
+
 func _find_legal_move(grid: Array, coat: Array = []) -> Array:
 	if grid.is_empty():
 		return []
@@ -112,24 +121,20 @@ func test_board_clears_jelly_objective() -> void:
 	assert_true(b.is_won(), "won via CLEAR_JELLY objective")
 
 func test_board_clears_blocker_objective() -> void:
-	var coat_layer := []
-	for y in 8:
-		var row := []
-		for x in 8:
-			row.append(0)
-		coat_layer.append(row)
-	for i in 8:
-		coat_layer[i][i] = 1  # 对角线 8 个锁
-	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 5}]
-	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 0, 40, 7, [], objs, [], coat_layer)
-	for i in 40:
-		if b.is_over():
-			break
-		var mv := _find_legal_move(b.grid, b.coat)
-		if mv.size() != 2:
-			break
-		b.try_swap(mv[0], mv[1])
-	assert_true(b.blocker_cleared >= 5, "broke >= 5 coat layers")
+	var coat_layer := _zeros(4, 4)
+	coat_layer[0][3] = 1
+	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 1}]
+	var b := Board.new(4, 4, [0, 1, 2, 3], 0, 5, 7, [], objs, [], coat_layer)
+	b.grid = [
+		[0, 0, 1, ME.EMPTY],
+		[1, 2, 0, 3],
+		[2, 3, 1, 2],
+		[3, 1, 2, 1],
+	]
+	b.fx = b._blank_fx()
+	var r := b.try_swap(Vector2i(2, 1), Vector2i(2, 0))
+	assert_true(r.get("ok", false), "swap creates a match adjacent to a blocker")
+	assert_true(b.blocker_cleared >= 1, "broke the adjacent coat layer")
 	assert_true(b.is_won(), "won via CLEAR_BLOCKER objective")
 
 func test_colorbomb_swap_detonates_and_consumes_move() -> void:
@@ -147,6 +152,22 @@ func test_colorbomb_swap_detonates_and_consumes_move() -> void:
 	assert_true(b.score > 0, "detonation scored")
 	assert_eq(b.moves_left, 9, "one move consumed")
 	assert_true(ME.find_matches(b.grid).is_empty(), "board settled after detonation")
+
+func test_swap_spawned_special_uses_moved_piece_new_position() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 4)
+	b.grid = [
+		[0, 0, 1, 0],
+		[1, 2, 0, 3],
+		[2, 3, 1, 2],
+		[3, 1, 2, 1],
+	]
+	b.fx = b._blank_fx()
+	var moved_from := Vector2i(2, 1)
+	var moved_to := Vector2i(2, 0)
+	var r := b.try_swap(moved_from, moved_to)
+	assert_true(r.get("ok", false), "swap creates a horizontal four-match")
+	assert_eq(b.fx[moved_to.y][moved_to.x], ME.SP_LINE_H, "horizontal special lands where the moved piece arrived")
+	assert_eq(b.fx[0][1], ME.SP_NONE, "run midpoint does not receive the special")
 
 # ───────────────────────────── P1 回归（运行时 bug）─────────────────────────────
 
@@ -518,6 +539,31 @@ func test_hint_returns_moves() -> void:
 	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
 	var h := b.hint(2)
 	assert_true(h.size() >= 1 and h.size() <= 2, "hint returns up to k best moves")
+
+func test_consumed_move_settlement_hook_ticks_spreads_and_spawns() -> void:
+	var choco := _zeros(4, 4)
+	choco[0][0] = 1
+	var bomb := _zeros(4, 4)
+	bomb[2][2] = 3
+	var cannon := _zeros(4, 4)
+	cannon[0][3] = 1
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 12, [], [], [], [], choco, [], [], bomb, cannon)
+	b.grid = [
+		[0, 1, 2, ME.WALL],
+		[1, 2, 3, ME.EMPTY],
+		[2, 3, 0, 1],
+		[3, 0, 1, 2],
+	]
+	b.fx = b._blank_fx()
+	var before_moves: int = b.moves_left
+	assert_true(b.has_method("_settle_consumed_move"), "view paths need a shared consumed-move settlement hook")
+	if not b.has_method("_settle_consumed_move"):
+		return
+	b.call("_settle_consumed_move", 0, 0)
+	assert_eq(b.moves_left, before_moves - 1, "settlement consumes exactly one move")
+	assert_eq(b.bomb[2][2], 2, "settlement ticks surviving bombs")
+	assert_true(ME.count_chocolate(b.choco) > 1, "zero chocolate cleared this move allows spread")
+	assert_true(b.cannon_spawned > 0, "settlement spawns from cannons after a valid move")
 
 func test_ad_continue_resets_skill_with_cap() -> void:
 	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 20, 5)

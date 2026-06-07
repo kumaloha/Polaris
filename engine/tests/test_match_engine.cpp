@@ -575,7 +575,7 @@ static void test_resolve_bomb_deterministic() {
 static void test_bomb_on_4run_spawn_not_defused() {
     // 炸弹正好在【4连的 mid 点(spawn)】上 → 该格保留为特效棋子 → 炸弹不拆、bomb 残留、bomb_defused 不增。
     // 横向4连 cells x=0..3 y=0，mid=(0+3)/2=1 → spawn 在 (1,0)；炸弹放 (1,0)。
-    // 该串不与任何纵串相交(各列无3连) → 是直线 spawn(SP_LINE_V)，非 T/L 交点 → 严格走 4连 mid 分支。
+    // 该串不与任何纵串相交(各列无3连) → 是直线 spawn，非 T/L 交点 → 严格走 4连 mid 分支。
     Grid g = {
         {5, 5, 5, 5},
         {0, 1, 2, 3},

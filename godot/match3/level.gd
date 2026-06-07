@@ -637,6 +637,8 @@ func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	gs.texture = tex
 	gs.position = center
 	gs.scale = _fit_scale(tex, cell_size * GEM_FILL)
+	gs.set_meta("species", sp)
+	gs.set_meta("fx", ME.SP_NONE)
 	gem_layer.add_child(gs)
 	return gs
 
@@ -689,6 +691,7 @@ func _make_coat_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
 func _apply_fx_overlay(node: Sprite2D, kind: int) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+	node.set_meta("fx", kind)
 	var old: Node = node.get_node_or_null("shine")
 	if old != null:
 		old.queue_free()
@@ -1175,7 +1178,7 @@ func _on_skill_pressed(idx: int) -> void:
 
 # ── idx0 星鹿/提示: 高亮最优一步两格 2.5s 自动清除。不改盘/不resolve/不扣步。 ──
 func _skill_hint() -> bool:
-	var mv: Array = ME.best_moves(board.grid, 1, board.coat, board.objectives)
+	var mv: Array = ME.best_moves(board.grid, 1, board._layers(), board.objectives)
 	if mv.is_empty():
 		return false
 	_clear_highlights()
@@ -1625,11 +1628,8 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	_gem_nodes[a.y][a.x] = nb
 	_gem_nodes[b.y][b.x] = na
 	# 阶段3: 消除-下落-补充-连锁
-	await _resolve_cascades()
-	# 阶段6: 合法交换并完成 resolve 后扣 1 步(非法换回不减, 上面已 return)。
-	board.moves_left -= 1
-	_refresh_hud()        # 重画目标卡进度 + 步数徽章
-	_check_settlement()   # 通关/失败结算
+	var settle: Dictionary = await _resolve_cascades(b)
+	await _finish_consumed_move(int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	_busy = false
 
 ## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_plan 读交换前 fx/grid)。
@@ -1647,7 +1647,6 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	if cells.is_empty():
 		_busy = false
 		return
-	board.moves_left -= 1
 	# 算账(在清空前读 species/fx): 目标计数 + 计分 + 技能充能。复用 board 累加逻辑。
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
@@ -1657,11 +1656,13 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var locked := {}
 	for p in acc.get("locked", []):
 		locked[p] = true
-	var scored: int = 0
+	var to_clear := []
 	for p in cells:
 		if not locked.has(p):
-			scored += 1
-	board._gain(ME.score_for_clear(scored, 1))
+			to_clear.append(p)
+	for bp in acc.get("cake_blast", []):
+		to_clear.append(bp)
+	board._gain(ME.score_for_clear(to_clear.size(), 1))
 	# 表现: 彩球吸收预览 + 对清除格放特效(限量精细, 避免一次太多卡顿)。
 	await _play_colorbomb_absorb_preview(cb_pos, cells)
 	if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
@@ -1684,18 +1685,16 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
 				fine_budget -= 1
 	await get_tree().create_timer(0.30).timeout   # 让爆发可见
-	# 清除: grid/fx 置空, 删节点。
-	for p in cells:
-		board.grid[p.y][p.x] = ME.EMPTY
-		board.fx[p.y][p.x] = ME.SP_NONE
+	# 清除: 只清 account_clears 过滤后的格，锁住/原料/巧克力/爆米花/神秘糖仅破层或揭开。
+	ME._apply_clears(board.grid, board.fx, to_clear, [])
+	for p in to_clear:
 		var n: Sprite2D = _gem_nodes[p.y][p.x]
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 		_gem_nodes[p.y][p.x] = null
 	await _collapse_and_refill()
-	await _resolve_cascades()   # 收尾连锁(下落后可能形成新匹配)
-	_refresh_hud()
-	_check_settlement()
+	var settle: Dictionary = await _resolve_cascades()   # 收尾连锁(下落后可能形成新匹配)
+	await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	_busy = false
 
 
@@ -1819,9 +1818,7 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	var to_set: Dictionary = ME._expand_triggers(board.grid, fusion_fx, seeds)
 	var cells: Array = to_set.keys()
 	if cells.is_empty():
-		board.moves_left -= 1
-		_refresh_hud()
-		_check_settlement()
+		await _finish_consumed_move(0, 0)
 		_busy = false
 		return
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
@@ -1850,10 +1847,8 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 			n.queue_free()
 		_gem_nodes[p.y][p.x] = null
 	await _collapse_and_refill()
-	await _resolve_cascades()
-	board.moves_left -= 1
-	_refresh_hud()
-	_check_settlement()
+	var settle: Dictionary = await _resolve_cascades()
+	await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	_busy = false
 
 
@@ -1923,12 +1918,15 @@ func _clear_highlights() -> void:
 
 ## 阶段5: 引擎驱动逐级连锁——引擎算"清哪些格/生成什么特效"，视图负责逐级动画。
 ## 每级: collect_clears → 播特效+淡出 → _apply_clears(落特效/清格) → 节点同步 → 下落补充。
-func _resolve_cascades() -> void:
+func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictionary:
 	var guard: int = 0
 	var cascade_level: int = 0   # 连锁级数(1起): 越深计分倍率越高, 与引擎 resolve 同口径
+	var step_choco := 0
+	var cascade_preferred := preferred_spawn
 	while guard < 30:
 		guard += 1
-		var c: Dictionary = ME.collect_clears(board.grid, board.fx, board._layers())
+		var c: Dictionary = ME.collect_clears(board.grid, board.fx, board._layers(), cascade_preferred)
+		cascade_preferred = Vector2i(-1, -1)
 		var to_clear: Array = c["to_clear"]
 		var spawns: Array = c["spawns"]
 		if to_clear.is_empty():
@@ -1950,17 +1948,21 @@ func _resolve_cascades() -> void:
 		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
+		step_choco += int(acc.get("choco_cleared", 0))
 		_refresh_coat_visuals()                       # 同步已破冰锁, 避免数据清了画面还在
 		_charge_skills(acc.get("by_species", {}))      # 问题1: 消对应色宝石→技能充能
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}
 		for p in acc.get("locked", []):
 			locked[p] = true
-		var scored: int = 0
+		var filtered_clear := []
 		for p in to_clear:
 			if not locked.has(p):
-				scored += 1
-		board._gain(ME.score_for_clear(scored, cascade_level))
+				filtered_clear.append(p)
+		for bp in acc.get("cake_blast", []):
+			filtered_clear.append(bp)
+		to_clear = filtered_clear
+		board._gain(ME.score_for_clear(to_clear.size(), cascade_level))
 		for s in spawns:
 			var sp_pos: Vector2i = s["pos"]
 			board.fx[sp_pos.y][sp_pos.x] = int(triggered_spawn_fx.get(sp_pos, s["kind"]))
@@ -1978,6 +1980,7 @@ func _resolve_cascades() -> void:
 					n.queue_free()
 				_gem_nodes[p.y][p.x] = null
 		await _collapse_and_refill()
+	return {"choco_cleared": step_choco, "cascades": cascade_level}
 
 ## 阶段5 消除表现: 遍历 to_clear——被触发的已存在特效格放对应 Fx; 普通格碎裂; 非 spawn 格淡出。
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
@@ -2027,63 +2030,162 @@ func _play_special_fx(pos: Vector2i, kind: int) -> void:
 		_:
 			Fx.spawn_shatter(c, col)
 
-## 每列下落填空 + 顶部补新棋子，节点 Tween 落入。
-func _fall_barrier_at(row: int, col: int) -> bool:
-	return board.grid[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
-
 func _clear_gem_node_at(row: int, col: int) -> void:
 	var n: Sprite2D = _gem_nodes[row][col]
 	_gem_nodes[row][col] = null
 	if n != null and is_instance_valid(n):
 		n.queue_free()
 
-func _collapse_segment(col: int, seg_start: int, seg_end: int, t: Tween) -> bool:
+func _sync_visuals_to_board() -> void:
+	if board == null:
+		return
+	_render_board(false)
+
+func _node_matches_species(node: Sprite2D, sp: int) -> bool:
+	if node == null or not is_instance_valid(node):
+		return false
+	if not node.has_meta("species"):
+		return false
+	return int(node.get_meta("species")) == sp
+
+func _replace_gem_node(row: int, col: int, old_node: Sprite2D = null) -> Sprite2D:
+	if old_node != null and is_instance_valid(old_node):
+		old_node.queue_free()
+	var sp: int = board.grid[row][col]
+	if sp < 0:
+		return null
+	var node := _make_gem(sp, _cell_center(row, col))
+	if node != null:
+		_apply_fx_overlay(node, board.fx[row][col])
+	return node
+
+func _reuse_or_replace_gem_node(row: int, col: int, node: Sprite2D) -> Sprite2D:
+	var sp: int = board.grid[row][col]
+	if sp < 0:
+		if node != null and is_instance_valid(node):
+			node.queue_free()
+		return null
+	if not _node_matches_species(node, sp):
+		return _replace_gem_node(row, col, node)
+	node.position = _cell_center(row, col)
+	node.modulate.a = 1.0
+	_apply_fx_overlay(node, board.fx[row][col])
+	return node
+
+func _sync_changed_visuals_to_board() -> void:
+	if board == null:
+		return
+	if _gem_nodes.size() != board.height:
+		_render_board(false)
+		return
+	for row in range(board.height):
+		if not (_gem_nodes[row] is Array) or _gem_nodes[row].size() != board.width:
+			_render_board(false)
+			return
+		for col in range(board.width):
+			_gem_nodes[row][col] = _reuse_or_replace_gem_node(row, col, _gem_nodes[row][col])
+	_refresh_coat_visuals()
+
+func _finish_consumed_move(step_choco: int, cascades: int) -> void:
+	var before_grid: Array = board.grid.duplicate(true)
+	var before_fx: Array = board.fx.duplicate(true)
+	board._settle_consumed_move(step_choco, cascades)
+	if before_grid != board.grid or before_fx != board.fx:
+		_sync_changed_visuals_to_board()
+	else:
+		_refresh_coat_visuals()
+	_refresh_hud()
+	_check_settlement()
+	if is_inside_tree():
+		await get_tree().process_frame
+
+func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
+	return grid_snapshot[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
+
+func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_start: int, seg_end: int) -> Array:
+	var entries := []
+	for row in range(seg_start, seg_end + 1):
+		if grid_snapshot[row][col] == ME.EMPTY or grid_snapshot[row][col] == ME.WALL:
+			continue
+		var node: Sprite2D = old_nodes[row][col]
+		entries.append({"row": row, "node": node})
+	return entries
+
+func _segment_after_slots(col: int, seg_start: int, seg_end: int) -> Array:
+	var slots := []
+	for row in range(seg_start, seg_end + 1):
+		if board.grid[row][col] != ME.EMPTY and board.grid[row][col] != ME.WALL:
+			slots.append(row)
+	return slots
+
+func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: Array, col: int, seg_start: int, seg_end: int, tween: Tween) -> bool:
 	var moved := false
-	var write: int = seg_end
-	for row in range(seg_end, seg_start - 1, -1):
-		if board.grid[row][col] != ME.EMPTY:
-			if row != write:
-				board.grid[write][col] = board.grid[row][col]
-				board.grid[row][col] = ME.EMPTY
-				board.fx[write][col] = board.fx[row][col]
-				board.fx[row][col] = ME.SP_NONE
-				var n: Sprite2D = _gem_nodes[row][col]
-				_gem_nodes[write][col] = n
-				_gem_nodes[row][col] = null
-				if n != null and is_instance_valid(n):
-					t.tween_property(n, "position", _cell_center(write, col), FALL_TIME)
-					moved = true
-			write -= 1
-	var spawn_i: int = 0
-	for row in range(write, seg_start - 1, -1):
-		var sp: int = board.species[board.rng.randi() % board.species.size()]
-		board.grid[row][col] = sp
-		board.fx[row][col] = ME.SP_NONE
-		var center: Vector2 = _cell_center(row, col)
-		var n: Sprite2D = _make_gem(sp, center)
-		_gem_nodes[row][col] = n
-		if n != null:
-			n.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
-			t.tween_property(n, "position", center, FALL_TIME)
+	var old_entries := _segment_old_entries(grid_snapshot, old_nodes, col, seg_start, seg_end)
+	var after_slots := _segment_after_slots(col, seg_start, seg_end)
+	var old_count: int = mini(old_entries.size(), after_slots.size())
+	var first_old_slot: int = after_slots.size() - old_count
+
+	var spawn_i := 0
+	for idx in range(first_old_slot - 1, -1, -1):
+		var row: int = after_slots[idx]
+		var center := _cell_center(row, col)
+		var node := _replace_gem_node(row, col)
+		new_nodes[row][col] = node
+		if node != null:
+			node.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
+			tween.tween_property(node, "position", center, FALL_TIME)
 			moved = true
 		spawn_i += 1
+
+	for idx in range(old_count):
+		var row: int = after_slots[first_old_slot + idx]
+		var entry: Dictionary = old_entries[idx]
+		var node: Sprite2D = entry["node"]
+		if not _node_matches_species(node, board.grid[row][col]):
+			node = _replace_gem_node(row, col, node)
+		else:
+			node.modulate.a = 1.0
+			_apply_fx_overlay(node, board.fx[row][col])
+		new_nodes[row][col] = node
+		if node != null and is_instance_valid(node):
+			var target := _cell_center(row, col)
+			if node.position != target:
+				tween.tween_property(node, "position", target, FALL_TIME)
+				moved = true
+
+	for idx in range(old_count, old_entries.size()):
+		var stale: Sprite2D = old_entries[idx]["node"]
+		if stale != null and is_instance_valid(stale):
+			stale.queue_free()
 	return moved
 
+func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Array) -> void:
+	var old_node: Sprite2D = old_nodes[row][col]
+	new_nodes[row][col] = _reuse_or_replace_gem_node(row, col, old_node)
+
+## 每轮消除后用核心重力/补充收口，并增量移动/补充表现层，确保并行层不掉队且不全盘闪烁。
 func _collapse_and_refill() -> void:
+	var before_grid: Array = board.grid.duplicate(true)
+	var old_nodes: Array = _gem_nodes.duplicate(true)
+	ME.apply_gravity(board.grid, board.fx, false, board._layers())
+	var refill_feed: Array = board.feed if board.is_scrolling else []
+	if not board.is_scrolling:
+		ME.refill(board.grid, board.species, board.rng, board.fx, refill_feed, board._layers())
+	var new_nodes: Array = _blank_visual_rows()
 	var t := create_tween().set_parallel(true)
 	var moved := false
 	for col in range(board.width):
 		var seg_end: int = board.height - 1
 		for row in range(board.height - 1, -2, -1):
-			if row >= 0 and not _fall_barrier_at(row, col):
+			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
 				continue
 			if row + 1 <= seg_end:
-				moved = _collapse_segment(col, row + 1, seg_end, t) or moved
-			if row >= 0 and _layer_value(board.coat, row, col) > 0:
-				board.grid[row][col] = ME.EMPTY
-				board.fx[row][col] = ME.SP_NONE
-				_clear_gem_node_at(row, col)
+				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved
+			if row >= 0:
+				_sync_fixed_cell_visual(row, col, old_nodes, new_nodes)
 			seg_end = row - 1
+	_gem_nodes = new_nodes
+	_refresh_coat_visuals()
 	if moved:
 		await t.finished
 

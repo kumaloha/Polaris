@@ -262,7 +262,7 @@ func test_reshuffle_deterministic_with_seed() -> void:
 
 # ---- v1.1 多连特效：分类 ----
 
-func test_classify_four_in_row_spawns_line_v() -> void:
+func test_classify_four_in_row_spawns_line_h() -> void:
 	var grid := [
 		[0, 0, 0, 0, 1],
 		[1, 2, 3, 2, 3],
@@ -270,7 +270,7 @@ func test_classify_four_in_row_spawns_line_v() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "horizontal 4 -> LINE_V (垂直约定:横连生成竖特效)")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "horizontal 4 -> horizontal special")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_five_in_row_spawns_colorbomb() -> void:
@@ -294,7 +294,7 @@ func test_classify_three_in_row_no_spawn() -> void:
 	assert_eq(c["spawns"].size(), 0, "plain 3-match spawns nothing")
 	assert_eq(c["clear"].size(), 3, "all 3 matched cleared")
 
-func test_classify_four_vertical_spawns_line_h() -> void:
+func test_classify_four_vertical_spawns_line_v() -> void:
 	var grid := [
 		[0, 1, 2],
 		[0, 2, 3],
@@ -303,7 +303,7 @@ func test_classify_four_vertical_spawns_line_h() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "vertical 4 -> LINE_H (垂直约定:竖连生成横特效)")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "vertical 4 -> vertical special")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_t_shape_spawns_bomb() -> void:
@@ -420,6 +420,16 @@ func test_special_fusion_bomb_horizontal_makes_three_horizontal_rows() -> void:
 	assert_false(s.has(Vector2i(1, 0)), "cross + horizontal must not add extra vertical columns")
 
 
+func test_special_fusion_horizontal_bomb_makes_three_horizontal_rows() -> void:
+	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_LINE_H, ME.SP_BOMB)
+	var s := _cells_set(cells)
+	assert_eq(cells.size(), 15, "horizontal + cross clears exactly three full rows on a 5x5 board")
+	for y in range(1, 4):
+		for x in 5:
+			assert_true(s.has(Vector2i(x, y)), "horizontal + cross clears row %d at x=%d" % [y, x])
+	assert_false(s.has(Vector2i(1, 0)), "horizontal + cross must not add extra vertical columns")
+
+
 func test_special_fusion_bomb_vertical_makes_three_vertical_columns() -> void:
 	var cells: Array = ME.special_fusion_cells(_latin_5(), Vector2i(1, 2), Vector2i(2, 2), ME.SP_BOMB, ME.SP_LINE_V)
 	var s := _cells_set(cells)
@@ -461,7 +471,22 @@ func test_collect_four_match_marks_line_spawn() -> void:
 	var c := ME.collect_clears(grid, fx)
 	assert_eq(c["to_clear"].size(), 4, "all 4 matched cells in clear set")
 	assert_eq(c["spawns"].size(), 1, "one line spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "h4 -> LINE_V (垂直约定)")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "h4 -> LINE_H")
+
+func test_collect_four_match_prefers_moved_piece_new_position() -> void:
+	var grid := [
+		[0, 0, 0, 0, 1],
+		[1, 2, 3, 2, 3],
+		[2, 3, 1, 3, 1],
+	]
+	var fx := _none_fx(5, 3)
+	var moved_new_pos := Vector2i(2, 0)
+	var c := ME.collect_clears(grid, fx, {}, moved_new_pos)
+	assert_eq(c["spawns"].size(), 1, "one line spawned")
+	assert_eq(c["spawns"][0]["pos"], moved_new_pos, "special spawns at the moved piece's new cell, not the run midpoint")
+	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
+	assert_ne(grid[moved_new_pos.y][moved_new_pos.x], ME.EMPTY, "spawn cell keeps its tile")
+	assert_eq(fx[moved_new_pos.y][moved_new_pos.x], ME.SP_LINE_H, "spawn cell receives the horizontal special effect")
 
 func test_collect_triggers_line_clears_whole_row() -> void:
 	var grid := [[9, 8, 5, 9, 8], [5, 5, 5, 7, 6], [8, 7, 4, 6, 9]]  # 仅 row1 的 5,5,5 三连
@@ -520,7 +545,7 @@ func test_same_step_horizontal_four_line_triggers_horizontally() -> void:
 	fx[1][0] = ME.SP_BOMB
 	var c := ME.collect_clears(grid, fx)
 	var spawn_pos := Vector2i(1, 1)
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "persistent horizontal 4 product keeps the existing stored convention")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "persistent horizontal 4 product stores a horizontal special")
 	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed horizontal 4 special")
 	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_H, "same-step trigger follows the horizontal match direction")
 	assert_true((c["to_clear"] as Array).has(Vector2i(4, 1)), "same-step horizontal special clears the row tail")
@@ -537,7 +562,7 @@ func test_same_step_vertical_four_line_triggers_vertically() -> void:
 	fx[0][1] = ME.SP_BOMB
 	var c := ME.collect_clears(grid, fx)
 	var spawn_pos := Vector2i(1, 1)
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "persistent vertical 4 product keeps the existing stored convention")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "persistent vertical 4 product stores a vertical special")
 	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed vertical 4 special")
 	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_V, "same-step trigger follows the vertical match direction")
 	assert_true((c["to_clear"] as Array).has(Vector2i(1, 4)), "same-step vertical special clears the column tail")
@@ -561,7 +586,7 @@ func test_apply_clears_spawns_line_and_empties_others() -> void:
 	var c := ME.collect_clears(grid, fx)
 	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
 	var sp: Vector2i = c["spawns"][0]["pos"]
-	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_V, "spawn cell becomes LINE_V (h4→竖特效)")
+	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_H, "spawn cell becomes horizontal special")
 	assert_ne(grid[sp.y][sp.x], ME.EMPTY, "spawn cell keeps its species (not emptied)")
 	var empties := 0
 	for x in 5:
@@ -722,6 +747,36 @@ func test_account_clears_counts_coat() -> void:
 	assert_eq(grid[0][0], ME.EMPTY, "destroyed coat leaves no gem underneath")
 	assert_eq(grid[1][1], ME.EMPTY, "still-coated cell also has no hidden gem")
 
+func test_account_clears_locks_ingredient_direct_clear() -> void:
+	var grid := [
+		[0, 1, 2],
+		[3, 4, 5],
+		[6, 7, 8],
+	]
+	var fx := [
+		[ME.SP_NONE, ME.SP_NONE, ME.SP_NONE],
+		[ME.SP_NONE, ME.SP_NONE, ME.SP_NONE],
+		[ME.SP_NONE, ME.SP_NONE, ME.SP_NONE],
+	]
+	var ing := [
+		[0, 1, 0],
+		[0, 0, 0],
+		[0, 0, 0],
+	]
+	var target := Vector2i(1, 0)
+	var acc: Dictionary = ME.account_clears(grid, [target], fx, null, [], {"ing": ing})
+	assert_true(acc.get("locked", []).has(target), "direct clears must lock ingredient cells instead of clearing them")
+	assert_false(acc.get("by_species", {}).has(1), "ingredient-covered species does not count as collected by direct clear")
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var to_clear := []
+	if not locked.has(target):
+		to_clear.append(target)
+	ME._apply_clears(grid, fx, to_clear, [])
+	assert_eq(grid[0][1], 1, "caller filtering keeps ingredient-covered tile in place")
+	assert_eq(ing[0][1], 1, "ingredient marker remains aligned with the tile")
+
 func test_coat_occupancy_removes_underlying_gem() -> void:
 	var grid := [
 		[0, 1, 2],
@@ -835,6 +890,20 @@ func test_best_moves_finds_clearing_swap() -> void:
 		ME._swap_cells(grid, a, b)
 		assert_false(ME.find_matches(grid).is_empty(), "top hinted move creates a match")
 		ME._swap_cells(grid, a, b)
+
+func test_best_moves_respects_non_coat_layers() -> void:
+	var grid := [
+		[0, 0, 1],
+		[1, 2, 0],
+		[3, 4, 5],
+	]
+	var ing := [
+		[0, 0, 1],
+		[0, 0, 0],
+		[0, 0, 0],
+	]
+	var moves := ME.best_moves(grid, 1, {"ing": ing})
+	assert_true(moves.is_empty(), "hint search must not suggest a swap involving an ingredient blocker")
 
 func test_longswap_distance2() -> void:
 	# 隔位对换(#4)：span=2 允许隔一格交换；span=1 时同样的交换不合法。

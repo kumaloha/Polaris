@@ -112,6 +112,82 @@ func test_colorbomb_resolve_has_no_final_particle_burst() -> void:
 	assert_true(body.contains("await _play_colorbomb_absorb_preview"), "colorbomb still plays the absorb sequence")
 	assert_false(body.contains("Fx.spawn_explosion"), "colorbomb absorb should not add a final generic particle burst")
 
+func test_level_colorbomb_filters_locked_direct_clears() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _resolve_colorbomb")
+	assert_true(start >= 0, "_resolve_colorbomb exists")
+	if start < 0:
+		return
+	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("to_clear"), "colorbomb direct clear path filters account_clears locked cells")
+	assert_true(body.contains("cake_blast"), "colorbomb direct clear path includes cake blast cells after filtering")
+	assert_true(body.contains("ME._apply_clears(board.grid, board.fx, to_clear, [])"), "colorbomb direct clear applies only filtered cells")
+	assert_false(body.contains("board.grid[p.y][p.x] = ME.EMPTY"), "colorbomb must not manually clear locked cells")
+
+func test_level_consumed_move_paths_share_board_settlement() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	assert_true(src.contains("func _finish_consumed_move("), "Level exposes one consumed-move finish path")
+	for name in ["func _try_swap", "func _resolve_colorbomb", "func _resolve_fusion"]:
+		var start: int = src.find(name)
+		assert_true(start >= 0, "%s exists" % name)
+		if start < 0:
+			continue
+		var end: int = src.find("\nfunc ", start + 1)
+		if end < 0:
+			end = src.length()
+		var body: String = src.substr(start, end - start)
+		assert_true(body.contains("await _finish_consumed_move("), "%s uses Board settlement instead of local move-only bookkeeping" % name)
+
+func test_level_collapse_refill_uses_core_layers_and_feed() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _collapse_and_refill")
+	assert_true(start >= 0, "_collapse_and_refill exists")
+	if start < 0:
+		return
+	var end: int = src.find("func debug_first_legal_swap", start)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("ME.apply_gravity(board.grid, board.fx, false, board._layers())"), "visual collapse uses core gravity so all movable layers stay aligned")
+	assert_true(body.contains("ME.refill(board.grid, board.species, board.rng, board.fx"), "visual refill delegates to core refill")
+	assert_true(body.contains("board.feed"), "visual refill respects scrolling feed")
+	assert_true(body.contains("_sync_collapse_segment"), "visual collapse moves existing gem nodes instead of rebuilding the whole board")
+	assert_true(src.contains("tween.tween_property"), "incremental collapse helper animates moved/refilled gem nodes")
+	assert_false(body.contains("_sync_visuals_to_board()"), "visual collapse must not full-rerender the board after every clear")
+	assert_false(body.contains("board.rng.randi() % board.species.size()"), "visual collapse must not hand-roll random refill")
+
+func test_level_finish_consumed_move_does_not_full_rerender() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func _finish_consumed_move")
+	assert_true(start >= 0, "_finish_consumed_move exists")
+	if start < 0:
+		return
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("board._settle_consumed_move"), "finish path still delegates move settlement to Board")
+	assert_false(body.contains("_sync_visuals_to_board()"), "move finish must not full-rerender the board after every ordinary clear")
+
 
 func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)

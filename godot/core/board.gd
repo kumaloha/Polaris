@@ -326,16 +326,11 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	last_cascade_cells = []   # 捕获本次交换的逐级联消除格
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, last_cascade_cells, _layers())
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, last_cascade_cells, _layers(), b)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	_accumulate_progress(res)   # 本步 resolve 的七层计数(果冻/涂层/巧克力/原料/炸弹/爆米花/蛋糕/神秘糖)累加进 board 计数器
-	moves_left -= 1
-	_tick_bombs_after_move()   # 有效交换消耗一步 → 存活炸弹倒计时 -1；归零未消则引爆判负
-	_spread_choco_if_untouched(res.get("choco_cleared", 0))   # 巧克力：整步零啃食 → 蔓延一格
-	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子(普通糖/原料)，持续供给
-	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
-	_settle_deadlock()
+	_settle_consumed_move(res.get("choco_cleared", 0), res["cascades"])
 	return {"ok": true, "gained": res["score"], "cascades": res["cascades"]}
 
 func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
@@ -354,18 +349,18 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 			eff.append(p)
 	if protect:
 		colorbomb_shield -= 1
-	# 直清的格计入目标（COLLECT/果冻/涂层/巧克力/炸弹）；锁住/巧克力格只破层啃食、不被清。须在清空 grid 前结算。
+	# 直清的格计入目标（COLLECT/果冻/涂层/巧克力/炸弹）；锁住/巧克力/原料等受保护格只破层/揭开，不被清。须在清空 grid 前结算。
 	var acc := ME.account_clears(grid, eff, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
 	var step_choco: int = acc.get("choco_cleared", 0)   # 本步啃食量(供 _spread_choco_if_untouched 判蔓延)，acc+res 两段累计
-	_accumulate_progress(acc)   # 彩球直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
+	_accumulate_progress(acc)   # 彩球直清的七层计数累加；原料只锁定不清，ingredient_collected 仍由重力出口收集产生
 	var locked_set := {}
 	for p in acc["locked"]:
 		locked_set[p] = true
 	var to_clear := []
 	for p in eff:
 		if not locked_set.has(p):
-			to_clear.append(p)   # 锁住/巧克力格不清（只破层啃食）；彩球护盾时 cb 已排除
+			to_clear.append(p)   # 受保护格不清（只破层/啃食/揭开）；彩球护盾时 cb 已排除
 	var gained := ME.score_for_clear(to_clear.size(), 1)
 	_gain(gained)
 	ME._apply_clears(grid, fx, to_clear, [])   # 无 spawn，纯清除
@@ -376,12 +371,7 @@ func _activate_colorbomb(a: Vector2i, b: Vector2i) -> Dictionary:
 	_accumulate(res.get("by_species", {}))
 	step_choco += res.get("choco_cleared", 0)   # 余下级联的啃食并入本步累计(供蔓延判定)
 	_accumulate_progress(res)   # 余下级联的七层计数累加进 board 计数器
-	moves_left -= 1
-	_tick_bombs_after_move()   # 彩球消耗一步 → 存活炸弹倒计时 -1
-	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
-	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子，持续供给
-	_on_move_resolved(res["cascades"])   # 被动技能 #10/#11
-	_settle_deadlock()
+	_settle_consumed_move(step_choco, res["cascades"])
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "colorbomb": true}
 
 # 两个特效融合引爆：按交换后方向几何清除 + 链式展开被卷入的特效，锁住格只破锁不清。
@@ -398,7 +388,7 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	var acc := ME.account_clears(grid, cells, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
 	var step_choco: int = acc.get("choco_cleared", 0)   # 本步啃食量(供 _spread_choco_if_untouched 判蔓延)，acc+res 两段累计
-	_accumulate_progress(acc)   # 融合直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
+	_accumulate_progress(acc)   # 融合直清的七层计数累加；原料只锁定不清，ingredient_collected 仍由重力出口收集产生
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -418,13 +408,16 @@ func _activate_fusion(a: Vector2i, b: Vector2i) -> Dictionary:
 	_accumulate(res.get("by_species", {}))
 	step_choco += res.get("choco_cleared", 0)   # 余下级联的啃食并入本步累计(供蔓延判定)
 	_accumulate_progress(res)   # 余下级联的七层计数累加进 board 计数器
-	moves_left -= 1
-	_tick_bombs_after_move()   # 融合消耗一步 → 存活炸弹倒计时 -1
-	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
-	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子，持续供给
-	_on_move_resolved(res["cascades"])
-	_settle_deadlock()
+	_settle_consumed_move(step_choco, res["cascades"])
 	return {"ok": true, "gained": gained + res["score"], "cascades": res["cascades"], "fusion": true}
+
+func _settle_consumed_move(step_choco: int, cascades: int = 0) -> void:
+	moves_left -= 1
+	_tick_bombs_after_move()   # 有效交换/彩球/融合消耗一步 → 存活炸弹倒计时 -1；归零未消则引爆判负
+	_spread_choco_if_untouched(step_choco)   # 巧克力：整步零啃食 → 蔓延一格
+	_spawn_from_cannons_after_move()   # 糖果炮：每有效步从炮口下方产棋子(普通糖/原料)，持续供给
+	_on_move_resolved(cascades)   # 被动技能 #10/#11
+	_settle_deadlock()
 
 # 巧克力蔓延钩子：玩家整步若零啃食(step_eaten==0)，巧克力向随机相邻格增殖一格。
 # 用 board 注入的 rng → 确定性可复现。须在 try_swap/彩球/融合 的一步完整结算后调一次。
@@ -611,7 +604,7 @@ func skill_clear_species(sp: int) -> bool:
 		return false
 	var acc := ME.account_clears(grid, cells, fx, rng, species, _layers())
 	_accumulate(acc["by_species"])
-	_accumulate_progress(acc)   # 同类消除直清的七层计数累加(account_clears 不含 ingredient → +0；炸弹/爆米花/蛋糕/神秘糖均已在引擎里破层)
+	_accumulate_progress(acc)   # 同类消除直清的七层计数累加；原料只锁定不清，ingredient_collected 仍由重力出口收集产生
 	var locked := {}
 	for p in acc["locked"]:
 		locked[p] = true
@@ -652,7 +645,7 @@ func skill_foresight(k: int = 0) -> Array:
 	if k <= 0:
 		k = maxi(1, skill_level)   # 等级越高亮越多步（1级亮1，高级3-5）
 	active_used = true
-	return ME.best_moves(grid, k, coat, objectives)
+	return ME.best_moves(grid, k, _layers(), objectives)
 
 # 技能改动盘面后结算余下级联 + 死局兜底（不消耗步数，技能是免费动作 → 不触发巧克力蔓延、不递减炸弹倒计时）。
 # 但技能消除波及的炸弹格仍算拆弹（透传 bomb 给 resolve，bomb_defused 累加）——拆弹与"是否消耗步数"无关。
@@ -667,7 +660,7 @@ func _settle_after_skill() -> void:
 
 # 默认精灵提示(#0)：返回最优 k 步（卡住引路；非战斗，无一局一次约束）。
 func hint(k: int = 1) -> Array:
-	return ME.best_moves(grid, k, coat, objectives)
+	return ME.best_moves(grid, k, _layers(), objectives)
 
 # 看广告续用：重置当前技能的"已用"标志让它再用一次，有上限。返回是否成功。
 func ad_continue() -> bool:
