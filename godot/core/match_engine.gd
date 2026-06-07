@@ -1016,7 +1016,13 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}) -> Dictionary:
 	var to_clear := _expand_triggers(grid, fx, find_matches(grid, layers))
 	var cls := classify_matches(grid, layers)
-	return {"to_clear": to_clear.keys(), "spawns": cls["spawns"]}
+	var spawns := []
+	for s in cls["spawns"]:
+		var pos: Vector2i = s["pos"]
+		if not fx.is_empty() and fx[pos.y][pos.x] != SP_NONE:
+			continue
+		spawns.append(s)
+	return {"to_clear": to_clear.keys(), "spawns": spawns}
 
 # 从 seed 格出发，沿特效触发链 BFS 展开，返回所有应清的格（Dictionary 当 set）。
 static func _expand_triggers(grid: Array, fx: Array, seeds: Array) -> Dictionary:

@@ -472,6 +472,35 @@ func test_collect_triggers_line_clears_whole_row() -> void:
 	assert_eq(tc.size(), 5, "line trigger expands to whole row 1")
 	assert_true(tc.has(Vector2i(3, 1)) and tc.has(Vector2i(4, 1)), "row cells beyond the 3-match added by the line")
 
+func test_collect_line_hit_triggers_indirect_line() -> void:
+	var grid := [
+		[9, 8, 7, 6, 5],
+		[5, 5, 5, 7, 6],
+		[8, 7, 4, 6, 9],
+		[9, 6, 3, 5, 8],
+	]
+	var fx := _none_fx(5, 4)
+	fx[1][2] = ME.SP_LINE_H
+	fx[1][4] = ME.SP_LINE_V
+	var c := ME.collect_clears(grid, fx)
+	var tc: Array = c["to_clear"]
+	assert_true(tc.has(Vector2i(4, 0)), "indirect vertical line clears above its hit cell")
+	assert_true(tc.has(Vector2i(4, 2)), "indirect vertical line clears below its hit cell")
+	assert_true(tc.has(Vector2i(4, 3)), "indirect vertical line reaches the column tail")
+
+func test_existing_line_on_spawn_cell_is_triggered_not_respawned() -> void:
+	var grid := [
+		[9, 8, 7, 6, 5],
+		[5, 5, 5, 5, 6],
+		[8, 7, 4, 6, 9],
+	]
+	var fx := _none_fx(5, 3)
+	fx[1][1] = ME.SP_LINE_H
+	var c := ME.collect_clears(grid, fx)
+	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
+	assert_eq(grid[1][1], ME.EMPTY, "existing line special is consumed instead of protected as a new spawn")
+	assert_eq(fx[1][1], ME.SP_NONE, "triggered existing line does not leave a new hidden line effect")
+
 func test_apply_clears_spawns_line_and_empties_others() -> void:
 	var grid := [[0, 0, 0, 0, 1], [1, 2, 3, 2, 3], [2, 3, 1, 3, 1]]
 	var fx := _none_fx(5, 3)
