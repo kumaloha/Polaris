@@ -81,8 +81,8 @@ const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.16
 const FALL_TIME := 0.22
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
-const OPENING_DROP_TIME := 0.34
-const OPENING_DROP_ROW_STAGGER := 0.024
+const OPENING_DROP_TIME := 0.56
+const OPENING_DROP_ROW_STAGGER := 0.045
 const ENDGAME_BONUS_CONVERT_STEP := 0.08
 const ENDGAME_BONUS_CONVERT_HOLD := 0.70
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
@@ -471,6 +471,10 @@ func _render_board(opening_drop: bool = false) -> void:
 func _opening_drop_start_position(final_center: Vector2, row: int) -> Vector2:
 	return final_center - Vector2(0.0, cell_size * float(row + 1.5))
 
+func _opening_drop_delay(row: int, height: int = -1) -> float:
+	var h: int = height if height > 0 else board.height
+	return float(h - 1 - row) * OPENING_DROP_ROW_STAGGER
+
 func _play_opening_drop(generation: int) -> void:
 	if not is_inside_tree():
 		_finish_opening_drop(generation)
@@ -483,7 +487,7 @@ func _play_opening_drop(generation: int) -> void:
 			if n == null or not is_instance_valid(n):
 				continue
 			var target := _cell_center(r, c)
-			var delay := float(r) * OPENING_DROP_ROW_STAGGER
+			var delay := _opening_drop_delay(r)
 			t.tween_property(n, "position", target, OPENING_DROP_TIME).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			any = true
 	if any:

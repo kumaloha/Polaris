@@ -85,7 +85,8 @@ func test_opening_drop_starts_gems_above_the_board() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	assert_true(level.has_method("_opening_drop_start_position"), "Level exposes opening drop start calculation")
-	if not level.has_method("_opening_drop_start_position"):
+	assert_true(level.has_method("_opening_drop_delay"), "Level exposes opening drop delay calculation")
+	if not level.has_method("_opening_drop_start_position") or not level.has_method("_opening_drop_delay"):
 		level.free()
 		return
 	level.board_origin = Vector2(90, 420)
@@ -97,4 +98,8 @@ func test_opening_drop_starts_gems_above_the_board() -> void:
 	assert_true(top_start.y < level.board_origin.y, "top-row gem begins above the board")
 	assert_true(low_start.y < level.board_origin.y, "lower-row gem also begins above the board")
 	assert_eq(top_start.y, low_start.y, "all opening gems enter from the same empty-board line")
+	var top_delay: float = level.call("_opening_drop_delay", 0, 10)
+	var bottom_delay: float = level.call("_opening_drop_delay", 9, 10)
+	assert_true(bottom_delay < top_delay, "bottom row starts first so the board fills from bottom to top")
+	assert_true(top_delay - bottom_delay >= 0.25, "opening drop is slow enough to read")
 	level.free()
