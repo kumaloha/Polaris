@@ -10,7 +10,13 @@ const SHOCK := "res://assets/fx/fx_shockwave.png"   # 冲击波
 const BOKEH := "res://assets/fx/fx_bokeh.png"       # 光斑
 const COMET := "res://assets/fx/beam_comet_white.png"  # 流星拖尾(纯白, 行列横扫波, modulate 染色)
 const LOCAL_BURST_CLEAR_CELLS := 9
-const LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO := 0.72
+const LOCAL_BURST_CENTER_FLASH_DURATION := 0.18
+const LOCAL_BURST_INNER_DURATION := 0.36
+const LOCAL_BURST_OUTER_DURATION := 0.44
+const LOCAL_BURST_FADE_START_RATIO := 0.0
+const LOCAL_BURST_FADE_END_RATIO := 0.45
+const LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO := 0.60
+const LOCAL_BURST_LAST_VISIBLE_SAFE_RADIUS_RATIO := 0.55
 const LOCAL_BURST_FLASH_DIAMETER_RATIO := 0.85
 const LOCAL_BURST_FLASH_PEAK_SCALE := 1.05
 const LOCAL_BURST_PARTICLE_TRAVEL_RATIO := 0.72
@@ -140,6 +146,7 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
 	var safe_radius := clear_radius_px * LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO
+	var last_visible_safe_radius := clear_radius_px * LOCAL_BURST_LAST_VISIBLE_SAFE_RADIUS_RATIO
 	var inner_star_radius := clear_radius_px * LOCAL_BURST_INNER_STAR_RADIUS_RATIO
 	var outer_wisp_radius := clear_radius_px * LOCAL_BURST_OUTER_WISP_RADIUS_RATIO
 	var inner_star_end_diameter := clear_radius_px * LOCAL_BURST_INNER_STAR_END_DIAMETER_RATIO
@@ -155,10 +162,22 @@ static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 	var inner_star_rendered_radius := inner_star_end_radius + inner_star_end_diameter * 0.5
 	var outer_wisp_rendered_radius := outer_wisp_end_radius + outer_wisp_end_diameter * 0.5
 	var max_rendered_radius := maxf(inner_star_rendered_radius, outer_wisp_rendered_radius)
+	var visible_progress := _ease_out_cubic(LOCAL_BURST_FADE_END_RATIO)
+	var last_visible_inner_radius := lerpf(clear_radius_px * 0.08, inner_star_end_radius, visible_progress) + inner_star_end_diameter * 0.5
+	var last_visible_outer_radius := lerpf(clear_radius_px * 0.16, outer_wisp_end_radius, visible_progress) + outer_wisp_end_diameter * 0.5
+	var last_visible_rendered_radius := maxf(last_visible_inner_radius, last_visible_outer_radius)
 	return {
 		"clear_cells": LOCAL_BURST_CLEAR_CELLS,
 		"clear_radius_px": clear_radius_px,
+		"center_flash_duration_sec": LOCAL_BURST_CENTER_FLASH_DURATION,
+		"inner_star_duration_sec": LOCAL_BURST_INNER_DURATION,
+		"outer_wisp_duration_sec": LOCAL_BURST_OUTER_DURATION,
+		"approx_inner_frames_60fps": int(round(LOCAL_BURST_INNER_DURATION * 60.0)),
+		"approx_outer_frames_60fps": int(round(LOCAL_BURST_OUTER_DURATION * 60.0)),
+		"fade_start_ratio": LOCAL_BURST_FADE_START_RATIO,
+		"fade_end_ratio": LOCAL_BURST_FADE_END_RATIO,
 		"visual_safe_radius_ratio": LOCAL_BURST_VISUAL_SAFE_RADIUS_RATIO,
+		"last_visible_safe_radius_ratio": LOCAL_BURST_LAST_VISIBLE_SAFE_RADIUS_RATIO,
 		"flash_diameter_px": flash_diameter,
 		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,
 		"particle_max_distance_px": max_rendered_radius,
@@ -173,13 +192,18 @@ static func local_burst_bounds(clear_radius_px: float) -> Dictionary:
 		"inner_star_rendered_radius_px": inner_star_rendered_radius,
 		"outer_wisp_rendered_radius_px": outer_wisp_rendered_radius,
 		"max_rendered_radius_px": max_rendered_radius,
+		"last_visible_rendered_radius_px": last_visible_rendered_radius,
 		"spiral_turn_radians": LOCAL_BURST_SPIRAL_TURN_RADIANS,
 	}
+
+static func _ease_out_cubic(t: float) -> float:
+	var clamped := clampf(t, 0.0, 1.0)
+	return 1.0 - pow(1.0 - clamped, 3.0)
 
 func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 	var bounds := local_burst_bounds(radius_px)
 	# 中心闪: 直径压在范围内
-	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], 0.18)
+	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], bounds["center_flash_duration_sec"])
 	var star_color: Color = color.lerp(Color(1, 1, 1, 1), 0.30)
 	var wisp_color: Color = color.lerp(Color(1, 1, 1, 1), 0.42)
 	wisp_color.a = 0.78
@@ -190,7 +214,7 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 		var twist: float = bounds["spiral_turn_radians"] * (1.0 if i % 2 == 0 else -0.72)
 		var end_radius: float = bounds["inner_star_end_radius_px"] * (0.78 + 0.11 * float(i % 3))
 		var delay: float = 0.012 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.14, bounds["inner_star_end_diameter_px"], delay, 0.36)
+		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.14, bounds["inner_star_end_diameter_px"], delay, bounds["inner_star_duration_sec"])
 	var outer_count: int = int(bounds["outer_wisp_count"])
 	for i in range(outer_count):
 		var f: float = (float(i) + 0.5) / float(outer_count)
@@ -198,7 +222,7 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float) -> void:
 		var twist: float = -bounds["spiral_turn_radians"] * (0.45 + 0.08 * float(i % 2))
 		var end_radius: float = bounds["outer_wisp_end_radius_px"] * (0.82 + 0.09 * float(i % 3))
 		var delay: float = 0.024 + 0.014 * float(i % 4)
-		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.16, end_radius, twist, radius_px * 0.15, bounds["outer_wisp_end_diameter_px"], delay, 0.44)
+		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.16, end_radius, twist, radius_px * 0.15, bounds["outer_wisp_end_diameter_px"], delay, bounds["outer_wisp_duration_sec"])
 
 func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float) -> void:
 	if not ResourceLoader.exists(tex_path):
@@ -221,7 +245,9 @@ func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: fl
 	t.tween_property(s, "position", pos + Vector2.RIGHT.rotated(angle + twist) * end_radius, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_property(s, "rotation", angle + twist * 1.6, dur).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	t.tween_property(s, "scale", Vector2(end_scale, end_scale), dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(s, "modulate:a", 0.0, dur).set_delay(dur * 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	var fade_start := dur * LOCAL_BURST_FADE_START_RATIO
+	var fade_duration := dur * maxf(LOCAL_BURST_FADE_END_RATIO - LOCAL_BURST_FADE_START_RATIO, 0.01)
+	t.tween_property(s, "modulate:a", 0.0, fade_duration).set_delay(fade_start).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_auto_free(s, delay + dur + 0.12)
 
 ## 行列光束: 宽彩辉光 + 白热核(厚度 pop) + 沿线火花。比单条更有冲击力。

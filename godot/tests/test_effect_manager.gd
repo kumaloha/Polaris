@@ -32,3 +32,18 @@ func test_local_burst_rendered_edge_keeps_margin_inside_3x3() -> void:
 		bounds["max_rendered_radius_px"] <= clear_radius * bounds["visual_safe_radius_ratio"],
 		"sprite centers plus sprite radius stay comfortably inside the 3x3 clear radius"
 	)
+
+
+func test_local_burst_fades_before_the_outermost_frame() -> void:
+	var cell_size := 88.0
+	var clear_radius := cell_size * 1.5
+	var bounds: Dictionary = FxScript.local_burst_bounds(clear_radius)
+	assert_true(bounds["fade_end_ratio"] < 1.0, "burst particles finish fading before their motion reaches the outermost frame")
+	assert_true(
+		bounds["last_visible_rendered_radius_px"] < bounds["max_rendered_radius_px"],
+		"last visible frame is inside the mathematical max endpoint"
+	)
+	assert_true(
+		bounds["last_visible_rendered_radius_px"] <= clear_radius * bounds["last_visible_safe_radius_ratio"],
+		"last visible frame keeps an extra safety margin inside 3x3"
+	)
