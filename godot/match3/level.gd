@@ -440,7 +440,7 @@ func _compute_layout() -> void:
 	var board_h: float = board.height * cell_size
 	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
 	var frame_bottom: float = TRAY_TOP - 6.0
-	var book_y: float = frame_bottom - book_h - 8.0  # 棋盘位置(与顶栏留间距, 较前下移)
+	var book_y: float = frame_bottom - book_h - 0.44  # 棋盘位置(与顶栏留间距, 较前下移)
 	board_origin = Vector2((DESIGN_W - board_w) * 0.5, book_y + BOOK_INNER_T)
 
 func _cell_center(row: int, col: int) -> Vector2:
@@ -475,7 +475,7 @@ func _render_background() -> void:
 	var tr := TextureRect.new()
 	tr.texture = tex
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	tr.stretch_mode = TextureRect.STRETCH_SCALE  # v0.02 拉伸铺满(完整显示左右, 不裁; 横向略压)
 	tr.position = Vector2.ZERO
 	tr.size = Vector2(DESIGN_W, DESIGN_H)
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -497,11 +497,11 @@ func _render_board_panel() -> void:
 		rib.texture = load(BOOK_RIBBONS)
 		rib.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rib.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
-		var rw: float = board_w * 0.42
+		var rw: float = board_w * 0.40
 		var rh: float = rw * (80.0 / 343.0)
 		rib.size = Vector2(rw, rh)
 		# 书签顶部接住书本底书脊(上半压书脊、下半垂出书外, 无悬空缝隙)
-		rib.position = Vector2(DESIGN_W * 0.5 - rw * 0.5, book_y + book_h - rh * 0.55)
+		rib.position = Vector2(DESIGN_W * 0.5 - rw * 0.5 - 0.23, book_y + book_h)  # 书签上沿对齐魔法书下沿, 左移0.23px
 		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		board_layer.add_child(rib)
 
@@ -1052,16 +1052,16 @@ func _render_topbar_v2(cfg: Dictionary) -> void:
 		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ui_layer.add_child(top)
 	# 关卡号(左上红绶带, PIL 实测中心 0.178,0.261)
-	_label(ui_layer, "第 %d 关" % int(cfg.get("id", 1)), Vector2(tw * 0.178, th * 0.33), 22, Color(1, 0.97, 0.9), 150, 4, Color(0.45, 0.04, 0.04, 0.9))
+	_label(ui_layer, "第 %d 关" % int(cfg.get("id", 1)), Vector2(tw * 0.178, th * 0.426), 22, Color(1, 0.97, 0.9), 150, 4, Color(0.45, 0.04, 0.04, 0.9))
 	# 星级 3 星(凹槽 PIL 实测 x[0.410,0.574,0.738] y0.418; 占位 1 金 2 银)
 	var star_paths: Array = [LV_STAR_GOLD, LV_STAR_SILVER, LV_STAR_SILVER]
-	var sxs: Array = [0.385, 0.549, 0.713]
+	var sxs: Array = [0.5086, 0.6701, 0.8698]
 	for i in range(3):
-		_sprite_w(ui_layer, String(star_paths[i]), Vector2(tw * float(sxs[i]), th * 0.519), 44.0, false)
+		_sprite_w(ui_layer, String(star_paths[i]), Vector2(tw * float(sxs[i]), th * 0.5082), 44.0, false)
 	# 剩余步数(下方左格 x0.205, 米黄区 PIL实测 y0.52-0.88)
 	var moves: int = board.moves_left if board != null else 0
-	_label(ui_layer, "剩余步数", Vector2(tw * 0.17, th * 0.64), 18, Color(0.50, 0.28, 0.12), 135)
-	_label(ui_layer, str(maxi(moves, 0)), Vector2(tw * 0.17, th * 0.80), 36, Color(0.86, 0.18, 0.16), 135, 4, Color(1, 1, 1, 0.5))
+	_label(ui_layer, "剩余步数", Vector2(tw * 0.1785, th * 0.63), 22, Color(0.235, 0.098, 0.039), 150, 0)
+	_label(ui_layer, str(maxi(moves, 0)), Vector2(tw * 0.1785, th * 0.77), 44, Color(0.86, 0.18, 0.16), 135, 4, Color(1, 1, 1, 0.5))
 	# 关卡目标(下方右格, 竖线 PIL实测 @0.30, 右格中心 0.60)
 	var view: Array = _objectives_view()
 	if view.is_empty():
@@ -1071,9 +1071,9 @@ func _render_topbar_v2(cfg: Dictionary) -> void:
 		var item: Dictionary = view[i]
 		var ox: float = tw * (0.60 + (float(i) - float(n - 1) * 0.5) * 0.20)
 		var icon_path: String = String(item.get("icon", ""))
-		_sprite_w(ui_layer, icon_path, Vector2(ox, th * 0.68), 58.0, icon_path == BARRIER_ICE_ICON)
+		_sprite_w(ui_layer, icon_path, Vector2(ox - 32.0, th * 0.77), 96.0, icon_path == BARRIER_ICE_ICON)
 		var txt: String = String(item["n"]) if item.has("n") else str(int(item.get("target", 0)))
-		_label(ui_layer, txt, Vector2(ox, th * 0.785), 18, Color(0.20, 0.12, 0.05), 70)
+		_label(ui_layer, txt, Vector2(ox + 48.0, th * 0.77), 30, Color(1, 1, 1), 64, 4, Color(0, 0, 0, 0.9))
 
 
 func _render_topbar(cfg: Dictionary) -> void:
