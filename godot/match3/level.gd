@@ -28,12 +28,18 @@ const GEM_TEXTURES := [
 	"res://art/gems/base/gem_clover.png", "res://art/gems/base/gem_star.png",
 	"res://art/gems/base/gem_orb.png", "res://art/gems/base/gem_heart.png",
 ]
+const GEM_SHADOW := "res://art/gems/base/gem_shadow_soft.png"  # v0.02 棋子软阴影(椭圆投影, 子节点跟随)
+const GEM_SHADOW_ALPHA := 0.5
+# v0.02: 各棋子图案占整图比例不同(PIL实测), 按 1/max(宽高占比) 补偿 scale, 统一视觉大小。
+# species 顺序: 0红方块 1蓝水滴 2绿四叶 3金星 4紫月 5粉心
+const GEM_CONTENT_COMP := [1.16, 1.16, 1.03, 1.28, 1.25, 1.03]  # 实体图案统一(PIL测; 粉×1.03用户微调)
+const GEM_TINT := [Color.WHITE, Color.WHITE, Color(0.82, 0.90, 0.78), Color.WHITE, Color.WHITE, Color.WHITE]  # 绿四叶草降高光白点(偏绿压亮)
 # 特殊棋子(阶段5) shine 贴图：横/竖直线、3x3爆炸(叠在宝石上)。
 # 4合1 = 普通宝石本体 + special_4 overlay；5合1 = 独立分层水晶球，不套普通阴影。
 const SHINE_LINE_H := "res://art/gems/special_4/special_4_horizontal_overlay.png"
 const SHINE_LINE_V := "res://art/gems/special_4/special_4_vertical_overlay.png"
 const SHINE_BOMB := "res://art/gems/special_4/special_4_area_overlay.png"
-const COLORBOMB_CORE := "res://art/gems/special_5/special_5_core_ball.png"
+const COLORBOMB_CORE := "res://assets/level/colorbomb_orb.png"  # v0.02 单张星辰球(5.png)
 const COLORBOMB_GOLD_GLOW := "res://art/gems/special_5/special_5_gold_ground_glow.png"
 const COLORBOMB_INNER_SWIRL := "res://art/gems/special_5/special_5_inner_swirl.png"
 const COLORBOMB_INNER_STARS := "res://art/gems/special_5/special_5_inner_stars.png"
@@ -46,10 +52,24 @@ const FX_TEXTURES := {
 }
 const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOARD_PANEL_TEXTURE := "res://assets/board/bg_board.png"
-const BG_TEXTURE := "res://assets/ui/bg_scene.png"
+const PARCHMENT_BOARD := "res://assets/ui_frames/parchment_panel.png"  # (弃用)
+const BOOK_FRAME := "res://assets/level/book_frame.png"      # v0.02 魔法书主体(982×980, 9-slice缩放适配棋盘)
+const BOOK_RIBBONS := "res://assets/level/book_ribbons.png"  # v0.02 书底书签(343×80, 固定贴底不缩放)
+const CELL_SQ := "res://assets/level/cell_sq.png"            # v0.02 米黄圆角棋格(cell.png 128²)
+# 书页内金线框(book_frame 内边线, PIL实测 982×980)相对 book 边缘的像素 inset:
+const BOOK_INNER_L := 53.0  # 左(书脊+金框+页边距)
+const BOOK_INNER_T := 21.0  # 顶(书页开口薄)
+const BOOK_INNER_R := 53.0  # 右
+const BOOK_INNER_B := 56.0  # 底(书脊厚)
+const BOOK_NINE_ML := 54    # 9-slice margin(≥内边线inset, 保金框/四角花不变形)
+const BOOK_NINE_MT := 28
+const BOOK_NINE_MB := 58
+const CELL_TILE_FILL := Color(0.80, 0.64, 0.40, 0.32)   # v0.02 米黄半透格(叠羊皮底)
+const CELL_TILE_BORDER := Color(0.52, 0.37, 0.18, 0.50) # 米黄格描边
+const BG_TEXTURE := "res://assets/level/background.png"  # v0.02 新天空背景(862×1825, 按宽铺满)
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
-const BARRIER_FILL := 0.86
+const BARRIER_FILL := 1.26  # v0.02 冰块放大补偿(ob_ice实体仅占0.686, ×1.26→实体≈cell*0.86, 与棋子一致)
 const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const JELLY_MARKER_NAME := "JellyGoalSprite"
 const JELLY_FILL := 0.94
@@ -72,6 +92,42 @@ const ORB_TEX := "res://assets/gems/gem_orb.png"
 const KEY_SHADER := "res://match3/magenta_key.gdshader"
 const AGED_PARCH_SHADER := "res://match3/aged_parchment.gdshader"  # 米色框做旧
 const FLOW_SHADER := "res://match3/flow_light.gdshader"  # 技能栏金色流光
+
+# ── v0.02 顶部状态栏新素材(米黄风格, 设计稿换皮; 替换旧紫金分散顶栏) ──
+const LV_BANNER := "res://assets/level/banner_long.png"        # 1134×283 状态栏底框(9-slice)
+const LV_PILL := "res://assets/level/bar_pill.png"             # 415×115 星级药丸条(9-slice)
+const LV_FRAME_SMALL := "res://assets/level/frame_small.png"   # 337×201 双目标小框(9-slice)
+const LV_FRAME_CIRCLE := "res://assets/level/frame_circle.png" # 386×378 圆形头像金环(等比, 中心透明孔)
+const LV_STAR_GOLD := "res://assets/level/star_gold.png"       # 174×176 金星(已点亮)
+const LV_STAR_SILVER := "res://assets/level/star_silver.png"   # 168×166 银星(未点亮)
+const LV_FLAG := "res://assets/level/flag_red.png"             # 267×286 关卡号红绶带
+const LV_FLOWER := "res://assets/level/deco_flower.png"        # 477×214 雏菊藤蔓角饰
+const LV_CHAIN := "res://assets/level/chain_gold.png"          # 507×131 金链(顶部悬挂装饰)
+const LV_HERO_AVATAR := "res://assets/avatars/av_ladybug.png"  # v0.02 圆环内头像(七星瓢虫)
+# 顶栏布局锚点(720×1520 设计坐标; 截图后微调)
+const TB_BANNER_C := Vector2(360, 132)
+const TB_BANNER_W := 704.0
+const TB_BANNER_H := 196.0
+const TB_FLAG_C := Vector2(98, 80)
+const TB_FLAG_W := 132.0
+const TB_STEP_C := Vector2(150, 170)        # 移动步数(banner 左下)
+const TB_PILL_C := Vector2(406, 92)
+const TB_PILL_W := 256.0
+const TB_PILL_H := 64.0
+const TB_STAR_GAP := 44.0
+const TB_STAR_W := 40.0
+const TB_FRAME_C := Vector2(406, 170)       # 双目标小框
+const TB_FRAME_W := 252.0
+const TB_FRAME_H := 116.0
+const TB_OBJ_GAP := 100.0
+const TB_OBJ_ICON_W := 50.0
+const TB_CIRCLE_C := Vector2(596, 138)
+const TB_CIRCLE_W := 156.0
+const TB_AVATAR_W := 120.0
+const TB_FLOWER_W := 128.0
+const TB_CHAIN_W := 120.0
+const TB_STEP_LABEL_COLOR := Color(0.50, 0.28, 0.12)  # 棕褐(配米黄banner)
+const TB_STEP_NUM_COLOR := Color(0.86, 0.18, 0.16)    # 红字步数
 
 # 关卡目标(占位) 与 技能(占位)
 const OBJECTIVES_DEMO := [
@@ -99,6 +155,7 @@ const COLORBOMB_FINE_CLEAR_BUDGET := 12
 const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
 const FALL_TIME := 0.20
 const FALL_EXTRA_CELL_TIME := 0.075
+const ORDINARY_REFILL_MAX_TIME := 0.46
 const WALL_SLIDE_STEP_TIME := 0.065
 const WALL_SLIDE_MAX_TIME := 0.85
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
@@ -195,11 +252,11 @@ const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.66  # 彩球比普通宝石小一点, 四周留适度缝
 const TRAY_TOP := 1236.0  # 技能栏顶(棋盘底锚定于此); 下移让棋盘整体下移, 露出更多角色
-const SKILL_AV_Y := 1306.0
+const SKILL_AV_Y := 1374.0
 const SKILL_AV_W := 132.0
-const SKILL_CD_Y := 1372.0
-const SKILL_NAME_Y := 1404.0
-const SKILL_SKILLNAME_Y := 1438.0
+const SKILL_CD_Y := 1440.0
+const SKILL_NAME_Y := 1472.0
+const SKILL_SKILLNAME_Y := 1506.0
 
 var board
 var board_origin: Vector2
@@ -374,15 +431,16 @@ func load_level(idx: int) -> void:
 
 func _compute_layout() -> void:
 	# 预留边框外凸: 角花顶点离格角 = 紫条中线偏移 + 角花半径; 取与紫条厚度的较大值
-	var frame_out: float = maxf(BAND_T, BAND_T * 0.5 + CORNER_DISPLAY * 0.5)
-	var avail_w: float = DESIGN_W - 2.0 * BOARD_EDGE - 2.0 * frame_out
-	cell_size = floor(avail_w / float(board.width))  # 占满屏宽(留边框+角花外凸)
+	# v0.02: 棋盘落"书页内金线框"(book_frame 内边线), 与书页边缘留页边距(像书的正文区)。
+	# v0.02: 书本左右贴屏幕边(满屏宽,间距0); 棋盘整体上移一点; 棋格落书页内金线框、水平居中。
+	var avail_w: float = DESIGN_W  # book 满屏宽(贴边)
+	cell_size = floor((avail_w - BOOK_INNER_L - BOOK_INNER_R) / float(board.width))
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
-	# 水平居中; 边框外缘底贴技能栏(消下方灰)
+	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
 	var frame_bottom: float = TRAY_TOP - 6.0
-	var y: float = frame_bottom - frame_out - board_h  # 按角花外凸锚定, 底部角花不被托盘切
-	board_origin = Vector2((DESIGN_W - board_w) * 0.5, y)
+	var book_y: float = frame_bottom - book_h - 28.0  # 棋盘整体上移一点
+	board_origin = Vector2((DESIGN_W - board_w) * 0.5, book_y + BOOK_INNER_T)
 
 func _cell_center(row: int, col: int) -> Vector2:
 	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
@@ -408,52 +466,48 @@ func _render_background() -> void:
 	if not ResourceLoader.exists(BG_TEXTURE):
 		return
 	var tex: Texture2D = load(BG_TEXTURE)
-	var spr := Sprite2D.new()
-	spr.texture = tex
 	var sz: Vector2 = tex.get_size()
 	if sz.x <= 0.0 or sz.y <= 0.0:
-		background_layer.add_child(spr)
 		return
-	# 摆放背景：把图中水晶球(BG_CRYSTAL_UV)对齐到狐狸与 Boss 中间(BG_CRYSTAL_TARGET)。
-	# 图比屏幕大，超出部分自然裁切（"图大不全用"）。
-	spr.scale = Vector2.ONE * BG_SCALE
-	var crystal_px: Vector2 = Vector2(sz.x * BG_CRYSTAL_UV.x, sz.y * BG_CRYSTAL_UV.y)
-	spr.position = BG_CRYSTAL_TARGET - (crystal_px - sz * 0.5) * BG_SCALE
-	background_layer.add_child(spr)
+	# v0.02 天空背景: 用 TextureRect(Control) 与兜底同层, 按比例铺满全屏(超出居中裁切)。
+	# 注: 同 CanvasLayer 下 Control 会盖 Node2D, 故背景用 Control 而非 Sprite2D 才能盖住兜底。
+	var tr := TextureRect.new()
+	tr.texture = tex
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	tr.position = Vector2.ZERO
+	tr.size = Vector2(DESIGN_W, DESIGN_H)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background_layer.add_child(tr)
 
 func _render_board_panel() -> void:
-	# 棋盘深紫实底,覆盖格区+边框区(盖住边框转角后面,避免露背景灰)
+	# v0.02: 魔法书主体 book_frame 用 9-slice —— 四角装饰(~37px)+金框/书脊不变形, 只拉书页中段;
+	#        书页内框(左右38/顶≈角38/底44)对齐棋格。书签(book_ribbons)固定贴书底中央。
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
-	var bg := ColorRect.new()
-	bg.color = BOARD_BG_COLOR
-	bg.position = board_origin - Vector2(BAND_T, BAND_T)
-	bg.size = Vector2(board_w + BAND_T * 2.0, board_h + BAND_T * 2.0)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 棋盘实底,勿吞格点击(否则点棋盘无反应)
-	board_layer.add_child(bg)
+	# book_frame 9-slice(金框/四角花不变形); 内边线框=棋格(board_origin 即内边线左上)。
+	var book_y: float = board_origin.y - BOOK_INNER_T
+	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
+	# v0.02: 书本左右贴屏幕边; DESIGN_W+6 补偿 book_frame 左右各3px透明边, 金框真正贴屏
+	var center := Vector2(DESIGN_W * 0.5, book_y + book_h * 0.5)
+	_nine(board_layer, BOOK_FRAME, center, DESIGN_W + 6.0, book_h, BOOK_NINE_ML, BOOK_NINE_MT, BOOK_NINE_MB)
+	if ResourceLoader.exists(BOOK_RIBBONS):
+		var rib := TextureRect.new()
+		rib.texture = load(BOOK_RIBBONS)
+		rib.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		rib.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+		var rw: float = board_w * 0.42
+		var rh: float = rw * (80.0 / 343.0)
+		rib.size = Vector2(rw, rh)
+		# 书签顶部接住书本底书脊(上半压书脊、下半垂出书外, 无悬空缝隙)
+		rib.position = Vector2(DESIGN_W * 0.5 - rw * 0.5, book_y + book_h - rh * 0.55)
+		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_layer.add_child(rib)
 
 # 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
 func _render_board_frame() -> void:
-	var bx: float = board_origin.x
-	var by: float = board_origin.y
-	var bw: float = board.width * cell_size
-	var bh: float = board.height * cell_size
-	# 紫条(横边正常,竖边旋转90°使光泽方向一致),中心在棋盘各边外侧 BAND_T/2 处
-	_frame_strip(FRAME_BAND, Vector2(bx + bw * 0.5, by - BAND_T * 0.5), bw, BAND_T, false)
-	_frame_strip(FRAME_BAND, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, BAND_T, false)
-	_frame_strip(FRAME_BAND, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
-	_frame_strip(FRAME_BAND, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, BAND_T, true)
-	# 金线(在紫条正中央,一条) —— 原样保留, 做边框
-	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by - BAND_T * 0.5), bw, LINE_T, false)
-	_frame_strip(FRAME_LINE, Vector2(bx + bw * 0.5, by + bh + BAND_T * 0.5), bw, LINE_T, false)
-	_frame_strip(FRAME_LINE, Vector2(bx - BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
-	_frame_strip(FRAME_LINE, Vector2(bx + bw + BAND_T * 0.5, by + bh * 0.5), bh, LINE_T, true)
-	# 四角紫钻小角花: 中心放在金线交叉点(紫条中线角), 使金线连到菱形宝石的顶点
-	var hb: float = BAND_T * 0.5
-	_frame_corner(Vector2(bx - hb, by - hb))
-	_frame_corner(Vector2(bx + bw + hb, by - hb))
-	_frame_corner(Vector2(bx - hb, by + bh + hb))
-	_frame_corner(Vector2(bx + bw + hb, by + bh + hb))
+	# v0.02: 棋盘金边框改由 parchment_panel(底框自带金边)提供, 不再画紫金 band/line/corner。
+	return
 
 func _frame_edge(path: String, pos: Vector2, sz: Vector2, flip_h: bool, flip_v: bool) -> void:
 	if not ResourceLoader.exists(path):
@@ -500,16 +554,18 @@ func _render_board(opening_drop: bool = false) -> void:
 	_wall_nodes = []
 	_render_board_panel()
 	_gem_nodes = []
-	var cell_tex: Texture2D = load(CELL_TEXTURE) if ResourceLoader.exists(CELL_TEXTURE) else null
+	var cell_tex: Texture2D = load(CELL_SQ) if ResourceLoader.exists(CELL_SQ) else null
 	for r in range(board.height):
 		var node_row: Array = []
 		for c in range(board.width):
 			var center: Vector2 = _cell_center(r, c)
+			# v0.02: 米黄圆角棋格(cell_sq.png), 半透叠魔法书页上
 			if cell_tex != null:
 				var cs := Sprite2D.new()
 				cs.texture = cell_tex
 				cs.position = center
 				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
+				cs.modulate = Color(1, 1, 1, 0.5)
 				board_layer.add_child(cs)
 			var visual_sp: int = _opening_visual_species(r, c) if opening_drop else board.grid[r][c]
 			var gnode: Sprite2D = _make_gem(visual_sp, center)
@@ -699,9 +755,19 @@ func _make_gem(sp: int, center: Vector2) -> Sprite2D:
 	var gs := Sprite2D.new()
 	gs.texture = tex
 	gs.position = center
-	gs.scale = _fit_scale(tex, cell_size * GEM_FILL)
+	gs.scale = _fit_scale(tex, cell_size * GEM_FILL) * GEM_CONTENT_COMP[sp]
+	gs.modulate = GEM_TINT[sp]  # v0.02 绿棋子降高光白点(其余白色不变)
 	gs.set_meta("species", sp)
 	gs.set_meta("fx", ME.SP_NONE)
+	# v0.02: 棋子形状阴影 —— 用棋子自身纹理染黑(同形状), 尺寸×0.85, 下偏移一丢丢, 居棋子下层半透。
+	var sh := Sprite2D.new()
+	sh.name = "shadow"
+	sh.texture = tex
+	sh.z_index = -1
+	sh.scale = Vector2(0.85, 0.85)
+	sh.position = Vector2(0.0, (cell_size * 0.14) / (gs.scale.y if gs.scale.y != 0.0 else 1.0))
+	sh.modulate = Color(0.0, 0.0, 0.0, GEM_SHADOW_ALPHA)
+	gs.add_child(sh)
 	gem_layer.add_child(gs)
 	return gs
 
@@ -801,9 +867,18 @@ func _make_coat_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
 	marker.add_to_group(BARRIER_MARKER_NAME)
 	marker.texture = tex
 	marker.material = _magenta_material()
-	marker.position = _cell_center(row, col)
+	marker.position = _cell_center(row, col) + Vector2(cell_size * 0.03, cell_size * 0.05)  # v0.02 冰块略右下移(补偿 ob_ice 实体偏左上)
 	marker.scale = _fit_scale(tex, cell_size * BARRIER_FILL)
 	marker.z_index = 8
+	# v0.02: 冰块形状阴影(同棋子: 自身形状染黑×0.85下偏移, 居冰块下层)
+	var sh := Sprite2D.new()
+	sh.name = "shadow"
+	sh.texture = tex
+	sh.z_index = -1
+	sh.scale = Vector2(0.85, 0.85)
+	sh.position = Vector2(0.0, (cell_size * 0.14) / (marker.scale.y if marker.scale.y != 0.0 else 1.0))
+	sh.modulate = Color(0.0, 0.0, 0.0, GEM_SHADOW_ALPHA)
+	marker.add_child(sh)
 	gem_layer.add_child(marker)
 	return marker
 
@@ -848,8 +923,8 @@ func _clear_colorbomb_layers(node: Sprite2D) -> void:
 			child.queue_free()
 
 func _apply_colorbomb_layers(node: Sprite2D) -> void:
+	# v0.02: 彩球用单张星辰球(colorbomb_orb / 5.png), 不再叠 5 层老素材合成。
 	if not _asset_exists(COLORBOMB_CORE):
-		push_warning("Missing colorbomb crystal art: %s" % COLORBOMB_CORE)
 		return
 	var core := _load_texture(COLORBOMB_CORE)
 	if core == null:
@@ -858,11 +933,10 @@ func _apply_colorbomb_layers(node: Sprite2D) -> void:
 	node.offset = Vector2.ZERO
 	node.scale = _fit_scale(core, cell_size * COLORBOMB_FILL)
 	node.z_index = 2
-	var glow := _add_colorbomb_layer(node, "GoldGroundGlow", COLORBOMB_GOLD_GLOW, Vector2(0.0, cell_size * 0.20), 1.25, -2, 0.72)
-	var swirl := _add_colorbomb_layer(node, "CoreInnerSwirl", COLORBOMB_INNER_SWIRL, Vector2.ZERO, 0.96, 1, 0.78)
-	var stars := _add_colorbomb_layer(node, "CoreInnerStars", COLORBOMB_INNER_STARS, Vector2.ZERO, 0.96, 2, 0.88)
-	var ring := _add_colorbomb_layer(node, "CubeRing", COLORBOMB_CUBE_RING, Vector2.ZERO, 1.02, 3, 0.86)
-	_play_colorbomb_idle(node, glow, swirl, stars, ring)
+	# 轻微上下浮动(idle), 不依赖任何子层
+	var bob := node.create_tween().set_loops()
+	bob.tween_property(node, "offset", Vector2(0, -3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	bob.tween_property(node, "offset", Vector2(0, 3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 func _add_colorbomb_layer(parent: Sprite2D, layer_name: String, path: String, offset: Vector2, relative_size: float, z: int, alpha: float) -> Sprite2D:
 	if not _asset_exists(path):
@@ -912,18 +986,15 @@ func _render_chrome(cfg: Dictionary) -> void:
 	_clear_layer(character_layer)
 	_clear_layer(ui_layer)
 	_clear_layer(skill_bar)
-	_render_characters()
+	# v0.02: 设计稿为纯三消, 移除 Boss 对战区(狐狸/Boss/道具书)。score 计分逻辑不受影响。
+	# _render_characters()
 	_render_ui_layer()
 	_render_skillbar()
 
 # 阶段6: ui_layer(顶栏+吊坠绳+目标卡+步数徽章+星级)整层重画。
 # HUD 刷新只动 ui_layer(不重画角色/技能栏/棋盘), 目标进度/步数随每步更新。
 func _render_ui_layer() -> void:
-	_render_topbar(_cur_cfg)
-	_render_title_connector()
-	_render_objective_panel()
-	_render_step_badge()
-	_render_stars()
+	_render_topbar_v2(_cur_cfg)
 
 # 阶段6: 每步 resolve/swap 后刷新 HUD(目标卡进度 + 步数徽章)——只重画 ui_layer。
 func _refresh_hud() -> void:
@@ -949,6 +1020,61 @@ func _framed_panel(layer: CanvasLayer, frame_path: String, center: Vector2, w: f
 	np.patch_margin_top = int(mt)
 	np.patch_margin_bottom = int(mb)
 	layer.add_child(np)
+
+# v0.02: 米黄风格顶部状态栏(banner 横铺 + 绶带关卡号 + 星条 + 双目标 + 圆环头像 + 链/花装饰)。
+# 换皮不动数据: 关卡号=cfg.id, 步数=board.moves_left, 目标=_objectives_view(), 星级=占位(1金2银)。
+func _render_topbar_v2(cfg: Dictionary) -> void:
+	# 1) 顶部挂链: 从屏幕顶端竖直挂到 banner 上方两角(水平链素材旋转90°)
+	var banner_top: float = TB_BANNER_C.y - TB_BANNER_H * 0.5 + 6.0
+	for chx in [TB_BANNER_C.x - TB_BANNER_W * 0.30, TB_BANNER_C.x + TB_BANNER_W * 0.30]:
+		if ResourceLoader.exists(LV_CHAIN):
+			var ch := Sprite2D.new()
+			ch.texture = load(LV_CHAIN)
+			ch.rotation = PI * 0.5
+			var tw: float = float(ch.texture.get_width())
+			var th: float = float(ch.texture.get_height())
+			ch.scale = Vector2(banner_top / tw, 24.0 / th)
+			ch.position = Vector2(chx, banner_top * 0.5)
+			ui_layer.add_child(ch)
+	# 2) banner 底框(9-slice, 含角饰 margin 90/75)
+	_nine(ui_layer, LV_BANNER, TB_BANNER_C, TB_BANNER_W, TB_BANNER_H, 90, 75, 75)
+	# 3) 角花(banner 左右下角, 右侧镜像)
+	var fl_y: float = TB_BANNER_C.y + TB_BANNER_H * 0.5 - 24.0
+	_sprite_w(ui_layer, LV_FLOWER, Vector2(TB_BANNER_C.x - TB_BANNER_W * 0.5 + 70.0, fl_y), TB_FLOWER_W, false)
+	var fr: Sprite2D = _sprite_w(ui_layer, LV_FLOWER, Vector2(TB_BANNER_C.x + TB_BANNER_W * 0.5 - 70.0, fl_y), TB_FLOWER_W, false)
+	if fr != null:
+		fr.scale.x = -absf(fr.scale.x)
+	# 4) flag 绶带 + 关卡号(白字)
+	_sprite_w(ui_layer, LV_FLAG, TB_FLAG_C, TB_FLAG_W, false)
+	_label(ui_layer, "第 %d 关" % int(cfg.get("id", 1)), TB_FLAG_C + Vector2(0, -6), 23, Color(1, 0.97, 0.9), TB_FLAG_W + 24.0, 4, Color(0.45, 0.04, 0.04, 0.9))
+	# 5) 移动步数(banner 左下)
+	_label(ui_layer, "移动步数", TB_STEP_C + Vector2(0, -20), 16, TB_STEP_LABEL_COLOR, 132)
+	var moves: int = board.moves_left if board != null else 0
+	_label(ui_layer, str(maxi(moves, 0)), TB_STEP_C + Vector2(0, 16), 42, TB_STEP_NUM_COLOR, 132, 5, Color(1, 1, 1, 0.55))
+	# 6) pill 星级条: 进度槽(左) + 3 星(右)
+	_nine(ui_layer, LV_PILL, TB_PILL_C, TB_PILL_W, TB_PILL_H, 22, 20, 24)
+	_rounded_bar(ui_layer, Vector2(TB_PILL_C.x - TB_PILL_W * 0.5 + 52.0, TB_PILL_C.y), 64.0, 12.0, 0.35, Color(0.96, 0.72, 0.22), Color(0.42, 0.30, 0.14, 0.55))
+	var star_paths: Array = [LV_STAR_GOLD, LV_STAR_SILVER, LV_STAR_SILVER]
+	var star_cx: float = TB_PILL_C.x + 18.0
+	for i in range(3):
+		_sprite_w(ui_layer, String(star_paths[i]), Vector2(star_cx + float(i) * TB_STAR_GAP, TB_PILL_C.y - 2.0), TB_STAR_W, false)
+	# 7) frame_small 双目标(取前2; icon + 数字)
+	_nine(ui_layer, LV_FRAME_SMALL, TB_FRAME_C, TB_FRAME_W, TB_FRAME_H, 26, 22, 22)
+	var view: Array = _objectives_view()
+	if view.is_empty():
+		view = OBJECTIVES_DEMO
+	var n: int = mini(view.size(), 2)
+	for i in range(n):
+		var item: Dictionary = view[i]
+		var cx: float = TB_FRAME_C.x + (float(i) - float(n - 1) * 0.5) * TB_OBJ_GAP
+		var icon_path: String = String(item.get("icon", ""))
+		_sprite_w(ui_layer, icon_path, Vector2(cx - 16.0, TB_FRAME_C.y), TB_OBJ_ICON_W, icon_path == BARRIER_ICE_ICON)
+		var txt: String = String(item["n"]) if item.has("n") else str(int(item.get("target", 0)))
+		_label(ui_layer, txt, Vector2(cx + 28.0, TB_FRAME_C.y), 26, Color(0.20, 0.12, 0.05), 64)
+	# 8) 圆形头像金环(先画头像, 金环盖外圈; 金环中心透明孔露出头像)
+	_sprite_w(ui_layer, LV_HERO_AVATAR, TB_CIRCLE_C, TB_AVATAR_W, false)
+	_sprite_w(ui_layer, LV_FRAME_CIRCLE, TB_CIRCLE_C, TB_CIRCLE_W, false)
+
 
 func _render_topbar(cfg: Dictionary) -> void:
 	# 暂停按钮（圆徽底 + ❚❚）
@@ -1161,21 +1287,7 @@ func _render_hpbar(center: Vector2, w: float, h: float, ratio: float, text: Stri
 	_label(character_layer, text, center, 26, Color.WHITE, w)
 
 func _render_skillbar() -> void:
-	# 深色托盘
-	var tray := ColorRect.new()
-	tray.color = Color(0.04, 0.02, 0.09, 0.92)
-	tray.size = Vector2(DESIGN_W, DESIGN_H - TRAY_TOP)
-	tray.position = Vector2(0, TRAY_TOP)
-	skill_bar.add_child(tray)
-	# 流光层: 金色柔和光带缓慢横向飘移(背景氛围光), 在托盘之上 / 头像之下
-	var flow := ColorRect.new()
-	flow.name = "FlowLight"
-	flow.size = Vector2(DESIGN_W, DESIGN_H - TRAY_TOP)
-	flow.position = Vector2(0, TRAY_TOP)
-	var fm := ShaderMaterial.new()
-	fm.shader = load(FLOW_SHADER)
-	flow.material = fm
-	skill_bar.add_child(flow)
+	# v0.02: 去掉底部宠物区的背景托盘 + 流光动效(不适合新的天空米黄背景), 仅保留萌宠头像/技能。
 	# 4 技能头像(可点) + 冷却条(接真冷却) + 名字 + 技能名(在流光之上)
 	# 阶段7: 头像改 TextureButton(吃点击触发技能); 冷却条持有填充节点引用, 随 _process 改宽。
 	_skill_btns = []
@@ -1193,7 +1305,7 @@ func _render_skillbar() -> void:
 		var ratio0: float = clampf(_skill_charge[i] / SKILL_CHARGE_REQ, 0.0, 1.0)
 		_cd_bar(i, Vector2(cx, SKILL_CD_Y + 4.0), SKILL_AV_W * 0.56, 18.0, ratio0, gem_col, track_col)
 		_label(skill_bar, str(sk["name"]), Vector2(cx, SKILL_NAME_Y), 22, Color(1, 0.95, 0.8), SKILL_AV_W + 20)
-		_label(skill_bar, str(sk["skill"]), Vector2(cx, SKILL_SKILLNAME_Y), 19, Color(0.85, 0.8, 0.95), SKILL_AV_W + 20)
+		# v0.02: 去掉最下方技能解释文字(sk.skill)
 	_update_skill_cd_visual()  # 同步初始置灰/宽度(重画 ui 后冷却态仍在时保持一致)
 
 # ───────── 阶段7: 技能按钮 / 冷却 / 四技能 ─────────
@@ -2344,6 +2456,13 @@ func _segment_after_slots(col: int, seg_start: int, seg_end: int) -> Array:
 			slots.append(row)
 	return slots
 
+func _ordinary_refill_start_position(row: int, col: int, _spawn_index: int, spawn_count: int) -> Vector2:
+	var travel_cells := maxf(1.5, float(spawn_count) + 0.5)
+	return _cell_center(row, col) - Vector2(0.0, cell_size * travel_cells)
+
+func _ordinary_refill_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
+	return minf(_fall_duration_for_positions(start_pos, target), ORDINARY_REFILL_MAX_TIME)
+
 func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: Array, col: int, seg_start: int, seg_end: int, tween: Tween) -> bool:
 	var moved := false
 	var old_entries := _segment_old_entries(grid_snapshot, old_nodes, col, seg_start, seg_end)
@@ -2358,8 +2477,8 @@ func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: A
 		var node := _replace_gem_node(row, col)
 		new_nodes[row][col] = node
 		if node != null:
-			node.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
-			tween.tween_property(node, "position", center, _fall_duration_for_positions(node.position, center))
+			node.position = _ordinary_refill_start_position(row, col, spawn_i, first_old_slot)
+			tween.tween_property(node, "position", center, _ordinary_refill_duration_for_positions(node.position, center))
 			moved = true
 		spawn_i += 1
 

@@ -294,8 +294,10 @@ func test_level_scene_renders_blockers_as_keyed_barrier_ice_sprites() -> void:
 		var sprite := marker as Sprite2D
 		assert_eq(sprite.texture.resource_path, BARRIER_ICE_SYNCED, "barriers use resources/barrier synced ice art")
 		assert_true(sprite.material is ShaderMaterial, "barriers key out the magenta source background")
+		# ob_ice 实体冰晶仅占贴图~0.69(四周透明边), 放大补偿使可见实体≈cell*0.86 在格内;
+		# 整图(含透明边)尺寸=cell*1.26, 故阈值按实体0.90对应的整图(0.90/0.686≈1.31)放宽。
 		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
-		assert_true(drawn_size.x <= level.cell_size * 0.90 and drawn_size.y <= level.cell_size * 0.90, "barrier art stays inside one board cell")
+		assert_true(drawn_size.x <= level.cell_size * 1.31 and drawn_size.y <= level.cell_size * 1.31, "barrier visible art stays inside one board cell")
 	level.free()
 
 

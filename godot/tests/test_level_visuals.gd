@@ -477,6 +477,39 @@ func test_ordinary_long_falls_keep_per_cell_pacing() -> void:
 	level.free()
 
 
+func test_ordinary_refill_nodes_start_above_board() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_ordinary_refill_start_position"), "Level exposes ordinary refill start calculation")
+	if not level.has_method("_ordinary_refill_start_position"):
+		level.free()
+		return
+	level.board = Board.new(5, 8, [0, 1, 2], 0, 25, 1)
+	level.board_origin = Vector2(90, 420)
+	level.cell_size = 70.0
+	var spawn_count := 8
+	var deep_target_start: Vector2 = level.call("_ordinary_refill_start_position", 6, 2, 1, spawn_count)
+	var next_spawn_start: Vector2 = level.call("_ordinary_refill_start_position", 5, 2, 2, spawn_count)
+	var top_target_start: Vector2 = level.call("_ordinary_refill_start_position", 0, 2, 7, spawn_count)
+	var deep_target: Vector2 = level.call("_cell_center", 6, 2)
+	var top_target: Vector2 = level.call("_cell_center", 0, 2)
+	assert_true(level.has_method("_ordinary_refill_duration_for_positions"), "Level exposes ordinary refill duration calculation")
+	assert_true(deep_target_start.y < level.board_origin.y, "deep ordinary refill must enter from above the board, not appear inside a lower hole")
+	assert_true(next_spawn_start.y < deep_target_start.y, "later spawned refill nodes stay stacked above earlier ones")
+	assert_eq(deep_target_start.x, level.call("_cell_center", 0, 2).x, "ordinary refill starts in the target column")
+	assert_true(absf((deep_target.y - deep_target_start.y) - (top_target.y - top_target_start.y)) < 0.01, "ordinary refill stack keeps equal travel distance so it falls as a column, not top-to-bottom paint")
+	if level.has_method("_ordinary_refill_duration_for_positions"):
+		var refill_duration: float = level.call("_ordinary_refill_duration_for_positions", deep_target_start, deep_target)
+		assert_true(refill_duration <= 0.50, "full-column refill stays snappy even though all nodes travel the same visual distance")
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f != null:
+		var src: String = f.get_as_text()
+		assert_true(src.contains("node.position = _ordinary_refill_start_position(row, col, spawn_i, first_old_slot)"), "ordinary collapse uses the above-board refill stack start position")
+		assert_true(src.contains("_ordinary_refill_duration_for_positions(node.position, center)"), "ordinary collapse uses the capped refill duration")
+	level.free()
+
+
 func test_fall_durations_scale_with_each_cell_step() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
