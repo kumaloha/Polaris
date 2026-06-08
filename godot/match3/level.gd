@@ -2531,7 +2531,9 @@ func _wall_refill_start_position(row: int, col: int, source_map: Array = []) -> 
 	var source_col := _wall_slide_spawn_source_col(source_map, row, col)
 	if source_col < 0:
 		source_col = col
-	return _cell_center(0, source_col) - Vector2(0.0, cell_size * float(row + 1.5))
+		return _cell_center(0, source_col) - Vector2(0.0, cell_size * float(row + 1.5))
+	var travel_cells := _wall_slide_spawn_travel_cells(source_map, source_col)
+	return _cell_center(row, source_col) - Vector2(0.0, cell_size * travel_cells)
 
 func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int) -> bool:
 	if row <= 0 or grid_data.is_empty() or col < 0 or col >= grid_data[0].size():
@@ -2625,12 +2627,17 @@ func _wall_slide_duration_for_points(points: Array) -> float:
 	var steps := maxf(1.0, float(points.size()))
 	return minf(FALL_TIME + maxf(0.0, steps - 1.0) * WALL_SLIDE_STEP_TIME, WALL_SLIDE_MAX_TIME)
 
-func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = []) -> float:
+func _wall_slide_duration_for_target(points: Array, duration_override: float = -1.0) -> float:
+	if duration_override > 0.0:
+		return duration_override
+	return _wall_slide_duration_for_points(points)
+
+func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = [], duration_override: float = -1.0) -> float:
 	if node == null or not is_instance_valid(node) or node.position == target:
 		return 0.0
 	var start_pos := node.position
 	var points := _wall_slide_cell_path_points(start_pos, cell_path, target)
-	var total_time: float = _wall_slide_duration_for_points(points)
+	var total_time: float = _wall_slide_duration_for_target(points, duration_override)
 	if total_time <= 0.0:
 		return 0.0
 	var t := create_tween()
@@ -2828,12 +2835,40 @@ func _wall_slide_spawn_source_col(source_map: Array, row: int, col: int) -> int:
 		return -1
 	return source.x
 
+func _wall_slide_spawn_travel_cells(source_map: Array, source_col: int) -> float:
+	if source_col < 0:
+		return 1.5
+	var spawn_count := 0
+	var deepest_row := -1
+	for row in range(source_map.size()):
+		if not (source_map[row] is Array):
+			continue
+		var source_row: Array = source_map[row]
+		for col in range(source_row.size()):
+			var source: Vector2i = source_row[col]
+			if source.y == -2 and source.x == source_col:
+				spawn_count += 1
+				deepest_row = maxi(deepest_row, row)
+	if spawn_count <= 0:
+		return 1.5
+	return maxf(float(spawn_count) + 0.5, float(deepest_row) + 1.5)
+
+func _wall_slide_target_refill_cap(source_map: Array, row: int, col: int) -> float:
+	if _wall_slide_spawn_source_col(source_map, row, col) >= 0:
+		return ORDINARY_REFILL_MAX_TIME
+	return -1.0
+
 func _wall_slide_target_path(path_map: Array, row: int, col: int) -> Array:
 	if path_map.is_empty() or row < 0 or row >= path_map.size():
 		return []
 	if col < 0 or col >= path_map[row].size():
 		return []
 	return path_map[row][col]
+
+func _wall_slide_target_visual_path(source_map: Array, path_map: Array, row: int, col: int) -> Array:
+	if _wall_slide_spawn_source_col(source_map, row, col) >= 0:
+		return []
+	return _wall_slide_target_path(path_map, row, col)
 
 func _wall_slide_visual_start_position(source_map: Array, path_map: Array, row: int, col: int) -> Vector2:
 	if not source_map.is_empty() and row >= 0 and row < source_map.size() and col >= 0 and col < source_map[row].size():
@@ -2882,7 +2917,9 @@ func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
 			new_nodes[row][col] = node
 			if node != null and is_instance_valid(node):
 				var target := _cell_center(row, col)
-				var node_time := _tween_wall_slide_node(node, target, _wall_slide_target_path(path_map, row, col))
+				var refill_cap := _wall_slide_target_refill_cap(source_map, row, col)
+				var visual_path := _wall_slide_target_visual_path(source_map, path_map, row, col)
+				var node_time := _tween_wall_slide_node(node, target, visual_path, refill_cap)
 				if node_time > move_time:
 					move_time = node_time
 	_free_unused_wall_slide_sources(old_nodes, used)

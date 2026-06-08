@@ -615,6 +615,126 @@ func test_level_wall_refill_start_uses_spawn_source_map() -> void:
 	assert_false(sync_body.contains("_wall_refill_start_position(row, col, allow_cross_column)"), "wall-slide visual refill must not guess the start column from allow_cross_column alone")
 
 
+func test_wall_refill_spawn_stack_falls_from_top_together() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_wall_refill_start_position"), "Level exposes wall refill start calculation")
+	if not level.has_method("_wall_refill_start_position"):
+		level.free()
+		return
+	level.board = Board.new(3, 7, [0, 1, 2], 0, 25, 1)
+	level.board_origin = Vector2(90, 420)
+	level.cell_size = 70.0
+	var N := Vector2i(-1, -1)
+	var source_map := [
+		[N, Vector2i(1, -2), N],
+		[N, N, N],
+		[N, N, N],
+		[N, N, N],
+		[N, N, N],
+		[N, N, N],
+		[N, Vector2i(1, -2), N],
+	]
+	var top_start: Vector2 = level.call("_wall_refill_start_position", 0, 1, source_map)
+	var deep_start: Vector2 = level.call("_wall_refill_start_position", 6, 1, source_map)
+	var top_target: Vector2 = level.call("_cell_center", 0, 1)
+	var deep_target: Vector2 = level.call("_cell_center", 6, 1)
+	assert_true(top_start.y < level.board_origin.y, "top spawned wall refill enters from above the board")
+	assert_true(deep_start.y < level.board_origin.y, "deep spawned wall refill must still enter from above the board, not pop in near the hole")
+	assert_true(absf((deep_target.y - deep_start.y) - (top_target.y - top_start.y)) < 0.01, "wall-slide refill keeps equal travel distance so vertical clears fall as a stack, not a top-to-bottom paint")
+	level.free()
+
+
+func test_wall_refill_spawned_targets_use_snappy_refill_cap() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_wall_slide_target_refill_cap"), "Level exposes spawned wall-refill duration capping")
+	if not level.has_method("_wall_slide_target_refill_cap"):
+		level.free()
+		return
+	var N := Vector2i(-1, -1)
+	var source_map := [
+		[N, Vector2i(1, -2), N],
+		[N, Vector2i(1, 0), N],
+	]
+	var spawned_cap: float = level.call("_wall_slide_target_refill_cap", source_map, 0, 1)
+	var old_node_cap: float = level.call("_wall_slide_target_refill_cap", source_map, 1, 1)
+	assert_true(spawned_cap > 0.0 and spawned_cap <= 0.50, "spawned wall refill uses the same snappy cap as ordinary refill")
+	assert_true(old_node_cap < 0.0, "existing wall-slide nodes keep per-step timing instead of refill capping")
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f != null:
+		var src: String = f.get_as_text()
+		var sync_start: int = src.find("func _sync_wall_slide_visuals")
+		var sync_end: int = src.find("func _collapse_and_refill", sync_start)
+		assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
+		if sync_start >= 0 and sync_end > sync_start:
+			var sync_body: String = src.substr(sync_start, sync_end - sync_start)
+			assert_true(sync_body.contains("var refill_cap := _wall_slide_target_refill_cap(source_map, row, col)"), "wall-slide visual sync calculates a per-target refill cap")
+			assert_true(sync_body.contains("_tween_wall_slide_node(node, target, visual_path, refill_cap)"), "spawned wall-slide refills pass the cap into tween timing")
+	level.free()
+
+
+func test_wall_refill_spawned_targets_do_not_replay_top_to_bottom_path() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_wall_slide_target_visual_path"), "Level can choose a visual path per wall-slide target")
+	if not level.has_method("_wall_slide_target_visual_path"):
+		level.free()
+		return
+	var N := Vector2i(-1, -1)
+	var source_map := [
+		[N, Vector2i(1, -2), N],
+		[N, Vector2i(1, 0), N],
+	]
+	var spawned_route := [Vector2i(1, 0), Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3)]
+	var old_route := [Vector2i(1, 0), Vector2i(1, 1)]
+	var path_map := [
+		[[], spawned_route, []],
+		[[], old_route, []],
+	]
+	assert_eq(level.call("_wall_slide_target_visual_path", source_map, path_map, 0, 1), [], "spawned refill uses a continuous fall path instead of replaying row0-to-rowN visual steps")
+	assert_eq(level.call("_wall_slide_target_visual_path", source_map, path_map, 1, 1), old_route, "old wall-slide pieces still replay the recorded gravity route")
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f != null:
+		var src: String = f.get_as_text()
+		var sync_start: int = src.find("func _sync_wall_slide_visuals")
+		var sync_end: int = src.find("func _collapse_and_refill", sync_start)
+		assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
+		if sync_start >= 0 and sync_end > sync_start:
+			var sync_body: String = src.substr(sync_start, sync_end - sync_start)
+			assert_true(sync_body.contains("var visual_path := _wall_slide_target_visual_path(source_map, path_map, row, col)"), "wall-slide sync asks the target whether recorded path replay is appropriate")
+			assert_true(sync_body.contains("_tween_wall_slide_node(node, target, visual_path, refill_cap)"), "wall-slide sync tweens spawned refills without replaying the top-to-bottom route")
+	level.free()
+
+
+func test_wall_refill_spawned_targets_use_same_duration_for_short_and_long_paths() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_wall_slide_duration_for_target"), "Level can force a shared duration for spawned refill targets")
+	if not level.has_method("_wall_slide_duration_for_target"):
+		level.free()
+		return
+	level.board = Board.new(3, 7, [0, 1, 2], 0, 25, 1)
+	level.board_origin = Vector2(90, 420)
+	level.cell_size = 70.0
+	var top_start := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y - 7.0 * level.cell_size)
+	var top_target: Vector2 = level.call("_cell_center", 0, 1)
+	var deep_start := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y - 1.0 * level.cell_size)
+	var deep_target: Vector2 = level.call("_cell_center", 6, 1)
+	var top_points: Array = level.call("_wall_slide_path_points", top_start, top_target)
+	var deep_points: Array = level.call("_wall_slide_path_points", deep_start, deep_target)
+	var top_uncapped: float = level.call("_wall_slide_duration_for_points", top_points)
+	var deep_uncapped: float = level.call("_wall_slide_duration_for_points", deep_points)
+	assert_true(top_uncapped < deep_uncapped, "short top refill paths would otherwise arrive before deep refill paths")
+	var top_forced: float = level.call("_wall_slide_duration_for_target", top_points, 0.46)
+	var deep_forced: float = level.call("_wall_slide_duration_for_target", deep_points, 0.46)
+	assert_eq(top_forced, deep_forced, "spawned refill targets share one duration so upper cells do not settle before lower cells")
+	assert_eq(top_forced, 0.46, "shared spawned-refill duration uses the configured snappy refill time")
+	level.free()
+
+
 func test_level_finish_consumed_move_does_not_full_rerender() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
