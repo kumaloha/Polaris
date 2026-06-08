@@ -3,6 +3,7 @@ extends SceneTree
 #   godot --path godot -s res://tools/_shot_v02.gd -- --level 28
 # 等开局动画落定后截屏存 res://_shot_v02.png。
 
+const ME := preload("res://core/match_engine.gd")
 var _frames := 0
 var _node: Node
 
