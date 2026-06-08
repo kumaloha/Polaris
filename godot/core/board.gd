@@ -216,7 +216,7 @@ func _blank_fx() -> Array:
 func _layers() -> Dictionary:
 	return {
 		"jelly": jelly, "coat": coat, "choco": choco, "ing": ing,
-		"bomb": bomb, "popcorn": popcorn, "cake": cake, "mystery": mystery,
+		"bomb": bomb, "cannon": cannon, "popcorn": popcorn, "cake": cake, "mystery": mystery,
 		"exit_cols": exit_cols,
 	}
 

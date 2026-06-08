@@ -50,6 +50,13 @@ const BG_TEXTURE := "res://assets/ui/bg_scene.png"
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
 const BARRIER_FILL := 0.86
+const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
+const JELLY_MARKER_NAME := "JellyGoalSprite"
+const JELLY_FILL := 0.94
+const JELLY_TINT := Color(0.46, 0.82, 1.0, 0.26)
+const WALL_STONE_ICON := "res://assets/obstacles/ob_stone.png"
+const WALL_MARKER_NAME := "WallStoneSprite"
+const WALL_FILL := 0.90
 # UI 素材
 const PANEL_BEIGE := "res://assets/ui/ui_panel_beige.png"
 const PANEL_DARK := "res://assets/ui/ui_panel_dark.png"
@@ -84,12 +91,22 @@ const DESIGN_W := 720.0
 const DESIGN_H := 1520.0
 const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.16
-const FALL_TIME := 0.22
+const CLEAR_POP_TIME := 0.06
+const CLEAR_POP_SCALE := 1.22
+const CLEAR_FX_BATCH_SIZE := 8
+const COLORBOMB_ABSORB_TARGET_BUDGET := 18
+const COLORBOMB_FINE_CLEAR_BUDGET := 12
+const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
+const FALL_TIME := 0.20
+const FALL_EXTRA_CELL_TIME := 0.075
+const WALL_SLIDE_STEP_TIME := 0.065
+const WALL_SLIDE_MAX_TIME := 0.85
 const ELIM_HOLD := 0.20  # 消除后停顿(等魔法特效炸裂完)再下落
 const OPENING_DROP_TIME := 0.56
 const OPENING_DROP_ROW_STAGGER := 0.045
 const OPENING_FREEZE_STAGGER := 0.035
 const OPENING_FREEZE_SETTLE := 0.24
+const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
 const OPENING_FREEZE_COLOR := Color(0.45, 0.78, 1.0)
 const ENDGAME_BONUS_CONVERT_STEP := 0.08
 const ENDGAME_BONUS_CONVERT_HOLD := 0.70
@@ -194,7 +211,9 @@ var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]);
 var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
 var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
 var _gem_nodes: Array = []
+var _jelly_nodes: Array = []
 var _coat_nodes: Array = []
+var _wall_nodes: Array = []
 var _sel := Vector2i(-1, -1)
 var _sel_node: Sprite2D = null  # 当前选中的棋子节点(放大提亮置顶)
 var _sel_node_scale := Vector2.ONE
@@ -476,7 +495,9 @@ func _frame_corner(center: Vector2) -> void:
 func _render_board(opening_drop: bool = false) -> void:
 	_clear_layer(board_layer)
 	_clear_layer(gem_layer)
+	_jelly_nodes = []
 	_coat_nodes = []
+	_wall_nodes = []
 	_render_board_panel()
 	_gem_nodes = []
 	var cell_tex: Texture2D = load(CELL_TEXTURE) if ResourceLoader.exists(CELL_TEXTURE) else null
@@ -499,6 +520,11 @@ func _render_board(opening_drop: bool = false) -> void:
 				_apply_fx_overlay(gnode, board.fx[r][c])
 			node_row.append(gnode)
 		_gem_nodes.append(node_row)
+	_render_jelly_visuals()
+	if opening_drop:
+		_wall_nodes = _blank_visual_rows()
+	else:
+		_render_wall_visuals()
 	if opening_drop:
 		_coat_nodes = _blank_visual_rows()
 	else:
@@ -518,7 +544,9 @@ func _opening_visual_species(row: int, col: int) -> int:
 	var sp: int = board.grid[row][col]
 	if sp >= 0:
 		return sp
-	if _layer_value(board.coat, row, col) <= 0 or board.species.is_empty():
+	if board.species.is_empty():
+		return sp
+	if sp != ME.WALL and _layer_value(board.coat, row, col) <= 0:
 		return sp
 	return int(board.species[abs(row * 31 + col * 17) % board.species.size()])
 
@@ -537,6 +565,14 @@ func _opening_coat_cells() -> Array:
 				cells.append(Vector2i(c, r))
 	return cells
 
+func _opening_wall_cells() -> Array:
+	var cells := []
+	for r in range(board.height):
+		for c in range(board.width):
+			if board.grid[r][c] == ME.WALL:
+				cells.append(Vector2i(c, r))
+	return cells
+
 func _settle_opening_gems(generation: int) -> bool:
 	if generation != _level_generation:
 		return false
@@ -546,6 +582,24 @@ func _settle_opening_gems(generation: int) -> bool:
 			if n != null and is_instance_valid(n):
 				n.position = _cell_center(r, c)
 	return true
+
+func _show_opening_wall_marker(pos: Vector2i, animate: bool) -> void:
+	_clear_gem_node_at(pos.y, pos.x)
+	if _wall_nodes.is_empty():
+		_wall_nodes = _blank_visual_rows()
+	var tex := _load_texture(WALL_STONE_ICON) if _asset_exists(WALL_STONE_ICON) else null
+	if tex == null:
+		return
+	var marker := _make_wall_marker(pos.y, pos.x, tex)
+	_wall_nodes[pos.y][pos.x] = marker
+	if marker == null or not animate or not is_inside_tree():
+		return
+	var base_scale: Vector2 = marker.scale
+	marker.modulate.a = 0.0
+	marker.scale = base_scale * 0.55
+	var t := create_tween().set_parallel(true)
+	t.tween_property(marker, "modulate:a", 1.0, 0.16)
+	t.tween_property(marker, "scale", base_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _show_opening_coat_marker(pos: Vector2i, animate: bool) -> void:
 	_clear_gem_node_at(pos.y, pos.x)
@@ -566,9 +620,16 @@ func _show_opening_coat_marker(pos: Vector2i, animate: bool) -> void:
 	t.tween_property(marker, "scale", base_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _play_opening_freeze(generation: int) -> void:
+	var wall_cells: Array = _opening_wall_cells()
 	var cells: Array = _opening_coat_cells()
-	if cells.is_empty() or generation != _level_generation:
+	if (wall_cells.is_empty() and cells.is_empty()) or generation != _level_generation:
 		return
+	for p in wall_cells:
+		if generation != _level_generation:
+			return
+		Fx.spawn_beam(BOSS_C, _cell_center(p.y, p.x), OPENING_STONE_COLOR)
+		_show_opening_wall_marker(p, true)
+		await get_tree().create_timer(OPENING_FREEZE_STAGGER).timeout
 	for p in cells:
 		if generation != _level_generation:
 			return
@@ -580,6 +641,8 @@ func _play_opening_freeze(generation: int) -> void:
 func _apply_opening_freeze_instant(generation: int) -> void:
 	if generation != _level_generation:
 		return
+	for p in _opening_wall_cells():
+		_show_opening_wall_marker(p, false)
 	for p in _opening_coat_cells():
 		_show_opening_coat_marker(p, false)
 
@@ -659,6 +722,64 @@ func _free_layer_visual_rows(rows: Array) -> void:
 func _refresh_coat_visuals() -> void:
 	_free_layer_visual_rows(_coat_nodes)
 	_render_coat_visuals()
+
+func _refresh_jelly_visuals() -> void:
+	_free_layer_visual_rows(_jelly_nodes)
+	_render_jelly_visuals()
+
+func _refresh_wall_visuals() -> void:
+	_free_layer_visual_rows(_wall_nodes)
+	_render_wall_visuals()
+
+func _render_jelly_visuals() -> void:
+	_jelly_nodes = []
+	if board == null or board_layer == null:
+		return
+	for r in range(board.height):
+		var row: Array = []
+		for c in range(board.width):
+			row.append(_make_jelly_marker(r, c))
+		_jelly_nodes.append(row)
+
+func _make_jelly_marker(row: int, col: int) -> ColorRect:
+	if _layer_value(board.jelly, row, col) <= 0 or board.grid[row][col] == ME.WALL:
+		return null
+	var marker := ColorRect.new()
+	marker.name = JELLY_MARKER_NAME
+	marker.add_to_group(JELLY_MARKER_NAME)
+	var size := Vector2(cell_size * JELLY_FILL, cell_size * JELLY_FILL)
+	marker.position = _cell_center(row, col) - size * 0.5
+	marker.size = size
+	marker.color = JELLY_TINT
+	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker.z_index = 1
+	board_layer.add_child(marker)
+	return marker
+
+func _render_wall_visuals() -> void:
+	_wall_nodes = []
+	if board == null or gem_layer == null:
+		return
+	var tex := _load_texture(WALL_STONE_ICON) if _asset_exists(WALL_STONE_ICON) else null
+	for r in range(board.height):
+		var row: Array = []
+		for c in range(board.width):
+			row.append(_make_wall_marker(r, c, tex))
+		_wall_nodes.append(row)
+
+func _make_wall_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
+	if board.grid[row][col] != ME.WALL or tex == null:
+		return null
+	var marker := Sprite2D.new()
+	marker.name = WALL_MARKER_NAME
+	marker.add_to_group(WALL_MARKER_NAME)
+	marker.texture = tex
+	marker.material = _magenta_material()
+	marker.position = _cell_center(row, col)
+	marker.scale = _fit_scale(tex, cell_size * WALL_FILL)
+	marker.z_index = 5
+	gem_layer.add_child(marker)
+	return marker
 
 func _render_coat_visuals() -> void:
 	_coat_nodes = []
@@ -926,7 +1047,7 @@ func _objective_label(t: String) -> String:
 		"COLLECT":
 			return "收集"
 		"CLEAR_JELLY":
-			return "果冻"
+			return "清果冻"
 		"CLEAR_BLOCKER":
 			return "涂层"
 		"CLEAR_CHOCO":
@@ -950,6 +1071,10 @@ func _objectives_view() -> Array:
 	var out: Array = []
 	if board == null or board.objectives == null:
 		return out
+	if board.objectives.is_empty():
+		if board.target_score > 0:
+			out.append({"icon": STAR_GOLD, "label": _objective_label("SCORE"), "progress": mini(board.score, board.target_score), "target": board.target_score})
+		return out
 	for o in board.objectives:
 		var t: String = String(o.get("type", ""))
 		var sp: int = int(o.get("species", -1))
@@ -962,6 +1087,8 @@ func _objectives_view() -> Array:
 					icon = GEM_TEXTURES[sp]
 				progress = int(board.collected.get(sp, 0))
 			"CLEAR_JELLY":
+				if ResourceLoader.exists(JELLY_GOAL_ICON):
+					icon = JELLY_GOAL_ICON
 				progress = board.jelly_cleared
 			"CLEAR_BLOCKER":
 				if ResourceLoader.exists(BARRIER_ICE_ICON):
@@ -1327,6 +1454,7 @@ func _play_endgame_bonus() -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
+	_refresh_jelly_visuals()
 	_refresh_coat_visuals()
 	var locked := {}
 	for p in acc.get("locked", []):
@@ -1651,6 +1779,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
+	_refresh_jelly_visuals()
 	_refresh_coat_visuals()
 	_charge_skills(acc.get("by_species", {}))
 	var locked := {}
@@ -1667,23 +1796,34 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	await _play_colorbomb_absorb_preview(cb_pos, cells)
 	if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
 		await _show_colorbomb_virtual_conversion(virtual_fx)
-	var fine_budget: int = 36   # 精细特效上限(超出只清不放, 防卡顿)
+	var fine_budget: int = COLORBOMB_FINE_CLEAR_BUDGET
+	var fx_batch_count := 0
 	for p in cells:
 		if p == cb_pos:
 			continue
+		var spawned_fx := false
 		var fk: int = board.fx[p.y][p.x]
 		var vk: int = int(virtual_fx.get(p, ME.SP_NONE))
 		if vk != ME.SP_NONE:
 			_play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
+			spawned_fx = true
 		elif fk != ME.SP_NONE:
 			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
+			spawned_fx = true
 		elif visual_species.has(p):
 			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
+			spawned_fx = true
 		elif fine_budget > 0:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
 				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
 				fine_budget -= 1
+				spawned_fx = true
+		if spawned_fx:
+			fx_batch_count += 1
+			if fx_batch_count >= COLORBOMB_CLEAR_FX_BATCH_SIZE:
+				fx_batch_count = 0
+				await get_tree().process_frame
 	await get_tree().create_timer(0.30).timeout   # 让爆发可见
 	# 清除: 只清 account_clears 过滤后的格，锁住/原料/巧克力/爆米花/神秘糖仅破层或揭开。
 	ME._apply_clears(board.grid, board.fx, to_clear, [])
@@ -1712,7 +1852,7 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array) -> void:
 	targets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return _cell_center(a.y, a.x).distance_squared_to(end_pos) < _cell_center(b.y, b.x).distance_squared_to(end_pos)
 	)
-	var budget: int = mini(targets.size(), 30)
+	var budget: int = mini(targets.size(), COLORBOMB_ABSORB_TARGET_BUDGET)
 	var max_arrival := 0.0
 	for i in range(budget):
 		var p: Vector2i = targets[i]
@@ -1824,6 +1964,7 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
+	_refresh_jelly_visuals()
 	_refresh_coat_visuals()
 	_charge_skills(acc.get("by_species", {}))
 	var locked := {}
@@ -1867,7 +2008,12 @@ func _play_fusion_fx_after_swap(a: Vector2i, b: Vector2i, ka: int, kb: int) -> v
 	elif a_line and b_bomb:
 		_play_wide_line_fx(a_after, ka, _fx_color(board.grid[a_after.y][a_after.x]))
 	elif a_bomb and b_bomb:
-		Fx.spawn_local_burst(_cell_center(a_after.y, a_after.x), _fx_color(board.grid[a_after.y][a_after.x]), cell_size * 2.5, 25)
+		_play_double_bomb_fusion_fx(a_after, b_after)
+
+
+func _play_double_bomb_fusion_fx(a_after: Vector2i, b_after: Vector2i) -> void:
+	Fx.spawn_local_burst(_cell_center(a_after.y, a_after.x), _fx_color(board.grid[a_after.y][a_after.x]), cell_size * 2.5, 25)
+	Fx.spawn_local_burst(_cell_center(b_after.y, b_after.x), _fx_color(board.grid[b_after.y][b_after.x]), cell_size * 2.5, 25)
 
 
 func _play_wide_line_fx(pos: Vector2i, kind: int, col: Color) -> void:
@@ -1949,6 +2095,7 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictiona
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
 		step_choco += int(acc.get("choco_cleared", 0))
+		_refresh_jelly_visuals()
 		_refresh_coat_visuals()                       # 同步已破冰锁, 避免数据清了画面还在
 		_charge_skills(acc.get("by_species", {}))      # 问题1: 消对应色宝石→技能充能
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
@@ -1986,28 +2133,40 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1)) -> Dictiona
 func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary) -> void:
 	# 行/列横扫、十字星爆炸：路径棋子碎成触发特效的原色粒子，避免按各格颜色炸成彩虹。
 	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, to_clear, spawn_set)
-	var t := create_tween().set_parallel(true)
 	var any := false
+	var spawned_fx_count := 0
 	for p in to_clear:
 		var fx_kind: int = board.fx[p.y][p.x]
+		var spawned_fx := false
 		# 被卷入消除的【已存在】特效棋子(它不在本级 spawn_set): 放对应 Fx 表现
 		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
 			_play_special_fx(p, fx_kind)
+			spawned_fx = true
 		else:
 			var sp: int = board.grid[p.y][p.x]
 			if sp >= 0 and sp < GEM_KEYS.size():
 				if visual_species.has(p):
 					# 横竖横扫/十字星: 不叠加三帧, 路径棋子碎成触发特效的纯色粒子
 					Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
+					spawned_fx = true
 				else:
 					# 普通消除: 染色后的三帧基础爆炸特效(蓄力→炸裂→消散)
 					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
+					spawned_fx = true
+		if spawned_fx:
+			spawned_fx_count += 1
+			if spawned_fx_count >= CLEAR_FX_BATCH_SIZE and is_inside_tree():
+				spawned_fx_count = 0
+				await get_tree().process_frame
 		# spawn 格不淡出(它要变特效棋子, 留住节点); 非 spawn 格缩放淡出
 		if not spawn_set.has(p):
 			var n: Sprite2D = _gem_nodes[p.y][p.x]
 			if n != null and is_instance_valid(n):
-				t.tween_property(n, "scale", n.scale * 0.1, CLEAR_TIME)
-				t.tween_property(n, "modulate:a", 0.0, CLEAR_TIME)
+				var base_scale: Vector2 = n.scale
+				var pop := create_tween()
+				pop.tween_property(n, "scale", base_scale * CLEAR_POP_SCALE, CLEAR_POP_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+				pop.tween_property(n, "scale", base_scale * 0.1, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+				pop.parallel().tween_property(n, "modulate:a", 0.0, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 				any = true
 	# (按需移除消除震动)
 	if any:
@@ -2072,6 +2231,30 @@ func _reuse_or_replace_gem_node(row: int, col: int, node: Sprite2D) -> Sprite2D:
 	_apply_fx_overlay(node, board.fx[row][col])
 	return node
 
+func _repair_missing_gem_nodes_from_board() -> void:
+	if board == null or _gem_nodes.size() != board.height:
+		return
+	for row in range(board.height):
+		if not (_gem_nodes[row] is Array) or _gem_nodes[row].size() != board.width:
+			return
+	for row in range(board.height):
+		for col in range(board.width):
+			var sp: int = board.grid[row][col]
+			var node: Sprite2D = _gem_nodes[row][col]
+			if sp < 0:
+				if node != null and is_instance_valid(node):
+					node.queue_free()
+				_gem_nodes[row][col] = null
+				continue
+			if node == null or not is_instance_valid(node):
+				_gem_nodes[row][col] = _replace_gem_node(row, col)
+				continue
+			if not _node_matches_species(node, sp):
+				_gem_nodes[row][col] = _replace_gem_node(row, col, node)
+				continue
+			node.modulate.a = 1.0
+			_apply_fx_overlay(node, board.fx[row][col])
+
 func _sync_changed_visuals_to_board() -> void:
 	if board == null:
 		return
@@ -2084,15 +2267,56 @@ func _sync_changed_visuals_to_board() -> void:
 			return
 		for col in range(board.width):
 			_gem_nodes[row][col] = _reuse_or_replace_gem_node(row, col, _gem_nodes[row][col])
+	_repair_missing_gem_nodes_from_board()
+	_refresh_wall_visuals()
+	_refresh_jelly_visuals()
 	_refresh_coat_visuals()
+
+func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) -> void:
+	if board == null:
+		return
+	if before_grid.is_empty() or old_nodes.is_empty():
+		_sync_changed_visuals_to_board()
+		return
+	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
+		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
+		_repair_missing_gem_nodes_from_board()
+		_refresh_wall_visuals()
+		_refresh_jelly_visuals()
+		_refresh_coat_visuals()
+		if wall_slide_time > 0.0:
+			await get_tree().create_timer(wall_slide_time).timeout
+		return
+	var new_nodes: Array = _blank_visual_rows()
+	var t := create_tween().set_parallel(true)
+	var moved := false
+	for col in range(board.width):
+		var seg_end: int = board.height - 1
+		for row in range(board.height - 1, -2, -1):
+			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
+				continue
+			if row + 1 <= seg_end:
+				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved
+			if row >= 0:
+				_sync_fixed_cell_visual(row, col, old_nodes, new_nodes)
+			seg_end = row - 1
+	_gem_nodes = new_nodes
+	_repair_missing_gem_nodes_from_board()
+	_refresh_wall_visuals()
+	_refresh_jelly_visuals()
+	_refresh_coat_visuals()
+	if moved:
+		await t.finished
 
 func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 	var before_grid: Array = board.grid.duplicate(true)
 	var before_fx: Array = board.fx.duplicate(true)
+	var old_nodes: Array = _gem_nodes.duplicate(true)
 	board._settle_consumed_move(step_choco, cascades)
 	if before_grid != board.grid or before_fx != board.fx:
-		_sync_changed_visuals_to_board()
+		await _animate_board_changes_from_snapshot(before_grid, old_nodes)
 	else:
+		_refresh_jelly_visuals()
 		_refresh_coat_visuals()
 	_refresh_hud()
 	_check_settlement()
@@ -2100,6 +2324,8 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 		await get_tree().process_frame
 
 func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
+	if row < 0 or row >= grid_snapshot.size() or col < 0 or col >= grid_snapshot[row].size():
+		return false
 	return grid_snapshot[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
 
 func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_start: int, seg_end: int) -> Array:
@@ -2133,7 +2359,7 @@ func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: A
 		new_nodes[row][col] = node
 		if node != null:
 			node.position = center - Vector2(0, float(spawn_i + 1) * cell_size)
-			tween.tween_property(node, "position", center, FALL_TIME)
+			tween.tween_property(node, "position", center, _fall_duration_for_positions(node.position, center))
 			moved = true
 		spawn_i += 1
 
@@ -2150,7 +2376,7 @@ func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: A
 		if node != null and is_instance_valid(node):
 			var target := _cell_center(row, col)
 			if node.position != target:
-				tween.tween_property(node, "position", target, FALL_TIME)
+				tween.tween_property(node, "position", target, _fall_duration_for_positions(node.position, target))
 				moved = true
 
 	for idx in range(old_count, old_entries.size()):
@@ -2163,6 +2389,387 @@ func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Ar
 	var old_node: Sprite2D = old_nodes[row][col]
 	new_nodes[row][col] = _reuse_or_replace_gem_node(row, col, old_node)
 
+func _fall_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
+	var size := maxf(1.0, cell_size)
+	var cells := maxf(1.0, start_pos.distance_to(target) / size)
+	return FALL_TIME + maxf(0.0, cells - 1.0) * FALL_EXTRA_CELL_TIME
+
+func _grid_has_wall(grid_data: Array) -> bool:
+	for row in grid_data:
+		for value in row:
+			if int(value) == ME.WALL:
+				return true
+	return false
+
+func _grid_has_fall_obstacle(grid_data: Array) -> bool:
+	for row in range(grid_data.size()):
+		for col in range(grid_data[row].size()):
+			if _fall_barrier_in_grid(grid_data, row, col):
+				return true
+	return false
+
+func _wall_refill_start_position(row: int, col: int, source_map: Array = []) -> Vector2:
+	var source_col := _wall_slide_spawn_source_col(source_map, row, col)
+	if source_col < 0:
+		source_col = col
+	return _cell_center(0, source_col) - Vector2(0.0, cell_size * float(row + 1.5))
+
+func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int) -> bool:
+	if row <= 0 or grid_data.is_empty() or col < 0 or col >= grid_data[0].size():
+		return false
+	for y in range(row):
+		if _layer_value(board.cannon, y, col) > 0:
+			continue
+		if _fall_barrier_in_grid(grid_data, y, col):
+			return true
+	return false
+
+func _wall_slide_target_has_wall_above(grid_data: Array, row: int, col: int) -> bool:
+	return _wall_slide_target_has_fall_obstacle_above(grid_data, row, col)
+
+func _wall_slide_path_points(start_pos: Vector2, target: Vector2) -> Array:
+	var points := []
+	var cur := start_pos
+	var top_entry_y := board_origin.y + cell_size * 0.5
+	if cur.y < top_entry_y - 0.5 and target.y >= top_entry_y:
+		cur = Vector2(cur.x, top_entry_y)
+		points.append(cur)
+	var safety: int = board.width + board.height + 8
+	while safety > 0 and cur.distance_to(target) > 0.5:
+		safety -= 1
+		var dx := target.x - cur.x
+		var dy := target.y - cur.y
+		var step_x := 0.0
+		if absf(dx) > cell_size * 0.35 and dy > cell_size * 0.35:
+			step_x = signf(dx) * minf(cell_size, absf(dx))
+		var step_y := minf(cell_size, maxf(0.0, dy))
+		if step_y <= 0.0 and absf(dx) > 0.5:
+			step_x = signf(dx) * minf(cell_size, absf(dx))
+		var next := cur + Vector2(step_x, step_y)
+		if next.distance_to(target) < cell_size * 0.35:
+			next = target
+		points.append(next)
+		cur = next
+	if points.is_empty() or points[points.size() - 1] != target:
+		points.append(target)
+	return points
+
+func _wall_slide_cell_path_points(start_pos: Vector2, cell_path: Array, target: Vector2) -> Array:
+	if cell_path.is_empty():
+		return _wall_slide_path_points(start_pos, target)
+	var points := []
+	for raw_cell in cell_path:
+		var cell: Vector2i = raw_cell
+		if cell.y < 0 or cell.x < 0:
+			continue
+		var point := _cell_center(cell.y, cell.x)
+		if point.distance_to(start_pos) <= 0.5:
+			continue
+		if not points.is_empty() and point.distance_to(points[points.size() - 1]) <= 0.5:
+			continue
+		points.append(point)
+	if points.is_empty() or points[points.size() - 1].distance_to(target) > 0.5:
+		points.append(target)
+	return points
+
+func _wall_slide_position_at(start_pos: Vector2, points: Array, progress: float) -> Vector2:
+	if points.is_empty():
+		return start_pos
+	var clamped := clampf(progress, 0.0, 1.0)
+	var total := 0.0
+	var prev := start_pos
+	for raw_point in points:
+		var point: Vector2 = raw_point
+		total += prev.distance_to(point)
+		prev = point
+	if total <= 0.001:
+		return points[points.size() - 1]
+	var target_distance := total * clamped
+	var traveled := 0.0
+	prev = start_pos
+	for raw_point in points:
+		var point: Vector2 = raw_point
+		var segment := prev.distance_to(point)
+		if segment <= 0.001:
+			prev = point
+			continue
+		if traveled + segment >= target_distance:
+			var local_progress := clampf((target_distance - traveled) / segment, 0.0, 1.0)
+			return prev.lerp(point, local_progress)
+		traveled += segment
+		prev = point
+	return points[points.size() - 1]
+
+func _wall_slide_duration_for_points(points: Array) -> float:
+	if points.is_empty():
+		return 0.0
+	var steps := maxf(1.0, float(points.size()))
+	return minf(FALL_TIME + maxf(0.0, steps - 1.0) * WALL_SLIDE_STEP_TIME, WALL_SLIDE_MAX_TIME)
+
+func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = []) -> float:
+	if node == null or not is_instance_valid(node) or node.position == target:
+		return 0.0
+	var start_pos := node.position
+	var points := _wall_slide_cell_path_points(start_pos, cell_path, target)
+	var total_time: float = _wall_slide_duration_for_points(points)
+	if total_time <= 0.0:
+		return 0.0
+	var t := create_tween()
+	var apply_position := func(progress: float) -> void:
+		if node != null and is_instance_valid(node):
+			node.position = _wall_slide_position_at(start_pos, points, progress)
+	t.tween_method(apply_position, 0.0, 1.0, total_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	return total_time
+
+func _source_none() -> Vector2i:
+	return Vector2i(-1, -1)
+
+func _source_spawn(col: int) -> Vector2i:
+	return Vector2i(col, -2)
+
+func _wall_slide_path_rows(grid_snapshot: Array) -> Array:
+	var rows := []
+	for row in range(board.height):
+		var out_row := []
+		for col in range(board.width):
+			if grid_snapshot[row][col] >= 0:
+				out_row.append([Vector2i(col, row)])
+			else:
+				out_row.append([])
+		rows.append(out_row)
+	return rows
+
+func _wall_slide_source_rows(grid_snapshot: Array) -> Array:
+	var rows := []
+	for row in range(board.height):
+		var out_row := []
+		for col in range(board.width):
+			if grid_snapshot[row][col] >= 0:
+				out_row.append(Vector2i(col, row))
+			else:
+				out_row.append(_source_none())
+		rows.append(out_row)
+	return rows
+
+func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, row: int, col: int) -> bool:
+	return grid_snapshot[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
+
+func _wall_slide_tracking_empty_cell(grid_snapshot: Array, row: int, col: int) -> bool:
+	if row < 0 or row >= board.height or col < 0 or col >= board.width:
+		return false
+	return grid_snapshot[row][col] == ME.EMPTY and not _wall_slide_tracking_fixed_cell(grid_snapshot, row, col)
+
+func _wall_slide_tracking_movable_cell(grid_snapshot: Array, row: int, col: int) -> bool:
+	if row < 0 or row >= board.height or col < 0 or col >= board.width:
+		return false
+	return grid_snapshot[row][col] >= 0 and not _wall_slide_tracking_fixed_cell(grid_snapshot, row, col)
+
+func _wall_slide_tracking_blocked_above(grid_snapshot: Array, row: int, col: int) -> bool:
+	if row <= 0 or col < 0 or col >= board.width:
+		return false
+	for y in range(row):
+		if _layer_value(board.cannon, y, col) > 0:
+			continue
+		if _wall_slide_tracking_fixed_cell(grid_snapshot, y, col):
+			return true
+	return false
+
+func _wall_slide_tracking_has_vertical_source_above(grid_snapshot: Array, row: int, col: int) -> bool:
+	if row <= 0 or col < 0 or col >= board.width:
+		return false
+	for y in range(row - 1, -1, -1):
+		if _wall_slide_tracking_fixed_cell(grid_snapshot, y, col):
+			return false
+		if _wall_slide_tracking_movable_cell(grid_snapshot, y, col):
+			return true
+	return false
+
+func _move_wall_slide_tracking_cell(grid_snapshot: Array, source_map: Array, path_map: Array, from_row: int, from_col: int, to_row: int, to_col: int) -> void:
+	grid_snapshot[to_row][to_col] = grid_snapshot[from_row][from_col]
+	grid_snapshot[from_row][from_col] = ME.EMPTY
+	source_map[to_row][to_col] = source_map[from_row][from_col]
+	source_map[from_row][from_col] = _source_none()
+	var path: Array = path_map[from_row][from_col].duplicate()
+	path.append(Vector2i(to_col, to_row))
+	path_map[to_row][to_col] = path
+	path_map[from_row][from_col] = []
+
+func _try_fill_wall_slide_tracking_slot(grid_snapshot: Array, source_map: Array, path_map: Array, target_row: int, target_col: int) -> bool:
+	if target_row <= 0 or not _wall_slide_tracking_empty_cell(grid_snapshot, target_row, target_col):
+		return false
+	var source_row := target_row - 1
+	var candidates := [Vector2i(target_col, source_row)]
+	if _wall_slide_tracking_blocked_above(grid_snapshot, target_row, target_col) and not _wall_slide_tracking_has_vertical_source_above(grid_snapshot, target_row, target_col):
+		candidates.append(Vector2i(target_col + 1, source_row))
+		candidates.append(Vector2i(target_col - 1, source_row))
+	for p in candidates:
+		if _wall_slide_tracking_movable_cell(grid_snapshot, p.y, p.x):
+			_move_wall_slide_tracking_cell(grid_snapshot, source_map, path_map, p.y, p.x, target_row, target_col)
+			return true
+	return false
+
+func _apply_wall_slide_tracking_gravity(grid_snapshot: Array, source_map: Array, path_map: Array) -> void:
+	var moved := true
+	var guard := 0
+	var max_steps: int = maxi(1, board.height * board.width * 2)
+	while moved and guard < max_steps:
+		moved = false
+		guard += 1
+		for row in range(board.height - 1, 0, -1):
+			for col in range(board.width):
+				moved = _try_fill_wall_slide_tracking_slot(grid_snapshot, source_map, path_map, row, col) or moved
+
+func _build_wall_slide_tracking_maps(before_grid: Array) -> Dictionary:
+	var tracking_grid: Array = before_grid.duplicate(true)
+	var source_map := _wall_slide_source_rows(tracking_grid)
+	var path_map := _wall_slide_path_rows(tracking_grid)
+	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
+	if board.is_scrolling:
+		return {"source": source_map, "path": path_map}
+	var max_steps: int = maxi(1, board.height * board.width * 2)
+	for _i in range(max_steps):
+		_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
+		var spawned := false
+		for col in range(board.width):
+			if not _wall_slide_tracking_empty_cell(tracking_grid, 0, col):
+				continue
+			tracking_grid[0][col] = 0
+			source_map[0][col] = _source_spawn(col)
+			path_map[0][col] = [Vector2i(col, 0)]
+			spawned = true
+		if not spawned:
+			_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
+			return {"source": source_map, "path": path_map}
+	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
+	return {"source": source_map, "path": path_map}
+
+func _build_wall_slide_source_map(before_grid: Array) -> Array:
+	return _build_wall_slide_tracking_maps(before_grid)["source"]
+
+func _build_wall_slide_path_map(before_grid: Array) -> Array:
+	return _build_wall_slide_tracking_maps(before_grid)["path"]
+
+func _wall_slide_source_priority(row: int, col: int, target_row: int, target_col: int, allow_cross_column: bool) -> int:
+	if row > target_row:
+		return -1
+	if col == target_col:
+		return target_row - row
+	if not allow_cross_column or row >= target_row:
+		return -1
+	if col == target_col + 1:
+		return 1000 + target_row - row
+	if col == target_col - 1:
+		return 2000 + target_row - row
+	return 3000 + absi(col - target_col) * 100 + target_row - row
+
+func _take_wall_slide_source(before_grid: Array, old_nodes: Array, used: Dictionary, target_row: int, target_col: int, sp: int, allow_cross_column: bool = false, source_map: Array = []) -> Sprite2D:
+	if not source_map.is_empty() and target_row >= 0 and target_row < source_map.size() and target_col >= 0 and target_col < source_map[target_row].size():
+		var source: Vector2i = source_map[target_row][target_col]
+		if source.x < 0:
+			return null
+		if source.y < 0:
+			return null
+		if used.has(source):
+			return null
+		var mapped_node: Sprite2D = old_nodes[source.y][source.x]
+		if not _node_matches_species(mapped_node, sp):
+			return null
+		used[source] = true
+		return mapped_node
+	var best_key := Vector2i(-1, -1)
+	var best_score := 1000000
+	for row in range(board.height):
+		for col in range(board.width):
+			if not allow_cross_column and col != target_col:
+				continue
+			var key := Vector2i(col, row)
+			if used.has(key) or before_grid[row][col] < 0:
+				continue
+			var score := _wall_slide_source_priority(row, col, target_row, target_col, allow_cross_column)
+			if score < 0:
+				continue
+			var node: Sprite2D = old_nodes[row][col]
+			if not _node_matches_species(node, sp):
+				continue
+			if score < best_score:
+				best_score = score
+				best_key = key
+	if best_key.x < 0:
+		return null
+	used[best_key] = true
+	return old_nodes[best_key.y][best_key.x]
+
+func _wall_slide_spawn_source_col(source_map: Array, row: int, col: int) -> int:
+	if source_map.is_empty() or row < 0 or row >= source_map.size():
+		return -1
+	if col < 0 or col >= source_map[row].size():
+		return -1
+	var source: Vector2i = source_map[row][col]
+	if source.y != -2:
+		return -1
+	return source.x
+
+func _wall_slide_target_path(path_map: Array, row: int, col: int) -> Array:
+	if path_map.is_empty() or row < 0 or row >= path_map.size():
+		return []
+	if col < 0 or col >= path_map[row].size():
+		return []
+	return path_map[row][col]
+
+func _wall_slide_visual_start_position(source_map: Array, path_map: Array, row: int, col: int) -> Vector2:
+	if not source_map.is_empty() and row >= 0 and row < source_map.size() and col >= 0 and col < source_map[row].size():
+		var source: Vector2i = source_map[row][col]
+		if source.y >= 0 and source.x >= 0:
+			return _cell_center(source.y, source.x)
+		if source.y == -2:
+			return _wall_refill_start_position(row, col, source_map)
+	var path: Array = _wall_slide_target_path(path_map, row, col)
+	if not path.is_empty():
+		var first: Vector2i = path[0]
+		if first.y >= 0 and first.x >= 0:
+			return _cell_center(first.y, first.x)
+	return _wall_refill_start_position(row, col, source_map)
+
+func _free_unused_wall_slide_sources(old_nodes: Array, used: Dictionary) -> void:
+	for row in range(board.height):
+		for col in range(board.width):
+			var key := Vector2i(col, row)
+			if used.has(key):
+				continue
+			var node: Sprite2D = old_nodes[row][col]
+			if node != null and is_instance_valid(node):
+				node.queue_free()
+
+func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
+	var move_time := 0.0
+	var used := {}
+	var new_nodes := _blank_visual_rows()
+	var tracking_maps := _build_wall_slide_tracking_maps(before_grid)
+	var source_map: Array = tracking_maps["source"]
+	var path_map: Array = tracking_maps["path"]
+	for row in range(board.height - 1, -1, -1):
+		for col in range(board.width):
+			var sp: int = board.grid[row][col]
+			if sp < 0:
+				continue
+			var allow_cross_column := _wall_slide_target_has_fall_obstacle_above(before_grid, row, col)
+			var node := _take_wall_slide_source(before_grid, old_nodes, used, row, col, sp, allow_cross_column, source_map)
+			if node == null:
+				node = _replace_gem_node(row, col)
+				if node != null:
+					node.position = _wall_slide_visual_start_position(source_map, path_map, row, col)
+			else:
+				_apply_fx_overlay(node, board.fx[row][col])
+			new_nodes[row][col] = node
+			if node != null and is_instance_valid(node):
+				var target := _cell_center(row, col)
+				var node_time := _tween_wall_slide_node(node, target, _wall_slide_target_path(path_map, row, col))
+				if node_time > move_time:
+					move_time = node_time
+	_free_unused_wall_slide_sources(old_nodes, used)
+	_gem_nodes = new_nodes
+	return move_time
+
 ## 每轮消除后用核心重力/补充收口，并增量移动/补充表现层，确保并行层不掉队且不全盘闪烁。
 func _collapse_and_refill() -> void:
 	var before_grid: Array = board.grid.duplicate(true)
@@ -2172,6 +2779,15 @@ func _collapse_and_refill() -> void:
 	if not board.is_scrolling:
 		ME.refill(board.grid, board.species, board.rng, board.fx, refill_feed, board._layers())
 	var new_nodes: Array = _blank_visual_rows()
+	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
+		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
+		_repair_missing_gem_nodes_from_board()
+		_refresh_wall_visuals()
+		_refresh_jelly_visuals()
+		_refresh_coat_visuals()
+		if wall_slide_time > 0.0:
+			await get_tree().create_timer(wall_slide_time).timeout
+		return
 	var t := create_tween().set_parallel(true)
 	var moved := false
 	for col in range(board.width):
@@ -2185,6 +2801,9 @@ func _collapse_and_refill() -> void:
 				_sync_fixed_cell_visual(row, col, old_nodes, new_nodes)
 			seg_end = row - 1
 	_gem_nodes = new_nodes
+	_repair_missing_gem_nodes_from_board()
+	_refresh_wall_visuals()
+	_refresh_jelly_visuals()
 	_refresh_coat_visuals()
 	if moved:
 		await t.finished

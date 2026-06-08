@@ -34,6 +34,83 @@ func test_gravity_respects_wall_segments() -> void:
 	ME.apply_gravity(grid)
 	assert_eq(grid, [[E], [1], [W], [E], [2]], "tiles fall within wall-bounded segments")
 
+func test_refill_does_not_spawn_directly_below_wall() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [[W], [E], [0]]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 19
+	ME.refill(grid, [7], rng)
+	assert_eq(grid[1][0], E, "refill must not create a piece in an unreachable pocket below a wall")
+
+func test_refill_slides_feed_from_adjacent_top_under_wall() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[E, W, E],
+		[5, E, 6],
+		[7, 8, 9],
+	]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 23
+	var feed := [[10], [], []]
+	ME.refill(grid, [1, 2, 3], rng, [], feed)
+	assert_eq(grid[1][1], 10, "top-fed piece from the adjacent column slides diagonally into the wall pocket")
+	assert_eq(grid[0][0], E, "the fed source column is empty after the piece slid away and feed was exhausted")
+
+func test_wall_gravity_fills_blocked_slot_from_right_above_before_left_above() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[10, W, 11],
+		[5, E, 6],
+		[7, 8, 9],
+	]
+	ME.apply_gravity(grid)
+	assert_eq(grid[1][1], 11, "blocked empty slot fills from right-above before left-above")
+	assert_eq(grid[0][2], E, "right-above source moved into the blocked slot")
+	assert_eq(grid[0][0], 10, "left-above source waits when right-above can fill first")
+
+func test_wall_gravity_fills_blocked_slot_from_direct_above_before_diagonals() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[E, W, E],
+		[10, 12, 11],
+		[5, E, 6],
+		[7, 8, 9],
+	]
+	ME.apply_gravity(grid)
+	assert_eq(grid[2][1], 12, "directly-above source fills a slot before diagonal candidates")
+	assert_eq(grid[1][1], E, "directly-above source moved down")
+
+func test_wall_gravity_waits_for_vertical_chain_before_diagonal() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[E, W, E],
+		[10, 12, 11],
+		[5, E, 6],
+		[7, E, 9],
+	]
+	ME.apply_gravity(grid)
+	assert_eq(grid[3][1], 12, "lower pocket waits for the same-column tile to fall vertically before taking a diagonal source")
+	assert_eq(grid[2][1], 11, "after the lower pocket is filled vertically, the upper pocket may slide from right-above")
+	assert_eq(grid[2][2], 6, "lower diagonal candidate stays put while the vertical chain fills the lower pocket")
+
+func test_gravity_with_remote_wall_keeps_open_columns_vertical() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[E, 9, E, E, W],
+		[1, 2, E, 3, E],
+		[4, 5, 6, 7, 8],
+		[9, 1, 2, 3, 4],
+	]
+	ME.apply_gravity(grid)
+	assert_eq(grid[0][1], 9, "a tile in an open column must not slide sideways just because a remote wall exists")
+	assert_eq(grid[1][2], E, "ordinary empty space without a blocker above is filled only by vertical gravity/refill")
+
 func test_swap_wall_is_illegal() -> void:
 	var W := ME.WALL
 	var grid := [[0, 0, W], [1, 2, 0], [3, 4, 5]]
@@ -262,7 +339,7 @@ func test_reshuffle_deterministic_with_seed() -> void:
 
 # ---- v1.1 多连特效：分类 ----
 
-func test_classify_four_in_row_spawns_line_h() -> void:
+func test_classify_four_in_row_spawns_line_v() -> void:
 	var grid := [
 		[0, 0, 0, 0, 1],
 		[1, 2, 3, 2, 3],
@@ -270,7 +347,7 @@ func test_classify_four_in_row_spawns_line_h() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "horizontal 4 -> horizontal special")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "horizontal 4 -> vertical special")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_five_in_row_spawns_colorbomb() -> void:
@@ -294,7 +371,7 @@ func test_classify_three_in_row_no_spawn() -> void:
 	assert_eq(c["spawns"].size(), 0, "plain 3-match spawns nothing")
 	assert_eq(c["clear"].size(), 3, "all 3 matched cleared")
 
-func test_classify_four_vertical_spawns_line_v() -> void:
+func test_classify_four_vertical_spawns_line_h() -> void:
 	var grid := [
 		[0, 1, 2],
 		[0, 2, 3],
@@ -303,7 +380,7 @@ func test_classify_four_vertical_spawns_line_v() -> void:
 	]
 	var c := ME.classify_matches(grid)
 	assert_eq(c["spawns"].size(), 1, "one special spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "vertical 4 -> vertical special")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "vertical 4 -> horizontal special")
 	assert_eq(c["clear"].size(), 3, "4 matched minus 1 spawn = 3 cleared")
 
 func test_classify_t_shape_spawns_bomb() -> void:
@@ -313,6 +390,20 @@ func test_classify_t_shape_spawns_bomb() -> void:
 	assert_eq(c["spawns"][0]["kind"], ME.SP_BOMB, "T/L -> BOMB")
 	assert_eq(c["spawns"][0]["pos"], Vector2i(1, 0), "bomb at the intersection")
 	assert_eq(c["clear"].size(), 4, "5 matched minus 1 bomb spawn = 4")
+
+func test_classify_t_shape_ignores_unrelated_preferred_spawn() -> void:
+	var grid := [
+		[4, 4, 4, 2, 3],
+		[0, 2, 1, 3, 4],
+		[2, 1, 1, 1, 0],
+		[3, 4, 1, 0, 2],
+		[0, 2, 3, 4, 1],
+	]
+	var preferred_from_other_match := Vector2i(1, 0)
+	var c := ME.classify_matches(grid, {}, preferred_from_other_match)
+	assert_eq(c["spawns"].size(), 1, "only the T shape creates a special")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_BOMB, "T/L remains a bomb")
+	assert_eq(c["spawns"][0]["pos"], Vector2i(2, 2), "unrelated preferred match must not steal the T/L spawn")
 
 func test_classify_l_shape_spawns_bomb() -> void:
 	var grid := [[0, 1, 2], [0, 3, 4], [0, 0, 0]]  # col0 三连 + row2 三连，交于 (0,2)
@@ -471,7 +562,7 @@ func test_collect_four_match_marks_line_spawn() -> void:
 	var c := ME.collect_clears(grid, fx)
 	assert_eq(c["to_clear"].size(), 4, "all 4 matched cells in clear set")
 	assert_eq(c["spawns"].size(), 1, "one line spawned")
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "h4 -> LINE_H")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "h4 -> LINE_V")
 
 func test_collect_four_match_prefers_moved_piece_new_position() -> void:
 	var grid := [
@@ -486,7 +577,33 @@ func test_collect_four_match_prefers_moved_piece_new_position() -> void:
 	assert_eq(c["spawns"][0]["pos"], moved_new_pos, "special spawns at the moved piece's new cell, not the run midpoint")
 	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
 	assert_ne(grid[moved_new_pos.y][moved_new_pos.x], ME.EMPTY, "spawn cell keeps its tile")
-	assert_eq(fx[moved_new_pos.y][moved_new_pos.x], ME.SP_LINE_H, "spawn cell receives the horizontal special effect")
+	assert_eq(fx[moved_new_pos.y][moved_new_pos.x], ME.SP_LINE_V, "spawn cell receives the vertical special effect")
+
+func test_collect_four_match_generates_complementary_line_kind() -> void:
+	var vertical_four := [
+		[1, 0, 2],
+		[2, 0, 3],
+		[3, 0, 4],
+		[4, 0, 5],
+	]
+	var vertical_fx := _none_fx(3, 4)
+	var horizontal_swap_pos := Vector2i(1, 1)
+	var c_vertical := ME.collect_clears(vertical_four, vertical_fx, {}, horizontal_swap_pos, ME.SP_LINE_H)
+	assert_eq(c_vertical["spawns"].size(), 1, "vertical 4 still creates one line special")
+	assert_eq(c_vertical["spawns"][0]["pos"], horizontal_swap_pos, "special lands at the moved piece's new cell")
+	assert_eq(c_vertical["spawns"][0]["kind"], ME.SP_LINE_H, "vertical 4 creates a horizontal line special even when the swap was horizontal")
+
+	var horizontal_four := [
+		[1, 2, 3, 4, 5],
+		[0, 0, 0, 0, 6],
+		[2, 3, 4, 5, 1],
+	]
+	var horizontal_fx := _none_fx(5, 3)
+	var vertical_swap_pos := Vector2i(2, 1)
+	var c_horizontal := ME.collect_clears(horizontal_four, horizontal_fx, {}, vertical_swap_pos, ME.SP_LINE_V)
+	assert_eq(c_horizontal["spawns"].size(), 1, "horizontal 4 still creates one line special")
+	assert_eq(c_horizontal["spawns"][0]["pos"], vertical_swap_pos, "special lands at the moved piece's new cell")
+	assert_eq(c_horizontal["spawns"][0]["kind"], ME.SP_LINE_V, "horizontal 4 creates a vertical line special even when the swap was vertical")
 
 func test_collect_triggers_line_clears_whole_row() -> void:
 	var grid := [[9, 8, 5, 9, 8], [5, 5, 5, 7, 6], [8, 7, 4, 6, 9]]  # 仅 row1 的 5,5,5 三连
@@ -533,7 +650,7 @@ func test_collect_forms_colorbomb_before_same_step_line_blast_hits_it() -> void:
 	assert_eq(grid[1][2], ME.EMPTY, "the newly formed colorbomb is consumed when hit in the same step")
 	assert_eq(fx[1][2], ME.SP_NONE, "the consumed colorbomb leaves no effect behind")
 
-func test_same_step_horizontal_four_line_triggers_horizontally() -> void:
+func test_same_step_horizontal_four_line_triggers_vertically() -> void:
 	var grid := [
 		[1, 2, 3, 4, 5],
 		[0, 0, 0, 0, 9],
@@ -545,12 +662,12 @@ func test_same_step_horizontal_four_line_triggers_horizontally() -> void:
 	fx[1][0] = ME.SP_BOMB
 	var c := ME.collect_clears(grid, fx)
 	var spawn_pos := Vector2i(1, 1)
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "persistent horizontal 4 product stores a horizontal special")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "persistent horizontal 4 product stores a vertical special")
 	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed horizontal 4 special")
-	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_H, "same-step trigger follows the horizontal match direction")
-	assert_true((c["to_clear"] as Array).has(Vector2i(4, 1)), "same-step horizontal special clears the row tail")
+	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_V, "same-step trigger follows the generated vertical special")
+	assert_true((c["to_clear"] as Array).has(Vector2i(1, 4)), "same-step vertical special clears the column tail")
 
-func test_same_step_vertical_four_line_triggers_vertically() -> void:
+func test_same_step_vertical_four_line_triggers_horizontally() -> void:
 	var grid := [
 		[1, 0, 3, 4, 5],
 		[2, 0, 4, 5, 1],
@@ -562,10 +679,10 @@ func test_same_step_vertical_four_line_triggers_vertically() -> void:
 	fx[0][1] = ME.SP_BOMB
 	var c := ME.collect_clears(grid, fx)
 	var spawn_pos := Vector2i(1, 1)
-	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "persistent vertical 4 product stores a vertical special")
+	assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_H, "persistent vertical 4 product stores a horizontal special")
 	assert_true(c["triggered_spawns"].has(spawn_pos), "the same-step blast hits the newly formed vertical 4 special")
-	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_V, "same-step trigger follows the vertical match direction")
-	assert_true((c["to_clear"] as Array).has(Vector2i(1, 4)), "same-step vertical special clears the column tail")
+	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_H, "same-step trigger follows the generated horizontal special")
+	assert_true((c["to_clear"] as Array).has(Vector2i(4, 1)), "same-step horizontal special clears the row tail")
 
 func test_existing_line_on_spawn_cell_is_triggered_not_respawned() -> void:
 	var grid := [
@@ -586,7 +703,7 @@ func test_apply_clears_spawns_line_and_empties_others() -> void:
 	var c := ME.collect_clears(grid, fx)
 	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
 	var sp: Vector2i = c["spawns"][0]["pos"]
-	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_H, "spawn cell becomes horizontal special")
+	assert_eq(fx[sp.y][sp.x], ME.SP_LINE_V, "spawn cell becomes vertical special")
 	assert_ne(grid[sp.y][sp.x], ME.EMPTY, "spawn cell keeps its species (not emptied)")
 	var empties := 0
 	for x in 5:

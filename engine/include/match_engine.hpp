@@ -59,10 +59,60 @@ inline std::vector<Vec2> find_matches(const Grid& g,
 }
 
 // 重力：每列非空落到列底，空升到顶。墙(WALL)不动，把列切成若干独立段，各段内分别下落。
+inline bool has_wall(const Grid& g) {
+    for (const auto& row : g)
+        for (int v : row)
+            if (v == WALL) return true;
+    return false;
+}
+
 inline void apply_gravity(Grid& g, const std::vector<std::vector<int>>* coat = nullptr) {
     int h = (int)g.size();
     if (h == 0) return;
     int w = (int)g[0].size();
+    if (!coat && has_wall(g)) {
+        bool moved = true;
+        int guard = 0;
+        int max_steps = std::max(1, h * w * 2);
+        auto empty_at = [&](int y, int x) {
+            return y >= 0 && y < h && x >= 0 && x < w && g[y][x] == EMPTY;
+        };
+        auto movable_at = [&](int y, int x) {
+            return y >= 0 && y < h && x >= 0 && x < w && g[y][x] >= 0;
+        };
+        auto blocked_above = [&](int y, int x) {
+            if (y <= 0 || x < 0 || x >= w) return false;
+            for (int yy = 0; yy < y; ++yy)
+                if (g[yy][x] == WALL) return true;
+            return false;
+        };
+        auto move_cell = [&](int from_y, int from_x, int to_y, int to_x) {
+            g[to_y][to_x] = g[from_y][from_x];
+            g[from_y][from_x] = EMPTY;
+        };
+        auto try_fill_slot = [&](int target_y, int target_x) {
+            if (target_y <= 0 || !empty_at(target_y, target_x)) return false;
+            int source_y = target_y - 1;
+            int source_cols[3] = {target_x, target_x + 1, target_x - 1};
+            int count = blocked_above(target_y, target_x) ? 3 : 1;
+            for (int i = 0; i < count; ++i) {
+                int source_x = source_cols[i];
+                if (movable_at(source_y, source_x)) {
+                    move_cell(source_y, source_x, target_y, target_x);
+                    return true;
+                }
+            }
+            return false;
+        };
+        while (moved && guard < max_steps) {
+            moved = false;
+            ++guard;
+            for (int y = h - 1; y >= 1; --y)
+                for (int x = 0; x < w; ++x)
+                    moved = try_fill_slot(y, x) || moved;
+        }
+        return;
+    }
     for (int x = 0; x < w; ++x) {
         int seg_start = 0;
         for (int y = 0; y <= h; ++y) {
@@ -91,6 +141,32 @@ inline void refill(Grid& g, const std::vector<int>& species, std::mt19937& rng,
     std::uniform_int_distribution<int> dist(0, (int)species.size() - 1);
     int h = (int)g.size();
     int w = h ? (int)g[0].size() : 0;
+    if (has_wall(g)) {
+        int max_steps = std::max(1, h * w * 2);
+        for (int i = 0; i < max_steps; ++i) {
+            apply_gravity(g);
+            bool spawned = false;
+            for (int x = 0; x < w; ++x) {
+                if (g[0][x] != EMPTY) continue;
+                if (feed) {
+                    if (x < (int)feed->size() && !(*feed)[x].empty()) {
+                        g[0][x] = (*feed)[x].front();
+                        (*feed)[x].pop_front();
+                        spawned = true;
+                    }
+                } else {
+                    g[0][x] = species[dist(rng)];
+                    spawned = true;
+                }
+            }
+            if (!spawned) {
+                apply_gravity(g);
+                return;
+            }
+        }
+        apply_gravity(g);
+        return;
+    }
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x)
             if (g[y][x] == EMPTY) {
@@ -540,6 +616,57 @@ inline void apply_gravity_ingredient(Grid& g, const std::vector<std::vector<int>
     int h = (int)g.size();
     if (h == 0) return;
     int w = (int)g[0].size();
+    auto fixed_cell = [&](int y, int x) {
+        return g[y][x] == WALL || (coat && (*coat)[y][x] > 0) || (choco && (*choco)[y][x] > 0);
+    };
+    bool has_obstacles = false;
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x)
+            if (fixed_cell(y, x)) has_obstacles = true;
+    if (has_obstacles) {
+        auto empty_at = [&](int y, int x) {
+            return y >= 0 && y < h && x >= 0 && x < w && g[y][x] == EMPTY && !fixed_cell(y, x);
+        };
+        auto move_cell = [&](int fy, int fx, int ty, int tx) {
+            g[ty][tx] = g[fy][fx];
+            g[fy][fx] = EMPTY;
+            if (ing) {
+                (*ing)[ty][tx] = (*ing)[fy][fx];
+                (*ing)[fy][fx] = 0;
+            }
+        };
+        bool moved = true;
+        int guard = 0;
+        int max_steps = std::max(1, h * w * 2);
+        while (moved && guard < max_steps) {
+            moved = false;
+            ++guard;
+            for (int y = h - 2; y >= 0; --y) {
+                for (int x = 0; x < w; ++x) {
+                    if (g[y][x] < 0 || fixed_cell(y, x)) continue;
+                    if (empty_at(y + 1, x)) {
+                        move_cell(y, x, y + 1, x);
+                        moved = true;
+                    }
+                }
+            }
+            for (int y = h - 2; y >= 0; --y) {
+                for (int x = 0; x < w; ++x) {
+                    if (g[y][x] < 0 || fixed_cell(y, x) || empty_at(y + 1, x)) continue;
+                    int first = ((x + y + guard) % 2 == 0) ? -1 : 1;
+                    int dirs[2] = {first, -first};
+                    for (int dx : dirs) {
+                        if (empty_at(y + 1, x + dx)) {
+                            move_cell(y, x, y + 1, x + dx);
+                            moved = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
     for (int x = 0; x < w; ++x) {
         int seg_start = 0;
         for (int y = 0; y <= h; ++y) {
@@ -779,7 +906,8 @@ inline int count_bombs(const std::vector<std::vector<int>>& bomb) {
 //   4) ==4 连 → 横 4 连 mid（且该串不与任何纵串相交）/ 纵 4 连 mid（不与横串相交）是 spawn（直线）。
 //   返回 spawn 点集合(布尔网格)。只关心"是不是 spawn"，不关心特效种类（拆弹守卫只看 pos 是否在 spawn_set）。
 inline std::vector<std::vector<char>> bomb_spawn_points(
-        const Grid& g, const std::vector<std::vector<int>>* coat) {
+        const Grid& g, const std::vector<std::vector<int>>* coat,
+        Vec2 preferred_spawn = {-1, -1}) {
     int h = (int)g.size();
     std::vector<std::vector<char>> spawn;
     if (h == 0) return spawn;
@@ -820,17 +948,44 @@ inline std::vector<std::vector<char>> bomb_spawn_points(
             y = e + 1;
         }
     }
-    // 优先级 1：>=5 连 → mid 是彩球 spawn（h_runs 先于 v_runs，与 GDScript h_runs+v_runs 同序）。
+    auto run_contains = [](const Run& r, Vec2 p) -> bool {
+        if (p.x < 0 || p.y < 0) return false;
+        if (r.y0 == r.y1) return p.y == r.y0 && p.x >= r.x0 && p.x <= r.x1;
+        return p.x == r.x0 && p.y >= r.y0 && p.y <= r.y1;
+    };
+    auto preferred_for_run = [&](const Run& r) -> Vec2 {
+        return run_contains(r, preferred_spawn) ? preferred_spawn : r.mid;
+    };
+    auto preferred_for_intersection = [&](Vec2 intersection) -> Vec2 {
+        if (preferred_spawn.x < 0 || preferred_spawn.y < 0) return intersection;
+        for (const auto& hr : h_runs) {
+            if (!run_contains(hr, intersection)) continue;
+            for (const auto& vr : v_runs) {
+                if (run_contains(vr, intersection)
+                    && (run_contains(hr, preferred_spawn) || run_contains(vr, preferred_spawn))) {
+                    return preferred_spawn;
+                }
+            }
+        }
+        return intersection;
+    };
+
+    // 优先级 1：>=5 连 → preferred 或 mid 是彩球 spawn（h_runs 先于 v_runs，与 GDScript h_runs+v_runs 同序）。
     auto colorbomb_pass = [&](const std::vector<Run>& runs) {
-        for (const auto& r : runs)
-            if (r.len >= 5) spawn[r.mid.y][r.mid.x] = 1;  // 一格只一个特效 → 置位幂等
+        for (const auto& r : runs) {
+            Vec2 p = preferred_for_run(r);
+            if (r.len >= 5) spawn[p.y][p.x] = 1;  // 一格只一个特效 → 置位幂等
+        }
     };
     colorbomb_pass(h_runs);
     colorbomb_pass(v_runs);
-    // 优先级 2：T/L/+ 交点（in_h 且 in_v）→ 爆炸 spawn。若该格已是彩球 spawn 则跳过（spawn_at 去重）。
+    // 优先级 2：T/L/+ 交点（in_h 且 in_v）→ preferred 或交点是爆炸 spawn。若该格已是彩球 spawn 则跳过（spawn_at 去重）。
     for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x)
-            if (in_h[y][x] && in_v[y][x] && !spawn[y][x]) spawn[y][x] = 1;
+        for (int x = 0; x < w; ++x) {
+            if (!in_h[y][x] || !in_v[y][x]) continue;
+            Vec2 p = preferred_for_intersection({x, y});
+            if (!spawn[p.y][p.x]) spawn[p.y][p.x] = 1;
+        }
     // 优先级 3：==4 连 → mid 是直线 spawn（横4连需不与任何纵串相交；纵4连需不与任何横串相交）。
     auto run_intersects = [&](const Run& r, const std::vector<std::vector<char>>& other) -> bool {
         if (r.y0 == r.y1) {  // 横串
@@ -840,12 +995,16 @@ inline std::vector<std::vector<char>> bomb_spawn_points(
         }
         return false;
     };
-    for (const auto& r : h_runs)
-        if (r.len == 4 && !run_intersects(r, in_v) && !spawn[r.mid.y][r.mid.x])
-            spawn[r.mid.y][r.mid.x] = 1;
-    for (const auto& r : v_runs)
-        if (r.len == 4 && !run_intersects(r, in_h) && !spawn[r.mid.y][r.mid.x])
-            spawn[r.mid.y][r.mid.x] = 1;
+    for (const auto& r : h_runs) {
+        Vec2 p = preferred_for_run(r);
+        if (r.len == 4 && !run_intersects(r, in_v) && !spawn[p.y][p.x])
+            spawn[p.y][p.x] = 1;
+    }
+    for (const auto& r : v_runs) {
+        Vec2 p = preferred_for_run(r);
+        if (r.len == 4 && !run_intersects(r, in_h) && !spawn[p.y][p.x])
+            spawn[p.y][p.x] = 1;
+    }
     return spawn;
 }
 
@@ -876,8 +1035,10 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
                                       std::vector<std::vector<int>>* coat = nullptr,
                                       std::vector<std::vector<int>>* bomb = nullptr,
                                       std::vector<std::deque<int>>* feed = nullptr,
-                                      bool do_refill = true) {
+                                      bool do_refill = true,
+                                      Vec2 preferred_spawn = {-1, -1}) {
     BombResolveResult r;
+    Vec2 cascade_preferred = preferred_spawn;
     while (true) {
         auto matched = find_matches(g, coat);
         if (matched.empty()) break;
@@ -886,7 +1047,8 @@ inline BombResolveResult resolve_bomb(Grid& g, const std::vector<int>& species, 
         std::vector<std::vector<char>> ism(H, std::vector<char>(W, 0));
         for (const auto& p : matched) ism[p.y][p.x] = 1;
         // spawn 几何：本轮匹配里哪些格会被保留为特效棋子（不清空、其上炸弹不拆）。镜像 _resolve_fx 守卫。
-        auto spawn = bomb_spawn_points(g, coat);
+        auto spawn = bomb_spawn_points(g, coat, cascade_preferred);
+        cascade_preferred = {-1, -1};
         if (coat) {  // 破锁：消除内/相邻的锁住格 -1
             for (int y = 0; y < H; ++y)
                 for (int x = 0; x < W; ++x) {

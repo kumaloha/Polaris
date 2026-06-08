@@ -145,6 +145,63 @@ static void test_gravity_respects_wall_segments() {
     CHECK(g == want, "tiles fall within wall-bounded segments; wall stays put");
 }
 
+static void test_refill_does_not_spawn_directly_below_wall() {
+    Grid g = {{WALL}, {EMPTY}, {0}};
+    std::mt19937 rng(19);
+    refill(g, {7}, rng);
+    CHECK_EQ(g[1][0], EMPTY, "refill must not create a piece in an unreachable pocket below a wall");
+}
+
+static void test_refill_slides_feed_from_adjacent_top_under_wall() {
+    Grid g = {
+        {EMPTY, WALL, EMPTY},
+        {5, EMPTY, 6},
+        {7, 8, 9},
+    };
+    std::mt19937 rng(23);
+    std::vector<std::deque<int>> feed(3);
+    feed[0].push_back(10);
+    refill(g, {1, 2, 3}, rng, &feed);
+    CHECK_EQ(g[1][1], 10, "top-fed piece from the adjacent column slides diagonally into the wall pocket");
+    CHECK_EQ(g[0][0], EMPTY, "the fed source column is empty after the piece slid away and feed was exhausted");
+}
+
+static void test_wall_gravity_fills_blocked_slot_from_right_above_before_left_above() {
+    Grid g = {
+        {10, WALL, 11},
+        {5, EMPTY, 6},
+        {7, 8, 9},
+    };
+    apply_gravity(g);
+    CHECK_EQ(g[1][1], 11, "blocked empty slot fills from right-above before left-above");
+    CHECK_EQ(g[0][2], EMPTY, "right-above source moved into the blocked slot");
+    CHECK_EQ(g[0][0], 10, "left-above source waits when right-above can fill first");
+}
+
+static void test_wall_gravity_fills_blocked_slot_from_direct_above_before_diagonals() {
+    Grid g = {
+        {EMPTY, WALL, EMPTY},
+        {10, 12, 11},
+        {5, EMPTY, 6},
+        {7, 8, 9},
+    };
+    apply_gravity(g);
+    CHECK_EQ(g[2][1], 12, "directly-above source fills a slot before diagonal candidates");
+    CHECK_EQ(g[1][1], EMPTY, "directly-above source moved down");
+}
+
+static void test_gravity_with_remote_wall_keeps_open_columns_vertical() {
+    Grid g = {
+        {EMPTY, 9, EMPTY, EMPTY, WALL},
+        {1, 2, EMPTY, 3, EMPTY},
+        {4, 5, 6, 7, 8},
+        {9, 1, 2, 3, 4},
+    };
+    apply_gravity(g);
+    CHECK_EQ(g[0][1], 9, "tile in an open column must not slide sideways just because a remote wall exists");
+    CHECK_EQ(g[1][2], EMPTY, "ordinary empty space without a blocker above is filled only by vertical gravity/refill");
+}
+
 static void test_swap_wall_is_illegal() {
     // 没墙时 (2,0)<->(2,1) 合法；把 (2,0) 变成墙后，即使交换会凑出三连也非法（墙不可动）
     Grid gw = {{0, 0, WALL}, {1, 2, 0}, {3, 4, 5}};
@@ -591,6 +648,26 @@ static void test_bomb_on_4run_spawn_not_defused() {
     CHECK_EQ(bomb[0][1], 4, "bomb countdown on spawn cell preserved (not cleared)");
     CHECK_EQ(g[0][1], 5, "spawn cell keeps its species (special piece, not emptied)");
     CHECK_EQ(r.cleared, 3, "only the 3 non-spawn cells cleared (spawn cell kept)");
+}
+
+static void test_bomb_on_preferred_4run_spawn_not_defused() {
+    // 真机交换后 4 连的特效落在移动棋子的新位置，而不是 midpoint。
+    // C++ bomb 标定必须用同一个 preferred spawn，否则会把新位置上的炸弹误判为已拆。
+    Grid g = {
+        {5, 5, 5, 5},
+        {0, 1, 2, 3},
+        {1, 2, 3, 0},
+    };
+    std::vector<std::vector<int>> bomb(3, std::vector<int>(4, 0));
+    bomb[0][2] = 4;
+    std::mt19937 rng(1);
+    auto r = resolve_bomb(g, {0, 1, 2, 3, 4, 5}, rng, nullptr, nullptr, &bomb, nullptr, false, {2, 0});
+
+    CHECK_EQ(r.bomb_defused, 0, "bomb on preferred 4-run spawn is NOT defused");
+    CHECK_EQ(count_bombs(bomb), 1, "bomb still lives on the preferred spawn cell");
+    CHECK_EQ(bomb[0][2], 4, "bomb countdown on preferred spawn cell preserved");
+    CHECK_EQ(g[0][2], 5, "preferred spawn cell keeps its species");
+    CHECK_EQ(r.cleared, 3, "only non-spawn cells cleared");
 }
 
 static void test_bomb_on_3run_defused_normally() {
@@ -1062,6 +1139,11 @@ int main() {
     test_find_horizontal_three();
     test_find_matches_ignores_walls();
     test_gravity_respects_wall_segments();
+    test_refill_does_not_spawn_directly_below_wall();
+    test_refill_slides_feed_from_adjacent_top_under_wall();
+    test_wall_gravity_fills_blocked_slot_from_right_above_before_left_above();
+    test_wall_gravity_fills_blocked_slot_from_direct_above_before_diagonals();
+    test_gravity_with_remote_wall_keeps_open_columns_vertical();
     test_swap_wall_is_illegal();
     test_resolve_reports_by_species();
     test_coat_blocks_swap();
@@ -1109,6 +1191,7 @@ int main() {
     test_resolve_bomb_deterministic();
     // 炸弹 × spawn 守卫（spawn 格炸弹不拆，对齐 GDScript _resolve_fx）
     test_bomb_on_4run_spawn_not_defused();
+    test_bomb_on_preferred_4run_spawn_not_defused();
     test_bomb_on_3run_defused_normally();
     test_bomb_on_4run_non_mid_defused();
     // 糖果炮（Candy Cannon）镜像断言

@@ -43,8 +43,8 @@ const MAGIC_ABSORB_LINE := "res://art/vfx/color_absorb/vfx_absorb_line.png"
 const MAGIC_ABSORB_HIT_FLASH := "res://art/vfx/color_absorb/vfx_absorb_hit_flash.png"
 const MAGIC_ABSORB_TARGET_OUTLINE := "res://art/vfx/color_absorb/cell_target_outline.png"
 const MAGIC_ABSORB_RESIDUE_TEXTURES := [MAGIC_DUST_STAR, MAGIC_DUST_DOT, MAGIC_BASIC_FLASH_STAR]
-const ABSORB_RESIDUE_COUNT_MIN := 5
-const ABSORB_RESIDUE_COUNT_MAX := 8
+const ABSORB_RESIDUE_COUNT_MIN := 3
+const ABSORB_RESIDUE_COUNT_MAX := 5
 const ABSORB_RESIDUE_SCALE_MIN := 0.35
 const ABSORB_RESIDUE_SCALE_MAX := 0.75
 const ABSORB_RESIDUE_MOVE_MIN := 8.0
@@ -63,9 +63,22 @@ const LOCAL_BURST_INNER_STAR_RADIUS_RATIO := 0.46
 const LOCAL_BURST_OUTER_WISP_RADIUS_RATIO := 0.82
 const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
 const LINE_BLAST_STAGGER_SEC := 0.02
+const BASIC_POP_BLOB_START_RATIO := 0.58
+const BASIC_POP_BLOB_END_RATIO := 1.35
+const BASIC_POP_STAR_START_RATIO := 0.38
+const BASIC_POP_STAR_END_RATIO := 1.45
+const BASIC_POP_RING_START_RATIO := 0.48
+const BASIC_POP_RING_END_RATIO := 1.38
+const HEAVY_FX_FRAME_BUDGET := 18
+const BASIC_POP_HEAVY_COST := 3
+const AREA_BURST_HEAVY_COST := 7
+const LINE_BLAST_HEAVY_COST := 6
+const EXPLOSION_HEAVY_COST := 5
 
 var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
+var _budget_frame := -1
+var _heavy_fx_this_frame := 0
 
 func attach(target: Node, shake_node: CanvasLayer = null) -> void:
 	_target = target
@@ -117,6 +130,16 @@ static func magic_vfx_paths() -> Dictionary:
 		"absorb_residue_flash_star": MAGIC_BASIC_FLASH_STAR,
 	}
 
+func basic_pop_profile() -> Dictionary:
+	return {
+		"blob_start_ratio": BASIC_POP_BLOB_START_RATIO,
+		"blob_end_ratio": BASIC_POP_BLOB_END_RATIO,
+		"star_start_ratio": BASIC_POP_STAR_START_RATIO,
+		"star_end_ratio": BASIC_POP_STAR_END_RATIO,
+		"ring_start_ratio": BASIC_POP_RING_START_RATIO,
+		"ring_end_ratio": BASIC_POP_RING_END_RATIO,
+	}
+
 func absorb_residue_profile() -> Dictionary:
 	return {
 		"count_min": ABSORB_RESIDUE_COUNT_MIN,
@@ -129,6 +152,16 @@ func absorb_residue_profile() -> Dictionary:
 		"alpha_end": ABSORB_RESIDUE_ALPHA_END,
 		"duration_min": ABSORB_RESIDUE_DURATION_MIN,
 		"duration_max": ABSORB_RESIDUE_DURATION_MAX,
+	}
+
+func load_shedding_profile() -> Dictionary:
+	return {
+		"heavy_frame_budget": HEAVY_FX_FRAME_BUDGET,
+		"basic_pop_heavy_cost": BASIC_POP_HEAVY_COST,
+		"area_burst_heavy_cost": AREA_BURST_HEAVY_COST,
+		"line_blast_heavy_cost": LINE_BLAST_HEAVY_COST,
+		"explosion_heavy_cost": EXPLOSION_HEAVY_COST,
+		"fallback": "single_flash",
 	}
 
 static func area_blast_profile(cell_size: float, clear_cells: int = LOCAL_BURST_CLEAR_CELLS) -> Dictionary:
@@ -151,6 +184,20 @@ static func line_blast_profile(line_length_px: float, cell_size: float) -> Dicti
 		"cell_glow_count": maxi(1, int(roundf(line_length_px / maxf(cell_size, 1.0)))),
 		"stagger_sec": LINE_BLAST_STAGGER_SEC,
 	}
+
+func _claim_heavy_fx(cost: int) -> bool:
+	var frame := Engine.get_process_frames()
+	if frame != _budget_frame:
+		_budget_frame = frame
+		_heavy_fx_this_frame = 0
+	if _heavy_fx_this_frame + cost > HEAVY_FX_FRAME_BUDGET:
+		return false
+	_heavy_fx_this_frame += cost
+	return true
+
+func _spawn_single_flash(pos: Vector2, color: Color, diameter: float, dur: float = 0.18) -> void:
+	var path := MAGIC_BASIC_FLASH_BLOB if _asset_exists(MAGIC_BASIC_FLASH_BLOB) else BOKEH
+	_magic_flash_sprite(path, pos, color.lerp(Color(1, 1, 1, 1), 0.42), diameter * 0.42, diameter, dur, 0.0)
 
 ## 碎裂: 小亮星四散 + 轻微下落 + Additive 发光(不挡视线, 快速消散)。普通三连用。
 func spawn_shatter(pos: Vector2, color: Color) -> void:
@@ -191,7 +238,14 @@ func _elim_frames(color: String) -> Array:
 
 func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
 	if _asset_exists(MAGIC_BASIC_FLASH_BLOB):
-		_spawn_magic_basic_pop(pos, _color_key_to_magic_color(color), target_px)
+		var magic_color := _color_key_to_magic_color(color)
+		if _claim_heavy_fx(BASIC_POP_HEAVY_COST):
+			_spawn_magic_basic_pop(pos, magic_color, target_px)
+		else:
+			_spawn_single_flash(pos, magic_color, target_px * BASIC_POP_BLOB_END_RATIO, 0.16)
+		return
+	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
+		_spawn_single_flash(pos, _color_key_to_magic_color(color), target_px, 0.16)
 		return
 	var fr: Array = _elim_frames(color)
 	var f0: Texture2D = fr[0]
@@ -233,6 +287,9 @@ func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
 
 ## 爆炸(炸弹/彩球): 中心亮闪 + 冲击波环 + 火花扩散。Additive。
 func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
+	if not _claim_heavy_fx(EXPLOSION_HEAVY_COST):
+		_spawn_single_flash(pos, color, 150.0 * power, 0.18)
+		return
 	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.55), 140.0 * power, 0.22)
 	_shockwave(pos, color, 150.0 * power, 0.40)
 	var p := CPUParticles2D.new()
@@ -366,7 +423,13 @@ static func local_burst_bounds(clear_radius_px: float, clear_cells: int = LOCAL_
 
 func spawn_local_burst(pos: Vector2, color: Color, radius_px: float, clear_cells: int = LOCAL_BURST_CLEAR_CELLS) -> void:
 	if _asset_exists(MAGIC_AREA_GRID_3X3):
-		_spawn_magic_area_blast(pos, color, radius_px, clear_cells)
+		if _claim_heavy_fx(AREA_BURST_HEAVY_COST):
+			_spawn_magic_area_blast(pos, color, radius_px, clear_cells)
+		else:
+			_spawn_single_flash(pos, color, radius_px * 0.85, 0.18)
+		return
+	if not _claim_heavy_fx(AREA_BURST_HEAVY_COST):
+		_spawn_single_flash(pos, color, radius_px * 0.85, 0.18)
 		return
 	var bounds := local_burst_bounds(radius_px, clear_cells)
 	# 中心闪: 直径压在范围内
@@ -439,9 +502,9 @@ func _quad_bezier(a: Vector2, b: Vector2, c: Vector2, t: float) -> Vector2:
 
 func _spawn_magic_basic_pop(pos: Vector2, color: Color, target_px: float) -> void:
 	var hot := color.lerp(Color(1, 1, 1, 1), 0.62)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * 0.42, target_px * 1.05, 0.18, 0.08)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, Color(1, 1, 1, 1), target_px * 0.28, target_px * 1.16, 0.18, 0.10)
-	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * 0.36, target_px * 1.08, 0.24, 0.11)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * BASIC_POP_BLOB_START_RATIO, target_px * BASIC_POP_BLOB_END_RATIO, 0.18, 0.08)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, Color(1, 1, 1, 1), target_px * BASIC_POP_STAR_START_RATIO, target_px * BASIC_POP_STAR_END_RATIO, 0.18, 0.10)
+	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * BASIC_POP_RING_START_RATIO, target_px * BASIC_POP_RING_END_RATIO, 0.24, 0.11)
 	_magic_shard_burst(MAGIC_GEM_SHARDS, pos, hot, 8, target_px * 0.52, 0.28, 0.10)
 	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.35), 7, target_px * 0.38, 0.34, 0.16)
 
@@ -590,7 +653,13 @@ func spawn_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
 	var u: Vector2 = dir / full_len
 	var origin: Vector2 = (from + to) * 0.5
 	if _asset_exists(MAGIC_LINE_BEAM_CORE):
-		_spawn_magic_line_blast(from, to, color)
+		if _claim_heavy_fx(LINE_BLAST_HEAVY_COST):
+			_spawn_magic_line_blast(from, to, color)
+		else:
+			_magic_beam_sprite(MAGIC_LINE_BEAM_CORE, origin, u.angle(), full_len, 30.0, color, 0.20, 0.0)
+		return
+	if not _claim_heavy_fx(LINE_BLAST_HEAVY_COST):
+		_beam_layer(from, to, color, 64.0, 0.20)
 		return
 	if not ResourceLoader.exists(COMET):
 		spawn_beam(from, to, color)   # 素材缺失时降级回静态光束, 不丢特效

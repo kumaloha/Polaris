@@ -166,7 +166,7 @@ func test_swap_spawned_special_uses_moved_piece_new_position() -> void:
 	var moved_to := Vector2i(2, 0)
 	var r := b.try_swap(moved_from, moved_to)
 	assert_true(r.get("ok", false), "swap creates a horizontal four-match")
-	assert_eq(b.fx[moved_to.y][moved_to.x], ME.SP_LINE_H, "horizontal special lands where the moved piece arrived")
+	assert_eq(b.fx[moved_to.y][moved_to.x], ME.SP_LINE_V, "horizontal four-match creates a vertical line special where the moved piece arrived")
 	assert_eq(b.fx[0][1], ME.SP_NONE, "run midpoint does not receive the special")
 
 # ───────────────────────────── P1 回归（运行时 bug）─────────────────────────────

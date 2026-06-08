@@ -148,6 +148,20 @@ func test_cannon_product_falls_under_gravity() -> void:
 	assert_eq(grid[1][0], E, "the spot just below the mouth is empty again after it fell")
 	assert_eq(grid[0][0], W, "cannon mouth itself never moves")
 
+func test_cannon_mouth_does_not_invite_diagonal_slide_into_spawn_slot() -> void:
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var grid := [
+		[W, 5, 6],
+		[E, 1, 2],
+		[9, 3, 4],
+	]
+	var cannon := _blank(3, 3)
+	cannon[0][0] = 1
+	ME.apply_gravity(grid, [], false, {"cannon": cannon})
+	assert_eq(grid[1][0], E, "cannon mouth keeps the spawn slot open instead of inviting diagonal slide")
+	assert_eq(grid[0][1], 5, "right-above piece does not slide under a cannon mouth")
+
 # ───────────── 断言⑥：确定性同 seed 一致 ─────────────
 
 func test_cannon_deterministic_same_seed() -> void:

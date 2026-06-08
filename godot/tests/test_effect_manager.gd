@@ -40,6 +40,19 @@ func test_magic_vfx_profiles_use_the_new_art_pack() -> void:
 	assert_eq(paths["absorb_orb"], "res://art/vfx/color_absorb/vfx_absorb_orb.png", "colorbomb absorbs use the new orb")
 
 
+func test_basic_pop_profile_has_visible_flash_swell() -> void:
+	var fx := FxScript.new()
+	assert_true(fx.has_method("basic_pop_profile"), "Fx exposes basic pop sizing profile")
+	if not fx.has_method("basic_pop_profile"):
+		fx.free()
+		return
+	var profile: Dictionary = fx.call("basic_pop_profile")
+	fx.free()
+	assert_true(float(profile["blob_start_ratio"]) >= 0.50, "basic pop starts large enough to read as gem swelling")
+	assert_true(float(profile["blob_end_ratio"]) >= 1.30, "basic pop flash expands past the gem body")
+	assert_true(float(profile["ring_end_ratio"]) >= 1.30, "basic pop ring expands past the gem body")
+
+
 func test_absorb_residue_profile_uses_low_key_stardust() -> void:
 	var paths: Dictionary = FxScript.magic_vfx_paths()
 	assert_eq(paths.get("absorb_residue_star", ""), "res://art/vfx/basic_pop/vfx_dust_star.png", "absorb residue uses dust stars")
@@ -52,7 +65,7 @@ func test_absorb_residue_profile_uses_low_key_stardust() -> void:
 		return
 	var profile: Dictionary = fx.call("absorb_residue_profile")
 	fx.free()
-	assert_true(int(profile["count_min"]) >= 5 and int(profile["count_max"]) <= 8, "residue emits 5 to 8 small particles")
+	assert_true(int(profile["count_min"]) >= 3 and int(profile["count_max"]) <= 5, "residue emits 3 to 5 small particles")
 	assert_eq(float(profile["scale_min"]), 0.35, "residue scale lower bound")
 	assert_eq(float(profile["scale_max"]), 0.75, "residue scale upper bound")
 	assert_eq(float(profile["move_min_px"]), 8.0, "residue drift lower bound")
@@ -61,6 +74,32 @@ func test_absorb_residue_profile_uses_low_key_stardust() -> void:
 	assert_eq(float(profile["alpha_end"]), 0.0, "residue fades out")
 	assert_eq(float(profile["duration_min"]), 0.35, "residue duration lower bound")
 	assert_eq(float(profile["duration_max"]), 0.55, "residue duration upper bound")
+
+
+func test_absorb_residue_profile_stays_lightweight_for_colorbomb_fanout() -> void:
+	var fx := FxScript.new()
+	assert_true(fx.has_method("absorb_residue_profile"), "Fx exposes absorb residue timing profile")
+	if not fx.has_method("absorb_residue_profile"):
+		fx.free()
+		return
+	var profile: Dictionary = fx.call("absorb_residue_profile")
+	fx.free()
+	assert_true(int(profile["count_min"]) >= 3, "residue still leaves visible stardust")
+	assert_true(int(profile["count_max"]) <= 5, "colorbomb fanout does not allocate heavy residue bursts per absorbed gem")
+
+
+func test_vfx_load_shedding_profile_caps_same_frame_heavy_effects() -> void:
+	var fx := FxScript.new()
+	assert_true(fx.has_method("load_shedding_profile"), "Fx exposes a same-frame VFX load shedding profile")
+	if not fx.has_method("load_shedding_profile"):
+		fx.free()
+		return
+	var profile: Dictionary = fx.call("load_shedding_profile")
+	fx.free()
+	assert_true(int(profile["heavy_frame_budget"]) <= 18, "same-frame heavy VFX budget stays bounded")
+	assert_true(int(profile["basic_pop_heavy_cost"]) >= 2, "full basic pops consume meaningful budget")
+	assert_true(int(profile["area_burst_heavy_cost"]) > int(profile["basic_pop_heavy_cost"]), "area bursts are budgeted as heavier than basic pops")
+	assert_true(profile.get("fallback", "") == "single_flash", "over-budget effects downgrade to a single lightweight flash")
 
 
 func test_color_absorb_orb_profile_uses_trail_and_hit_flash() -> void:

@@ -7,6 +7,10 @@ const ME := preload("res://core/match_engine.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
+const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
+const JELLY_MARKER_NAME := "JellyGoalSprite"
+const WALL_STONE_SYNCED := "res://assets/obstacles/ob_stone.png"
+const WALL_MARKER_NAME := "WallStoneSprite"
 const MAGIC_ART_REQUIRED := [
 	"res://art/gems/base/gem_water.png",
 	"res://art/gems/base/gem_clover.png",
@@ -60,6 +64,15 @@ func _count_positive_layer(layer: Array) -> int:
 	for row in layer:
 		for value in row:
 			if int(value) > 0:
+				count += 1
+	return count
+
+
+func _count_grid_value(grid: Array, expected: int) -> int:
+	var count := 0
+	for row in grid:
+		for value in row:
+			if int(value) == expected:
 				count += 1
 	return count
 
@@ -189,9 +202,66 @@ func test_level_objective_view_names_clear_jelly() -> void:
 	level.board = Board.new(8, 9, [0, 1, 2, 3, 4, 5], 0, 25, 1, [], objs, _filled_layer(8, 9, 1))
 	var view: Array = level.call("_objectives_view")
 	assert_eq(view.size(), 1, "one objective card")
-	assert_eq(view[0].get("label", ""), "果冻", "jelly objective is named in the Level.tscn HUD data")
+	assert_eq(view[0].get("label", ""), "清果冻", "jelly objective says what action clears the level")
+	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "jelly objective uses a readable jelly/bubble icon instead of a placeholder")
 	assert_eq(view[0].get("progress", -1), 0, "jelly starts at zero progress")
 	assert_eq(view[0].get("target", -1), 65, "fifth-level jelly target is shown")
+	level.free()
+
+
+func test_twelfth_playable_level_shows_jelly_goal_and_board_markers() -> void:
+	assert_true(FileAccess.file_exists(JELLY_GOAL_ICON), "jelly goal icon exists")
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "12"], level._levels.size())
+	assert_eq(raw_idx, 17, "player level 12 maps to raw exported lvl_17 after score-only gaps are skipped")
+	level.load_level(raw_idx)
+	var view: Array = level.call("_objectives_view")
+	assert_eq(view.size(), 1, "twelfth playable level has one objective card")
+	assert_eq(view[0].get("label", ""), "清果冻", "twelfth playable level explicitly asks the player to clear jelly tiles")
+	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "twelfth playable level uses the jelly goal icon")
+	assert_eq(view[0].get("target", -1), 63, "twelfth playable level target count is shown")
+	var expected := _count_positive_layer(level.board.jelly)
+	assert_true(expected > 0, "twelfth playable level has jelly cells")
+	assert_eq(_count_group_nodes(level, JELLY_MARKER_NAME), expected, "every remaining jelly cell renders a visible board marker")
+	level.free()
+
+func test_jelly_board_markers_do_not_use_round_goal_icon() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "12"], level._levels.size())
+	level.load_level(raw_idx)
+	var marker := _find_named_node(level, JELLY_MARKER_NAME)
+	assert_true(marker != null, "jelly board marker exists")
+	if marker is Sprite2D:
+		var sprite := marker as Sprite2D
+		assert_true(sprite.texture == null or sprite.texture.resource_path != JELLY_GOAL_ICON, "board jelly marker must not reuse the round goal icon under gems")
+	level.free()
+
+
+func test_sixth_playable_level_objective_view_shows_collect_goal() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
+	assert_eq(raw_idx, 7, "player level 6 maps to raw exported lvl_7 after score-only gaps are skipped")
+	level.load_level(raw_idx)
+	var view: Array = level.call("_objectives_view")
+	assert_eq(view.size(), 1, "sixth playable level has one objective card")
+	assert_eq(view[0].get("label", ""), "收集", "sixth playable level is a collect goal")
+	assert_eq(view[0].get("icon", ""), "res://art/gems/base/gem_heart.png", "sixth playable level collects the pink heart gem")
+	assert_eq(view[0].get("target", -1), 42, "sixth playable level target is shown")
+	level.free()
+
+
+func test_score_fallback_level_objective_view_shows_score_target() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.board = Board.new(3, 3, [0, 1, 2], 5119, 25, 1)
+	var view: Array = level.call("_objectives_view")
+	assert_eq(view.size(), 1, "score-only levels still show one real objective card")
+	if view.is_empty():
+		level.free()
+		return
+	assert_eq(view[0].get("label", ""), "分数", "score-only level is labeled as score")
+	assert_eq(view[0].get("progress", -1), 0, "score-only level starts at zero score progress")
+	assert_eq(view[0].get("target", -1), 5119, "score-only level target score is shown")
 	level.free()
 
 
@@ -226,4 +296,127 @@ func test_level_scene_renders_blockers_as_keyed_barrier_ice_sprites() -> void:
 		assert_true(sprite.material is ShaderMaterial, "barriers key out the magenta source background")
 		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
 		assert_true(drawn_size.x <= level.cell_size * 0.90 and drawn_size.y <= level.cell_size * 0.90, "barrier art stays inside one board cell")
+	level.free()
+
+
+func test_level_scene_renders_wall_cells_as_stone_sprites() -> void:
+	assert_true(FileAccess.file_exists(WALL_STONE_SYNCED), "wall stone art exists")
+	var level := _prepare_level_scene()
+	level.load_level(13)
+	var expected := _count_grid_value(level.board.grid, ME.WALL)
+	assert_true(expected > 0, "raw level 9 contains wall cells")
+	assert_eq(_count_group_nodes(level, WALL_MARKER_NAME), expected, "every wall cell renders one visible stone sprite")
+	var marker := _find_named_node(level, WALL_MARKER_NAME)
+	assert_true(marker is Sprite2D, "wall marker is a sprite")
+	if marker is Sprite2D:
+		var sprite := marker as Sprite2D
+		assert_eq(sprite.texture.resource_path, WALL_STONE_SYNCED, "walls use stone obstacle art")
+		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
+		assert_true(drawn_size.x <= level.cell_size * 0.92 and drawn_size.y <= level.cell_size * 0.92, "wall art stays inside one board cell")
+	level.free()
+
+
+func test_wall_slide_source_map_replays_gravity_order() -> void:
+	var level := _prepare_level_scene()
+	level.board = Board.new(3, 4, [0, 1, 2], 0, 25, 1)
+	level.board.is_scrolling = true
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var before_grid := [
+		[10, W, 11],
+		[5, E, 6],
+		[7, E, 9],
+		[1, 2, 3],
+	]
+	assert_true(level.has_method("_build_wall_slide_source_map"), "wall slide visuals can replay gravity to map targets to exact old sources")
+	if not level.has_method("_build_wall_slide_source_map"):
+		level.free()
+		return
+	var source_map: Array = level.call("_build_wall_slide_source_map", before_grid)
+	assert_eq(source_map[2][1], Vector2i(2, 1), "lower blocked slot uses the immediate right-above tile, matching gravity order")
+	assert_eq(source_map[1][1], Vector2i(2, 0), "upper blocked slot then uses the top right tile after the lower move")
+	level.free()
+
+
+func test_wall_slide_source_map_tracks_spawn_source_column() -> void:
+	var level := _prepare_level_scene()
+	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var before_grid := [
+		[E, W, E],
+		[5, E, 6],
+		[7, 8, 9],
+	]
+	assert_true(level.has_method("_build_wall_slide_source_map"), "wall slide visuals can replay spawned sources")
+	if not level.has_method("_build_wall_slide_source_map"):
+		level.free()
+		return
+	var source_map: Array = level.call("_build_wall_slide_source_map", before_grid)
+	var source: Vector2i = source_map[1][1]
+	assert_eq(source.x, 2, "new piece filling the wall pocket should enter from the right top column, matching gravity's right-above priority")
+	assert_true(source.y < 0, "spawned source is marked as a new piece rather than an old board node")
+	level.free()
+
+
+func test_wall_slide_path_map_preserves_delayed_diagonal_step() -> void:
+	var level := _prepare_level_scene()
+	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
+	level.board.is_scrolling = true
+	var E := ME.EMPTY
+	var W := ME.WALL
+	var before_grid := [
+		[E, E, 11],
+		[E, W, E],
+		[7, E, 9],
+	]
+	assert_true(level.has_method("_build_wall_slide_path_map"), "wall slide visuals record each gravity step, not just final source")
+	if not level.has_method("_build_wall_slide_path_map"):
+		level.free()
+		return
+	var path_map: Array = level.call("_build_wall_slide_path_map", before_grid)
+	assert_eq(path_map[2][1], [Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 2)], "piece falls vertically first, then diagonally into the wall pocket")
+	level.free()
+
+
+func test_wall_slide_tracking_maps_stress_paths_are_contiguous() -> void:
+	var level := _prepare_level_scene()
+	level.board = Board.new(6, 7, [0, 1, 2, 3], 0, 25, 1)
+	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals expose source/path tracking maps for stress validation")
+	if not level.has_method("_build_wall_slide_tracking_maps"):
+		level.free()
+		return
+	for seed in range(48):
+		level.board.is_scrolling = seed % 2 == 0
+		var before_grid := []
+		for row in range(level.board.height):
+			var out_row := []
+			for col in range(level.board.width):
+				var roll: int = int((seed * 31 + row * 17 + col * 13 + row * col * 7) % 12)
+				if roll == 0 and row > 0 and row < level.board.height - 1:
+					out_row.append(ME.WALL)
+				elif roll <= 3:
+					out_row.append(ME.EMPTY)
+				else:
+					out_row.append(seed * 100 + row * level.board.width + col)
+			before_grid.append(out_row)
+		var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+		var source_map: Array = maps["source"]
+		var path_map: Array = maps["path"]
+		for row in range(level.board.height):
+			for col in range(level.board.width):
+				var path: Array = path_map[row][col]
+				if path.is_empty():
+					continue
+				assert_eq(path[path.size() - 1], Vector2i(col, row), "path ends at its visual target for seed %d cell (%d,%d)" % [seed, col, row])
+				var source: Vector2i = source_map[row][col]
+				if source.y >= 0:
+					assert_eq(path[0], source, "old piece path starts at the exact source for seed %d cell (%d,%d)" % [seed, col, row])
+				elif source.y == -2:
+					assert_eq(path[0], Vector2i(source.x, 0), "spawned path starts at the top entry column for seed %d cell (%d,%d)" % [seed, col, row])
+				for idx in range(1, path.size()):
+					var prev: Vector2i = path[idx - 1]
+					var next: Vector2i = path[idx]
+					assert_eq(next.y - prev.y, 1, "gravity path never skips a row for seed %d cell (%d,%d)" % [seed, col, row])
+					assert_true(absi(next.x - prev.x) <= 1, "gravity path never jumps across columns for seed %d cell (%d,%d)" % [seed, col, row])
 	level.free()

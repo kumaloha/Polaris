@@ -1210,7 +1210,7 @@ inline PlayResult play_bomb(const Level& lv, ValueFn value_fn, bool record_curve
             swap_cells(gc, m.a, m.b);
             BombResolveResult rr = resolve_bomb(
                 gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
-                bc.empty() ? nullptr : &bc, nullptr, true);
+                bc.empty() ? nullptr : &bc, nullptr, true, m.b);
             // 拆弹价值 − 结算后残留紧迫势能（消掉快爆炸弹使势能骤降 → 该步价值高 → 优先拆将爆的）
             double v = value_fn(rr, lv) - bomb_urgency_bonus(bc);
             if (v > best_v) { best_v = v; best = m; }
@@ -1218,7 +1218,7 @@ inline PlayResult play_bomb(const Level& lv, ValueFn value_fn, bool record_curve
         swap_cells(g, best.a, best.b);
         BombResolveResult rr = resolve_bomb(
             g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
-            bomb.empty() ? nullptr : &bomb, nullptr, true);
+            bomb.empty() ? nullptr : &bomb, nullptr, true, best.b);
         res.score += rr.score;
         accumulate(collected, rr.by_species);
         jelly_total += rr.jelly_cleared;
@@ -1426,7 +1426,7 @@ inline PlayResult random_play(const Level& lv) {
             swap_cells(g, m.a, m.b);
             BombResolveResult rr = resolve_bomb(
                 g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
-                bomb.empty() ? nullptr : &bomb, nullptr, true);
+                bomb.empty() ? nullptr : &bomb, nullptr, true, m.b);
             res.score += rr.score;
             accumulate(collected, rr.by_species);
             jelly_total += rr.jelly_cleared;
@@ -1905,7 +1905,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
                 swap_cells(gc, m.a, m.b);
                 BombResolveResult rr = resolve_bomb(
                     gc, lv.species, rc, jc.empty() ? nullptr : &jc, cc.empty() ? nullptr : &cc,
-                    bc.empty() ? nullptr : &bc, nullptr, true);
+                    bc.empty() ? nullptr : &bc, nullptr, true, m.b);
                 if (move_progresses_bomb(rr, lv)) prog++;
                 double prog_h = 0.0;
                 for (const auto& o : lv.objectives)
@@ -1917,7 +1917,7 @@ inline std::vector<int> objective_progress_curve(const Level& lv) {
             swap_cells(g, best.a, best.b);
             BombResolveResult rr = resolve_bomb(
                 g, lv.species, rng, jelly.empty() ? nullptr : &jelly, coat.empty() ? nullptr : &coat,
-                bomb.empty() ? nullptr : &bomb, nullptr, true);
+                bomb.empty() ? nullptr : &bomb, nullptr, true, best.b);
             score += rr.score;
             accumulate(collected, rr.by_species);
             jelly_total += rr.jelly_cleared;
