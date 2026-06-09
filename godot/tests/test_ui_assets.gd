@@ -244,6 +244,16 @@ func test_app_character_art_uses_bee_rig_for_collector() -> void:
 	app.free()
 
 
+func test_level_page_renders_bee_rig_companion() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	var rig := _find_named_node(level.character_layer, "BeeRig")
+	assert_true(rig != null, "level page renders the bee companion on the character layer")
+	if rig != null:
+		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "level bee rig renders the body texture once")
+	level.free()
+
+
 func test_magic_match_art_pack_is_available_under_res_art() -> void:
 	for path in MAGIC_ART_REQUIRED:
 		assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "magic art asset exists: %s" % path)

@@ -11,6 +11,7 @@ const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
+const BeeRig := preload("res://ui/bee_rig.gd")
 const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
@@ -159,6 +160,8 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const BOSS_C := Vector2(562, 336)
+const LEVEL_BEE_POS := Vector2(480, 292)
+const LEVEL_BEE_SIZE := Vector2(180, 180)
 const BOARD_TOP := 464.0
 const BOARD_LAYOUT_Y_OFFSET := -24.0  # 书本棋盘区整体上移, 8~11 行共享同一个更高视觉中心
 const CELL_FILL := 1.0          # 格子填满格位
@@ -1001,9 +1004,15 @@ func _render_chrome(cfg: Dictionary) -> void:
 	_clear_layer(ui_layer)
 	_clear_layer(skill_bar)
 	# v0.02: 设计稿为纯三消, 移除 Boss 对战区(狐狸/Boss/道具书)。score 计分逻辑不受影响。
-	# _render_characters()
+	_render_level_bee()
 	_render_ui_layer()
 	_render_skillbar()
+
+func _render_level_bee() -> void:
+	var bee := BeeRig.new()
+	bee.position = LEVEL_BEE_POS
+	bee.setup({"rig": "bee", "rig_parts": BeeRig.default_part_paths()}, LEVEL_BEE_SIZE)
+	character_layer.add_child(bee)
 
 # 阶段6: ui_layer(顶栏+吊坠绳+目标卡+步数徽章+星级)整层重画。
 # HUD 刷新只动 ui_layer(不重画角色/技能栏/棋盘), 目标进度/步数随每步更新。
