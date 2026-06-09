@@ -15,8 +15,8 @@
 
 | 文件夹 | 内容 | res:// 目标 | 节点类型 | 混合模式 |
 |---|---|---|---|---|
-| `gem` | 6 种基础棋子 | `assets/gems/` | Sprite2D | 普通 Alpha |
-| `gem_shine` | 棋子高光/特殊棋子标记 | `assets/gems/shine/` | Sprite2D | 普通 Alpha |
+| `gem` | 6 种基础棋子 | `art/gems/base/` | Sprite2D | 普通 Alpha |
+| `gem_shader` | 棋子高光/特殊棋子标记 | `match3/*.gdshader` | ShaderMaterial | 普通 Alpha |
 | `barrier` | 障碍机关 | `assets/obstacles/` | Sprite2D | 普通 Alpha |
 | `cell` | 棋盘格底 | `assets/board/` | TileMap 或循环 Sprite2D | 普通 Alpha |
 | `ui_element` | UI 面板/按钮/图标 | `assets/ui/` | NinePatchRect（面板/框）/ TextureRect（图标） | 普通 Alpha |

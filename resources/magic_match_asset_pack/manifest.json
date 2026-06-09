@@ -15,13 +15,6 @@
       ]
     },
     {
-      "path": "art/gems/base/gem_heart.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
       "path": "art/gems/base/gem_orb.png",
       "size": [
         512,
@@ -37,69 +30,6 @@
     },
     {
       "path": "art/gems/base/gem_star.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/base/gem_shadow_soft.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_5/special_5_core_ball.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_5/special_5_gold_ground_glow.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_5/special_5_inner_swirl.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_5/special_5_inner_stars.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_5/special_5_cube_ring.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_4/special_4_horizontal_overlay.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_4/special_4_vertical_overlay.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/gems/special_4/special_4_area_overlay.png",
       "size": [
         512,
         512
@@ -307,105 +237,7 @@
         512,
         512
       ]
-    },
-    {
-      "path": "art/vfx/transform/vfx_transform_flash.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/transform/vfx_skill_symbol_horizontal.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/transform/vfx_skill_symbol_vertical.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/transform/vfx_skill_symbol_area.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/movement/cell_glow_square.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/movement/vfx_landing_dust.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/movement/vfx_spawn_glow.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/movement/vfx_swap_streak.png",
-      "size": [
-        512,
-        256
-      ]
-    },
-    {
-      "path": "art/vfx/movement/vfx_select_ring.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/movement/vfx_landing_ring.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/reward/vfx_reward_magic_ball.png",
-      "size": [
-        512,
-        512
-      ]
-    },
-    {
-      "path": "art/vfx/reward/vfx_reward_trail.png",
-      "size": [
-        512,
-        128
-      ]
-    },
-    {
-      "path": "art/vfx/reward/vfx_reward_confetti_star.png",
-      "size": [
-        256,
-        256
-      ]
-    },
-    {
-      "path": "art/vfx/reward/vfx_reward_pop_flash.png",
-      "size": [
-        512,
-        512
-      ]
     }
   ],
-  "count": 58
+  "count": 34
 }

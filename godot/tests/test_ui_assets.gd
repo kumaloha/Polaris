@@ -22,7 +22,6 @@ const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
-const TOPBAR_STAR_SILVER := "res://assets/level/star_silver.png"
 const MAGIC_ART_REQUIRED := [
 	"res://art/gems/base/gem_water.png",
 	"res://art/gems/base/gem_clover.png",
@@ -30,16 +29,7 @@ const MAGIC_ART_REQUIRED := [
 	"res://art/gems/base/gem_orb.png",
 	"res://art/gems/base/gem_ruby.png",
 	"res://art/gems/base/gem_star.png",
-	"res://art/gems/base/gem_shadow_soft.png",
 	COLORBOMB_CORE_SYNCED,
-	"res://art/gems/special_4/special_4_horizontal_overlay.png",
-	"res://art/gems/special_4/special_4_vertical_overlay.png",
-	"res://art/gems/special_4/special_4_area_overlay.png",
-	"res://art/gems/special_5/special_5_core_ball.png",
-	"res://art/gems/special_5/special_5_gold_ground_glow.png",
-	"res://art/gems/special_5/special_5_inner_swirl.png",
-	"res://art/gems/special_5/special_5_inner_stars.png",
-	"res://art/gems/special_5/special_5_cube_ring.png",
 	"res://art/vfx/basic_pop/vfx_basic_flash_blob.png",
 	"res://art/vfx/basic_pop/vfx_basic_flash_star.png",
 	"res://art/vfx/basic_pop/vfx_basic_ring_soft.png",
@@ -52,9 +42,6 @@ const MAGIC_ART_REQUIRED := [
 	"res://art/vfx/color_absorb/vfx_absorb_orb.png",
 	"res://art/vfx/color_absorb/vfx_absorb_trail.png",
 	"res://art/vfx/color_absorb/cell_target_outline.png",
-	"res://art/vfx/transform/vfx_transform_flash.png",
-	"res://art/vfx/reward/vfx_reward_magic_ball.png",
-	"res://art/vfx/movement/vfx_landing_ring.png",
 ]
 
 
@@ -507,7 +494,6 @@ func test_topbar_renders_only_first_star_overlay() -> void:
 	level.ui_layer = layer
 	level.call("_render_topbar_v2", level._cur_cfg)
 	assert_eq(_count_sprite_texture(layer, TOPBAR_STAR_GOLD), 1, "topbar renders only the first gold star overlay")
-	assert_eq(_count_sprite_texture(layer, TOPBAR_STAR_SILVER), 0, "topbar no longer renders gray star overlays")
 	level.free()
 
 
@@ -655,11 +641,12 @@ func test_wall_slide_source_map_replays_gravity_order() -> void:
 		[7, E, 9],
 		[1, 2, 3],
 	]
-	assert_true(level.has_method("_build_wall_slide_source_map"), "wall slide visuals can replay gravity to map targets to exact old sources")
-	if not level.has_method("_build_wall_slide_source_map"):
+	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay gravity to map targets to exact old sources")
+	if not level.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var source_map: Array = level.call("_build_wall_slide_source_map", before_grid)
+	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var source_map: Array = maps["source"]
 	assert_eq(source_map[2][1], Vector2i(2, 1), "lower blocked slot uses the immediate right-above tile, matching gravity order")
 	assert_eq(source_map[1][1], Vector2i(2, 0), "upper blocked slot then uses the top right tile after the lower move")
 	level.free()
@@ -675,11 +662,12 @@ func test_wall_slide_source_map_tracks_spawn_source_column() -> void:
 		[5, E, 6],
 		[7, 8, 9],
 	]
-	assert_true(level.has_method("_build_wall_slide_source_map"), "wall slide visuals can replay spawned sources")
-	if not level.has_method("_build_wall_slide_source_map"):
+	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay spawned sources")
+	if not level.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var source_map: Array = level.call("_build_wall_slide_source_map", before_grid)
+	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var source_map: Array = maps["source"]
 	var source: Vector2i = source_map[1][1]
 	assert_eq(source.x, 2, "new piece filling the wall pocket should enter from the right top column, matching gravity's right-above priority")
 	assert_true(source.y < 0, "spawned source is marked as a new piece rather than an old board node")
@@ -697,11 +685,12 @@ func test_wall_slide_path_map_preserves_delayed_diagonal_step() -> void:
 		[E, W, E],
 		[7, E, 9],
 	]
-	assert_true(level.has_method("_build_wall_slide_path_map"), "wall slide visuals record each gravity step, not just final source")
-	if not level.has_method("_build_wall_slide_path_map"):
+	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals record each gravity step, not just final source")
+	if not level.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var path_map: Array = level.call("_build_wall_slide_path_map", before_grid)
+	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var path_map: Array = maps["path"]
 	assert_eq(path_map[2][1], [Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 2)], "piece falls vertically first, then diagonally into the wall pocket")
 	level.free()
 

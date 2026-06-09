@@ -9,7 +9,6 @@ const LevelLibrary := preload("res://core/level_library.gd")
 
 # 占星风配色
 const C_GOLD := Color("e9c97c")
-const C_GOLD_DEEP := Color("c79a4a")
 const C_INK := Color("f3ecff")
 const C_INK_DIM := Color("b9c4e6")
 
@@ -852,40 +851,6 @@ func _clear_enchants() -> void:
 	_show_enchants()
 
 
-# 关卡地图(蜿蜒小径)：库内各关按序蜿蜒排布,已过(蓝+星)/当前(金,可玩)/未解锁(灰)。点已解锁→打那关。
-func _show_map() -> void:
-	_clear()
-	_add_gradient_background(false)
-	var n: int = _lib.size() if _lib.size() > 0 else 12
-	var gap_y := 132.0
-	var pad_top := 70.0
-	var content_h := pad_top + n * gap_y + 90.0
-	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 96)
-	scroll.size = Vector2(VIEW_W, VIEW_H - 96)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
-	add_child(scroll)
-	var content := Control.new()
-	content.custom_minimum_size = Vector2(VIEW_W, content_h)
-	scroll.add_child(content)
-	var cur := _current_level(n)
-	var cur_y := 0.0
-	for i in n:
-		var x := VIEW_W * 0.5 + sin(i * 0.95) * 150.0
-		var y := pad_top + (n - 1 - i) * gap_y   # 0 关在最下，越高越上
-		if i == cur:
-			cur_y = y
-		_map_node(content, i, x, y, _level_state(i, cur))
-	scroll.set_deferred("scroll_vertical", int(maxf(0.0, cur_y - 240.0)))   # 开屏滚到当前关
-	# 顶栏
-	var back := _round_button("‹", Rect2(18, 18, 48, 48))
-	back.z_index = 50
-	back.pressed.connect(Callable(self, "_show_home"))
-	add_child(back)
-	add_child(_label("星辉森林 · 魔法小径", Rect2(88, 36, 420, 40), 22, C_GOLD, HORIZONTAL_ALIGNMENT_LEFT))
-
-
 func _current_level(n: int) -> int:
 	if meta == null:
 		return 0
@@ -893,49 +858,6 @@ func _current_level(n: int) -> int:
 		if not meta.level_stars.has(str(i)):
 			return i
 	return n - 1   # 全过了 → 停在最后一关
-
-
-func _level_state(i: int, cur: int) -> String:
-	if meta != null and meta.level_stars.has(str(i)):
-		return "cleared"
-	if i <= cur:
-		return "current"
-	return "locked"
-
-
-func _map_node(parent: Control, idx: int, x: float, y: float, state: String) -> void:
-	var sz := 72.0
-	var locked: bool = state == "locked"
-	var cleared: bool = state == "cleared"
-	var is_cur: bool = state == "current"
-	# 深色底衬：让节点色块在中心辉光上也清晰
-	var halo := Panel.new()
-	halo.position = Vector2(x - sz * 0.5 - 6, y - sz * 0.5 - 6)
-	halo.size = Vector2(sz + 12, sz + 12)
-	halo.add_theme_stylebox_override("panel", _style(Color(0.04, 0.07, 0.16, 0.82), 999, C_GOLD if is_cur else Color(1, 1, 1, 0.0), 0))
-	halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(halo)
-	var btn := Button.new()
-	btn.position = Vector2(x - sz * 0.5, y - sz * 0.5)
-	btn.size = Vector2(sz, sz)
-	var fill: Color = Color("a89fce") if locked else (Color("5fb0ff") if cleared else Color("ffce5e"))
-	var border: Color = C_GOLD if is_cur else Color(1, 1, 1, 0.55)
-	var bw: int = 4 if is_cur else 2
-	btn.add_theme_stylebox_override("normal", _style(fill, 999, border, bw))
-	if not locked:
-		btn.add_theme_stylebox_override("hover", _style(fill.lightened(0.10), 999, C_GOLD, bw))
-		btn.add_theme_stylebox_override("pressed", _style(fill.darkened(0.10), 999, C_GOLD, bw))
-		btn.pressed.connect(Callable(self, "_show_game").bind(idx))
-	parent.add_child(btn)
-	btn.add_child(_inner_label(str(idx + 1), Rect2(0, 0, sz, sz), 24, Color(1, 1, 1, 0.5) if locked else Color("3a2600")))
-	# 难度标(节点右侧)
-	if idx < _lib.size():
-		var diff := "挖矿" if bool(_lib[idx].get("is_scrolling", false)) else String(_lib[idx].get("difficulty", ""))
-		parent.add_child(_label(diff, Rect2(x + sz * 0.5 + 4, y - 11, 84, 22), 12, C_INK_DIM, HORIZONTAL_ALIGNMENT_LEFT))
-	# 星级(已过，节点下方)
-	if cleared:
-		var s := int(meta.level_stars.get(str(idx), 0))
-		parent.add_child(_label("★".repeat(s), Rect2(x - 42, y + sz * 0.5 - 2, 84, 18), 14, C_GOLD))
 
 
 # 占位屏(即将开放)：商店/排行/任务用，含底部导航可继续切换。

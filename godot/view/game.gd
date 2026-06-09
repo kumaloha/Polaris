@@ -30,8 +30,6 @@ const PIECE_SPECIES := [1, 3, 9, 6, 2, 7]
 var piece_tex := []          # 保留旧贴图缓存兼容测试；战斗页实际使用 ReferencePiece 程序化棋子
 var colorbomb_tex: Texture2D
 const SYMBOLS := ["◆", "💧", "☘", "★", "●", "♥", "▣"]
-# 特效标记：SP_NONE/LINE_H/LINE_V/BOMB/COLORBOMB
-const FX_GLYPH := ["", "▬", "▮", "✸", "◎"]
 
 var board: Board
 var cur_seed := 12345

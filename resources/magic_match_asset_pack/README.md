@@ -6,24 +6,16 @@ Generated PNG asset pack for the match-3 magic/cube-pet theme.
 
 - All assets are PNG with transparent backgrounds.
 - Most VFX assets are white/gray and are intended to be tinted in Godot with `modulate` or shader color parameters.
-- Ordinary pieces use `art/gems/base/gem_shadow_soft.png` as their soft contact shadow.
-- The 5-match crystal ball does **not** use the ordinary shadow. It uses `art/gems/special_5/special_5_gold_ground_glow.png` as its separate golden magic floor glow.
-- The 5-match ball is split into layers so Godot can animate them independently:
-  - `special_5_core_ball.png`
-  - `special_5_gold_ground_glow.png`
-  - `special_5_cube_ring.png`
-  - `special_5_inner_swirl.png`
-  - `special_5_inner_stars.png`
+- Ordinary pieces use a shape shadow generated from the current gem texture, so no separate shadow PNG is required.
+- 4-match specials use body motion plus shader highlights instead of static overlay PNGs.
+- The 5-match crystal ball uses the runtime single-image art `res://assets/level/diamond_white.png`; the older layered `special_5` runtime PNGs are no longer required.
+- The original generated movement, reward, and transform VFX PNGs were removed because no runtime path loads them.
 
-## Suggested Godot layering for the 5-match crystal ball
+## Current Godot layering for the 5-match crystal ball
 
 ```text
 ColorCorePiece.tscn
-├── GroundGoldGlow      special_5_gold_ground_glow.png
-├── CoreBall            special_5_core_ball.png
-├── InnerSwirl          special_5_inner_swirl.png
-├── InnerStars          special_5_inner_stars.png
-└── CubeRing            special_5_cube_ring.png
+└── CoreBall            res://assets/level/diamond_white.png
 ```
 
 ## Suggested import settings
@@ -32,4 +24,3 @@ ColorCorePiece.tscn
 - Mipmaps: off for UI-scale 2D unless you zoom the board.
 - Repeat: disabled.
 - Use each VFX as a Sprite2D/GPUParticles2D texture and tint in Godot.
-

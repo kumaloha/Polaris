@@ -4,7 +4,6 @@ extends Node
 ## Level._ready() 调 Fx.attach(fx_layer, shake_node) 注册画布层与震动目标。
 
 const SPARK := "res://assets/fx/fx_spark_star.png"  # 火花/星
-const SMOKE := "res://assets/fx/fx_smoke.png"       # 烟/碎屑
 const TRAIL := "res://assets/fx/fx_trail.png"       # 拖尾/光束
 const SHOCK := "res://assets/fx/fx_shockwave.png"   # 冲击波
 const BOKEH := "res://assets/fx/fx_bokeh.png"       # 光斑

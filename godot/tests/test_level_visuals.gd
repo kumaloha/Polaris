@@ -100,15 +100,15 @@ func test_colorbomb_idle_does_not_tween_board_position() -> void:
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_colorbomb_idle")
-	assert_true(start >= 0, "_play_colorbomb_idle exists")
+	var start: int = src.find("func _apply_colorbomb_layers")
+	assert_true(start >= 0, "_apply_colorbomb_layers exists")
 	if start < 0:
 		return
 	var end: int = src.find("# ───────── 整页 UI", start)
 	if end < 0:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
-	assert_false(body.contains("root, \"position\""), "colorbomb idle must not tween root.position; fall/swap owns board position")
+	assert_false(body.contains("\"position\""), "colorbomb idle must not tween position; fall/swap owns board position")
 	assert_true(body.contains("\"offset\""), "colorbomb bob uses visual offset instead of board position")
 
 
@@ -339,8 +339,9 @@ func test_colorbomb_absorb_preview_leaves_residue_and_pulses_crystal() -> void:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
 	assert_true(body.contains("Fx.spawn_absorb_residue"), "each absorbed gem leaves residue stardust at its source cell")
-	assert_true(body.contains("_pulse_colorbomb_gold_glow"), "orb impact pulses the gold ground glow")
-	assert_true(body.contains("_pulse_colorbomb_inner_stars"), "absorbed batch lights the crystal ball inner stars")
+	assert_true(body.contains("_pulse_colorbomb_core"), "orb impact pulses the current single-texture crystal ball")
+	assert_false(body.contains("_pulse_colorbomb_gold_glow"), "single-texture colorbomb no longer references the removed gold-glow layer")
+	assert_false(body.contains("_pulse_colorbomb_inner_stars"), "single-texture colorbomb no longer references the removed inner-stars layer")
 
 
 func test_colorbomb_resolve_has_no_final_particle_burst() -> void:
@@ -1480,20 +1481,13 @@ func test_opening_obstacle_markers_replace_temporary_gems() -> void:
 		return
 	var src: String = f.get_as_text()
 	var wall_start: int = src.find("func _show_opening_wall_marker")
-	var wall_end: int = src.find("func _show_opening_coat_marker", wall_start)
+	var wall_end: int = src.find("func _play_opening_freeze", wall_start)
 	assert_true(wall_start >= 0 and wall_end > wall_start, "wall opening marker function can be inspected")
 	if wall_start < 0 or wall_end <= wall_start:
 		return
 	var wall_body: String = src.substr(wall_start, wall_end - wall_start)
 	assert_true(wall_body.contains("_clear_gem_node_at(pos.y, pos.x)"), "stone cast removes the temporary gem before showing the stone")
-
-	var coat_start: int = src.find("func _show_opening_coat_marker")
-	var coat_end: int = src.find("func _play_opening_freeze", coat_start)
-	assert_true(coat_start >= 0 and coat_end > coat_start, "ice opening marker function can be inspected")
-	if coat_start < 0 or coat_end <= coat_start:
-		return
-	var coat_body: String = src.substr(coat_start, coat_end - coat_start)
-	assert_false(coat_body.contains("_clear_gem_node_at(pos.y, pos.x)"), "ice opening marker no longer replaces a temporary gem")
+	assert_false(src.contains("func _show_opening_coat_marker"), "ice opening marker no longer has a separate boss-cast replacement path")
 
 
 func test_opening_stone_casts_from_boss_but_ice_does_not() -> void:
