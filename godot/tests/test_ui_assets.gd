@@ -22,6 +22,23 @@ const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
+const BEE_RIG_DIR := "res://art/characters/bee_rig"
+const BEE_RIG_PARTS := [
+	"wing_L",
+	"wing_R",
+	"leg_L",
+	"leg_R",
+	"body",
+	"arm_R",
+	"arm_L_raised",
+	"antenna_L",
+	"antenna_R",
+	"face_base",
+	"eyes_open",
+	"eyes_half",
+	"eyes_closed",
+	"mouth",
+]
 const MAGIC_ART_REQUIRED := [
 	"res://art/gems/base/gem_water.png",
 	"res://art/gems/base/gem_clover.png",
@@ -165,6 +182,66 @@ func test_character_metadata_comes_from_docs() -> void:
 	assert_eq(by_id["lucky"]["playable"], false, "default mascot is not playable")
 	assert_eq(by_id["borrrower"]["skill_desc"], "借一个特效(4连直线/T·L爆炸/5连彩球效果),本关内必须还;不还不算过关。", "borrower skill from docs")
 	assert_eq(by_id["chainbonus"]["type"], "被动型·整局生效", "passive type from docs")
+
+
+func test_collector_declares_bee_rig_metadata() -> void:
+	var by_id := {}
+	for character in CharacterData.load_characters():
+		by_id[character["id"]] = character
+	assert_true(by_id.has("collector"), "collector character is declared")
+	if not by_id.has("collector"):
+		return
+	var collector: Dictionary = by_id["collector"]
+	assert_eq(collector.get("rig", ""), "bee", "collector uses the bee part rig")
+	var rig_parts: Array = collector.get("rig_parts", [])
+	assert_eq(rig_parts.size(), BEE_RIG_PARTS.size(), "bee rig declares every required part")
+	for part in BEE_RIG_PARTS:
+		assert_true(rig_parts.has("%s/%s.png" % [BEE_RIG_DIR, part]), "bee rig metadata includes %s" % part)
+
+
+func test_bee_rig_synced_parts_are_available() -> void:
+	for part in BEE_RIG_PARTS:
+		var path := "%s/%s.png" % [BEE_RIG_DIR, part]
+		assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(ProjectSettings.globalize_path(path)), "bee rig part exists: %s" % path)
+
+
+func test_bee_rig_node_builds_layered_sprites() -> void:
+	var script = load("res://ui/bee_rig.gd")
+	assert_true(script != null, "BeeRig script exists")
+	if script == null:
+		return
+	var rig = script.new()
+	var character := {"rig_parts": []}
+	for part in BEE_RIG_PARTS:
+		character["rig_parts"].append("%s/%s.png" % [BEE_RIG_DIR, part])
+	rig.call("setup", character, Vector2(260, 260))
+	assert_eq(rig.name, "BeeRig", "bee rig root is named for UI lookup")
+	for part in BEE_RIG_PARTS:
+		assert_true(_find_named_node(rig, "BeePart_%s" % part) is Sprite2D, "bee rig builds sprite layer %s" % part)
+	rig.free()
+
+
+func test_app_character_art_uses_bee_rig_for_collector() -> void:
+	var app_script = load("res://ui/app.gd")
+	assert_true(app_script != null, "app script loads")
+	if app_script == null:
+		return
+	var app = app_script.new()
+	var collector := {}
+	for character in CharacterData.load_characters():
+		if String(character.get("id", "")) == "collector":
+			collector = character
+			break
+	assert_false(collector.is_empty(), "collector character is available")
+	if collector.is_empty():
+		app.free()
+		return
+	app.call("_add_character_art", collector, Rect2(0, 0, 260, 260), false)
+	var rig := _find_named_node(app, "BeeRig")
+	assert_true(rig != null, "collector character art renders the bee rig")
+	if rig != null:
+		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "bee rig renders the body texture once")
+	app.free()
 
 
 func test_magic_match_art_pack_is_available_under_res_art() -> void:
