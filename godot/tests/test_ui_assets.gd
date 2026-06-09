@@ -11,14 +11,27 @@ const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const JELLY_MARKER_NAME := "JellyGoalSprite"
 const WALL_STONE_SYNCED := "res://assets/obstacles/ob_stone.png"
 const WALL_MARKER_NAME := "WallStoneSprite"
+const COLORBOMB_CORE_SYNCED := "res://assets/level/diamond_white.png"
+const PINK_GEM_SOURCE := "resources/0.02/gem/heart_neon.png"
+const PINK_GEM_SYNCED := "res://art/gems/base/heart_neon.png"
+const BG3_SOURCE := "resources/0.02/bg3.png"
+const BACKGROUND_SYNCED := "res://assets/level/background.png"
+const BOOK_RIBBONS_SOURCE := "resources/0.02/board/book_ribbons_new.png"
+const BOOK_RIBBONS_SYNCED := "res://assets/level/book_ribbons.png"
+const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
+const BOOK_RIBBONS_NODE := "BookRibbons"
+const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
+const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
+const TOPBAR_STAR_SILVER := "res://assets/level/star_silver.png"
 const MAGIC_ART_REQUIRED := [
 	"res://art/gems/base/gem_water.png",
 	"res://art/gems/base/gem_clover.png",
-	"res://art/gems/base/gem_heart.png",
+	PINK_GEM_SYNCED,
 	"res://art/gems/base/gem_orb.png",
 	"res://art/gems/base/gem_ruby.png",
 	"res://art/gems/base/gem_star.png",
 	"res://art/gems/base/gem_shadow_soft.png",
+	COLORBOMB_CORE_SYNCED,
 	"res://art/gems/special_4/special_4_horizontal_overlay.png",
 	"res://art/gems/special_4/special_4_vertical_overlay.png",
 	"res://art/gems/special_4/special_4_area_overlay.png",
@@ -96,6 +109,26 @@ func _find_named_node(root: Node, node_name: String) -> Node:
 	return null
 
 
+func _count_label_text(root: Node, text: String) -> int:
+	var count := 0
+	if root is Label and (root as Label).text == text:
+		count += 1
+	for child in root.get_children():
+		count += _count_label_text(child, text)
+	return count
+
+
+func _count_sprite_texture(root: Node, texture_path: String) -> int:
+	var count := 0
+	if root is Sprite2D:
+		var sprite := root as Sprite2D
+		if sprite.texture != null and sprite.texture.resource_path == texture_path:
+			count += 1
+	for child in root.get_children():
+		count += _count_sprite_texture(child, texture_path)
+	return count
+
+
 func _prepare_level_scene() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
@@ -152,6 +185,145 @@ func test_magic_match_art_pack_is_available_under_res_art() -> void:
 		assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "magic art asset exists: %s" % path)
 
 
+func test_background_art_is_synced_to_bg3() -> void:
+	var src := Image.load_from_file(_repo_path(BG3_SOURCE))
+	var dst := Image.load_from_file(ProjectSettings.globalize_path(BACKGROUND_SYNCED))
+	assert_true(src != null and not src.is_empty(), "bg3 source art loads")
+	assert_true(dst != null and not dst.is_empty(), "synced game background loads")
+	if src == null or src.is_empty() or dst == null or dst.is_empty():
+		return
+	assert_eq(dst.get_width(), src.get_width(), "game background keeps bg3 width")
+	assert_eq(dst.get_height(), src.get_height(), "game background keeps bg3 height")
+	for p in [Vector2i(50, 50), Vector2i(470, 200), Vector2i(750, 700), Vector2i(200, 1300)]:
+		assert_eq(dst.get_pixel(p.x, p.y), src.get_pixel(p.x, p.y), "game background pixel matches bg3 at %s" % str(p))
+
+
+func test_background_render_uses_current_bg3_pixels() -> void:
+	var src := Image.load_from_file(_repo_path(BG3_SOURCE))
+	assert_true(src != null and not src.is_empty(), "bg3 source art loads")
+	if src == null or src.is_empty():
+		return
+	var level := _prepare_level_scene()
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.background_layer = layer
+	level.call("_render_background")
+	var rendered: TextureRect = null
+	for child in layer.get_children():
+		if child is TextureRect:
+			rendered = child as TextureRect
+	assert_true(rendered != null, "background renders a TextureRect")
+	if rendered == null or rendered.texture == null:
+		level.free()
+		return
+	var img := rendered.texture.get_image()
+	assert_true(img != null and not img.is_empty(), "rendered background texture exposes image pixels")
+	if img == null or img.is_empty():
+		level.free()
+		return
+	for p in [Vector2i(50, 50), Vector2i(470, 200), Vector2i(750, 700), Vector2i(200, 1300)]:
+		assert_eq(img.get_pixel(p.x, p.y), src.get_pixel(p.x, p.y), "rendered background pixel matches bg3 at %s" % str(p))
+	level.free()
+
+
+func test_book_ribbons_art_is_synced_to_new_full_width_asset() -> void:
+	var src := Image.load_from_file(_repo_path(BOOK_RIBBONS_SOURCE))
+	var dst := Image.load_from_file(ProjectSettings.globalize_path(BOOK_RIBBONS_SYNCED))
+	var frame := Image.load_from_file(ProjectSettings.globalize_path(BOOK_FRAME_SYNCED))
+	assert_true(src != null and not src.is_empty(), "book_ribbons_new source art loads")
+	assert_true(dst != null and not dst.is_empty(), "synced book ribbons loads")
+	assert_true(frame != null and not frame.is_empty(), "book frame art loads")
+	if src == null or src.is_empty() or dst == null or dst.is_empty() or frame == null or frame.is_empty():
+		return
+	assert_eq(src.get_width(), frame.get_width(), "new ribbons source has the same width as book_frame")
+	assert_eq(dst.get_width(), src.get_width(), "game ribbons use the new full-width art")
+	assert_eq(dst.get_height(), src.get_height(), "game ribbons keep the new art height")
+	if dst.get_width() != src.get_width() or dst.get_height() != src.get_height():
+		return
+	for p in [Vector2i(20, 20), Vector2i(491, 30), Vector2i(900, 60)]:
+		assert_eq(dst.get_pixel(p.x, p.y), src.get_pixel(p.x, p.y), "game ribbons pixel matches new art at %s" % str(p))
+
+
+func test_pink_gem_art_is_synced_to_heart_neon() -> void:
+	var src := Image.load_from_file(_repo_path(PINK_GEM_SOURCE))
+	var dst := Image.load_from_file(ProjectSettings.globalize_path(PINK_GEM_SYNCED))
+	assert_true(src != null and not src.is_empty(), "heart_neon source art loads")
+	assert_true(dst != null and not dst.is_empty(), "synced pink gem heart_neon loads")
+	if src == null or src.is_empty() or dst == null or dst.is_empty():
+		return
+	assert_eq(dst.get_width(), src.get_width(), "pink gem keeps heart_neon width")
+	assert_eq(dst.get_height(), src.get_height(), "pink gem keeps heart_neon height")
+	for p in [Vector2i(50, 50), Vector2i(380, 360), Vector2i(700, 650)]:
+		assert_eq(dst.get_pixel(p.x, p.y), src.get_pixel(p.x, p.y), "pink gem pixel matches heart_neon at %s" % str(p))
+
+
+func test_book_ribbons_render_full_width_under_frame() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "1"], level._levels.size())
+	level.load_level(raw_idx)
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.board_layer = layer
+	level.call("_render_board_panel")
+	var rib := _find_named_node(layer, BOOK_RIBBONS_NODE) as Control
+	assert_true(rib != null, "book ribbons render as a named control")
+	if rib == null:
+		level.free()
+		return
+	var board_h: float = level.board.height * level.cell_size
+	var expected_w := 726.0
+	var expected_bottom: float = level.board_origin.y + board_h + 56.0
+	assert_eq(int(roundf(rib.size.x)), int(expected_w), "book ribbons render at the same display width as the book frame")
+	assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "book ribbons left edge aligns with the frame left edge")
+	assert_eq(int(roundf(rib.position.y)), int(roundf(expected_bottom)), "book ribbons top edge touches the frame bottom edge")
+	assert_true(absf((rib.size.x / rib.size.y) - (982.0 / 77.0)) <= 0.02, "book ribbons keep the new asset aspect ratio")
+	assert_true(rib is NinePatchRect, "book ribbons use the same horizontal nine-slice mapping as the book frame")
+	if rib is NinePatchRect:
+		var np := rib as NinePatchRect
+		assert_eq(np.patch_margin_left, 54, "book ribbons keep the frame left slice width")
+		assert_eq(np.patch_margin_right, 54, "book ribbons keep the frame right slice width")
+	level.free()
+
+
+func test_topbar_art_background_fill_is_transparent() -> void:
+	var img := Image.load_from_file(ProjectSettings.globalize_path(TOPBAR_SYNCED))
+	assert_true(img != null and not img.is_empty(), "topbar art image loads")
+	if img == null or img.is_empty():
+		return
+	assert_eq(img.get_width(), 1024, "topbar uses the new transparent source art width")
+	assert_eq(img.get_height(), 1536, "topbar keeps the original tall transparent source art")
+	var samples := [
+		Vector2i(512, 360),
+		Vector2i(512, 846),
+		Vector2i(512, 1000),
+		Vector2i(900, 360),
+	]
+	for p in samples:
+		assert_true(img.get_pixel(p.x, p.y).a <= 0.05, "topbar fill sample %s should let the stage background show through" % str(p))
+	assert_true(img.get_pixel(512, 700).a >= 0.95, "topbar visible frame remains opaque inside the selected art")
+
+
+func test_topbar_uses_transparent_source_region_without_squashing() -> void:
+	var level := _prepare_level_scene()
+	assert_true(level.has_method("_topbar_texture"), "Level exposes the topbar texture region")
+	assert_true(level.has_method("_topbar_height"), "Level exposes topbar display height")
+	if not level.has_method("_topbar_texture") or not level.has_method("_topbar_height"):
+		level.free()
+		return
+	var tex: Variant = level.call("_topbar_texture")
+	assert_true(tex is AtlasTexture, "topbar renders a cropped region from the tall transparent art")
+	if tex is AtlasTexture:
+		var atlas := tex as AtlasTexture
+		assert_eq(int(atlas.region.position.x), 0, "topbar source crop keeps full art width")
+		assert_eq(int(atlas.region.position.y), 340, "topbar source crop skips the tall transparent/empty lead-in")
+		assert_eq(int(atlas.region.size.x), 1024, "topbar source crop keeps full art width")
+		assert_eq(int(atlas.region.size.y), 507, "topbar source crop excludes the transparent lower canvas")
+		var th: float = level.call("_topbar_height")
+		assert_true(absf(th - 720.0 * atlas.region.size.y / atlas.region.size.x) <= 0.01, "topbar display height follows the cropped source region")
+		assert_true(absf(th - 356.5) <= 0.5, "frame and round ornaments stay at the old topbar height instead of shrinking with the 9:16 canvas")
+	level.free()
+
+
 func test_level_can_load_magic_match_pngs_before_import_metadata_exists() -> void:
 	var level := _prepare_level_scene()
 	assert_true(level.has_method("_load_texture"), "Level has a PNG fallback texture loader")
@@ -159,6 +331,29 @@ func test_level_can_load_magic_match_pngs_before_import_metadata_exists() -> voi
 	assert_true(tex != null, "raw magic art PNG loads as Texture2D")
 	if tex != null:
 		assert_true(tex.get_width() > 0 and tex.get_height() > 0, "loaded magic art texture has dimensions")
+	level.free()
+
+
+func test_colorbomb_core_uses_synced_diamond_white_art() -> void:
+	assert_true(FileAccess.file_exists(COLORBOMB_CORE_SYNCED), "diamond white 5-match art exists")
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains('const COLORBOMB_CORE := "%s"' % COLORBOMB_CORE_SYNCED), "5-match colorbomb core uses diamond_white.png")
+
+
+func test_colorbomb_core_keeps_cell_sized_fit_after_art_swap() -> void:
+	var level := _prepare_level_scene()
+	assert_true(level.has_method("_fit_scale"), "Level exposes texture fit scaling")
+	assert_true(level.has_method("_load_texture"), "Level can load the raw 5-match PNG")
+	level.cell_size = 70.0
+	var tex := level.call("_load_texture", COLORBOMB_CORE_SYNCED) as Texture2D
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("const COLORBOMB_FILL := 0.74"), "5-match crystal ball should be smaller than the previous oversized 0.86 fit")
+	assert_true(tex != null, "diamond white 5-match art loads as a texture")
+	if tex != null:
+		var scale: Vector2 = level.call("_fit_scale", tex, level.cell_size * 0.74)
+		var fitted_max := maxf(tex.get_width() * scale.x, tex.get_height() * scale.y)
+		assert_true(absf(fitted_max - level.cell_size * 0.74) <= 0.01, "5-match art is fitted to the smaller COLORBOMB_FILL instead of raw image pixels")
+	assert_true(src.contains("node.scale = _fit_scale(core, cell_size * COLORBOMB_FILL)"), "colorbomb visual keeps the shared cell-size fit path")
 	level.free()
 
 
@@ -209,6 +404,136 @@ func test_level_objective_view_names_clear_jelly() -> void:
 	level.free()
 
 
+func test_topbar_objective_counter_shows_remaining_amount() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_objective_counter_text"), "Level exposes topbar objective counter formatting")
+	if not level.has_method("_objective_counter_text"):
+		level.free()
+		return
+	assert_eq(level.call("_objective_counter_text", {"progress": 0, "target": 42}), "42", "fresh objective shows full remaining count")
+	assert_eq(level.call("_objective_counter_text", {"progress": 5, "target": 42}), "37", "objective counter decreases as progress increases")
+	assert_eq(level.call("_objective_counter_text", {"progress": 99, "target": 42}), "0", "completed objective never shows a negative remaining count")
+	assert_eq(level.call("_objective_counter_text", {"n": "16"}), "16", "demo fallback keeps its literal number")
+	level.free()
+
+
+func test_topbar_objective_render_uses_remaining_count_from_progress() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
+	level.load_level(raw_idx)
+	level.board.collected[5] = 5
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.ui_layer = layer
+	level.call("_render_topbar_v2", level._cur_cfg)
+	assert_true(_count_label_text(layer, "37") > 0, "topbar renders remaining objective count after progress")
+	assert_eq(_count_label_text(layer, "42"), 0, "topbar no longer renders the total target after progress exists")
+	level.free()
+
+
+func test_topbar_objective_slots_keep_number_near_icon() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_topbar_objective_slot"), "Level exposes topbar objective slot layout")
+	if not level.has_method("_topbar_objective_slot"):
+		level.free()
+		return
+	var first: Dictionary = level.call("_topbar_objective_slot", 0, 2, 720.0, 356.0)
+	var second: Dictionary = level.call("_topbar_objective_slot", 1, 2, 720.0, 356.0)
+	var icon_text_gap: float = absf((first["text"] as Vector2).x - (first["icon"] as Vector2).x)
+	var objective_gap: float = absf((second["icon"] as Vector2).x - (first["text"] as Vector2).x)
+	assert_true(icon_text_gap <= 58.0, "number sits close to its own objective icon")
+	assert_true(objective_gap > icon_text_gap, "space between two objectives is larger than icon-to-number spacing")
+	assert_eq(int(roundf((first["icon"] as Vector2).y)), 281, "objective icon sits slightly lower in the target panel")
+	assert_eq(int(roundf((first["text"] as Vector2).y)), 281, "objective number sits slightly lower with the icon")
+	var third: Dictionary = level.call("_topbar_objective_slot", 2, 3, 720.0, 356.0)
+	assert_true((third["text"] as Vector2).x <= 640.0, "three objectives still fit inside the topbar target area")
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("const TB_OBJ_ICON_MAX := 80.0"), "topbar objective icons are large enough to read")
+	assert_true(src.contains("const TB_OBJ_ICON_TEXT_GAP := 58.0"), "topbar objective number leaves room for larger icons")
+	level.free()
+
+
+func test_topbar_moves_number_center_is_shared_with_endgame_bonus() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_topbar_moves_number_center"), "Level exposes the moves-number anchor")
+	if not level.has_method("_topbar_moves_number_center"):
+		level.free()
+		return
+	var center: Vector2 = level.call("_topbar_moves_number_center")
+	assert_eq(int(roundf(center.x)), 140, "moves-number anchor is nudged slightly left after following the label")
+	assert_eq(int(roundf(center.y)), 282, "moves-number anchor matches the transparent-art counter box y placement")
+	level.free()
+
+
+func test_topbar_text_anchors_align_with_transparent_art() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_topbar_level_label_center"), "Level exposes the level label anchor")
+	assert_true(level.has_method("_topbar_moves_label_center"), "Level exposes the moves label anchor")
+	if not level.has_method("_topbar_level_label_center") or not level.has_method("_topbar_moves_label_center"):
+		level.free()
+		return
+	var level_center: Vector2 = level.call("_topbar_level_label_center")
+	var moves_label: Vector2 = level.call("_topbar_moves_label_center")
+	assert_eq(int(roundf(level_center.x)), 142, "level title sits slightly right on the new red ribbon")
+	assert_eq(int(roundf(level_center.y)), 176, "level title sits lower inside the new red ribbon")
+	assert_eq(int(roundf(moves_label.x)), 146, "moves label shifts farther right in the transparent-art left counter panel")
+	assert_eq(int(roundf(moves_label.y)), 237, "moves label sits closer to the moves number in the left panel")
+	level.free()
+
+
+func test_topbar_star_icons_align_with_transparent_art_slots() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_topbar_star_center"), "Level exposes topbar star slot anchors")
+	if not level.has_method("_topbar_star_center"):
+		level.free()
+		return
+	var first: Vector2 = level.call("_topbar_star_center", 0, 720.0, 356.0)
+	assert_eq(int(roundf(first.x)), 360, "first star stays centered over the first topbar slot")
+	assert_eq(int(roundf(first.y)), 199, "stars sit in the new transparent-art star slots")
+	level.free()
+
+
+func test_topbar_renders_only_first_star_overlay() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "1"], level._levels.size())
+	level.load_level(raw_idx)
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.ui_layer = layer
+	level.call("_render_topbar_v2", level._cur_cfg)
+	assert_eq(_count_sprite_texture(layer, TOPBAR_STAR_GOLD), 1, "topbar renders only the first gold star overlay")
+	assert_eq(_count_sprite_texture(layer, TOPBAR_STAR_SILVER), 0, "topbar no longer renders gray star overlays")
+	level.free()
+
+
+func test_topbar_objective_icons_use_consistent_max_dimension() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	assert_true(level.has_method("_sprite_fit"), "Level can draw objective icons by max dimension")
+	if not level.has_method("_sprite_fit"):
+		level.free()
+		return
+	var gem := level.call("_sprite_fit", layer, PINK_GEM_SYNCED, Vector2.ZERO, 80.0, false) as Sprite2D
+	var jelly := level.call("_sprite_fit", layer, JELLY_GOAL_ICON, Vector2.ZERO, 80.0, false) as Sprite2D
+	assert_true(gem != null and jelly != null, "objective icon sprites are created")
+	if gem != null:
+		var gem_size: Vector2 = gem.texture.get_size() * gem.scale
+		assert_true(maxf(gem_size.x, gem_size.y) >= 79.9, "gem objective icon uses the larger topbar target size")
+		assert_true(maxf(gem_size.x, gem_size.y) <= 80.1, "gem objective icon is capped by max dimension")
+	if jelly != null:
+		var jelly_size: Vector2 = jelly.texture.get_size() * jelly.scale
+		assert_true(maxf(jelly_size.x, jelly_size.y) >= 79.9, "jelly objective icon uses the larger topbar target size")
+		assert_true(maxf(jelly_size.x, jelly_size.y) <= 80.1, "jelly objective icon is capped by max dimension")
+	level.free()
+
+
 func test_twelfth_playable_level_shows_jelly_goal_and_board_markers() -> void:
 	assert_true(FileAccess.file_exists(JELLY_GOAL_ICON), "jelly goal icon exists")
 	var level := _prepare_level_scene()
@@ -245,7 +570,7 @@ func test_sixth_playable_level_objective_view_shows_collect_goal() -> void:
 	var view: Array = level.call("_objectives_view")
 	assert_eq(view.size(), 1, "sixth playable level has one objective card")
 	assert_eq(view[0].get("label", ""), "收集", "sixth playable level is a collect goal")
-	assert_eq(view[0].get("icon", ""), "res://art/gems/base/gem_heart.png", "sixth playable level collects the pink heart gem")
+	assert_eq(view[0].get("icon", ""), PINK_GEM_SYNCED, "sixth playable level collects the heart jelly 3 pink gem")
 	assert_eq(view[0].get("target", -1), 42, "sixth playable level target is shown")
 	level.free()
 

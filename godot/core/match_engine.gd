@@ -354,7 +354,7 @@ static func score_for_clear(count: int, cascade_level: int) -> int:
 # 集成：消除 → 计分 → 下落 → 随机补充，循环直到盘面稳定（无消除）。
 # 返回 {score, cascades, cleared}。原地修改 grid，结束时盘面保证无可消除。
 # fx 可选：传入则启用多连特效（生成/触发/级联）；不传则 v1 纯消除行为。
-static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE) -> Dictionary:
+static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array = [], feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE, force_preferred_spawn: bool = false) -> Dictionary:
 	# do_refill=false：消除时不补充（滚动关纯挖空；补充改由 board 在清到一页70%时批量"拉新页"）。
 	# cascades_out!=null(Array)：按层记录每级联消除的格(供视图逐级联动画)；不传则零开销。
 	# choco 可选：巧克力层。结果里附带 choco_cleared = 本步啃掉的巧克力格数（被相邻消除则 -1）。
@@ -366,7 +366,7 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 	#   结果里附带 mystery_revealed = 本步被揭开的神秘糖数。两条路径(纯三消/特效)都支持；揭开内容按 70/20/10 概率(rng 确定性)。
 	if fx.is_empty():
 		return _resolve_plain(grid, species_set, rng, feed, do_refill, cascades_out, layers)
-	return _resolve_fx(grid, species_set, rng, fx, feed, do_refill, cascades_out, layers, preferred_spawn, preferred_line_kind)
+	return _resolve_fx(grid, species_set, rng, fx, feed, do_refill, cascades_out, layers, preferred_spawn, preferred_line_kind, force_preferred_spawn)
 
 
 # 原料下沉收集循环：消除稳定后，原料可能仍悬在出口上方（或刚补充落下）。
@@ -697,13 +697,16 @@ static func colorbomb_clear_plan(grid: Array, fx: Array, cb_pos: Vector2i, partn
 		seeds.append(cb_pos)
 		seeds.append(partner_pos)
 		# partner 是条纹/包装：该色每格【染成对应特效】，引爆时按特效几何满屏连锁(CC 式)。
-		# 彩球本体(cb_pos)与 partner 本体不染(它们只是被清掉/已是触发源)，避免改写已有特效。
+		# 彩球本体(cb_pos)不染；partner 本体也写入 override, 让表现路径显式读取本次组合的特效种类。
 		if partner_fx == SP_LINE_H or partner_fx == SP_LINE_V or partner_fx == SP_BOMB:
 			for c in seeds:
-				if c == cb_pos or c == partner_pos:
+				if c == cb_pos:
 					continue
 				if grid[c.y][c.x] != target:
 					continue   # 只染该色格(special_effect_cells 已只返该色，这里再兜底)
+				if c == partner_pos:
+					override[c] = partner_fx   # partner 本体也显式进入表现路径, 避免节点/原始 fx 抢读成别的 4 合 1
+					continue
 				if fx[c.y][c.x] == SP_COLORBOMB:
 					continue   # 该色格上若另有彩球，不染、不触发(彩球不触发彩球)
 				if partner_fx == SP_BOMB:
@@ -736,7 +739,7 @@ static func colorbomb_clear_set(grid: Array, fx: Array, cb_pos: Vector2i, partne
 	return colorbomb_clear_plan(grid, fx, cb_pos, partner_pos)["cells"]
 
 
-static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE) -> Dictionary:
+static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenerator, fx: Array, feed: Array = [], do_refill: bool = true, cascades_out = null, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE, force_preferred_spawn: bool = false) -> Dictionary:
 	var jelly: Array = layers.get("jelly", [])
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
@@ -767,10 +770,12 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 	var has_cake := not cake.is_empty()
 	var has_mystery := not mystery.is_empty()
 	var cascade_preferred := preferred_spawn
+	var cascade_force_preferred := force_preferred_spawn
 	var cake_hit_this_resolve := {}
 	while true:
-		var c := collect_clears(grid, fx, layers, cascade_preferred)
+		var c := collect_clears(grid, fx, layers, cascade_preferred, preferred_line_kind, cascade_force_preferred)
 		cascade_preferred = Vector2i(-1, -1)
+		cascade_force_preferred = false
 		var raw: Array = c["to_clear"]
 		if raw.is_empty():
 			break
@@ -1018,7 +1023,7 @@ static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
 # 返回 {clear: Array[Vector2i] 要清空的格, spawns: Array[{pos, kind}] 要生成的特效格}。
 # 规则（v1.1 直线串）：>=5 连→彩球；==4 连→直线；==3 连→普通清除。
 # （T/L 形爆炸在后续步骤补。spawns 的 pos 不进 clear——它变成特效而非清空。）
-static func classify_matches(grid: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE) -> Dictionary:
+static func classify_matches(grid: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE, force_preferred_spawn: bool = false) -> Dictionary:
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
 	var ing: Array = layers.get("ing", [])
@@ -1119,6 +1124,22 @@ static func _preferred_spawn_pos(cells: Array, fallback: Vector2i, preferred_spa
 		return preferred_spawn
 	return fallback
 
+static func swap_special_spawn_preference(grid: Array, fx: Array, layers: Dictionary, primary: Vector2i, secondary: Vector2i) -> Vector2i:
+	if _candidate_would_receive_spawn(grid, fx, layers, primary):
+		return primary
+	if _candidate_would_receive_spawn(grid, fx, layers, secondary):
+		return secondary
+	return primary
+
+static func _candidate_would_receive_spawn(grid: Array, fx: Array, layers: Dictionary, candidate: Vector2i) -> bool:
+	if candidate.x < 0 or candidate.y < 0:
+		return false
+	var c := collect_clears(grid, fx, layers, candidate)
+	for s in c["spawns"]:
+		if s["pos"] == candidate:
+			return true
+	return false
+
 static func _intersection_spawn_pos(intersection: Vector2i, h_runs: Array, v_runs: Array, preferred_spawn: Vector2i) -> Vector2i:
 	if preferred_spawn.x < 0:
 		return intersection
@@ -1172,8 +1193,8 @@ static func special_effect_cells(grid: Array, pos: Vector2i, kind: int, target: 
 # 汇总一次消除要清的全部格：>=3 匹配 + 命中的特效触发链（特效连特效）。
 # 返回 {to_clear: Array[Vector2i], spawns: Array[{pos,kind}]}（spawns 来自匹配形状）。
 # 纯函数，不修改 grid/fx。
-static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE) -> Dictionary:
-	var cls := classify_matches(grid, layers, preferred_spawn, preferred_line_kind)
+static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}, preferred_spawn: Vector2i = Vector2i(-1, -1), preferred_line_kind: int = SP_NONE, force_preferred_spawn: bool = false) -> Dictionary:
+	var cls := classify_matches(grid, layers, preferred_spawn, preferred_line_kind, force_preferred_spawn)
 	var spawns := []
 	var virtual_trigger_fx := {}
 	for s in cls["spawns"]:
@@ -1261,6 +1282,10 @@ static func _apply_clears(grid: Array, fx: Array, to_clear: Array, spawns: Array
 		else:
 			grid[pos.y][pos.x] = EMPTY
 			fx[pos.y][pos.x] = SP_NONE
+	for pos in spawn_map:
+		if triggered_spawns.has(pos) or grid[pos.y][pos.x] == EMPTY or grid[pos.y][pos.x] == WALL:
+			continue
+		fx[pos.y][pos.x] = spawn_map[pos]
 
 
 # 把"一组被直接清掉的格"计入目标账：by_species(收集) / 果冻 / 涂层。原地递减 jelly/coat；冰块格保持空底。

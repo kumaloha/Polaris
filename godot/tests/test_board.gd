@@ -169,6 +169,22 @@ func test_swap_spawned_special_uses_moved_piece_new_position() -> void:
 	assert_eq(b.fx[moved_to.y][moved_to.x], ME.SP_LINE_V, "horizontal four-match creates a vertical line special where the moved piece arrived")
 	assert_eq(b.fx[0][1], ME.SP_NONE, "run midpoint does not receive the special")
 
+func test_swap_spawned_special_uses_other_moved_position_when_target_is_outside_match() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 10, 4)
+	b.grid = [
+		[1, 2, 3, 1],
+		[0, 0, 1, 0],
+		[2, 3, 0, 2],
+		[3, 1, 2, 1],
+	]
+	b.fx = b._blank_fx()
+	var first_selected := Vector2i(2, 1)
+	var second_selected_target := Vector2i(2, 2)
+	var r := b.try_swap(first_selected, second_selected_target)
+	assert_true(r.get("ok", false), "swap creates a horizontal four-match through the first-selected cell")
+	assert_eq(b.fx[first_selected.y][first_selected.x], ME.SP_LINE_V, "the generated 4-match special lands on the other piece's new matched position")
+	assert_eq(b.fx[second_selected_target.y][second_selected_target.x], ME.SP_NONE, "the second-selected target must stay ordinary when it is outside the match")
+
 # ───────────────────────────── P1 回归（运行时 bug）─────────────────────────────
 
 func test_objective_level_loses_when_moves_exhausted() -> void:

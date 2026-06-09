@@ -162,7 +162,31 @@ func test_colorbomb_plan_marks_virtual_bombs_for_bounded_visuals() -> void:
 	var plan: Dictionary = ME.colorbomb_clear_plan(grid, fx, Vector2i(0, 0), Vector2i(1, 1))
 	var override: Dictionary = plan["override"]
 	assert_eq(override.get(Vector2i(5, 5), ME.SP_NONE), ME.SP_BOMB, "other target-color cells are virtual 3x3 bombs")
-	assert_false(override.has(Vector2i(1, 1)), "the real partner bomb is already represented by board.fx")
+	assert_eq(override.get(Vector2i(1, 1), ME.SP_NONE), ME.SP_BOMB, "the real partner bomb is explicitly represented for the conversion/visual path")
+
+
+func test_colorbomb_plus_bomb_overrides_target_color_line_specials_to_bombs() -> void:
+	# 玩家视角：5 合 1 吃十字 4 合 1时，全盘目标色都应该新生成十字炸。
+	# 即使某些目标色格原本带横/竖 4 合 1，也不能在本次"新生成"阶段回落成横/竖炸。
+	var grid := [
+		[2, 3, 4, 5, 6, 7],
+		[3, 1, 5, 6, 7, 2],  # partner 十字，目标色=1
+		[4, 5, 1, 7, 2, 3],  # 目标色上原本有横炸
+		[5, 6, 7, 1, 3, 4],  # 目标色上原本有竖炸
+		[6, 7, 2, 3, 1, 5],  # 普通目标色
+		[7, 2, 3, 4, 5, 6],
+	]
+	var fx := _none_fx(6, 6)
+	fx[0][0] = ME.SP_COLORBOMB
+	fx[1][1] = ME.SP_BOMB
+	fx[2][2] = ME.SP_LINE_H
+	fx[3][3] = ME.SP_LINE_V
+	var plan: Dictionary = ME.colorbomb_clear_plan(grid, fx, Vector2i(0, 0), Vector2i(1, 1))
+	var override: Dictionary = plan["override"]
+	for p in [Vector2i(1, 1), Vector2i(2, 2), Vector2i(3, 3), Vector2i(4, 4)]:
+		assert_eq(override.get(p, ME.SP_NONE), ME.SP_BOMB, "target-color cell %s should convert to a cross/bomb special" % str(p))
+	for p in override:
+		assert_false(int(override[p]) == ME.SP_LINE_H or int(override[p]) == ME.SP_LINE_V, "colorbomb+bomb must not generate horizontal/vertical virtual specials")
 
 
 # ───────────── 断言③：彩球 + 普通棋子 → 清掉该色(行为不退) ─────────────

@@ -711,6 +711,38 @@ func test_apply_clears_spawns_line_and_empties_others() -> void:
 			empties += 1
 	assert_eq(empties, 3, "3 of the 4 matched cells emptied (1 became the special)")
 
+func test_apply_clears_keeps_unfiltered_spawn_special() -> void:
+	var grid := [
+		[0, 1, 2],
+		[3, 4, 5],
+		[6, 7, 8],
+	]
+	var fx := _none_fx(3, 3)
+	var spawn_pos := Vector2i(1, 0)
+	var to_clear := [Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 1)]
+	var spawns := [{"pos": spawn_pos, "kind": ME.SP_LINE_V}]
+	ME._apply_clears(grid, fx, to_clear, spawns)
+	assert_eq(grid[0][1], 1, "spawn cell keeps its tile even when filtered out of to_clear")
+	assert_eq(fx[0][1], ME.SP_LINE_V, "spawn cell receives the generated 4-match special")
+
+func test_forced_external_spawn_cannot_steal_special_from_actual_match() -> void:
+	var grid := [
+		[1, 2, 3, 1],
+		[0, 0, 0, 0],
+		[2, 3, 1, 2],
+		[3, 1, 2, 1],
+	]
+	var fx := _none_fx(4, 4)
+	var external_preferred := Vector2i(2, 2)
+	var actual_run_midpoint := Vector2i(1, 1)
+	var c := ME.collect_clears(grid, fx, {}, external_preferred, ME.SP_NONE, true)
+	assert_eq(c["spawns"].size(), 1, "the 4-match still creates exactly one special")
+	assert_eq(c["spawns"][0]["pos"], actual_run_midpoint, "preferred target outside the run must not steal the generated special")
+	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"])
+	assert_eq(grid[actual_run_midpoint.y][actual_run_midpoint.x], 0, "actual spawn keeps the matched tile")
+	assert_eq(fx[actual_run_midpoint.y][actual_run_midpoint.x], ME.SP_LINE_V, "actual spawn becomes the generated line special")
+	assert_eq(fx[external_preferred.y][external_preferred.x], ME.SP_NONE, "external preferred cell stays ordinary")
+
 # ---- v1.1 resolve 特效版（生成/触发/级联，整合）----
 
 const _GRID_FX := [

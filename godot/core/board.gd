@@ -326,7 +326,8 @@ func try_swap(a: Vector2i, b: Vector2i) -> Dictionary:
 	ME._swap_cells(grid, a, b)
 	ME._swap_cells(fx, a, b)   # 特效随棋子一起交换
 	last_cascade_cells = []   # 捕获本次交换的逐级联消除格
-	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, last_cascade_cells, _layers(), b)
+	var spawn_preference := ME.swap_special_spawn_preference(grid, fx, _layers(), b, a)
+	var res: Dictionary = ME.resolve(grid, species, rng, fx, feed, not is_scrolling, last_cascade_cells, _layers(), spawn_preference, ME.SP_NONE, true)
 	_gain(res["score"])
 	_accumulate(res.get("by_species", {}))
 	_accumulate_progress(res)   # 本步 resolve 的七层计数(果冻/涂层/巧克力/原料/炸弹/爆米花/蛋糕/神秘糖)累加进 board 计数器

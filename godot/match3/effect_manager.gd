@@ -1,6 +1,6 @@
 extends Node
 ## 特效管理器(autoload "Fx")。所有特效集中在此, 不散落到棋子脚本。
-## 发光类(火花/光束)用 CanvasItemMaterial Additive + modulate 染色; 碎片类用普通 alpha 染色。
+## 火花/碎片保留 Additive 发光; 主光束/十字格子层用普通 alpha, 避免亮背景把颜色加成白光。
 ## Level._ready() 调 Fx.attach(fx_layer, shake_node) 注册画布层与震动目标。
 
 const SPARK := "res://assets/fx/fx_spark_star.png"  # 火花/星
@@ -62,13 +62,54 @@ const LOCAL_BURST_OUTER_WISP_COUNT := 7
 const LOCAL_BURST_INNER_STAR_RADIUS_RATIO := 0.46
 const LOCAL_BURST_OUTER_WISP_RADIUS_RATIO := 0.82
 const LOCAL_BURST_SPIRAL_TURN_RADIANS := 1.08
-const LINE_BLAST_STAGGER_SEC := 0.02
-const BASIC_POP_BLOB_START_RATIO := 0.58
-const BASIC_POP_BLOB_END_RATIO := 1.35
-const BASIC_POP_STAR_START_RATIO := 0.38
-const BASIC_POP_STAR_END_RATIO := 1.45
-const BASIC_POP_RING_START_RATIO := 0.48
-const BASIC_POP_RING_END_RATIO := 1.38
+const SPECIAL_BLAST_TIMING_SCALE := 1.3
+const AREA_BLAST_FALLBACK_FLASH_DURATION := 0.234
+const AREA_BLAST_CENTER_FLASH_DURATION := 0.208
+const AREA_BLAST_CUBE_FRAME_DURATION := 0.442
+const AREA_BLAST_CUBE_FRAME_DELAY := 0.065
+const AREA_BLAST_GRID_DURATION := 0.494
+const AREA_BLAST_GRID_DELAY := 0.13
+const AREA_BLAST_SQUARE_WAVE_DURATION := 0.624
+const AREA_BLAST_SQUARE_WAVE_DELAY := 0.208
+const AREA_BLAST_CUBE_SHARD_DURATION := 0.598
+const AREA_BLAST_CUBE_SHARD_DELAY := 0.208
+const AREA_BLAST_INNER_STAR_DURATION := 0.468
+const AREA_BLAST_INNER_STAR_DELAY_STEP := 0.0156
+const AREA_BLAST_OUTER_WISP_DURATION := 0.572
+const AREA_BLAST_OUTER_WISP_DELAY_BASE := 0.0312
+const AREA_BLAST_OUTER_WISP_DELAY_STEP := 0.0182
+const LINE_BLAST_STAGGER_SEC := 0.026
+const LINE_BLAST_BEAM_GLOW_DURATION := 0.546
+const LINE_BLAST_LASER_DURATION := 0.208
+const LINE_BLAST_CELL_GLOW_DURATION := 0.39
+const LINE_BLAST_CELL_SWEEP_DELAY := 0.156
+const LINE_BLAST_BEAM_CAP_DURATION := 0.416
+const LINE_BLAST_SPARK_DURATION := 0.338
+const LINE_BLAST_SPARK_DELAY := 0.052
+const LINE_BLAST_LEGACY_COMET_TRAVEL := 0.338
+const LINE_BLAST_LEGACY_COMET_FADE := 0.39
+const LINE_BLAST_LEGACY_COMET_FADE_DELAY := 0.169
+const LINE_BLAST_LEGACY_FLASH_DELAY_MAX := 0.26
+const LINE_BLAST_LEGACY_FLASH_DURATION := 0.312
+const LINE_BLAST_FALLBACK_DURATION := 0.26
+const BASIC_POP_BLOB_START_RATIO := 0.84
+const BASIC_POP_BLOB_END_RATIO := 1.37
+const BASIC_POP_STAR_START_RATIO := 0.52
+const BASIC_POP_STAR_END_RATIO := 1.34
+const BASIC_POP_RING_START_RATIO := 0.64
+const BASIC_POP_RING_END_RATIO := 1.39
+const BASIC_POP_TIMING_SCALE := 1.3
+const BASIC_POP_FALLBACK_DURATION := 0.208
+const BASIC_POP_BLOB_DURATION := 0.234
+const BASIC_POP_STAR_DURATION := 0.234
+const BASIC_POP_RING_DURATION := 0.312
+const BASIC_POP_SHARD_DURATION := 0.364
+const BASIC_POP_DUST_DURATION := 0.442
+const BASIC_POP_BLOB_DELAY := 0.0
+const BASIC_POP_STAR_DELAY := 0.0455
+const BASIC_POP_RING_DELAY := 0.0585
+const BASIC_POP_SHARD_DELAY := 0.104
+const BASIC_POP_DUST_DELAY := 0.169
 const HEAVY_FX_FRAME_BUDGET := 18
 const BASIC_POP_HEAVY_COST := 3
 const AREA_BURST_HEAVY_COST := 7
@@ -138,6 +179,18 @@ func basic_pop_profile() -> Dictionary:
 		"star_end_ratio": BASIC_POP_STAR_END_RATIO,
 		"ring_start_ratio": BASIC_POP_RING_START_RATIO,
 		"ring_end_ratio": BASIC_POP_RING_END_RATIO,
+		"duration_scale": BASIC_POP_TIMING_SCALE,
+		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
+		"blob_duration": BASIC_POP_BLOB_DURATION,
+		"star_duration": BASIC_POP_STAR_DURATION,
+		"ring_duration": BASIC_POP_RING_DURATION,
+		"blob_delay": BASIC_POP_BLOB_DELAY,
+		"star_delay": BASIC_POP_STAR_DELAY,
+		"ring_delay": BASIC_POP_RING_DELAY,
+		"shard_duration": BASIC_POP_SHARD_DURATION,
+		"shard_delay": BASIC_POP_SHARD_DELAY,
+		"dust_duration": BASIC_POP_DUST_DURATION,
+		"dust_delay": BASIC_POP_DUST_DELAY,
 	}
 
 func absorb_residue_profile() -> Dictionary:
@@ -173,6 +226,30 @@ static func area_blast_profile(cell_size: float, clear_cells: int = LOCAL_BURST_
 		"square_wave_diameter_px": diameter * 0.98,
 		"cube_frame_diameter_px": diameter * 0.72,
 		"cube_shard_count": MAGIC_AREA_CUBE_SHARDS.size() * (2 if clear_cells <= LOCAL_BURST_CLEAR_CELLS else 3),
+		"grid_uses_trigger_color": true,
+		"grid_white_mix": 0.0,
+		"grid_alpha": 0.42,
+		"cube_frame_uses_trigger_color": true,
+		"cube_frame_white_mix": 0.0,
+		"cube_frame_alpha": 0.50,
+		"square_wave_uses_trigger_color": true,
+		"square_wave_alpha": 0.34,
+		"center_flash_uses_trigger_color": true,
+		"center_flash_white_mix": 0.0,
+		"center_flash_alpha": 0.28,
+		"fallback_flash_white_mix": 0.0,
+		"fallback_flash_alpha": 0.36,
+		"timing_scale": SPECIAL_BLAST_TIMING_SCALE,
+		"fallback_flash_duration": AREA_BLAST_FALLBACK_FLASH_DURATION,
+		"center_flash_duration": AREA_BLAST_CENTER_FLASH_DURATION,
+		"cube_frame_duration": AREA_BLAST_CUBE_FRAME_DURATION,
+		"cube_frame_delay": AREA_BLAST_CUBE_FRAME_DELAY,
+		"grid_duration": AREA_BLAST_GRID_DURATION,
+		"grid_delay": AREA_BLAST_GRID_DELAY,
+		"square_wave_duration": AREA_BLAST_SQUARE_WAVE_DURATION,
+		"square_wave_delay": AREA_BLAST_SQUARE_WAVE_DELAY,
+		"cube_shard_duration": AREA_BLAST_CUBE_SHARD_DURATION,
+		"cube_shard_delay": AREA_BLAST_CUBE_SHARD_DELAY,
 		"uses_round_shockwave": false,
 	}
 
@@ -183,6 +260,45 @@ static func line_blast_profile(line_length_px: float, cell_size: float) -> Dicti
 		"beam_cap": MAGIC_LINE_BEAM_CAP,
 		"cell_glow_count": maxi(1, int(roundf(line_length_px / maxf(cell_size, 1.0)))),
 		"stagger_sec": LINE_BLAST_STAGGER_SEC,
+		"timing_scale": SPECIAL_BLAST_TIMING_SCALE,
+		"beam_glow_duration": LINE_BLAST_BEAM_GLOW_DURATION,
+		"beam_glow_thickness_px": 152.0,
+		"beam_glow_alpha": 0.22,
+		"beam_core_duration": LINE_BLAST_LASER_DURATION,
+		"beam_core_thickness_px": 4.0,
+		"beam_core_white_mix": 0.12,
+		"beam_core_alpha": 0.96,
+		"beam_core_delay": 0.0,
+		"laser_core_duration": LINE_BLAST_LASER_DURATION,
+		"laser_core_width_px": 16.0,
+		"laser_core_white_mix": 0.12,
+		"laser_core_alpha": 0.96,
+		"laser_core_additive": true,
+		"beam_cap_duration": LINE_BLAST_BEAM_CAP_DURATION,
+		"beam_cap_white_mix": 0.06,
+		"beam_cap_alpha": 0.62,
+		"beam_cap_start_scale": 0.20,
+		"beam_cap_end_scale": 0.30,
+		"beam_spark_white_mix": 1.0,
+		"beam_spark_count": 5,
+		"beam_spark_radius_ratio": 0.075,
+		"beam_spark_duration": LINE_BLAST_SPARK_DURATION,
+		"beam_spark_delay": LINE_BLAST_SPARK_DELAY,
+		"cell_glow_start_px": 28.0,
+		"cell_glow_end_px": 40.0,
+		"cell_glow_alpha": 0.16,
+		"cell_glow_duration": LINE_BLAST_CELL_GLOW_DURATION,
+		"cell_sweep_delay": LINE_BLAST_CELL_SWEEP_DELAY,
+	}
+
+func comet_beam_profile(line_length_px: float) -> Dictionary:
+	return {
+		"head_len_px": clampf(line_length_px * 0.20, 72.0, 112.0),
+		"thickness_px": 22.0,
+		"alpha": 0.82,
+		"fade_duration_scale": 0.48,
+		"fade_delay_scale": 0.28,
+		"free_extra_sec": 0.08,
 	}
 
 func _claim_heavy_fx(cost: int) -> bool:
@@ -197,7 +313,9 @@ func _claim_heavy_fx(cost: int) -> bool:
 
 func _spawn_single_flash(pos: Vector2, color: Color, diameter: float, dur: float = 0.18) -> void:
 	var path := MAGIC_BASIC_FLASH_BLOB if _asset_exists(MAGIC_BASIC_FLASH_BLOB) else BOKEH
-	_magic_flash_sprite(path, pos, color.lerp(Color(1, 1, 1, 1), 0.42), diameter * 0.42, diameter, dur, 0.0)
+	var flash_color := color
+	flash_color.a *= 0.36
+	_magic_flash_sprite(path, pos, flash_color, diameter * 0.42, diameter, dur, 0.0, 0.0, false)
 
 ## 碎裂: 小亮星四散 + 轻微下落 + Additive 发光(不挡视线, 快速消散)。普通三连用。
 func spawn_shatter(pos: Vector2, color: Color) -> void:
@@ -242,10 +360,10 @@ func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
 		if _claim_heavy_fx(BASIC_POP_HEAVY_COST):
 			_spawn_magic_basic_pop(pos, magic_color, target_px)
 		else:
-			_spawn_single_flash(pos, magic_color, target_px * BASIC_POP_BLOB_END_RATIO, 0.16)
+			_spawn_single_flash(pos, magic_color, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_FALLBACK_DURATION)
 		return
 	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
-		_spawn_single_flash(pos, _color_key_to_magic_color(color), target_px, 0.16)
+		_spawn_single_flash(pos, _color_key_to_magic_color(color), target_px, BASIC_POP_FALLBACK_DURATION)
 		return
 	var fr: Array = _elim_frames(color)
 	var f0: Texture2D = fr[0]
@@ -426,14 +544,14 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float, clear_cells
 		if _claim_heavy_fx(AREA_BURST_HEAVY_COST):
 			_spawn_magic_area_blast(pos, color, radius_px, clear_cells)
 		else:
-			_spawn_single_flash(pos, color, radius_px * 0.85, 0.18)
+			_spawn_single_flash(pos, color, radius_px * 0.85, AREA_BLAST_FALLBACK_FLASH_DURATION)
 		return
 	if not _claim_heavy_fx(AREA_BURST_HEAVY_COST):
-		_spawn_single_flash(pos, color, radius_px * 0.85, 0.18)
+		_spawn_single_flash(pos, color, radius_px * 0.85, AREA_BLAST_FALLBACK_FLASH_DURATION)
 		return
 	var bounds := local_burst_bounds(radius_px, clear_cells)
 	# 中心闪: 直径压在范围内
-	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], 0.18)
+	_flash(pos, color.lerp(Color(1, 1, 1, 1), 0.5), bounds["flash_diameter_px"], AREA_BLAST_CENTER_FLASH_DURATION)
 	var star_color: Color = color.lerp(Color(1, 1, 1, 1), 0.30)
 	var wisp_color: Color = color.lerp(Color(1, 1, 1, 1), 0.42)
 	wisp_color.a = 0.78
@@ -443,16 +561,16 @@ func spawn_local_burst(pos: Vector2, color: Color, radius_px: float, clear_cells
 		var angle: float = TAU * f + (0.18 if i % 2 == 0 else -0.11)
 		var twist: float = bounds["spiral_turn_radians"] * (1.0 if i % 2 == 0 else -0.72)
 		var end_radius: float = bounds["inner_star_radius_px"] * (0.82 + 0.07 * float(i % 3))
-		var delay: float = 0.012 * float(i % 3)
-		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.15, radius_px * 0.045, delay, 0.36)
+		var delay: float = AREA_BLAST_INNER_STAR_DELAY_STEP * float(i % 3)
+		_magic_burst_sprite(SPARK, pos, star_color, angle, radius_px * 0.08, end_radius, twist, radius_px * 0.15, radius_px * 0.045, delay, AREA_BLAST_INNER_STAR_DURATION)
 	var outer_count: int = int(bounds["outer_wisp_count"])
 	for i in range(outer_count):
 		var f: float = (float(i) + 0.5) / float(outer_count)
 		var angle: float = TAU * f
 		var twist: float = -bounds["spiral_turn_radians"] * (0.45 + 0.08 * float(i % 2))
 		var end_radius: float = bounds["outer_wisp_radius_px"] * (0.86 + 0.05 * float(i % 3))
-		var delay: float = 0.024 + 0.014 * float(i % 4)
-		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.18, end_radius, twist, radius_px * 0.18, radius_px * 0.07, delay, 0.44)
+		var delay: float = AREA_BLAST_OUTER_WISP_DELAY_BASE + AREA_BLAST_OUTER_WISP_DELAY_STEP * float(i % 4)
+		_magic_burst_sprite(BOKEH, pos, wisp_color, angle, radius_px * 0.18, end_radius, twist, radius_px * 0.18, radius_px * 0.07, delay, AREA_BLAST_OUTER_WISP_DURATION)
 
 func _magic_burst_sprite(tex_path: String, pos: Vector2, color: Color, angle: float, start_radius: float, end_radius: float, twist: float, start_diameter: float, end_diameter: float, delay: float, dur: float) -> void:
 	if not _asset_exists(tex_path):
@@ -501,23 +619,31 @@ func _quad_bezier(a: Vector2, b: Vector2, c: Vector2, t: float) -> Vector2:
 	return a.lerp(b, t).lerp(b.lerp(c, t), t)
 
 func _spawn_magic_basic_pop(pos: Vector2, color: Color, target_px: float) -> void:
-	var hot := color.lerp(Color(1, 1, 1, 1), 0.62)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * BASIC_POP_BLOB_START_RATIO, target_px * BASIC_POP_BLOB_END_RATIO, 0.18, 0.08)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, Color(1, 1, 1, 1), target_px * BASIC_POP_STAR_START_RATIO, target_px * BASIC_POP_STAR_END_RATIO, 0.18, 0.10)
-	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * BASIC_POP_RING_START_RATIO, target_px * BASIC_POP_RING_END_RATIO, 0.24, 0.11)
-	_magic_shard_burst(MAGIC_GEM_SHARDS, pos, hot, 8, target_px * 0.52, 0.28, 0.10)
-	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.35), 7, target_px * 0.38, 0.34, 0.16)
+	var hot := color.lerp(Color(1, 1, 1, 1), 0.28)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * BASIC_POP_BLOB_START_RATIO, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_BLOB_DURATION, BASIC_POP_BLOB_DELAY)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, color.lerp(Color(1, 1, 1, 1), 0.18), target_px * BASIC_POP_STAR_START_RATIO, target_px * BASIC_POP_STAR_END_RATIO, BASIC_POP_STAR_DURATION, BASIC_POP_STAR_DELAY)
+	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * BASIC_POP_RING_START_RATIO, target_px * BASIC_POP_RING_END_RATIO, BASIC_POP_RING_DURATION, BASIC_POP_RING_DELAY)
+	_magic_shard_burst(MAGIC_GEM_SHARDS, pos, hot, 8, target_px * 0.58, BASIC_POP_SHARD_DURATION, BASIC_POP_SHARD_DELAY)
+	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.22), 7, target_px * 0.42, BASIC_POP_DUST_DURATION, BASIC_POP_DUST_DELAY)
 
 func _spawn_magic_area_blast(pos: Vector2, color: Color, radius_px: float, clear_cells: int) -> void:
 	var cells_per_side := 3.0 if clear_cells <= LOCAL_BURST_CLEAR_CELLS else 5.0
 	var cell_size := radius_px / (cells_per_side * 0.5)
 	var profile := area_blast_profile(cell_size, clear_cells)
-	var glow := color.lerp(Color(1, 1, 1, 1), 0.45)
-	_magic_flash_sprite(MAGIC_AREA_CUBE_FRAME, pos, glow, float(profile["cube_frame_diameter_px"]) * 0.35, float(profile["cube_frame_diameter_px"]), 0.34, 0.05, PI * 0.25)
-	_magic_flash_sprite(MAGIC_AREA_GRID_3X3, pos, glow, float(profile["grid_diameter_px"]) * 0.65, float(profile["grid_diameter_px"]), 0.38, 0.10)
-	_magic_flash_sprite(MAGIC_AREA_SQUARE_WAVE, pos, color, float(profile["square_wave_diameter_px"]) * 0.40, float(profile["square_wave_diameter_px"]), 0.48, 0.16)
-	_magic_shard_burst(MAGIC_AREA_CUBE_SHARDS, pos, glow, int(profile["cube_shard_count"]), radius_px * 0.78, 0.46, 0.16)
-	_flash(pos, Color(1, 1, 1, 1), radius_px * 0.68, 0.16)
+	var glow := color.lerp(Color(1, 1, 1, 1), 0.24)
+	var grid_color := color.lerp(Color(1, 1, 1, 1), float(profile["grid_white_mix"]))
+	grid_color.a *= float(profile["grid_alpha"])
+	var cube_frame_color := color.lerp(Color(1, 1, 1, 1), float(profile["cube_frame_white_mix"]))
+	cube_frame_color.a *= float(profile["cube_frame_alpha"])
+	var square_wave_color := color
+	square_wave_color.a *= float(profile["square_wave_alpha"])
+	var center_flash_color := color.lerp(Color(1, 1, 1, 1), float(profile["center_flash_white_mix"]))
+	center_flash_color.a *= float(profile["center_flash_alpha"])
+	_magic_flash_sprite(MAGIC_AREA_CUBE_FRAME, pos, cube_frame_color, float(profile["cube_frame_diameter_px"]) * 0.35, float(profile["cube_frame_diameter_px"]), float(profile["cube_frame_duration"]), float(profile["cube_frame_delay"]), PI * 0.25, false)
+	_magic_flash_sprite(MAGIC_AREA_GRID_3X3, pos, grid_color, float(profile["grid_diameter_px"]) * 0.65, float(profile["grid_diameter_px"]), float(profile["grid_duration"]), float(profile["grid_delay"]), 0.0, false)
+	_magic_flash_sprite(MAGIC_AREA_SQUARE_WAVE, pos, square_wave_color, float(profile["square_wave_diameter_px"]) * 0.40, float(profile["square_wave_diameter_px"]), float(profile["square_wave_duration"]), float(profile["square_wave_delay"]), 0.0, false)
+	_magic_shard_burst(MAGIC_AREA_CUBE_SHARDS, pos, glow, int(profile["cube_shard_count"]), radius_px * 0.78, float(profile["cube_shard_duration"]), float(profile["cube_shard_delay"]))
+	_flash(pos, center_flash_color, radius_px * 0.68, float(profile["center_flash_duration"]), false)
 
 func _spawn_magic_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
 	var dir: Vector2 = to - from
@@ -526,22 +652,30 @@ func _spawn_magic_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
 	var center := (from + to) * 0.5
 	var angle := u.angle()
 	var vertical := absf(u.y) > absf(u.x)
-	_magic_beam_sprite(MAGIC_LINE_BEAM_GLOW, center, angle, full_len, 112.0, color, 0.42, 0.0)
-	_magic_beam_sprite(MAGIC_LINE_BEAM_CORE, center, angle, full_len, 30.0, Color(1, 1, 1, 1), 0.26, 0.02)
-	_magic_beam_cap(from, angle, color, 0.32)
-	_magic_beam_cap(to, angle + PI, color, 0.32)
 	var profile := line_blast_profile(full_len, 88.0)
 	var cell_count: int = int(profile["cell_glow_count"])
 	var glow_path := MAGIC_LINE_CELL_GLOW_V if vertical else MAGIC_LINE_CELL_GLOW_H
+	var cell_glow_color := color
+	cell_glow_color.a *= float(profile["cell_glow_alpha"])
 	for i in range(cell_count):
 		var f: float = 0.0 if cell_count <= 1 else float(i) / float(cell_count - 1)
 		var pt: Vector2 = from.lerp(to, f)
-		var delay: float = absf(f - 0.5) * 2.0 * 0.12
-		_magic_flash_sprite(glow_path, pt, color, 54.0, 88.0, 0.24, delay)
-	_magic_shard_burst([MAGIC_LINE_BEAM_SPARK], center, color.lerp(Color(1, 1, 1, 1), 0.35), 6, full_len * 0.14, 0.26, 0.04, angle)
-	_beam_sparks(from, to, color)
+		var delay: float = absf(f - 0.5) * 2.0 * float(profile["cell_sweep_delay"])
+		_magic_flash_sprite(glow_path, pt, cell_glow_color, float(profile["cell_glow_start_px"]), float(profile["cell_glow_end_px"]), float(profile["cell_glow_duration"]), delay, 0.0, false)
+	var beam_color := color
+	beam_color.a *= float(profile["beam_glow_alpha"])
+	_magic_beam_sprite(MAGIC_LINE_BEAM_GLOW, center, angle, full_len, float(profile["beam_glow_thickness_px"]), beam_color, float(profile["beam_glow_duration"]), 0.0, false)
+	var laser_color: Color = color.lerp(Color(1, 1, 1, 1), float(profile["laser_core_white_mix"]))
+	laser_color.a *= float(profile["laser_core_alpha"])
+	_laser_line(from, to, laser_color, float(profile["laser_core_width_px"]), float(profile["laser_core_duration"]), float(profile["beam_core_delay"]), bool(profile["laser_core_additive"]))
+	_magic_beam_cap(from, angle, color, float(profile["beam_cap_duration"]), float(profile["beam_cap_start_scale"]), float(profile["beam_cap_end_scale"]), float(profile["beam_cap_white_mix"]), false, float(profile["beam_cap_alpha"]))
+	_magic_beam_cap(to, angle + PI, color, float(profile["beam_cap_duration"]), float(profile["beam_cap_start_scale"]), float(profile["beam_cap_end_scale"]), float(profile["beam_cap_white_mix"]), false, float(profile["beam_cap_alpha"]))
+	var spark_color: Color = color.lerp(Color(1, 1, 1, 1), float(profile["beam_spark_white_mix"]))
+	spark_color.a = 0.88
+	_magic_shard_burst([MAGIC_LINE_BEAM_SPARK], center, spark_color, int(profile["beam_spark_count"]), full_len * float(profile["beam_spark_radius_ratio"]), float(profile["beam_spark_duration"]), float(profile["beam_spark_delay"]), angle)
+	_beam_sparks(from, to, Color(1, 1, 1, 0.86), SPECIAL_BLAST_TIMING_SCALE)
 
-func _magic_flash_sprite(tex_path: String, pos: Vector2, color: Color, start_diameter: float, end_diameter: float, dur: float, delay: float = 0.0, rotation: float = 0.0) -> void:
+func _magic_flash_sprite(tex_path: String, pos: Vector2, color: Color, start_diameter: float, end_diameter: float, dur: float, delay: float = 0.0, rotation: float = 0.0, additive: bool = true) -> void:
 	if not _asset_exists(tex_path):
 		return
 	var tex := _load_texture(tex_path)
@@ -552,7 +686,8 @@ func _magic_flash_sprite(tex_path: String, pos: Vector2, color: Color, start_dia
 	s.position = pos
 	s.rotation = rotation
 	s.modulate = color
-	s.material = _add_mat()
+	if additive:
+		s.material = _add_mat()
 	var start_scale := start_diameter / maxf(float(tex.get_width()), 1.0)
 	var end_scale := end_diameter / maxf(float(tex.get_width()), 1.0)
 	s.scale = Vector2(start_scale, start_scale)
@@ -596,7 +731,7 @@ func _magic_shard_burst(tex_paths: Array, pos: Vector2, color: Color, count: int
 		t.tween_property(s, "modulate:a", 0.0, dur).set_delay(dur * 0.32)
 		_auto_free(s, delay + dur + 0.18)
 
-func _magic_beam_sprite(tex_path: String, center: Vector2, angle: float, length_px: float, thickness_px: float, color: Color, dur: float, delay: float = 0.0) -> void:
+func _magic_beam_sprite(tex_path: String, center: Vector2, angle: float, length_px: float, thickness_px: float, color: Color, dur: float, delay: float = 0.0, additive: bool = true) -> void:
 	if not _asset_exists(tex_path):
 		return
 	var tex := _load_texture(tex_path)
@@ -607,7 +742,8 @@ func _magic_beam_sprite(tex_path: String, center: Vector2, angle: float, length_
 	s.position = center
 	s.rotation = angle
 	s.modulate = color
-	s.material = _add_mat()
+	if additive:
+		s.material = _add_mat()
 	s.scale = Vector2(length_px / maxf(float(tex.get_width()), 1.0), thickness_px / maxf(float(tex.get_height()), 1.0))
 	_layer().add_child(s)
 	var t := create_tween()
@@ -618,7 +754,25 @@ func _magic_beam_sprite(tex_path: String, center: Vector2, angle: float, length_
 	t.tween_property(s, "modulate:a", 0.0, dur).set_delay(dur * 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	_auto_free(s, delay + dur + 0.14)
 
-func _magic_beam_cap(pos: Vector2, angle: float, color: Color, dur: float) -> void:
+func _laser_line(from: Vector2, to: Vector2, color: Color, width_px: float, dur: float, delay: float = 0.0, additive: bool = true) -> void:
+	var line := Line2D.new()
+	line.add_point(from)
+	line.add_point(to)
+	line.width = width_px
+	line.default_color = color
+	line.antialiased = true
+	if additive:
+		line.material = _add_mat()
+	_layer().add_child(line)
+	var t := create_tween()
+	if delay > 0.0:
+		t.tween_interval(delay)
+	t.set_parallel(true)
+	t.tween_property(line, "width", width_px * 1.18, dur * 0.24).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(line, "modulate:a", 0.0, dur).set_delay(dur * 0.38).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	_auto_free(line, delay + dur + 0.10)
+
+func _magic_beam_cap(pos: Vector2, angle: float, color: Color, dur: float, start_scale: float = 0.20, end_scale: float = 0.30, white_mix: float = 0.06, additive: bool = true, alpha: float = 1.0) -> void:
 	if not _asset_exists(MAGIC_LINE_BEAM_CAP):
 		return
 	var tex := _load_texture(MAGIC_LINE_BEAM_CAP)
@@ -628,21 +782,54 @@ func _magic_beam_cap(pos: Vector2, angle: float, color: Color, dur: float) -> vo
 	s.texture = tex
 	s.position = pos
 	s.rotation = angle
-	s.modulate = color.lerp(Color(1, 1, 1, 1), 0.25)
-	s.material = _add_mat()
-	s.scale = Vector2(0.28, 0.28)
+	s.modulate = color.lerp(Color(1, 1, 1, 1), white_mix)
+	s.modulate.a *= alpha
+	if additive:
+		s.material = _add_mat()
+	s.scale = Vector2(start_scale, start_scale)
 	_layer().add_child(s)
 	var t := create_tween()
 	t.set_parallel(true)
-	t.tween_property(s, "scale", Vector2(0.42, 0.42), dur * 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(s, "scale", Vector2(end_scale, end_scale), dur * 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(s, "modulate:a", 0.0, dur).set_delay(dur * 0.35)
 	_auto_free(s, dur + 0.12)
 
 ## 行列光束: 宽彩辉光 + 白热核(厚度 pop) + 沿线火花。比单条更有冲击力。
 func spawn_beam(from: Vector2, to: Vector2, color: Color) -> void:
-	_beam_layer(from, to, color, 100.0, 0.32)
-	_beam_layer(from, to, Color(1, 1, 1, 1), 30.0, 0.24)
+	_beam_layer(from, to, color, 72.0, 0.32)
+	_beam_layer(from, to, Color(1, 1, 1, 1), 14.0, 0.20)
 	_beam_sparks(from, to, color)
+
+## 奖励光波: 使用 beam_comet_white.png 做一道白色彗星头, 从 UI 数字飞向目标棋子。
+func spawn_comet_beam(from: Vector2, to: Vector2, color: Color, dur: float = 0.16) -> void:
+	var dir: Vector2 = to - from
+	var full_len: float = maxf(dir.length(), 1.0)
+	var travel_time := maxf(dur, 0.01)
+	if not ResourceLoader.exists(COMET):
+		spawn_beam(from, to, color)
+		return
+	var tex: Texture2D = load(COMET)
+	if tex == null:
+		spawn_beam(from, to, color)
+		return
+	var profile := comet_beam_profile(full_len)
+	var b := Sprite2D.new()
+	b.texture = tex
+	var beam_color := color
+	beam_color.a *= float(profile["alpha"])
+	b.modulate = beam_color
+	b.rotation = dir.angle()
+	b.material = _add_mat()
+	var head_len: float = float(profile["head_len_px"])
+	var thick: float = float(profile["thickness_px"])
+	b.scale = Vector2(head_len / maxf(float(tex.get_width()), 1.0), thick / maxf(float(tex.get_height()), 1.0))
+	b.global_position = from
+	_layer().add_child(b)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(b, "global_position", to, travel_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	t.tween_property(b, "modulate:a", 0.0, travel_time * float(profile["fade_duration_scale"])).set_delay(travel_time * float(profile["fade_delay_scale"])).set_trans(Tween.TRANS_CUBIC)
+	_auto_free(b, travel_time + float(profile["free_extra_sec"]))
 
 ## 行列横扫(升级版): 一道流星头(纯白拖尾素材 × color, additive)朝飞行方向从 from 飞到 to,
 ## 叠加"从中心向两端错峰的亮点", 营造扫过依次炸开。逐格棋子消除由 Level._play_clear 负责,
@@ -656,10 +843,13 @@ func spawn_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
 		if _claim_heavy_fx(LINE_BLAST_HEAVY_COST):
 			_spawn_magic_line_blast(from, to, color)
 		else:
-			_magic_beam_sprite(MAGIC_LINE_BEAM_CORE, origin, u.angle(), full_len, 30.0, color, 0.20, 0.0)
+			var fallback_profile := line_blast_profile(full_len, 88.0)
+			var fallback_color: Color = color.lerp(Color(1, 1, 1, 1), float(fallback_profile["laser_core_white_mix"]))
+			fallback_color.a *= float(fallback_profile["laser_core_alpha"])
+			_laser_line(from, to, fallback_color, float(fallback_profile["laser_core_width_px"]), float(fallback_profile["laser_core_duration"]), float(fallback_profile["beam_core_delay"]), bool(fallback_profile["laser_core_additive"]))
 		return
 	if not _claim_heavy_fx(LINE_BLAST_HEAVY_COST):
-		_beam_layer(from, to, color, 64.0, 0.20)
+		_beam_layer(from, to, color, 64.0, LINE_BLAST_FALLBACK_DURATION)
 		return
 	if not ResourceLoader.exists(COMET):
 		spawn_beam(from, to, color)   # 素材缺失时降级回静态光束, 不丢特效
@@ -671,29 +861,29 @@ func spawn_line_blast(from: Vector2, to: Vector2, color: Color) -> void:
 	b.modulate = color
 	b.rotation = u.angle()
 	b.material = _add_mat()
-	var head_len: float = 140.0   # 流星头约 1.5~2 格宽
-	var thick: float = 84.0
+	var head_len: float = 108.0
+	var thick: float = 56.0
 	b.scale = Vector2(head_len / maxf(float(tex.get_width()), 1.0), thick / maxf(float(tex.get_height()), 1.0))
 	b.global_position = from
 	_layer().add_child(b)
 	var t := create_tween()
 	t.set_parallel(true)
-	t.tween_property(b, "global_position", to, 0.26).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
-	t.tween_property(b, "modulate:a", 0.0, 0.30).set_delay(0.13).set_trans(Tween.TRANS_CUBIC)
-	_auto_free(b, 0.42)
+	t.tween_property(b, "global_position", to, LINE_BLAST_LEGACY_COMET_TRAVEL).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(b, "modulate:a", 0.0, LINE_BLAST_LEGACY_COMET_FADE).set_delay(LINE_BLAST_LEGACY_COMET_FADE_DELAY).set_trans(Tween.TRANS_CUBIC)
+	_auto_free(b, LINE_BLAST_LEGACY_COMET_FADE_DELAY + LINE_BLAST_LEGACY_COMET_FADE + 0.026)
 	# 从中心向两端错峰的小亮点(纯视觉节奏感)。
 	var glow: Color = color.lerp(Color(1, 1, 1, 1), 0.4)
 	var steps: int = clampi(int(full_len / 88.0), 1, 12)
 	for i in range(steps + 1):
 		var f: float = float(i) / float(steps) - 0.5    # -0.5(头)..0.5(尾)
 		var pt: Vector2 = origin + u * (f * full_len)
-		var delay: float = 0.20 * absf(f) * 2.0          # 中心 0 → 端点 ~0.20s
-		get_tree().create_timer(delay).timeout.connect(_flash.bind(pt, glow, 66.0, 0.24))
+		var delay: float = LINE_BLAST_LEGACY_FLASH_DELAY_MAX * absf(f) * 2.0
+		get_tree().create_timer(delay).timeout.connect(_flash.bind(pt, glow, 66.0, LINE_BLAST_LEGACY_FLASH_DURATION))
 	# 沿线两侧火花(复用)。
-	_beam_sparks(from, to, color)
+	_beam_sparks(from, to, color, SPECIAL_BLAST_TIMING_SCALE)
 
 ## 中心亮闪(bokeh 放大 + 淡出)。
-func _flash(pos: Vector2, color: Color, diameter: float, dur: float) -> void:
+func _flash(pos: Vector2, color: Color, diameter: float, dur: float, additive: bool = true) -> void:
 	if not ResourceLoader.exists(BOKEH):
 		return
 	var tex: Texture2D = load(BOKEH)
@@ -701,7 +891,8 @@ func _flash(pos: Vector2, color: Color, diameter: float, dur: float) -> void:
 	s.texture = tex
 	s.position = pos
 	s.modulate = color
-	s.material = _add_mat()
+	if additive:
+		s.material = _add_mat()
 	var k: float = diameter / maxf(float(tex.get_width()), 1.0)
 	s.scale = Vector2(k * 0.5, k * 0.5)
 	_layer().add_child(s)
@@ -753,29 +944,29 @@ func _beam_layer(from: Vector2, to: Vector2, color: Color, thick: float, dur: fl
 	_auto_free(s, dur + 0.1)
 
 ## 沿光束方向两侧散出的火花。
-func _beam_sparks(from: Vector2, to: Vector2, color: Color) -> void:
+func _beam_sparks(from: Vector2, to: Vector2, color: Color, timing_scale: float = 1.0) -> void:
 	var p := CPUParticles2D.new()
 	p.texture = load(SPARK)
 	p.position = (from + to) * 0.5
 	p.rotation = (to - from).angle()
 	p.one_shot = true
 	p.explosiveness = 0.8
-	p.amount = 20
-	p.lifetime = 0.5
+	p.amount = 12
+	p.lifetime = 0.5 * timing_scale
 	p.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
-	p.emission_rect_extents = Vector2(maxf((to - from).length() * 0.5, 1.0), 6.0)
+	p.emission_rect_extents = Vector2(maxf((to - from).length() * 0.5, 1.0), 4.0)
 	p.direction = Vector2(0, -1)  # 节点已转向光束方向 → 局部上=垂直光束(向两侧散)
 	p.spread = 75.0
-	p.initial_velocity_min = 70.0
-	p.initial_velocity_max = 210.0
+	p.initial_velocity_min = 55.0
+	p.initial_velocity_max = 165.0
 	p.gravity = Vector2.ZERO
-	p.scale_amount_min = 0.07
-	p.scale_amount_max = 0.18
+	p.scale_amount_min = 0.045
+	p.scale_amount_max = 0.12
 	p.color = color
 	p.material = _add_mat()
 	p.emitting = true
 	_layer().add_child(p)
-	_auto_free(p, 0.65)
+	_auto_free(p, 0.65 * timing_scale)
 
 ## 屏幕震动: 抖动注册的画布层 offset。
 func shake(intensity: float = 6.0) -> void:
