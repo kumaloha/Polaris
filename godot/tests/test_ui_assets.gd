@@ -247,13 +247,15 @@ func test_app_character_art_uses_bee_rig_for_collector() -> void:
 	app.free()
 
 
-func test_level_page_renders_bee_rig_companion() -> void:
+func test_level_page_renders_bee_rig_as_skillbar_companion() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	var rig := _find_named_node(level.character_layer, "BeeRig")
-	assert_true(rig != null, "level page renders the bee companion on the character layer")
+	var rig := _find_named_node(level.skill_bar, "BeeRig")
+	assert_true(rig != null, "level page renders the bee companion inside the skill bar")
 	if rig != null:
 		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "level bee rig renders the body texture once")
+	assert_true(_find_named_node(level.character_layer, "BeeRig") == null, "level page does not float the bee over the board")
+	assert_eq(_count_label_text(level.skill_bar, "蜜蜂"), 1, "level skill bar labels the bee companion")
 	level.free()
 
 
