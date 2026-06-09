@@ -218,6 +218,9 @@ func test_bee_rig_node_builds_layered_sprites() -> void:
 	assert_eq(rig.name, "BeeRig", "bee rig root is named for UI lookup")
 	for part in BEE_RIG_PARTS:
 		assert_true(_find_named_node(rig, "BeePart_%s" % part) is Sprite2D, "bee rig builds sprite layer %s" % part)
+	assert_true((_find_named_node(rig, "BeePart_eyes_open") as Sprite2D).visible, "bee rig starts with open eyes")
+	assert_false((_find_named_node(rig, "BeePart_eyes_half") as Sprite2D).visible, "bee rig does not start half-blinking")
+	assert_false((_find_named_node(rig, "BeePart_eyes_closed") as Sprite2D).visible, "bee rig does not start closed-eyed")
 	rig.free()
 
 

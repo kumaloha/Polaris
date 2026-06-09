@@ -160,8 +160,8 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const BOSS_C := Vector2(562, 336)
-const LEVEL_BEE_POS := Vector2(480, 292)
-const LEVEL_BEE_SIZE := Vector2(180, 180)
+const LEVEL_BEE_POS := Vector2(512, 20)
+const LEVEL_BEE_SIZE := Vector2(132, 132)
 const BOARD_TOP := 464.0
 const BOARD_LAYOUT_Y_OFFSET := -24.0  # 书本棋盘区整体上移, 8~11 行共享同一个更高视觉中心
 const CELL_FILL := 1.0          # 格子填满格位

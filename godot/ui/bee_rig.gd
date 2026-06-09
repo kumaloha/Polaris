@@ -36,7 +36,9 @@ const PART_LAYOUT := {
 	"mouth": {"pos": Vector2(320, 318), "scale": 0.56, "rot": 0.0, "z": 6},
 }
 
-var _elapsed := 0.0
+const BLINK_START_OFFSET := 0.24
+
+var _elapsed := BLINK_START_OFFSET
 var _content: Node2D
 var _content_base_position := Vector2.ZERO
 
@@ -55,6 +57,7 @@ static func default_part_paths() -> Array:
 func setup(character: Dictionary, display_size: Vector2) -> void:
 	name = "BeeRig"
 	_clear_children()
+	_elapsed = BLINK_START_OFFSET
 	_content = Node2D.new()
 	_content.name = "BeeRigContent"
 	var fit: float = minf(display_size.x / CANVAS_SIZE.x, display_size.y / CANVAS_SIZE.y)
@@ -69,7 +72,7 @@ func setup(character: Dictionary, display_size: Vector2) -> void:
 	var part_paths := _part_paths(character)
 	for part in PART_ORDER:
 		_add_part(part, String(part_paths.get(part, "%s/%s.png" % [DEFAULT_DIR, part])))
-	_update_eye_state(0.0)
+	_update_eye_state(_elapsed)
 
 
 func _process(delta: float) -> void:
