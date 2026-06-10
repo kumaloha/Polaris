@@ -741,6 +741,37 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
 	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
 
+func test_time_rabbit_jump_has_inbetween_frames() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_time_rabbit_jump_points"), "time rabbit jump exposes inbetween arc points")
+	assert_true(level.has_method("_time_rabbit_jump_durations"), "time rabbit jump exposes per-inbetween timing")
+	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations"):
+		level.free()
+		return
+	var home := Vector2(140.0, 1320.0)
+	var cast := Vector2(540.0, 1040.0)
+	var points: Array = level.call("_time_rabbit_jump_points", home, cast)
+	var durations: Array = level.call("_time_rabbit_jump_durations")
+	assert_true(points.size() >= 4, "rabbit jump is split into several visible inbetween positions instead of one fast leap")
+	assert_eq(points.size(), durations.size(), "each rabbit jump inbetween point has its own timing")
+	var raw_total := 0.0
+	for d in durations:
+		raw_total += float(d)
+	assert_true(raw_total >= 0.48, "rabbit jump gives the eye enough time to read the added inbetweens")
+	assert_true(points[0].y < home.y, "first jump inbetween lifts out of the skill slot")
+	assert_true(points[1].y < minf(home.y, cast.y), "middle jump inbetween reaches a visible arc apex before landing")
+	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var start: int = src.find("func _start_time_rabbit_tween")
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("_queue_time_rabbit_jump"), "main rabbit cast timeline uses the multi-step jump helper")
+	assert_false(body.contains("RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, cast + Vector2(-44.0, 38.0)"), "rabbit no longer jumps from crouch to cast in one long tween")
+	level.free()
+
 func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	assert_true(src.contains("const RABBIT_REWIND_BOOK_GAP := 36.0"), "time rabbit cast position sits just below the magic book")

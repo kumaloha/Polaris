@@ -1611,6 +1611,17 @@ func _time_rewind_effect_anchor() -> Vector2:
 func _rabbit_rewind_time(seconds: float) -> float:
 	return seconds * RABBIT_REWIND_TIME_SCALE
 
+func _time_rabbit_jump_points(home: Vector2, cast: Vector2) -> Array:
+	return [
+		home + Vector2(18.0, -82.0),
+		home.lerp(cast, 0.42) + Vector2(-18.0, -180.0),
+		home.lerp(cast, 0.74) + Vector2(-52.0, -62.0),
+		cast,
+	]
+
+func _time_rabbit_jump_durations() -> Array:
+	return [0.14, 0.13, 0.12, 0.11]
+
 func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D, cast_effect: bool) -> void:
 	var home := _time_rabbit_home_anchor()
 	var cast := _time_rabbit_cast_anchor()
@@ -1621,8 +1632,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(9.0, -10.0), _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(10.0, -22.0), _rabbit_rewind_time(0.08))
 	if cast_effect:
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, cast + Vector2(-44.0, 38.0), _rabbit_rewind_time(0.22))
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, RABBIT_REWIND_CAST_W * 0.84, cast, _rabbit_rewind_time(0.10))
+		_queue_time_rabbit_jump(t, rig, rabbit, home, cast)
 		t.tween_callback(Callable(self, "_show_time_rabbit_hourglass").bind(hourglass))
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K7, RABBIT_REWIND_CAST_W, cast, _rabbit_rewind_time(0.11))
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K75, RABBIT_REWIND_CAST_W, cast + Vector2(0.0, -4.0), _rabbit_rewind_time(0.12))
@@ -1643,6 +1653,18 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 40.0), _rabbit_rewind_time(0.07), true)
 	t.tween_property(rabbit, "modulate:a", 0.0, _rabbit_rewind_time(0.08))
 	t.tween_callback(Callable(self, "_retire_time_rabbit_rig").bind(rig))
+
+func _queue_time_rabbit_jump(t: Tween, rig: Node2D, rabbit: Sprite2D, home: Vector2, cast: Vector2) -> void:
+	var points := _time_rabbit_jump_points(home, cast)
+	var durations := _time_rabbit_jump_durations()
+	for i in range(points.size()):
+		var width := RABBIT_REWIND_LEAP_W if i < points.size() - 1 else RABBIT_REWIND_CAST_W * 0.84
+		var path := RABBIT_REWIND_K5 if i < points.size() - 1 else RABBIT_REWIND_K6
+		_queue_time_rabbit_jump_frame(t, rig, rabbit, path, width, points[i], _rabbit_rewind_time(float(durations[i])))
+
+func _queue_time_rabbit_jump_frame(t: Tween, rig: Node2D, rabbit: Sprite2D, path: String, width: float, target: Vector2, seconds: float) -> void:
+	t.tween_callback(Callable(self, "_set_time_rabbit_frame").bind(rabbit, path, width, false))
+	t.tween_property(rig, "position", target, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 func _queue_time_rabbit_frame(t: Tween, rig: Node2D, rabbit: Sprite2D, path: String, width: float, target: Vector2, seconds: float, flip_h: bool = false) -> void:
 	t.tween_callback(Callable(self, "_set_time_rabbit_frame").bind(rabbit, path, width, flip_h))
