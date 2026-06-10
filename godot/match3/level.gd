@@ -40,7 +40,7 @@ const GEM_TINT := [Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE, Color.WHI
 const GEM_SATURATION := 0.86  # 实验: 棋盘宝石整体降一点饱和度, 不改原图
 const GEM_SATURATION_SHADER := "res://match3/gem_saturation.gdshader"
 # 5合1 = 独立分层水晶球，不套普通阴影。(4合1 站立特效见下方 _start_combo_idle)
-const COLORBOMB_CORE := "res://assets/level/colorbomb_55.png"  # v0.02 单张 5 合 1 星河球
+const COLORBOMB_CORE := "res://assets/level/colorbomb_pp.png"  # v0.02 单张 5 合 1 水晶球
 const COLORBOMB_RIM_SHADER := "res://match3/colorbomb_rim.gdshader"
 const COLORBOMB_FLOWING_RIM_NAME := "FlowingRim"
 const COLORBOMB_LAYER_NAMES := [COLORBOMB_FLOWING_RIM_NAME, "GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
@@ -1089,7 +1089,7 @@ func _clear_colorbomb_layers(node: Sprite2D) -> void:
 			child.queue_free()
 
 func _apply_colorbomb_layers(node: Sprite2D) -> void:
-	# v0.02: 彩球用单张 55.png 星河球, 不再叠 5 层老素材合成。
+	# v0.02: 彩球用单张 pp.png 水晶球, 不再叠 5 层老素材合成。
 	if not _asset_exists(COLORBOMB_CORE):
 		return
 	var core := _load_texture(COLORBOMB_CORE)
