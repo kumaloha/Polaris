@@ -20,6 +20,9 @@ const BOOK_RIBBONS_SOURCE := "resources/0.02/board/book_ribbons_new.png"
 const BOOK_RIBBONS_SYNCED := "res://assets/level/book_ribbons.png"
 const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
+const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
+const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
+const BOOK_INLAY_MASK_RIGHT_NODE := "BookInlayMaskRight"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
 const MAGIC_ART_REQUIRED := [
@@ -350,6 +353,42 @@ func test_third_level_book_frame_still_touches_screen_sides() -> void:
 		assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "third level book left edge bleeds to the screen side")
 		assert_eq(int(roundf(rib.position.x + rib.size.x)), int(roundf(360.0 + expected_w * 0.5)), "third level book right edge bleeds to the screen side")
 	level.free()
+
+
+func test_book_inner_inlay_tracks_variable_board_rects() -> void:
+	for dims in [Vector2i(8, 8), Vector2i(8, 10), Vector2i(8, 11), Vector2i(9, 9), Vector2i(9, 10), Vector2i(9, 11)]:
+		var level := _prepare_level_scene()
+		level.board = Board.new(dims.x, dims.y, [0, 1, 2, 3, 4, 5], 0, 25, 1)
+		level.call("_compute_layout")
+		var layer := CanvasLayer.new()
+		level.add_child(layer)
+		level.board_layer = layer
+		level.call("_render_board_panel")
+		var inlay := _find_named_node(layer, BOOK_INNER_INLAY_NODE) as Control
+		assert_true(inlay != null, "book inner inlay renders for %dx%d board" % [dims.x, dims.y])
+		if inlay != null:
+			var expected_size := Vector2(float(dims.x) * level.cell_size, float(dims.y) * level.cell_size)
+			assert_eq(int(roundf(inlay.position.x)), int(roundf(level.board_origin.x)), "book inner inlay left follows board for %dx%d" % [dims.x, dims.y])
+			assert_eq(int(roundf(inlay.position.y)), int(roundf(level.board_origin.y)), "book inner inlay top follows board for %dx%d" % [dims.x, dims.y])
+			assert_eq(int(roundf(inlay.size.x)), int(roundf(expected_size.x)), "book inner inlay width follows board for %dx%d" % [dims.x, dims.y])
+			assert_eq(int(roundf(inlay.size.y)), int(roundf(expected_size.y)), "book inner inlay height follows board for %dx%d" % [dims.x, dims.y])
+		var baked_rect: Rect2 = level.call("_book_baked_inner_rect")
+		var baked_left: float = baked_rect.position.x
+		var baked_right: float = baked_rect.position.x + baked_rect.size.x
+		var board_right: float = level.board_origin.x + float(dims.x) * level.cell_size
+		if level.board_origin.x - baked_left > 1.0:
+			var left_mask := _find_named_node(layer, BOOK_INLAY_MASK_LEFT_NODE) as Control
+			assert_true(left_mask != null, "left stale book inlay is masked before the %dx%d board edge" % [dims.x, dims.y])
+			if left_mask != null:
+				assert_true(left_mask.position.x <= baked_left, "left mask starts at the baked inlay for %dx%d" % [dims.x, dims.y])
+				assert_true(left_mask.position.x + left_mask.size.x >= level.board_origin.x - 1.0, "left mask reaches the board edge for %dx%d" % [dims.x, dims.y])
+		if baked_right - board_right > 1.0:
+			var right_mask := _find_named_node(layer, BOOK_INLAY_MASK_RIGHT_NODE) as Control
+			assert_true(right_mask != null, "right stale book inlay is masked after the %dx%d board edge" % [dims.x, dims.y])
+			if right_mask != null:
+				assert_true(right_mask.position.x <= board_right + 1.0, "right mask starts at the board edge for %dx%d" % [dims.x, dims.y])
+				assert_true(right_mask.position.x + right_mask.size.x >= baked_right, "right mask covers the baked inlay for %dx%d" % [dims.x, dims.y])
+		level.free()
 
 
 func test_topbar_art_background_fill_is_transparent() -> void:

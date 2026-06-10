@@ -84,6 +84,15 @@ const BOOK_INNER_B := 56.0  # 底(书脊厚)
 const BOOK_NINE_ML := 54    # 9-slice margin(≥内边线inset, 保金框/四角花不变形)
 const BOOK_NINE_MT := 28
 const BOOK_NINE_MB := 58
+const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
+const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
+const BOOK_INLAY_MASK_RIGHT_NODE := "BookInlayMaskRight"
+const BOOK_INLAY_MASK_BLEED := 8.0
+const BOOK_PAGE_PATCH_LEFT_REGION := Rect2(130, 108, 64, 760)
+const BOOK_PAGE_PATCH_RIGHT_REGION := Rect2(788, 108, 64, 760)
+const BOOK_PAGE_PATCH_COLOR := Color(0.99, 0.86, 0.58, 1.0)
+const BOOK_INLAY_COLOR := Color(0.72, 0.49, 0.18, 0.70)
+const BOOK_INLAY_HIGHLIGHT := Color(1.0, 0.86, 0.42, 0.42)
 const BG_TEXTURE := "res://assets/level/background.png"  # v0.02 新天空背景(941×1672, 按宽铺满)
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
@@ -379,6 +388,23 @@ func _board_cell_size_for_grid(cols: int, rows: int) -> float:
 func _book_frame_width_for_board() -> float:
 	return DESIGN_W + 6.0
 
+func _book_frame_rect() -> Rect2:
+	var board_h: float = board.height * cell_size
+	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
+	var book_y: float = board_origin.y - BOOK_INNER_T
+	var book_w: float = _book_frame_width_for_board()
+	return Rect2(Vector2(DESIGN_W * 0.5 - book_w * 0.5, book_y), Vector2(book_w, book_h))
+
+func _book_baked_inner_rect() -> Rect2:
+	var book_rect := _book_frame_rect()
+	return Rect2(
+		book_rect.position + Vector2(BOOK_INNER_L, BOOK_INNER_T),
+		book_rect.size - Vector2(BOOK_INNER_L + BOOK_INNER_R, BOOK_INNER_T + BOOK_INNER_B)
+	)
+
+func _book_board_inner_rect() -> Rect2:
+	return Rect2(board_origin, Vector2(float(board.width) * cell_size, float(board.height) * cell_size))
+
 func _cell_center(row: int, col: int) -> Vector2:
 	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
 
@@ -420,14 +446,10 @@ func _render_background() -> void:
 func _render_board_panel() -> void:
 	# v0.02: 魔法书主体 book_frame 用 9-slice —— 四角装饰(~37px)+金框/书脊不变形, 只拉书页中段;
 	#        书页内框(左右38/顶≈角38/底44)对齐棋格。书签与书框同宽, 上沿贴书框下沿。
-	var board_h: float = board.height * cell_size
-	# book_frame 9-slice(金框/四角花不变形); 内边线框=棋格(board_origin 即内边线左上)。
-	var book_y: float = board_origin.y - BOOK_INNER_T
-	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
-	# 书本始终满屏贴边；窄棋盘只影响内页上的棋格宽度。
-	var book_w: float = _book_frame_width_for_board()
-	var center := Vector2(DESIGN_W * 0.5, book_y + book_h * 0.5)
-	_nine(board_layer, BOOK_FRAME, center, book_w, book_h, BOOK_NINE_ML, BOOK_NINE_MT, BOOK_NINE_MB)
+	var book_rect := _book_frame_rect()
+	var center := book_rect.position + book_rect.size * 0.5
+	_nine(board_layer, BOOK_FRAME, center, book_rect.size.x, book_rect.size.y, BOOK_NINE_ML, BOOK_NINE_MT, BOOK_NINE_MB)
+	_render_book_inner_inlay()
 	if _asset_exists(BOOK_RIBBONS):
 		var rib_tex := _load_texture_from_file(BOOK_RIBBONS)
 		if rib_tex == null:
@@ -435,16 +457,98 @@ func _render_board_panel() -> void:
 		var rib := NinePatchRect.new()
 		rib.name = "BookRibbons"
 		rib.texture = rib_tex
-		var rw: float = book_w
+		var rw: float = book_rect.size.x
 		var rh: float = rw * float(rib_tex.get_height()) / float(rib_tex.get_width())
 		rib.size = Vector2(rw, rh)
-		rib.position = Vector2(center.x - rw * 0.5, book_y + book_h)
+		rib.position = Vector2(center.x - rw * 0.5, book_rect.position.y + book_rect.size.y)
 		rib.patch_margin_left = BOOK_NINE_ML
 		rib.patch_margin_right = BOOK_NINE_ML
 		rib.patch_margin_top = 0
 		rib.patch_margin_bottom = 0
 		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		board_layer.add_child(rib)
+
+func _render_book_inner_inlay() -> void:
+	var baked := _book_baked_inner_rect()
+	var target := _book_board_inner_rect()
+	if target.size.x <= 0.0 or target.size.y <= 0.0:
+		return
+	var left_gap: float = target.position.x - baked.position.x
+	if left_gap > 0.5:
+		_book_inlay_mask(
+			BOOK_INLAY_MASK_LEFT_NODE,
+			Rect2(
+				Vector2(baked.position.x - BOOK_INLAY_MASK_BLEED, baked.position.y - BOOK_INLAY_MASK_BLEED),
+				Vector2(left_gap + BOOK_INLAY_MASK_BLEED, baked.size.y + BOOK_INLAY_MASK_BLEED * 2.0)
+			)
+		)
+	var right_gap: float = baked.end.x - target.end.x
+	if right_gap > 0.5:
+		_book_inlay_mask(
+			BOOK_INLAY_MASK_RIGHT_NODE,
+			Rect2(
+				Vector2(target.end.x, baked.position.y - BOOK_INLAY_MASK_BLEED),
+				Vector2(right_gap + BOOK_INLAY_MASK_BLEED, baked.size.y + BOOK_INLAY_MASK_BLEED * 2.0)
+			)
+		)
+
+	var inlay := Panel.new()
+	inlay.name = BOOK_INNER_INLAY_NODE
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.TRANSPARENT
+	style.border_color = BOOK_INLAY_COLOR
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(5)
+	inlay.add_theme_stylebox_override("panel", style)
+	inlay.position = target.position
+	inlay.size = target.size
+	inlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inlay.z_index = 30
+	board_layer.add_child(inlay)
+
+	var highlight := Panel.new()
+	highlight.name = "%sHighlight" % BOOK_INNER_INLAY_NODE
+	var hi_style := StyleBoxFlat.new()
+	hi_style.bg_color = Color.TRANSPARENT
+	hi_style.border_color = BOOK_INLAY_HIGHLIGHT
+	hi_style.set_border_width_all(1)
+	hi_style.set_corner_radius_all(4)
+	highlight.add_theme_stylebox_override("panel", hi_style)
+	highlight.position = target.position + Vector2(2.0, 2.0)
+	highlight.size = target.size - Vector2(4.0, 4.0)
+	highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	highlight.z_index = 31
+	board_layer.add_child(highlight)
+
+func _book_inlay_mask(node_name: String, rect: Rect2) -> void:
+	var patch := _book_page_patch_texture(node_name == BOOK_INLAY_MASK_LEFT_NODE)
+	if patch != null:
+		var mask := TextureRect.new()
+		mask.name = node_name
+		mask.texture = patch
+		mask.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		mask.stretch_mode = TextureRect.STRETCH_SCALE
+		mask.position = rect.position
+		mask.size = rect.size
+		mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		board_layer.add_child(mask)
+		return
+	var fallback := ColorRect.new()
+	fallback.name = node_name
+	fallback.color = BOOK_PAGE_PATCH_COLOR
+	fallback.position = rect.position
+	fallback.size = rect.size
+	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	board_layer.add_child(fallback)
+
+func _book_page_patch_texture(left: bool) -> Texture2D:
+	var base: Texture2D = load(BOOK_FRAME) if ResourceLoader.exists(BOOK_FRAME) else _load_texture_from_file(BOOK_FRAME)
+	if base == null:
+		return null
+	var patch := AtlasTexture.new()
+	patch.atlas = base
+	patch.region = BOOK_PAGE_PATCH_LEFT_REGION if left else BOOK_PAGE_PATCH_RIGHT_REGION
+	return patch
 
 func _load_texture_from_file(path: String) -> Texture2D:
 	var file_path := ProjectSettings.globalize_path(path)
