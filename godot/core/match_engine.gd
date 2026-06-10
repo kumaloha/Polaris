@@ -1197,13 +1197,16 @@ static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}, pref
 	var cls := classify_matches(grid, layers, preferred_spawn, preferred_line_kind, force_preferred_spawn)
 	var spawns := []
 	var virtual_trigger_fx := {}
+	var suppressed_seed_fx := {}
 	for s in cls["spawns"]:
 		var pos: Vector2i = s["pos"]
 		if not fx.is_empty() and fx[pos.y][pos.x] != SP_NONE:
-			continue
+			if not _spawn_can_replace_existing_fx(int(fx[pos.y][pos.x]), int(s["kind"])):
+				continue
+			suppressed_seed_fx[pos] = true
 		spawns.append(s)
 		virtual_trigger_fx[pos] = _same_step_trigger_kind(int(s["kind"]))
-	var expanded := _expand_triggers_after_spawns(grid, fx, find_matches(grid, layers), virtual_trigger_fx)
+	var expanded := _expand_triggers_after_spawns(grid, fx, find_matches(grid, layers), virtual_trigger_fx, suppressed_seed_fx)
 	return {
 		"to_clear": expanded["to_clear"].keys(),
 		"spawns": spawns,
@@ -1214,6 +1217,9 @@ static func collect_clears(grid: Array, fx: Array, layers: Dictionary = {}, pref
 static func _same_step_trigger_kind(kind: int) -> int:
 	return kind
 
+static func _spawn_can_replace_existing_fx(existing_kind: int, spawn_kind: int) -> bool:
+	return existing_kind == SP_BOMB and (spawn_kind == SP_LINE_H or spawn_kind == SP_LINE_V)
+
 static func _special_kind_at(fx: Array, virtual_fx: Dictionary, pos: Vector2i) -> int:
 	if virtual_fx.has(pos):
 		return int(virtual_fx[pos])
@@ -1221,7 +1227,7 @@ static func _special_kind_at(fx: Array, virtual_fx: Dictionary, pos: Vector2i) -
 		return int(fx[pos.y][pos.x])
 	return SP_NONE
 
-static func _expand_triggers_after_spawns(grid: Array, fx: Array, seeds: Array, virtual_fx: Dictionary) -> Dictionary:
+static func _expand_triggers_after_spawns(grid: Array, fx: Array, seeds: Array, virtual_fx: Dictionary, suppressed_seed_fx: Dictionary = {}) -> Dictionary:
 	var to_clear := {}
 	var queue := []
 	var queued := {}
@@ -1230,7 +1236,7 @@ static func _expand_triggers_after_spawns(grid: Array, fx: Array, seeds: Array, 
 	for c in seeds:
 		if not to_clear.has(c):
 			to_clear[c] = true
-		if not fx.is_empty() and fx[c.y][c.x] != SP_NONE and not queued.has(c):
+		if not fx.is_empty() and fx[c.y][c.x] != SP_NONE and not suppressed_seed_fx.has(c) and not queued.has(c):
 			queue.append(c)
 			queued[c] = true
 	while not queue.is_empty():

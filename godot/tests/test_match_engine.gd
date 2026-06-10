@@ -684,6 +684,26 @@ func test_same_step_vertical_four_line_triggers_horizontally() -> void:
 	assert_eq(c.get("triggered_spawn_fx", {}).get(spawn_pos, ME.SP_NONE), ME.SP_LINE_H, "same-step trigger follows the generated horizontal special")
 	assert_true((c["to_clear"] as Array).has(Vector2i(4, 1)), "same-step horizontal special clears the row tail")
 
+func test_cross_on_four_match_spawn_cell_becomes_new_vertical_line() -> void:
+	var grid := [
+		[9, 8, 7, 6, 5],
+		[5, 5, 5, 5, 6],
+		[8, 7, 4, 6, 9],
+	]
+	var fx := _none_fx(5, 3)
+	var spawn_pos := Vector2i(1, 1)
+	fx[spawn_pos.y][spawn_pos.x] = ME.SP_BOMB
+	var c := ME.collect_clears(grid, fx)
+	assert_eq(c["spawns"].size(), 1, "a cross special completing a plain horizontal 4-match still creates one generated special")
+	if c["spawns"].size() > 0:
+		assert_eq(c["spawns"][0]["pos"], spawn_pos, "the generated special lands on the cross piece's 4-match spawn cell")
+		assert_eq(c["spawns"][0]["kind"], ME.SP_LINE_V, "horizontal 4-match over a cross piece creates a new vertical line special")
+	assert_false((c["to_clear"] as Array).has(Vector2i(0, 0)), "the old cross effect is replaced by the 4-match product, not triggered as a 3x3 blast")
+	ME._apply_clears(grid, fx, c["to_clear"], c["spawns"], c["triggered_spawns"])
+	assert_eq(grid[spawn_pos.y][spawn_pos.x], 5, "the generated vertical line keeps the matched tile")
+	assert_eq(fx[spawn_pos.y][spawn_pos.x], ME.SP_LINE_V, "the cross piece is replaced by the new vertical line special")
+
+
 func test_existing_line_on_spawn_cell_is_triggered_not_respawned() -> void:
 	var grid := [
 		[9, 8, 7, 6, 5],
