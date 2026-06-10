@@ -330,6 +330,21 @@ func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
 	level.free()
 
 
+func test_level_time_rewind_progress_bar_still_uses_purple_charge() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	assert_true(level._skill_bar_fills.size() > 0, "time rabbit charge bar exists")
+	if level._skill_bar_fills.is_empty():
+		level.free()
+		return
+	var fill: Panel = level._skill_bar_fills[0]
+	var initial_w: float = fill.size.x
+	level.call("_charge_skills", {4: 5})
+	assert_eq(level._skill_charge[0], 5.0, "purple clears still charge the time rabbit slot")
+	assert_true(fill.size.x > initial_w, "time rabbit progress bar grows from purple clears even before rewind history exists")
+	level.free()
+
+
 func test_magic_match_art_pack_is_available_under_res_art() -> void:
 	for path in MAGIC_ART_REQUIRED:
 		assert_true(ResourceLoader.exists(path) or FileAccess.file_exists(path), "magic art asset exists: %s" % path)

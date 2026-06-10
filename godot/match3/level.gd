@@ -1406,7 +1406,7 @@ func _update_skill_cd_visual() -> void:
 		if fl == null or not is_instance_valid(fl):
 			continue
 		var geo: Dictionary = _skill_bar_geo[i]
-		var ratio: float = _skill_ready_ratio(i)
+		var ratio: float = _skill_charge_ratio(i)
 		var w: float = geo["w"]
 		var inset: float = geo["inset"]
 		var ih: float = geo["ih"]
@@ -1424,10 +1424,10 @@ func _skill_uses_charge(idx: int) -> bool:
 		return false
 	return String(SKILLS[idx].get("skill", "")) != "时间回退"
 
-func _skill_ready_ratio(idx: int) -> float:
-	if _skill_uses_charge(idx):
-		return clampf(_skill_charge[idx] / SKILL_CHARGE_REQ, 0.0, 1.0)
-	return 1.0 if _skill_ready(idx) else 0.0
+func _skill_charge_ratio(idx: int) -> float:
+	if idx < 0 or idx >= _skill_charge.size():
+		return 0.0
+	return clampf(_skill_charge[idx] / SKILL_CHARGE_REQ, 0.0, 1.0)
 
 func _skill_clickable(idx: int) -> bool:
 	if idx < 0 or idx >= SKILLS.size():
