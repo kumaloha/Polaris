@@ -1556,7 +1556,7 @@ func _check_settlement() -> void:
 	if board.is_won():
 		_settled = true
 		_busy = true
-		_run_win_bonus_and_show()
+		await _run_win_bonus_and_show()
 	elif board.is_lost():
 		_show_result(false)
 
@@ -2648,7 +2648,7 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 		_refresh_jelly_visuals()
 		_refresh_coat_visuals()
 	_refresh_hud()
-	_check_settlement()
+	await _check_settlement()
 	if is_inside_tree():
 		await get_tree().process_frame
 

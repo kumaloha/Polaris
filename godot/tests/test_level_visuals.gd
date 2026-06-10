@@ -1222,6 +1222,37 @@ func test_level_finish_consumed_move_does_not_full_rerender() -> void:
 	assert_true(body.contains("await _animate_board_changes_from_snapshot"), "move finish animates post-settlement board changes instead of jumping")
 
 
+func test_last_move_win_settlement_awaits_result_flow() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var check_start: int = src.find("func _check_settlement")
+	assert_true(check_start >= 0, "_check_settlement exists")
+	if check_start < 0:
+		return
+	var check_end: int = src.find("\nfunc ", check_start + 1)
+	if check_end < 0:
+		check_end = src.length()
+	var check_body: String = src.substr(check_start, check_end - check_start)
+	var win_idx: int = check_body.find("if board.is_won():")
+	var await_win_idx: int = check_body.find("await _run_win_bonus_and_show()", win_idx)
+	assert_true(await_win_idx > win_idx, "win settlement must await the result flow even when no bonus moves remain")
+
+	var finish_start: int = src.find("func _finish_consumed_move")
+	assert_true(finish_start >= 0, "_finish_consumed_move exists")
+	if finish_start < 0:
+		return
+	var finish_end: int = src.find("\nfunc ", finish_start + 1)
+	if finish_end < 0:
+		finish_end = src.length()
+	var finish_body: String = src.substr(finish_start, finish_end - finish_start)
+	var hud_idx: int = finish_body.find("_refresh_hud()")
+	var await_settle_idx: int = finish_body.find("await _check_settlement()", hud_idx)
+	assert_true(await_settle_idx > hud_idx, "move finish must await settlement before releasing the final frame")
+
+
 func test_level_swap_passes_moved_position_to_first_cascade() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")

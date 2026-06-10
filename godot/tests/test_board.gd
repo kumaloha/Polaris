@@ -82,6 +82,19 @@ func test_lose_when_moves_exhausted_below_target() -> void:
 	assert_eq(b.moves_left, 0, "moves exhausted")
 	assert_true(b.is_lost(), "lost: out of moves below target")
 
+
+func test_last_move_target_reached_is_won_not_lost() -> void:
+	var b := _make(1, 1, 1)
+	var mv := _find_legal_move(b.grid)
+	assert_true(mv.size() == 2, "found a legal move (sanity)")
+	if mv.size() != 2:
+		return
+	b.try_swap(mv[0], mv[1])
+	assert_eq(b.moves_left, 0, "last available move was spent")
+	assert_true(b.is_won(), "last-move target completion is still a win")
+	assert_false(b.is_lost(), "last-move target completion must not fall through to loss")
+
+
 func test_board_deterministic_with_seed() -> void:
 	var b1 := _make(100, 20, 42)
 	var b2 := _make(100, 20, 42)
