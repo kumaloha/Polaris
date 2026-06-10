@@ -780,8 +780,9 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	assert_true(level.has_method("_time_rabbit_cast_anchor"), "time rabbit cast anchor exists")
 	assert_true(level.has_method("_time_rabbit_home_anchor"), "time rabbit home anchor exists")
 	assert_true(level.has_method("_time_rabbit_cast_width"), "time rabbit cast width adapts to each board gap")
+	assert_true(level.has_method("_time_rabbit_hourglass_float_anchor"), "time rabbit hourglass has a board-centered float anchor")
 	assert_true(level.has_method("_current_board_rect"), "level exposes board rect for cast placement")
-	if not level.has_method("_time_rabbit_cast_anchor") or not level.has_method("_time_rabbit_home_anchor") or not level.has_method("_time_rabbit_cast_width") or not level.has_method("_current_board_rect"):
+	if not level.has_method("_time_rabbit_cast_anchor") or not level.has_method("_time_rabbit_home_anchor") or not level.has_method("_time_rabbit_cast_width") or not level.has_method("_time_rabbit_hourglass_float_anchor") or not level.has_method("_current_board_rect"):
 		level.free()
 		return
 	level.board = Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 25, 7)
@@ -794,6 +795,9 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	assert_true(cast.y < home.y, "rabbit cast point floats above the avatar slot")
 	assert_true(cast.y >= board_rect.end.y + 28.0, "rabbit cast point stays below the playable board")
 	assert_false(board_rect.has_point(cast), "rabbit cast anchor must not overlap the playable board")
+	var hourglass_anchor: Vector2 = level.call("_time_rabbit_hourglass_float_anchor", cast)
+	assert_true(absf(hourglass_anchor.x - board_rect.get_center().x) <= 0.5, "hourglass floats to the board center, not over the pet slot")
+	assert_true(hourglass_anchor.y < board_rect.get_center().y, "hourglass floats in the upper half of the board airspace")
 	var cast_top := cast.y - 8.0 - cast_width * (1191.0 / 908.0)
 	assert_true(cast_top >= board_rect.end.y, "rabbit K8 visible body stays below the playable board, not just its anchor")
 	level.board = Board.new(8, 10, [0, 1, 2, 3, 4], 999999, 25, 8)

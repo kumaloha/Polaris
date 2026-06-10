@@ -31,6 +31,7 @@ const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
 const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
+const RABBIT_REWIND_POCKET_NODE := "RabbitPocket"
 const RABBIT_REWIND_RING_FULL_NODE := "RabbitPocketRingFull"
 const RABBIT_REWIND_RING_TOP_NODE := "RabbitPocketRingTopLip"
 const BOOK_RIBBONS_NODE := "BookRibbons"
@@ -369,18 +370,45 @@ func test_time_rabbit_cast_builds_pocket_and_top_layer_hourglass() -> void:
 	if rig == null:
 		level.free()
 		return
-	var ring_full := _find_named_node(rig, RABBIT_REWIND_RING_FULL_NODE)
-	var ring_top := _find_named_node(rig, RABBIT_REWIND_RING_TOP_NODE)
+	var pocket := _find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) as Node2D
+	assert_true(pocket != null, "pocket is fixed on the avatar slot instead of traveling with the rabbit actor")
+	if pocket == null:
+		level.free()
+		return
+	assert_eq(pocket.get_parent(), level.skill_bar, "pocket lives on the skill layer, not inside the moving rabbit rig")
+	assert_true(pocket.position.distance_to(level.call("_time_rabbit_home_anchor")) <= 0.5, "pocket stays anchored to the time-rabbit avatar slot")
+	var ring_full := _find_named_node(pocket, RABBIT_REWIND_RING_FULL_NODE)
+	var ring_top := _find_named_node(pocket, RABBIT_REWIND_RING_TOP_NODE)
 	assert_true(ring_full != null, "pocket has a full ring behind the emerging rabbit")
 	assert_true(ring_top != null, "pocket has a top lip above the emerging rabbit")
 	if ring_full != null and ring_top != null:
-		assert_true((ring_full as CanvasItem).z_index < (ring_top as CanvasItem).z_index, "top lip draws above the full ring for the pocket trick")
+		assert_true((ring_full as CanvasItem).z_index < rig.z_index, "back pocket ring draws behind the rabbit")
+		assert_true((ring_top as CanvasItem).z_index > rig.z_index, "top pocket lip draws above the rabbit for the pocket trick")
 	var hourglass := _find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
 	assert_true(hourglass != null and hourglass.texture != null, "top-layer hourglass prop exists")
 	if hourglass != null:
 		assert_eq(hourglass.get_parent(), level.skill_bar, "hourglass is independent of the rabbit rig so it cannot be hidden behind the book or rabbit")
 		assert_true(hourglass.z_index > rig.z_index, "hourglass draws above the rabbit cast rig")
-		assert_true(hourglass.scale.x > 0.09, "hourglass is scaled large enough to read in the skill beat")
+		assert_true(hourglass.scale.x <= 0.06, "hourglass starts as a small prop instead of a screen-tall tower")
+	level.free()
+
+
+func test_time_rabbit_retire_clears_actor_pocket_hourglass_and_emits_done() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	level.set_meta("rabbit_done", false)
+	level.time_rabbit_sequence_done.connect(func(): level.set_meta("rabbit_done", true))
+	level.call("_play_time_rewind_pet_animation", true)
+	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
+	assert_true(rig != null, "time rabbit cast rig is created")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) != null, "hourglass exists before retire")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) != null, "pocket exists before retire")
+	if rig != null:
+		level.call("_retire_time_rabbit_rig", rig)
+	assert_true(bool(level.get_meta("rabbit_done", false)), "retiring the actor emits sequence_done")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) == null, "rabbit actor is removed from the skill layer")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) == null, "hourglass is removed with the rabbit sequence")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) == null, "avatar pocket is removed with the rabbit sequence")
 	level.free()
 
 
@@ -403,7 +431,16 @@ func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> voi
 	level.call("_commit_time_rewind_cast")
 	assert_eq(b.grid, start_grid, "cast commit restores the saved board grid")
 	assert_eq(b.moves_left, start_moves, "cast commit restores the saved move count")
-	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_EFFECT_NODE) != null, "cast commit leaves a visible time-rewind effect on the board")
+	var effect := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_EFFECT_NODE)
+	assert_true(effect != null, "cast commit leaves a visible time-rewind effect on the board")
+	if effect != null:
+		var flash := _find_named_node(effect, "TimeRewindBoardFlash") as ColorRect
+		assert_true(flash != null and flash.color.a >= 0.34, "time rewind release has a readable cool flash")
+		var sand_count := 0
+		for child in effect.get_children():
+			if String(child.name).begins_with("TimeRewindSand"):
+				sand_count += 1
+		assert_true(sand_count >= 18, "time rewind release has enough reverse sand particles to register in sampled frames")
 	level.free()
 
 

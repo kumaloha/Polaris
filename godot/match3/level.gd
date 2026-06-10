@@ -152,6 +152,7 @@ const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
 const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
+const RABBIT_REWIND_POCKET_NODE := "RabbitPocket"
 const RABBIT_REWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
 const RABBIT_REWIND_K2 := "res://assets/pets/timerewind/rabbit_k2_peek.png"
 const RABBIT_REWIND_K25 := "res://assets/pets/timerewind/rabbit_k25_pushup.png"
@@ -174,9 +175,9 @@ const RABBIT_REWIND_CAST_MIN_W := 148.0
 const RABBIT_REWIND_CAST_VISIBLE_ASPECT := 1191.0 / 908.0
 const RABBIT_REWIND_CAST_LIFT := 10.0
 const RABBIT_REWIND_CAST_TOP_GAP := 8.0
-const RABBIT_REWIND_HOURGLASS_W := 76.0
-const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(0.0, -126.0)
-const RABBIT_REWIND_HOURGLASS_FLOAT_OFFSET := Vector2(0.0, -170.0)
+const RABBIT_REWIND_HOURGLASS_W := 28.0
+const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(28.0, -86.0)
+const RABBIT_REWIND_HOURGLASS_BOARD_Y := 0.24
 const RABBIT_REWIND_HOURGLASS_FLOAT_SCALE := 1.5
 const RABBIT_REWIND_PORTRAIT_CAST_ALPHA := 0.5
 const RABBIT_REWIND_RING_FULL_NODE := "RabbitPocketRingFull"
@@ -185,8 +186,9 @@ const RABBIT_REWIND_BOOK_GAP := 36.0
 const RABBIT_REWIND_TIME_SCALE := 2.75
 const RABBIT_REWIND_CAST_HOLD := 0.82
 const TIME_REWIND_RING_STEPS := 64
-const TIME_REWIND_FLASH_COLOR := Color(0.52, 0.84, 1.0, 0.24)
+const TIME_REWIND_FLASH_COLOR := Color(0.52, 0.84, 1.0, 0.38)
 const TIME_REWIND_RING_COLOR := Color(0.56, 0.88, 1.0, 0.82)
+const TIME_REWIND_EFFECT_TIME := 0.58
 
 const DESIGN_W := LevelLayout.DESIGN_W
 const DESIGN_H := 1520.0
@@ -1585,17 +1587,19 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	var old := skill_bar.get_node_or_null(RABBIT_REWIND_CAST_NODE)
 	if old != null:
 		old.name = "%sOld" % RABBIT_REWIND_CAST_NODE
-		if old.is_inside_tree():
-			old.queue_free()
-		else:
-			old.free()
+		_detach_and_free_later(old)
 	var old_hourglass := skill_bar.get_node_or_null(RABBIT_REWIND_HOURGLASS_NODE)
 	if old_hourglass != null:
-		if old_hourglass.is_inside_tree():
-			old_hourglass.queue_free()
-		else:
-			old_hourglass.free()
+		_detach_and_free_later(old_hourglass)
+	var old_pocket := skill_bar.get_node_or_null(RABBIT_REWIND_POCKET_NODE)
+	if old_pocket != null:
+		_detach_and_free_later(old_pocket)
 	_set_time_rabbit_avatar_casting(true)
+	var pocket := Node2D.new()
+	pocket.name = RABBIT_REWIND_POCKET_NODE
+	pocket.position = _time_rabbit_home_anchor()
+	skill_bar.add_child(pocket)
+	_add_time_rabbit_pocket(pocket)
 	var rig := Node2D.new()
 	rig.name = RABBIT_REWIND_CAST_NODE
 	rig.z_index = 200
@@ -1603,7 +1607,6 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	var sequence: Array = RABBIT_REWIND_CAST_SEQUENCE if cast_effect else RABBIT_REWIND_PEEK_SEQUENCE
 	rig.set_meta("frame_sequence", PackedStringArray(sequence))
 	skill_bar.add_child(rig)
-	_add_time_rabbit_pocket(rig)
 	var rabbit := _make_time_rabbit_sprite(RABBIT_REWIND_FRAME_NODE, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W)
 	rabbit.z_index = 2
 	rig.add_child(rabbit)
@@ -1621,19 +1624,19 @@ func _add_time_rabbit_pocket(rig: Node2D) -> void:
 	var full := Line2D.new()
 	full.name = RABBIT_REWIND_RING_FULL_NODE
 	full.closed = true
-	full.width = 5.0
-	full.default_color = Color(0.22, 0.15, 0.47, 0.94)
+	full.width = 4.0
+	full.default_color = Color(0.88, 0.62, 0.22, 0.34)
 	full.points = _ellipse_points(Vector2.ZERO, SKILL_AV_W * 0.42, SKILL_AV_W * 0.18, 48)
-	full.z_index = 0
+	full.z_index = 198
 	rig.add_child(full)
 
 	var lip := Line2D.new()
 	lip.name = RABBIT_REWIND_RING_TOP_NODE
 	lip.closed = false
-	lip.width = 7.0
-	lip.default_color = Color(0.35, 0.24, 0.62, 0.98)
+	lip.width = 6.0
+	lip.default_color = Color(1.0, 0.78, 0.30, 0.92)
 	lip.points = _arc_points(Vector2.ZERO, SKILL_AV_W * 0.42, SKILL_AV_W * 0.18, PI, TAU, 28)
-	lip.z_index = 4
+	lip.z_index = 204
 	rig.add_child(lip)
 
 func _make_time_rabbit_sprite(node_name: String, path: String, width: float) -> Sprite2D:
@@ -1703,7 +1706,10 @@ func _time_rabbit_jump_durations() -> Array:
 	return [0.14, 0.13, 0.12, 0.11]
 
 func _time_rabbit_hourglass_float_anchor(cast: Vector2) -> Vector2:
-	return cast + RABBIT_REWIND_HOURGLASS_FLOAT_OFFSET
+	if board == null:
+		return cast + Vector2(0.0, -170.0)
+	var board_rect := _current_board_rect()
+	return Vector2(board_rect.get_center().x, board_rect.position.y + board_rect.size.y * RABBIT_REWIND_HOURGLASS_BOARD_Y)
 
 func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D, cast_effect: bool) -> void:
 	var home := _time_rabbit_home_anchor()
@@ -1826,12 +1832,12 @@ func _spawn_time_rewind_cast_effect() -> void:
 	clock.points = PackedVector2Array([Vector2.ZERO, Vector2(0.0, -base_radius * 0.46)])
 	clock.z_index = 4
 	effect.add_child(clock)
-	for i in range(14):
+	for i in range(20):
 		var sand := ColorRect.new()
 		sand.name = "TimeRewindSand%d" % i
-		sand.size = Vector2(4.0 + float(i % 3), 4.0 + float(i % 3))
-		sand.position = Vector2(sin(float(i) * 1.7) * 28.0, 110.0 - float(i) * 15.0)
-		sand.color = Color(0.74, 0.94, 1.0, 0.82)
+		sand.size = Vector2(5.0 + float(i % 4), 5.0 + float(i % 4))
+		sand.position = Vector2(sin(float(i) * 1.7) * 34.0, 132.0 - float(i) * 13.0)
+		sand.color = Color(0.74, 0.94, 1.0, 0.95)
 		sand.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		sand.z_index = 5
 		effect.add_child(sand)
@@ -1839,11 +1845,11 @@ func _spawn_time_rewind_cast_effect() -> void:
 		var t := create_tween().set_parallel(true)
 		for child in effect.get_children():
 			if child is CanvasItem:
-				t.tween_property(child, "modulate:a", 0.0, 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+				t.tween_property(child, "modulate:a", 0.0, TIME_REWIND_EFFECT_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 			if child is ColorRect and String(child.name).begins_with("TimeRewindSand"):
-				t.tween_property(child, "position:y", child.position.y - 74.0, 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		t.tween_property(clock, "rotation", -TAU * 0.85, 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		t.tween_property(effect, "scale", Vector2(1.18, 1.18), 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+				t.tween_property(child, "position:y", child.position.y - 96.0, TIME_REWIND_EFFECT_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		t.tween_property(clock, "rotation", -TAU * 0.85, TIME_REWIND_EFFECT_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		t.tween_property(effect, "scale", Vector2(1.22, 1.22), TIME_REWIND_EFFECT_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		t.finished.connect(_retire_time_rabbit_rig.bind(effect), CONNECT_ONE_SHOT)
 
 func _current_board_rect() -> Rect2:
@@ -1878,15 +1884,24 @@ func _retire_time_rabbit_rig(rig: Node2D) -> void:
 		_set_time_rabbit_avatar_casting(false)
 		var hourglass := skill_bar.get_node_or_null(RABBIT_REWIND_HOURGLASS_NODE)
 		if hourglass != null:
-			if hourglass.is_inside_tree():
-				hourglass.queue_free()
-			else:
-				hourglass.free()
+			_detach_and_free_later(hourglass)
+		var pocket := skill_bar.get_node_or_null(RABBIT_REWIND_POCKET_NODE)
+		if pocket != null:
+			_detach_and_free_later(pocket)
 		emit_signal("time_rabbit_sequence_done")
-	if rig.is_inside_tree():
-		rig.queue_free()
+	_detach_and_free_later(rig)
+
+func _detach_and_free_later(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	var was_inside := node.is_inside_tree()
+	var parent := node.get_parent()
+	if parent != null:
+		parent.remove_child(node)
+	if was_inside:
+		node.queue_free()
 	else:
-		rig.free()
+		node.free()
 
 # ── idx0 时兔/时间回退: 回到历史窗口内最早一步, 不额外扣步。 ──
 func _skill_time_rewind() -> bool:
