@@ -1490,6 +1490,7 @@ func _play_endgame_bonus() -> void:
 
 func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
 	var virtual_fx := {}
+	var marker_targets := []
 	var idx := 0
 	for item in picks:
 		var p: Vector2i = item["pos"]
@@ -1501,10 +1502,25 @@ func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
 			continue
 		virtual_fx[p] = kind
 		var sp: int = board.grid[p.y][p.x]
-		Fx.spawn_target_outline(_cell_center(p.y, p.x), _fx_color(sp), cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL, 0.012 * float(idx % 8))
+		marker_targets.append({
+			"pos": p,
+			"species": sp,
+			"delay": 0.012 * float(idx % 8),
+		})
 		idx += 1
 	if virtual_fx.is_empty():
 		return
+	var marker_hold := ENDGAME_BONUS_MATRIX_PREVIEW_HOLD + ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx)
+	for item in marker_targets:
+		var marker_pos: Vector2i = item["pos"]
+		var marker_sp: int = int(item["species"])
+		Fx.spawn_conversion_matrix_marker(
+			_cell_center(marker_pos.y, marker_pos.x),
+			_fx_color(marker_sp),
+			cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL,
+			marker_hold,
+			float(item["delay"])
+		)
 	await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout
 	await _show_colorbomb_virtual_conversion(virtual_fx)
 

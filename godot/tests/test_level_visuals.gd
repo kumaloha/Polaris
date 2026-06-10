@@ -1311,15 +1311,36 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
 	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_PREVIEW_HOLD := 0.44"), "endgame conversion matrix holds the rectangles long enough to read")
 	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_OUTLINE_FILL := 1.08"), "endgame conversion rectangles are larger than the gem body")
-	assert_true(helper_body.contains("Fx.spawn_target_outline"), "each picked gem gets the same target/matrix marker used by 5+4 conversion")
+	assert_true(helper_body.contains("var marker_hold := ENDGAME_BONUS_MATRIX_PREVIEW_HOLD + ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx)"), "endgame matrix marker stays alive through preview and conversion")
+	assert_true(helper_body.contains("Fx.spawn_conversion_matrix_marker"), "each picked gem gets a persistent readable matrix marker")
 	assert_true(helper_body.contains("cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), "endgame conversion rectangles use the larger readable outline size")
-	var outline_idx: int = helper_body.find("Fx.spawn_target_outline")
+	var outline_idx: int = helper_body.find("Fx.spawn_conversion_matrix_marker")
 	var hold_idx: int = helper_body.find("await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout", outline_idx)
 	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", hold_idx)
 	assert_true(hold_idx > outline_idx, "endgame conversion holds the target rectangles before changing pieces")
 	assert_true(convert_idx > hold_idx, "special conversion starts after the rectangle preview")
 	assert_true(helper_body.contains("await _show_colorbomb_virtual_conversion(virtual_fx)"), "endgame bonus reuses the 5+4 special-conversion animation")
 	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
+
+
+func test_endgame_bonus_matrix_marker_is_persistent_and_readable() -> void:
+	var f := FileAccess.open("res://match3/effect_manager.gd", FileAccess.READ)
+	assert_true(f != null, "effect_manager.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	var start: int = src.find("func spawn_conversion_matrix_marker")
+	var end: int = src.find("func spawn_absorb_residue", start)
+	assert_true(start >= 0 and end > start, "persistent conversion matrix marker exists")
+	if start < 0 or end <= start:
+		return
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("Polygon2D"), "matrix marker has a subtle filled rectangle so it reads on the book page")
+	assert_true(body.contains("frame.z_index = 2"), "matrix frame sits above its fill")
+	assert_true(body.contains("root.z_index = 40"), "matrix marker is above gem sprites and blocker overlays")
+	assert_true(body.contains("t.tween_interval(maxf(hold_time - 0.36, 0.08))"), "matrix marker holds for the requested conversion window")
+	assert_false(body.contains("_magic_flash_sprite"), "persistent matrix marker is not the short generic flash outline")
+	assert_false(body.contains("_add_mat"), "matrix marker uses normal alpha instead of additive blending on the pale book page")
 
 
 func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() -> void:
