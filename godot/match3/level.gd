@@ -189,8 +189,10 @@ const ELIM_HOLD := 0.156  # 消除后停顿(等普通消除动画跑完)再下�
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
 const OPENING_DROP_TIME := 0.56
 const OPENING_DROP_ROW_STAGGER := 0.045
-const OPENING_FREEZE_STAGGER := 0.035
-const OPENING_FREEZE_SETTLE := 0.24
+const OPENING_DROP_MAX_STAGGER := 0.30
+const OPENING_FREEZE_STAGGER := 0.018
+const OPENING_FREEZE_MAX_STAGGER := 0.18
+const OPENING_FREEZE_SETTLE := 0.16
 const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
 const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
@@ -641,7 +643,16 @@ func _opening_drop_start_position(final_center: Vector2, row: int) -> Vector2:
 
 func _opening_drop_delay(row: int, height: int = -1) -> float:
 	var h: int = height if height > 0 else board.height
-	return float(h - 1 - row) * OPENING_DROP_ROW_STAGGER
+	if h <= 1:
+		return 0.0
+	var row_from_bottom: int = clampi(h - 1 - row, 0, h - 1)
+	var full_span := float(h - 1) * OPENING_DROP_ROW_STAGGER
+	var capped_span := minf(full_span, OPENING_DROP_MAX_STAGGER)
+	return capped_span * float(row_from_bottom) / float(h - 1)
+
+func _opening_drop_window(height: int = -1) -> float:
+	var h: int = height if height > 0 else board.height
+	return OPENING_DROP_TIME + _opening_drop_delay(0, h)
 
 func _opening_wall_cells() -> Array:
 	var cells := []
@@ -650,6 +661,18 @@ func _opening_wall_cells() -> Array:
 			if board.grid[r][c] == ME.WALL:
 				cells.append(Vector2i(c, r))
 	return cells
+
+func _opening_freeze_delay(index: int, count: int = -1) -> float:
+	var wall_count: int = count if count > 0 else _opening_wall_cells().size()
+	if wall_count <= 1:
+		return 0.0
+	var safe_index: int = clampi(index, 0, wall_count - 1)
+	return minf(float(safe_index) * OPENING_FREEZE_STAGGER, OPENING_FREEZE_MAX_STAGGER)
+
+func _opening_freeze_window(wall_count: int) -> float:
+	if wall_count <= 0:
+		return 0.0
+	return _opening_freeze_delay(wall_count - 1, wall_count) + OPENING_FREEZE_SETTLE
 
 func _settle_opening_gems(generation: int) -> bool:
 	if generation != _level_generation:
@@ -696,13 +719,20 @@ func _play_opening_freeze(generation: int) -> void:
 	var wall_cells: Array = _opening_wall_cells()
 	if wall_cells.is_empty() or generation != _level_generation:
 		return
-	for p in wall_cells:
+	var last_delay := 0.0
+	for i in range(wall_cells.size()):
+		var delay := _opening_freeze_delay(i, wall_cells.size())
+		if delay > last_delay:
+			await get_tree().create_timer(delay - last_delay).timeout
+			last_delay = delay
 		if generation != _level_generation:
 			return
+		var p: Vector2i = wall_cells[i]
 		Fx.spawn_beam(BOSS_C, _cell_center(p.y, p.x), OPENING_STONE_COLOR)
 		_show_opening_wall_marker(p, true)
-		await get_tree().create_timer(OPENING_FREEZE_STAGGER).timeout
 	await get_tree().create_timer(OPENING_FREEZE_SETTLE).timeout
+	if generation != _level_generation:
+		return
 
 func _apply_opening_freeze_instant(generation: int) -> void:
 	if generation != _level_generation:

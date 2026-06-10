@@ -1669,6 +1669,41 @@ func test_opening_drop_starts_gems_above_the_board() -> void:
 	level.free()
 
 
+func test_all_real_playable_levels_share_opening_timing_caps() -> void:
+	var level := _prepare_level_scene_with_real_levels()
+	assert_true(level.has_method("_opening_drop_window"), "Level exposes the total opening drop timing window")
+	assert_true(level.has_method("_opening_freeze_window"), "Level exposes the total opening stone timing window")
+	assert_true(level.has_method("_opening_freeze_delay"), "Level distributes opening stone casts inside a capped window")
+	if not level.has_method("_opening_drop_window") or not level.has_method("_opening_freeze_window") or not level.has_method("_opening_freeze_delay"):
+		level.free()
+		return
+	var saw_level_ten := false
+	var saw_level_eleven := false
+	for raw_idx in level._playable:
+		level.board = LevelLibrary.to_board(level._levels[raw_idx])
+		level.call("_compute_layout")
+		var display_level: int = level.call("_display_level_number", raw_idx)
+		saw_level_ten = saw_level_ten or display_level == 10
+		saw_level_eleven = saw_level_eleven or display_level == 11
+		var label := "playable level %d raw %d %dx%d" % [display_level, raw_idx, level.board.width, level.board.height]
+		var drop_window: float = level.call("_opening_drop_window", level.board.height)
+		assert_true(drop_window <= 0.861, "%s opening gems do not fall slower just because the board is tall (%.3fs)" % [label, drop_window])
+		var wall_count := 0
+		for row in level.board.grid:
+			for v in row:
+				if v == ME.WALL:
+					wall_count += 1
+		var freeze_window: float = level.call("_opening_freeze_window", wall_count)
+		assert_true(freeze_window <= 0.341, "%s opening wall casts are batched inside a global timing cap (%.3fs)" % [label, freeze_window])
+		if wall_count > 1:
+			var first_delay: float = level.call("_opening_freeze_delay", 0, wall_count)
+			var last_delay: float = level.call("_opening_freeze_delay", wall_count - 1, wall_count)
+			assert_true(last_delay > first_delay, "%s still staggers wall casts visually" % label)
+			assert_true(last_delay <= 0.18, "%s wall-cast stagger does not scale with wall count" % label)
+	assert_true(saw_level_ten and saw_level_eleven, "opening cap regression includes the player-facing levels 10 and 11 that exposed the slow path")
+	level.free()
+
+
 func test_opening_drop_skips_temporary_gems_for_ice_cells() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
