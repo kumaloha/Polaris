@@ -20,6 +20,7 @@ const BOOK_RIBBONS_SOURCE := "resources/0.02/board/book_ribbons_new.png"
 const BOOK_RIBBONS_SYNCED := "res://assets/level/book_ribbons.png"
 const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
+const BOARD_INLAY_FRAME_NODE := "BoardInlayFrame"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
 const MAGIC_ART_REQUIRED := [
@@ -349,6 +350,28 @@ func test_third_level_book_frame_still_touches_screen_sides() -> void:
 		assert_eq(int(roundf(rib.size.x)), int(expected_w), "third level book keeps the same full-bleed width as wider boards")
 		assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "third level book left edge bleeds to the screen side")
 		assert_eq(int(roundf(rib.position.x + rib.size.x)), int(roundf(360.0 + expected_w * 0.5)), "third level book right edge bleeds to the screen side")
+	level.free()
+
+
+func test_third_level_board_inlay_frame_hugs_board_edges() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "3"], level._levels.size())
+	level.load_level(raw_idx)
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.board_layer = layer
+	level.call("_render_board_panel")
+	level.call("_render_board_frame")
+	var frame := _find_named_node(layer, BOARD_INLAY_FRAME_NODE) as Control
+	assert_true(frame != null, "third level board renders its own inlay frame instead of relying on the full-width book art")
+	if frame == null:
+		level.free()
+		return
+	var expected_size := Vector2(float(level.board.width) * level.cell_size, float(level.board.height) * level.cell_size)
+	assert_eq(int(roundf(frame.position.x)), int(roundf(level.board_origin.x)), "board inlay left edge hugs the first column")
+	assert_eq(int(roundf(frame.position.y)), int(roundf(level.board_origin.y)), "board inlay top edge hugs the first row")
+	assert_eq(int(roundf(frame.size.x)), int(roundf(expected_size.x)), "board inlay width follows the narrow third-level board")
+	assert_eq(int(roundf(frame.size.y)), int(roundf(expected_size.y)), "board inlay height follows the third-level board rows")
 	level.free()
 
 
