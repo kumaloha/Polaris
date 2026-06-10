@@ -1406,7 +1406,7 @@ func _update_skill_cd_visual() -> void:
 		if fl == null or not is_instance_valid(fl):
 			continue
 		var geo: Dictionary = _skill_bar_geo[i]
-		var ratio: float = clampf(_skill_charge[i] / SKILL_CHARGE_REQ, 0.0, 1.0)
+		var ratio: float = _skill_ready_ratio(i)
 		var w: float = geo["w"]
 		var inset: float = geo["inset"]
 		var ih: float = geo["ih"]
@@ -1415,15 +1415,47 @@ func _update_skill_cd_visual() -> void:
 		var btn = _skill_btns[i]
 		if btn == null or not is_instance_valid(btn):
 			continue
-		var ready: bool = _skill_charge[i] >= SKILL_CHARGE_REQ
-		btn.disabled = not ready
+		var ready: bool = _skill_ready(i)
+		btn.disabled = not _skill_clickable(i)
 		btn.modulate.a = 1.0 if ready else 0.82
+
+func _skill_uses_charge(idx: int) -> bool:
+	if idx < 0 or idx >= SKILLS.size():
+		return false
+	return String(SKILLS[idx].get("skill", "")) != "时间回退"
+
+func _skill_ready_ratio(idx: int) -> float:
+	if _skill_uses_charge(idx):
+		return clampf(_skill_charge[idx] / SKILL_CHARGE_REQ, 0.0, 1.0)
+	return 1.0 if _skill_ready(idx) else 0.0
+
+func _skill_clickable(idx: int) -> bool:
+	if idx < 0 or idx >= SKILLS.size():
+		return false
+	match String(SKILLS[idx].get("skill", "")):
+		"时间回退":
+			return board != null and board.skill == "timerewind" and not board.rewind_used and not board.is_over()
+		_:
+			return _skill_ready(idx)
+
+func _skill_ready(idx: int) -> bool:
+	if idx < 0 or idx >= SKILLS.size():
+		return false
+	match String(SKILLS[idx].get("skill", "")):
+		"时间回退":
+			return board != null and board.skill == "timerewind" and not board.rewind_used and not board.move_history.is_empty() and not board.is_over()
+		_:
+			return _skill_charge[idx] >= SKILL_CHARGE_REQ
 
 ## 点技能: 守卫(忙/结算/未充满→忽略) → 分派 → 成功后充能清零(重攒)。技能不消耗步数。
 func _on_skill_pressed(idx: int) -> void:
-	if _busy or _settled or _skill_charge[idx] < SKILL_CHARGE_REQ:
+	if _busy or _settled:
 		return
 	if board == null:
+		return
+	if not _skill_ready(idx):
+		if _skill_clickable(idx):
+			_pulse_skill_button(idx)
 		return
 	var did := false
 	match SKILLS[idx]["skill"]:
@@ -1438,8 +1470,20 @@ func _on_skill_pressed(idx: int) -> void:
 		"幸运祝福":
 			did = await _skill_blessing()
 	if did:
-		_skill_charge[idx] = 0.0   # 放完清零重攒
+		if _skill_uses_charge(idx):
+			_skill_charge[idx] = 0.0   # 放完清零重攒
 		_update_skill_cd_visual()
+
+func _pulse_skill_button(idx: int) -> void:
+	if idx < 0 or idx >= _skill_btns.size():
+		return
+	var btn = _skill_btns[idx]
+	if btn == null or not is_instance_valid(btn):
+		return
+	btn.pivot_offset = btn.size * 0.5
+	var t := create_tween()
+	t.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(btn, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 # ── idx0 时兔/时间回退: 回到历史窗口内最早一步, 不额外扣步。 ──
 func _skill_time_rewind() -> bool:
@@ -2668,6 +2712,7 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 		_refresh_jelly_visuals()
 		_refresh_coat_visuals()
 	_refresh_hud()
+	_update_skill_cd_visual()
 	await _check_settlement()
 	if is_inside_tree():
 		await get_tree().process_frame

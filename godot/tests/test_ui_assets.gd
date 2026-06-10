@@ -145,6 +145,18 @@ func _count_texture_button_texture(root: Node, texture_path: String) -> int:
 	return count
 
 
+func _find_texture_button_texture(root: Node, texture_path: String) -> TextureButton:
+	if root is TextureButton:
+		var btn := root as TextureButton
+		if btn.texture_normal != null and btn.texture_normal.resource_path == texture_path:
+			return btn
+	for child in root.get_children():
+		var found := _find_texture_button_texture(child, texture_path)
+		if found != null:
+			return found
+	return null
+
+
 func _prepare_level_scene() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
@@ -286,6 +298,35 @@ func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
 	assert_eq(b.grid, start_grid, "time rewind restores the saved board grid")
 	assert_eq(b.moves_left, start_moves, "time rewind restores moves from the saved board state")
 	assert_eq(level._gem_nodes.size(), b.height, "time rewind rerenders the board visuals after restoring")
+	level.free()
+
+
+func test_level_time_rewind_button_enables_from_history_not_charge() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
+	assert_true(btn != null, "time rabbit button exists")
+	if btn == null:
+		level.free()
+		return
+	level._skill_charge[0] = 0.0
+	level.board._push_history()
+	level.call("_update_skill_cd_visual")
+	assert_false(btn.disabled, "time rewind becomes clickable from board history even with zero gem charge")
+	assert_eq(btn.modulate.a, 1.0, "time rewind button looks ready when history is available")
+	level.free()
+
+
+func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
+	assert_true(btn != null, "time rabbit button exists")
+	if btn == null:
+		level.free()
+		return
+	assert_false(btn.disabled, "time rabbit remains clickable before rewind history exists so taps can give feedback")
+	assert_true(btn.modulate.a < 1.0, "time rabbit still looks not-ready before there is history to rewind")
 	level.free()
 
 
