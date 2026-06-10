@@ -16,6 +16,18 @@ func _none_fx(w: int, h: int) -> Array:
 	return fx
 
 
+func _prepare_level_scene_with_real_levels() -> Node:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._playable = []
+	for i in range(level._levels.size()):
+		var objs = level._levels[i].get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			level._playable.append(i)
+	return level
+
+
 func test_bomb_blast_cells_use_trigger_gem_species() -> void:
 	var grid := [
 		[0, 1, 2, 3, 4],
@@ -923,14 +935,7 @@ func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
 
 
 func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	level._levels = LevelLibrary.load_file("res://levels.json")
-	level._playable = []
-	for i in range(level._levels.size()):
-		var objs = level._levels[i].get("objectives", [])
-		if objs is Array and not objs.is_empty():
-			level._playable.append(i)
+	var level := _prepare_level_scene_with_real_levels()
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
 	assert_eq(raw_idx, 15, "player-facing level 11 maps to the blocker-heavy exported level that exposed the slow branch")
 	level.board = LevelLibrary.to_board(level._levels[raw_idx])
@@ -941,6 +946,27 @@ func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
 	var blocker_branch_duration: float = level.call("_wall_slide_duration_for_points", points)
 	var ordinary_duration: float = level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0))
 	assert_true(blocker_branch_duration <= ordinary_duration + 0.01, "level 11's obstacle visual branch must not fall slower than ordinary levels")
+	level.free()
+
+
+func test_all_real_playable_levels_share_fall_timing_caps() -> void:
+	var level := _prepare_level_scene_with_real_levels()
+	for raw_idx in level._playable:
+		level.board = LevelLibrary.to_board(level._levels[raw_idx])
+		level.call("_compute_layout")
+		var label := "playable level %d raw %d %dx%d" % [level.call("_display_level_number", raw_idx), raw_idx, level.board.width, level.board.height]
+		var long_cells: int = maxi(10, level.board.width + level.board.height)
+		var ordinary_duration: float = level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * float(long_cells)))
+		assert_true(ordinary_duration <= 0.43, "%s ordinary long fall stays globally capped" % label)
+		var wall_points := []
+		for idx in range(long_cells):
+			wall_points.append(Vector2(0.0, level.cell_size * float(idx)))
+		var wall_duration: float = level.call("_wall_slide_duration_for_points", wall_points)
+		assert_true(wall_duration <= ordinary_duration + 0.01, "%s obstacle/wall branch does not pace slower than ordinary falling" % label)
+		var refill_start: Vector2 = level.call("_ordinary_refill_start_position", level.board.height - 1, 0, 0, level.board.height)
+		var refill_target: Vector2 = level.call("_cell_center", level.board.height - 1, 0)
+		var refill_duration: float = level.call("_ordinary_refill_duration_for_positions", refill_start, refill_target)
+		assert_true(refill_duration <= 0.39, "%s spawned refill stays under its global cap" % label)
 	level.free()
 
 
