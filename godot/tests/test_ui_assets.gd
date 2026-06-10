@@ -398,7 +398,7 @@ func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> 
 	if hourglass != null:
 		assert_eq(hourglass.get_parent(), level.skill_bar, "hourglass is independent of the rabbit rig so it cannot be hidden behind the book or rabbit")
 		assert_true(hourglass.z_index > rig.z_index, "hourglass draws above the rabbit cast rig")
-		assert_true(hourglass.scale.x <= 0.06, "hourglass starts as a small prop instead of a screen-tall tower")
+		assert_true(hourglass.scale.x >= 0.07 and hourglass.scale.x <= 0.09, "hourglass starts as a readable prop without becoming a screen-tall tower")
 	level.free()
 
 

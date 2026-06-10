@@ -171,6 +171,12 @@ const RABBIT_REWIND_K8 := "res://assets/pets/timerewind/rabbit_k8_cast.png"
 const RABBIT_REWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourglass.png"
 const RABBIT_REWIND_CAST_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K5, RABBIT_REWIND_K55, RABBIT_REWIND_K6, RABBIT_REWIND_K7, RABBIT_REWIND_K75, RABBIT_REWIND_K8]
 const RABBIT_REWIND_PEEK_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K6]
+const RABBIT_REWIND_FRAME_WIDTH_SCALE := {
+	RABBIT_REWIND_K2: 0.90,
+	RABBIT_REWIND_K25: 0.74,
+	RABBIT_REWIND_K3: 0.72,
+	RABBIT_REWIND_K4: 0.76,
+}
 const RABBIT_REWIND_HOME_W := 138.0
 const RABBIT_REWIND_PEEK_W := 172.0
 const RABBIT_REWIND_LEAP_W := 232.0
@@ -180,7 +186,7 @@ const RABBIT_REWIND_CAST_VISIBLE_ASPECT := 1191.0 / 908.0
 const RABBIT_REWIND_CAST_TOP_GAP := 8.0
 const RABBIT_REWIND_CAST_AVATAR_GAP := 18.0
 const RABBIT_REWIND_CAST_GAP_BIAS := 36.0
-const RABBIT_REWIND_HOURGLASS_W := 28.0
+const RABBIT_REWIND_HOURGLASS_W := 44.0
 const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(28.0, -86.0)
 const RABBIT_REWIND_HOURGLASS_BOARD_Y := 0.24
 const RABBIT_REWIND_HOURGLASS_FLOAT_SCALE := 1.5
@@ -1678,11 +1684,14 @@ func _set_time_rabbit_frame(sprite: Sprite2D, path: String, width: float, flip_h
 	if tex == null:
 		return
 	sprite.texture = tex
-	sprite.scale = _scale_to_width(tex, width)
+	sprite.scale = _scale_to_width(tex, _time_rabbit_frame_width(path, width))
 	var display_h: float = tex.get_size().y * sprite.scale.y
 	sprite.position = Vector2(0.0, -display_h * 0.5)
 	sprite.flip_h = flip_h
 	sprite.set_meta("anchor", "bottom")
+
+func _time_rabbit_frame_width(path: String, width: float) -> float:
+	return width * float(RABBIT_REWIND_FRAME_WIDTH_SCALE.get(path, 1.0))
 
 func _set_time_rabbit_avatar_frame(sprite: Sprite2D, width: float) -> void:
 	if sprite == null or not is_instance_valid(sprite):

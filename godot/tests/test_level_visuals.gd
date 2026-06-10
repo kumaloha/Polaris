@@ -826,9 +826,23 @@ func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	assert_true(src.contains("RABBIT_REWIND_K25"), "rabbit climb uses the K2.5 push-up inbetween")
 	assert_true(src.contains("RABBIT_REWIND_K55"), "rabbit return uses the K5.5 falling inbetween")
+	assert_true(src.contains("RABBIT_REWIND_FRAME_WIDTH_SCALE"), "rabbit climb frames use per-frame scale corrections instead of one oversized peek width")
 	assert_true(src.contains("TimeRewindSand"), "time rewind cast effect includes reverse sand particles")
 	assert_true(src.contains("TimeRewindClockHand"), "time rewind cast effect includes a clock projection beat")
 	assert_true(src.contains("emit_signal(\"time_rabbit_sequence_done\")"), "rabbit cast emits sequence_done when the actor is hidden")
+
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_time_rabbit_frame_width"), "time rabbit exposes corrected frame width helper")
+	if level.has_method("_time_rabbit_frame_width"):
+		var peek_w := 172.0
+		var k2: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k2_peek.png", peek_w)
+		var k25: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k25_pushup.png", peek_w)
+		var k3: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k3_climb.png", peek_w)
+		var k4: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k4_crouch.png", peek_w)
+		assert_true(k2 < peek_w, "wide peek face is slightly reduced before the climb")
+		assert_true(k25 < k2 and k3 < k2 and k4 < k2, "vertical climb frames are reduced so the head does not jump larger than surrounding frames")
+	level.free()
 
 func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
