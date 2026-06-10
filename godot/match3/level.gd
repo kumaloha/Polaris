@@ -141,7 +141,7 @@ const OBJECTIVES_DEMO := [
 ]
 const SKILLS := [
 	# gem: 该萌宠对应的宝石颜色(消该色宝石→给该萌宠加进度条), 决定冷却条颜色
-	{"av": "res://assets/avatars/av_deer_oracle.png", "name": "星鹿", "skill": "提示", "gem": "purple"},
+	{"av": "res://assets/pets/timerewind/rabbit_avatar.png", "name": "时兔", "skill": "时间回退", "gem": "purple"},
 	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障", "gem": "blue"},
 	{"av": "res://assets/avatars/av_dragon_red.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
 	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
@@ -345,6 +345,7 @@ func load_level(idx: int) -> void:
 			species.append(i)
 		board = CoreBoard.new(lc["cols"], lc["rows"], species, 999999, 999, 12345 + idx)
 		cfg = {"id": lc["id"]}
+	board.skill = "timerewind"
 	_sel = Vector2i(-1, -1)
 	_sel_node = null
 	_hl_markers = []
@@ -1426,6 +1427,8 @@ func _on_skill_pressed(idx: int) -> void:
 		return
 	var did := false
 	match SKILLS[idx]["skill"]:
+		"时间回退":
+			did = _skill_time_rewind()
 		"提示":
 			did = await _skill_hint()
 		"破障":
@@ -1438,7 +1441,22 @@ func _on_skill_pressed(idx: int) -> void:
 		_skill_charge[idx] = 0.0   # 放完清零重攒
 		_update_skill_cd_visual()
 
-# ── idx0 星鹿/提示: 高亮最优一步两格 2.5s 自动清除。不改盘/不resolve/不扣步。 ──
+# ── idx0 时兔/时间回退: 回到历史窗口内最早一步, 不额外扣步。 ──
+func _skill_time_rewind() -> bool:
+	if board == null:
+		return false
+	if board.skill != "timerewind":
+		board.skill = "timerewind"
+	if not board.skill_rewind():
+		return false
+	_sel = Vector2i(-1, -1)
+	_sel_node = null
+	_clear_highlights()
+	_render_board(false)
+	_refresh_hud()
+	return true
+
+# ── 旧提示技能: 保留方法供后续宠物/调试复用。高亮最优一步两格, 不改盘/不resolve/不扣步。 ──
 func _skill_hint() -> bool:
 	var mv: Array = ME.best_moves(board.grid, 1, board._layers(), board.objectives)
 	if mv.is_empty():

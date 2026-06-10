@@ -21,6 +21,8 @@ const BACKGROUND_SYNCED := "res://assets/level/background.png"
 const BOOK_RIBBONS_SOURCE := "resources/0.02/board/book_ribbons_new.png"
 const BOOK_RIBBONS_SYNCED := "res://assets/level/book_ribbons.png"
 const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
+const RABBIT_TIMEREWIND_SOURCE := "resources/0.02/rabbit_timerewind_set/rabbit_avatar.png"
+const RABBIT_TIMEREWIND_SYNCED := "res://assets/pets/timerewind/rabbit_avatar.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
 const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
@@ -132,6 +134,17 @@ func _count_texture_rect_texture(root: Node, texture_path: String) -> int:
 	return count
 
 
+func _count_texture_button_texture(root: Node, texture_path: String) -> int:
+	var count := 0
+	if root is TextureButton:
+		var btn := root as TextureButton
+		if btn.texture_normal != null and btn.texture_normal.resource_path == texture_path:
+			count += 1
+	for child in root.get_children():
+		count += _count_texture_button_texture(child, texture_path)
+	return count
+
+
 func _prepare_level_scene() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
@@ -229,6 +242,50 @@ func test_level_page_does_not_render_removed_bee() -> void:
 	var rig := _find_named_node(level.character_layer, "LevelBeeRig")
 	assert_eq(rig, null, "level page must not render the removed bee rig")
 	assert_eq(_count_label_text(level.skill_bar, "瓢虫"), 1, "level skill bar keeps the original lucky skill companion")
+	level.free()
+
+
+func test_level_first_pet_slot_uses_time_rewind_rabbit_avatar() -> void:
+	assert_true(FileAccess.file_exists(_repo_path(RABBIT_TIMEREWIND_SOURCE)), "source rabbit time-rewind avatar exists")
+	assert_true(FileAccess.file_exists(RABBIT_TIMEREWIND_SYNCED), "synced rabbit time-rewind avatar exists under res://")
+	var src := Image.load_from_file(_repo_path(RABBIT_TIMEREWIND_SOURCE))
+	var dst := Image.load_from_file(ProjectSettings.globalize_path(RABBIT_TIMEREWIND_SYNCED))
+	assert_true(src != null and not src.is_empty(), "source rabbit avatar loads")
+	assert_true(dst != null and not dst.is_empty(), "synced rabbit avatar loads")
+	if src != null and not src.is_empty() and dst != null and not dst.is_empty():
+		assert_eq(dst.get_width(), src.get_width(), "rabbit avatar keeps source width")
+		assert_eq(dst.get_height(), src.get_height(), "rabbit avatar keeps source height")
+		assert_true(dst.detect_alpha() != Image.ALPHA_NONE, "rabbit avatar remains transparent for the bottom skill slot")
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	assert_eq(_count_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED), 1, "first bottom pet slot renders the rabbit avatar button")
+	assert_eq(_count_label_text(level.skill_bar, "时兔"), 1, "first bottom pet slot is labeled as the time rabbit")
+	assert_eq(_count_label_text(level.skill_bar, "星鹿"), 0, "first bottom pet slot no longer shows the old deer hint pet")
+	level.free()
+
+
+func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
+	var level := _prepare_level_scene()
+	assert_true(level.has_method("_skill_time_rewind"), "Level exposes the first-slot time rewind skill")
+	if not level.has_method("_skill_time_rewind"):
+		level.free()
+		return
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "timerewind"
+	var start_grid: Array = b.grid.duplicate(true)
+	var start_moves: int = b.moves_left
+	b._push_history()
+	b.grid[0][0] = (int(b.grid[0][0]) + 1) % b.species.size()
+	b.moves_left -= 3
+	assert_ne(b.grid, start_grid, "test setup mutates the board after history is recorded")
+	level.board = b
+	level._cur_cfg = {"id": 1}
+	level.call("_compute_layout")
+	var did: bool = level.call("_skill_time_rewind")
+	assert_true(did, "time rewind skill succeeds when the board has history")
+	assert_eq(b.grid, start_grid, "time rewind restores the saved board grid")
+	assert_eq(b.moves_left, start_moves, "time rewind restores moves from the saved board state")
+	assert_eq(level._gem_nodes.size(), b.height, "time rewind rerenders the board visuals after restoring")
 	level.free()
 
 
