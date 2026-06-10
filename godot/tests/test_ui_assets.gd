@@ -252,11 +252,15 @@ func test_level_page_renders_living_bee_above_book_edge() -> void:
 	level.load_level(1)
 	var rig := _find_named_node(level.character_layer, "LevelBeeRig")
 	assert_true(rig != null, "level page renders a living bee above the magic book edge")
+	assert_true(level.character_layer.layer > level.gem_layer.layer, "level bee renders in front of the magic book and gems")
 	if rig != null:
-		assert_true(rig.position.y > 340.0 and rig.position.y < 390.0, "bee hovers just above the magic book edge")
+		assert_true(rig.position.y > 330.0 and rig.position.y < 370.0, "bee hovers just above the magic book edge")
 		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "level bee renders the animated rig body once")
 		assert_true(_find_named_node(rig, "BeePart_wing_L") is Sprite2D, "living bee has a left wing layer")
 		assert_true(_find_named_node(rig, "BeePart_wing_R") is Sprite2D, "living bee has a right wing layer")
+		var open_mouth := _find_named_node(rig, "BeePart_mouth") as Sprite2D
+		assert_true(open_mouth != null and not open_mouth.visible, "living bee hides the mismatched open mouth texture")
+		assert_true(_find_named_node(rig, "BeeSmile") is Line2D, "living bee uses a gentle smile instead of the open mouth texture")
 	assert_eq(_count_label_text(level.skill_bar, "瓢虫"), 1, "level skill bar keeps the original lucky skill companion")
 	level.free()
 

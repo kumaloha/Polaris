@@ -160,8 +160,8 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const BOSS_C := Vector2(562, 336)
-const LEVEL_BEE_POS := Vector2(508, 356)
-const LEVEL_BEE_SIZE := Vector2(156, 156)
+const LEVEL_BEE_POS := Vector2(500, 348)
+const LEVEL_BEE_SIZE := Vector2(172, 172)
 const BOARD_TOP := 464.0
 const BOARD_LAYOUT_Y_OFFSET := -24.0  # 书本棋盘区整体上移, 8~11 行共享同一个更高视觉中心
 const CELL_FILL := 1.0          # 格子填满格位
@@ -215,9 +215,9 @@ var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 
 @onready var skill_bar: CanvasLayer = $SkillBar
 
 func _ready() -> void:
-	# 图层顺序：背景(0) < 角色(1) < 棋盘格(2)/棋子(3) < FX(4) < UI(5) < 技能栏(6)
-	# 棋盘在角色之上 → 棋盘顶压角色脚时由棋盘盖住角色(用户要求)
-	character_layer.layer = 1
+	# 图层顺序：背景(0) < 棋盘格(2)/棋子(3) < 角色/飞行伙伴(4) < UI(5) < 技能栏(6)
+	# 小蜜蜂是悬停伙伴, 需要完整飞在魔法书上沿前方, 不再被书页裁掉。
+	character_layer.layer = 4
 	board_layer.layer = 2
 	gem_layer.layer = 3
 	$FXLayer.layer = 4

@@ -20,20 +20,20 @@ const PART_ORDER := [
 ]
 
 const PART_LAYOUT := {
-	"wing_L": {"pos": Vector2(205, 306), "scale": 0.72, "rot": -8.0, "z": -8},
-	"wing_R": {"pos": Vector2(435, 306), "scale": 0.72, "rot": 8.0, "z": -8},
-	"leg_L": {"pos": Vector2(272, 484), "scale": 0.48, "rot": -7.0, "z": -3},
-	"leg_R": {"pos": Vector2(372, 486), "scale": 0.48, "rot": 7.0, "z": -3},
-	"body": {"pos": Vector2(320, 418), "scale": 0.62, "rot": 0.0, "z": 0},
-	"arm_R": {"pos": Vector2(438, 370), "scale": 0.58, "rot": 7.0, "z": 2},
-	"arm_L_raised": {"pos": Vector2(218, 332), "scale": 0.58, "rot": -8.0, "z": 2},
-	"antenna_L": {"pos": Vector2(250, 126), "scale": 0.50, "rot": -9.0, "z": 3},
-	"antenna_R": {"pos": Vector2(390, 126), "scale": 0.50, "rot": 9.0, "z": 3},
-	"face_base": {"pos": Vector2(320, 252), "scale": 0.62, "rot": 0.0, "z": 4},
-	"eyes_open": {"pos": Vector2(320, 238), "scale": 0.62, "rot": 0.0, "z": 5},
-	"eyes_half": {"pos": Vector2(320, 238), "scale": 0.62, "rot": 0.0, "z": 5},
-	"eyes_closed": {"pos": Vector2(320, 238), "scale": 0.62, "rot": 0.0, "z": 5},
-	"mouth": {"pos": Vector2(320, 318), "scale": 0.56, "rot": 0.0, "z": 6},
+	"wing_L": {"pos": Vector2(152, 334), "scale": 1.10, "rot": -12.0, "z": -8, "alpha": 0.78},
+	"wing_R": {"pos": Vector2(488, 334), "scale": 1.10, "rot": 12.0, "z": -8, "alpha": 0.78},
+	"leg_L": {"pos": Vector2(278, 512), "scale": 0.56, "rot": -5.0, "z": -3},
+	"leg_R": {"pos": Vector2(362, 512), "scale": 0.56, "rot": 5.0, "z": -3},
+	"body": {"pos": Vector2(320, 438), "scale": 0.77, "rot": 0.0, "z": 0},
+	"arm_R": {"pos": Vector2(434, 414), "scale": 0.76, "rot": 24.0, "z": 2},
+	"arm_L_raised": {"source": "arm_R", "flip_h": true, "pos": Vector2(206, 414), "scale": 0.76, "rot": -24.0, "z": 2},
+	"antenna_L": {"pos": Vector2(242, 120), "scale": 0.70, "rot": -10.0, "z": 3},
+	"antenna_R": {"pos": Vector2(398, 120), "scale": 0.70, "rot": 10.0, "z": 3},
+	"face_base": {"pos": Vector2(320, 246), "scale": 0.74, "rot": 0.0, "z": 4},
+	"eyes_open": {"pos": Vector2(320, 260), "scale": 1.02, "rot": 0.0, "z": 5},
+	"eyes_half": {"pos": Vector2(320, 260), "scale": 1.02, "rot": 0.0, "z": 5},
+	"eyes_closed": {"pos": Vector2(320, 260), "scale": 1.02, "rot": 0.0, "z": 5},
+	"mouth": {"pos": Vector2(320, 318), "scale": 0.56, "rot": 0.0, "z": 6, "visible": false},
 }
 
 const BLINK_START_OFFSET := 0.24
@@ -71,7 +71,8 @@ func setup(character: Dictionary, display_size: Vector2) -> void:
 
 	var part_paths := _part_paths(character)
 	for part in PART_ORDER:
-		_add_part(part, String(part_paths.get(part, "%s/%s.png" % [DEFAULT_DIR, part])))
+		_add_part(part, part_paths)
+	_add_face_expression()
 	_update_eye_state(_elapsed)
 
 
@@ -79,10 +80,11 @@ func _process(delta: float) -> void:
 	_elapsed += delta
 	if _content == null:
 		return
-	_set_part_rotation("wing_L", -8.0 + sin(_elapsed * 18.0) * 5.0)
-	_set_part_rotation("wing_R", 8.0 - sin(_elapsed * 18.0) * 5.0)
-	_set_part_rotation("arm_L_raised", -8.0 + sin(_elapsed * 3.2) * 2.0)
-	_content.position = _content_base_position + Vector2(0, sin(_elapsed * 2.4) * 8.0)
+	_set_part_rotation("wing_L", -12.0 + sin(_elapsed * 22.0) * 7.0)
+	_set_part_rotation("wing_R", 12.0 - sin(_elapsed * 22.0) * 7.0)
+	_set_part_rotation("arm_L_raised", -24.0 + sin(_elapsed * 3.2) * 1.6)
+	_set_part_rotation("arm_R", 24.0 - sin(_elapsed * 3.2) * 1.6)
+	_content.position = _content_base_position + Vector2(0, sin(_elapsed * 2.4) * 6.0)
 	_update_eye_state(_elapsed)
 
 
@@ -98,11 +100,13 @@ func _part_paths(character: Dictionary) -> Dictionary:
 	return paths
 
 
-func _add_part(part: String, path: String) -> void:
+func _add_part(part: String, part_paths: Dictionary) -> void:
+	var spec: Dictionary = PART_LAYOUT[part]
+	var source_part := String(spec.get("source", part))
+	var path := String(part_paths.get(source_part, "%s/%s.png" % [DEFAULT_DIR, source_part]))
 	var tex := _load_texture(path)
 	if tex == null:
 		return
-	var spec: Dictionary = PART_LAYOUT[part]
 	var sprite := Sprite2D.new()
 	sprite.name = "BeePart_%s" % part
 	sprite.texture = tex
@@ -111,8 +115,45 @@ func _add_part(part: String, path: String) -> void:
 	var s := float(spec["scale"])
 	sprite.scale = Vector2(s, s)
 	sprite.rotation_degrees = float(spec["rot"])
+	sprite.flip_h = bool(spec.get("flip_h", false))
+	sprite.visible = bool(spec.get("visible", true))
+	sprite.modulate = Color(1, 1, 1, float(spec.get("alpha", 1.0)))
 	sprite.z_index = int(spec["z"])
 	_content.add_child(sprite)
+
+
+func _add_face_expression() -> void:
+	var nose := Polygon2D.new()
+	nose.name = "BeeNose"
+	nose.position = Vector2(320, 300)
+	nose.polygon = PackedVector2Array([
+		Vector2(-7, -3),
+		Vector2(0, -6),
+		Vector2(7, -3),
+		Vector2(4, 3),
+		Vector2(0, 5),
+		Vector2(-4, 3),
+	])
+	nose.color = Color(0.70, 0.28, 0.16, 1.0)
+	nose.z_index = 7
+	_content.add_child(nose)
+
+	var smile := Line2D.new()
+	smile.name = "BeeSmile"
+	smile.width = 5.0
+	smile.default_color = Color(0.35, 0.14, 0.08, 1.0)
+	smile.joint_mode = Line2D.LINE_JOINT_ROUND
+	smile.begin_cap_mode = Line2D.LINE_CAP_ROUND
+	smile.end_cap_mode = Line2D.LINE_CAP_ROUND
+	smile.z_index = 7
+	var points := PackedVector2Array()
+	for i in 17:
+		var t := float(i) / 16.0
+		var x := lerpf(296.0, 344.0, t)
+		var y := 308.0 + sin(t * PI) * 11.0
+		points.append(Vector2(x, y))
+	smile.points = points
+	_content.add_child(smile)
 
 
 func _load_texture(path: String) -> Texture2D:
