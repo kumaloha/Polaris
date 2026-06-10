@@ -31,6 +31,8 @@ const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
 const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
+const RABBIT_REWIND_RING_FULL_NODE := "RabbitPocketRingFull"
+const RABBIT_REWIND_RING_TOP_NODE := "RabbitPocketRingTopLip"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
 const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
@@ -324,7 +326,7 @@ func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
 	assert_true(rig != null, "time rewind should spawn the documented rabbit cast animation on the top skill layer")
 	if rig != null:
 		var frame := _find_named_node(rig, RABBIT_REWIND_FRAME_NODE) as Sprite2D
-		var hourglass := _find_named_node(rig, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
+		var hourglass := _find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
 		assert_true(frame != null and frame.texture != null, "rabbit cast animation has a visible frame sprite")
 		assert_true(hourglass != null and hourglass.texture != null, "rabbit cast animation includes the hourglass prop")
 		assert_eq(hourglass.texture.resource_path, RABBIT_TIMEREWIND_HOURGLASS, "hourglass prop uses the time-rewind document asset")
@@ -348,10 +350,37 @@ func test_time_rabbit_cast_hides_bottom_avatar_until_retired() -> void:
 	level.call("_play_time_rewind_pet_animation", false)
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
 	assert_true(rig != null, "time rabbit cast rig is created")
-	assert_false(btn.visible, "bottom avatar disappears as soon as the rabbit jumps out")
+	assert_true(btn.visible, "bottom avatar slot stays present while the rabbit jumps out")
+	assert_true(absf(btn.modulate.a - 0.5) <= 0.01, "bottom avatar fades to 50% instead of becoming a black hole")
 	if rig != null:
 		level.call("_retire_time_rabbit_rig", rig)
+		assert_true(not is_instance_valid(rig) or not rig.visible, "retired rabbit actor is hidden or freed immediately")
 		assert_true(btn.visible, "bottom avatar returns after the cast rig is retired")
+		assert_eq(btn.modulate.a, 1.0, "bottom avatar returns to full opacity after the rabbit is collected")
+	level.free()
+
+
+func test_time_rabbit_cast_builds_pocket_and_top_layer_hourglass() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	level.call("_play_time_rewind_pet_animation", true)
+	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
+	assert_true(rig != null, "time rabbit cast rig is created")
+	if rig == null:
+		level.free()
+		return
+	var ring_full := _find_named_node(rig, RABBIT_REWIND_RING_FULL_NODE)
+	var ring_top := _find_named_node(rig, RABBIT_REWIND_RING_TOP_NODE)
+	assert_true(ring_full != null, "pocket has a full ring behind the emerging rabbit")
+	assert_true(ring_top != null, "pocket has a top lip above the emerging rabbit")
+	if ring_full != null and ring_top != null:
+		assert_true((ring_full as CanvasItem).z_index < (ring_top as CanvasItem).z_index, "top lip draws above the full ring for the pocket trick")
+	var hourglass := _find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
+	assert_true(hourglass != null and hourglass.texture != null, "top-layer hourglass prop exists")
+	if hourglass != null:
+		assert_eq(hourglass.get_parent(), level.skill_bar, "hourglass is independent of the rabbit rig so it cannot be hidden behind the book or rabbit")
+		assert_true(hourglass.z_index > rig.z_index, "hourglass draws above the rabbit cast rig")
+		assert_true(hourglass.scale.x > 0.09, "hourglass is scaled large enough to read in the skill beat")
 	level.free()
 
 

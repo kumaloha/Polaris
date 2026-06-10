@@ -750,7 +750,7 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 		level.free()
 		return
 	var home := Vector2(140.0, 1320.0)
-	var cast := Vector2(540.0, 1040.0)
+	var cast := Vector2(home.x, 1040.0)
 	var points: Array = level.call("_time_rabbit_jump_points", home, cast)
 	var durations: Array = level.call("_time_rabbit_jump_durations")
 	assert_true(points.size() >= 4, "rabbit jump is split into several visible inbetween positions instead of one fast leap")
@@ -762,6 +762,8 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	assert_true(points[0].y < home.y, "first jump inbetween lifts out of the skill slot")
 	assert_true(points[1].y < minf(home.y, cast.y), "middle jump inbetween reaches a visible arc apex before landing")
 	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
+	for p in points:
+		assert_true(absf((p as Vector2).x - home.x) <= 0.5, "rabbit jump stays vertically above the avatar slot instead of drifting sideways")
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _start_time_rabbit_tween")
 	var end: int = src.find("\nfunc ", start + 1)
@@ -773,20 +775,46 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	level.free()
 
 func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const RABBIT_REWIND_BOOK_GAP := 36.0"), "time rabbit cast position sits just below the magic book")
-	assert_true(src.contains("const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(48.0, -150.0)"), "hourglass floats back inside the book while the rabbit stays below it")
-	var start: int = src.find("func _time_rabbit_cast_anchor")
-	assert_true(start >= 0, "time rabbit cast anchor exists")
-	if start < 0:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_time_rabbit_cast_anchor"), "time rabbit cast anchor exists")
+	assert_true(level.has_method("_time_rabbit_home_anchor"), "time rabbit home anchor exists")
+	assert_true(level.has_method("_time_rabbit_cast_width"), "time rabbit cast width adapts to each board gap")
+	assert_true(level.has_method("_current_board_rect"), "level exposes board rect for cast placement")
+	if not level.has_method("_time_rabbit_cast_anchor") or not level.has_method("_time_rabbit_home_anchor") or not level.has_method("_time_rabbit_cast_width") or not level.has_method("_current_board_rect"):
+		level.free()
 		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("var book_rect := _book_frame_rect()"), "rabbit cast anchor is derived from the magic book frame")
-	assert_true(body.contains("book_rect.end.y + RABBIT_REWIND_BOOK_GAP"), "rabbit lands just below the book bottom edge")
-	assert_false(body.contains("board.height) * cell_size * 0.58"), "rabbit must not jump into the board center")
+	level.board = Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 25, 7)
+	level.call("_compute_layout")
+	var home: Vector2 = level.call("_time_rabbit_home_anchor")
+	var cast: Vector2 = level.call("_time_rabbit_cast_anchor")
+	var cast_width: float = level.call("_time_rabbit_cast_width")
+	var board_rect: Rect2 = level.call("_current_board_rect")
+	assert_true(absf(cast.x - home.x) <= 0.5, "rabbit casts on the avatar column, not the book center")
+	assert_true(cast.y < home.y, "rabbit cast point floats above the avatar slot")
+	assert_true(cast.y >= board_rect.end.y + 28.0, "rabbit cast point stays below the playable board")
+	assert_false(board_rect.has_point(cast), "rabbit cast anchor must not overlap the playable board")
+	var cast_top := cast.y - 8.0 - cast_width * (1191.0 / 908.0)
+	assert_true(cast_top >= board_rect.end.y, "rabbit K8 visible body stays below the playable board, not just its anchor")
+	level.board = Board.new(8, 10, [0, 1, 2, 3, 4], 999999, 25, 8)
+	level.call("_compute_layout")
+	home = level.call("_time_rabbit_home_anchor")
+	cast = level.call("_time_rabbit_cast_anchor")
+	cast_width = level.call("_time_rabbit_cast_width")
+	board_rect = level.call("_current_board_rect")
+	cast_top = cast.y - 8.0 - cast_width * (1191.0 / 908.0)
+	assert_true(cast_width < 220.0, "tall boards shrink the cast sprite instead of moving it into the board")
+	assert_true(absf(cast.x - home.x) <= 0.5, "tall board rabbit cast still stays on the avatar column")
+	assert_true(cast_top >= board_rect.end.y, "tall board rabbit K8 visible body stays below the playable board")
+	level.free()
+
+func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("RABBIT_REWIND_K25"), "rabbit climb uses the K2.5 push-up inbetween")
+	assert_true(src.contains("RABBIT_REWIND_K55"), "rabbit return uses the K5.5 falling inbetween")
+	assert_true(src.contains("TimeRewindSand"), "time rewind cast effect includes reverse sand particles")
+	assert_true(src.contains("TimeRewindClockHand"), "time rewind cast effect includes a clock projection beat")
+	assert_true(src.contains("emit_signal(\"time_rabbit_sequence_done\")"), "rabbit cast emits sequence_done when the actor is hidden")
 
 func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
