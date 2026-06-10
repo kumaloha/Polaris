@@ -143,7 +143,7 @@ func test_colorbomb_has_flowing_ring_highlight() -> void:
 	assert_true(src.contains("_attach_colorbomb_flowing_rim(node, core)"), "colorbomb application attaches a circular flowing rim layer")
 	assert_true(src.contains("func _colorbomb_rim_material()"), "colorbomb rim uses its own shader material")
 	assert_true(src.contains("rim.z_index = 3"), "flowing rim must draw above the colorbomb core")
-	assert_true(src.contains("const COLORBOMB_RIM_WIDTH := 0.018"), "pp.png colorbomb only needs one thin light strand")
+	assert_true(src.contains("const COLORBOMB_RIM_WIDTH := 0.018"), "gold_amulet.png colorbomb only needs one thin light strand")
 	assert_true(src.contains("const COLORBOMB_RIM_SPARK_WIDTH := 0.052"), "flowing strand should be narrow, not a thick outer band")
 
 	var shader := FileAccess.get_file_as_string("res://match3/colorbomb_rim.gdshader")
@@ -153,7 +153,7 @@ func test_colorbomb_has_flowing_ring_highlight() -> void:
 	assert_true(shader.contains("spark_angle"), "shader exposes a moving spark angle along the ring")
 	assert_true(shader.contains("rim_radius"), "shader draws a controlled circular rim")
 	assert_false(shader.contains("second_spark"), "flowing rim should be one light, not multiple orbiting spots")
-	assert_false(shader.contains("soft_halo"), "flowing rim should not add a thick halo around pp.png")
+	assert_false(shader.contains("soft_halo"), "flowing rim should not add a thick halo around gold_amulet.png")
 
 
 func test_combo_idle_uses_restrained_directional_motion() -> void:
