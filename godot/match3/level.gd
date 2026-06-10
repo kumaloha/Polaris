@@ -167,9 +167,7 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const BOSS_C := Vector2(562, 336)
-const BOARD_TOP := 464.0
-const BOARD_LAYOUT_Y_OFFSET := -24.0  # 书本棋盘区整体上移, 8~11 行共享同一个更高视觉中心
-const BOARD_VISUAL_CENTER_Y := 806.0
+const BOARD_VISUAL_CENTER_Y := 762.0  # 书本棋盘区在顶部栏底边与技能头像顶边之间居中
 const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
@@ -367,12 +365,6 @@ func _compute_layout() -> void:
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
 	board_origin = Vector2((DESIGN_W - board_w) * 0.5, BOARD_VISUAL_CENTER_Y - board_h * 0.5)
-
-func _board_frame_top() -> float:
-	return BOARD_TOP + BOARD_LAYOUT_Y_OFFSET
-
-func _board_frame_bottom() -> float:
-	return TRAY_TOP - 6.0 + BOARD_LAYOUT_Y_OFFSET
 
 func _board_cell_size_for_grid(cols: int, rows: int) -> float:
 	var safe_cols := maxf(1.0, float(cols))

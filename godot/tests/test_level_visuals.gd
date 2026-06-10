@@ -271,38 +271,41 @@ func test_combo_idle_reapply_same_fx_does_not_restart() -> void:
 		assert_true(current_body.contains("_stored_tween_is_running(node, \"colorbomb_tween\")"), "5-match idle also avoids stacking repeated bob tweens")
 
 
-func test_board_layout_scales_short_row_counts_and_keeps_same_visual_center() -> void:
+func test_board_layout_centers_playable_books_between_topbar_and_skills() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_compute_layout"), "Level exposes board layout calculation")
-	if not level.has_method("_compute_layout"):
+	for dims in [Vector2i(8, 8), Vector2i(8, 10), Vector2i(9, 11)]:
+		var level := scene.instantiate()
+		assert_true(level.has_method("_compute_layout"), "Level exposes board layout calculation")
+		if not level.has_method("_compute_layout"):
+			level.free()
+			return
+		level.board = Board.new(dims.x, dims.y, [0, 1, 2, 3, 4, 5], 0, 25, 1)
+		level.call("_compute_layout")
+		var board_h: float = float(level.board.height) * level.cell_size
+		var visual_center_y: float = level.board_origin.y + board_h * 0.5
+		var topbar_bottom: float = -48.0 + float(level.call("_topbar_height"))
+		var skill_top: float = 1374.0 - 132.0 * 0.5
+		var book_top: float = level.board_origin.y - 21.0
+		var ribbons_bottom: float = level.board_origin.y + board_h + 56.0 + 726.0 * 77.0 / 982.0
+		var top_gap: float = book_top - topbar_bottom
+		var bottom_gap: float = skill_top - ribbons_bottom
+		assert_eq(int(roundf(visual_center_y)), 762, "playable %dx%d board uses the balanced book center" % [dims.x, dims.y])
+		assert_true(absf(top_gap - bottom_gap) <= 1.5, "playable %dx%d book has balanced top/bottom gaps" % [dims.x, dims.y])
 		level.free()
-		return
-	level.board = Board.new(8, 8, [0, 1, 2, 3, 4, 5], 0, 25, 1)
-	level.call("_compute_layout")
-	var short_cell: float = level.cell_size
-	var short_center_y: float = level.board_origin.y + float(level.board.height) * short_cell * 0.5
-	level.board = Board.new(8, 11, [0, 1, 2, 3, 4, 5], 0, 25, 1)
-	level.call("_compute_layout")
-	var tall_cell: float = level.cell_size
-	var tall_center_y: float = level.board_origin.y + float(level.board.height) * tall_cell * 0.5
-	assert_true(short_cell > tall_cell, "8-row boards should grow when vertical room is available instead of looking squat")
-	assert_true(absf(short_center_y - tall_center_y) <= 1.0, "8-row and 11-row boards should share the same visual center in the board area")
-	assert_eq(int(roundf(short_center_y)), 806, "8-row board should sit closer to the top panel in the shared book area")
-	assert_eq(int(roundf(tall_center_y)), 806, "11-row board should use the same raised book center as short boards")
-	level.free()
 
 
-func test_board_layout_keeps_eleven_row_book_inside_play_area() -> void:
+func test_board_layout_keeps_tallest_playable_book_inside_play_area() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	level.board = Board.new(8, 11, [0, 1, 2, 3, 4, 5], 0, 25, 1)
+	level.board = Board.new(9, 11, [0, 1, 2, 3, 4, 5], 0, 25, 1)
 	level.call("_compute_layout")
+	var topbar_bottom: float = -48.0 + float(level.call("_topbar_height"))
+	var skill_top: float = 1374.0 - 132.0 * 0.5
 	var book_y: float = level.board_origin.y - 21.0
 	var book_bottom: float = level.board_origin.y + float(level.board.height) * level.cell_size + 56.0
 	var ribbons_bottom: float = book_bottom + 726.0 * 77.0 / 982.0
-	assert_true(book_y >= 356.0, "11-row book can sit under the top panel while filling the inner book width")
-	assert_true(ribbons_bottom <= 1308.0, "11-row book and ribbons should stay above the skill portraits")
+	assert_true(book_y >= topbar_bottom + 40.0, "tallest playable book leaves breathing room under the raised topbar")
+	assert_true(ribbons_bottom <= skill_top - 40.0, "tallest playable book leaves breathing room above the skill portraits")
 	level.free()
 
 
