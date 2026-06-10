@@ -375,6 +375,19 @@ func test_playable_board_widths_fill_the_book_inner_inlay() -> void:
 		level.free()
 
 
+func test_all_real_playable_boards_fill_the_book_inner_inlay() -> void:
+	var level := _prepare_level_scene()
+	for raw_idx in level._playable:
+		level.board = LevelLibrary.to_board(level._levels[raw_idx])
+		level.call("_compute_layout")
+		var baked_rect: Rect2 = level.call("_book_baked_inner_rect")
+		var board_rect: Rect2 = level.call("_book_board_inner_rect")
+		var label := "playable level %d raw %d %dx%d" % [level.call("_display_level_number", raw_idx), raw_idx, level.board.width, level.board.height]
+		assert_eq(int(roundf(board_rect.position.x)), int(roundf(baked_rect.position.x)), "%s left edge aligns to book inner inlay" % label)
+		assert_eq(int(roundf(board_rect.size.x)), int(roundf(baked_rect.size.x)), "%s width fills book inner inlay" % label)
+	level.free()
+
+
 func test_topbar_art_background_fill_is_transparent() -> void:
 	var img := Image.load_from_file(ProjectSettings.globalize_path(TOPBAR_SYNCED))
 	assert_true(img != null and not img.is_empty(), "topbar art image loads")

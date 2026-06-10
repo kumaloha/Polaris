@@ -2,6 +2,7 @@ extends "res://tests/test_lib.gd"
 
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
 const Board := preload("res://core/board.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 const ME := preload("res://core/match_engine.gd")
 
 
@@ -916,8 +917,30 @@ func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
 	for idx in range(10):
 		points.append(Vector2(0, float(idx) * 70.0))
 	var duration: float = level.call("_wall_slide_duration_for_points", points)
-	assert_true(duration >= 0.52, "ten cell-steps still read as a multi-step slide")
-	assert_true(duration <= 0.56, "ten cell-steps use the brisk global cap instead of dragging blocker levels")
+	assert_true(duration >= 0.39, "ten cell-steps still read as movement, not a teleport")
+	assert_true(duration <= 0.43, "ten cell-steps use the same brisk cap as ordinary falls so blocker levels do not feel slower")
+	level.free()
+
+
+func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._playable = []
+	for i in range(level._levels.size()):
+		var objs = level._levels[i].get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			level._playable.append(i)
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
+	assert_eq(raw_idx, 15, "player-facing level 11 maps to the blocker-heavy exported level that exposed the slow branch")
+	level.board = LevelLibrary.to_board(level._levels[raw_idx])
+	level.call("_compute_layout")
+	var points := []
+	for idx in range(10):
+		points.append(Vector2(0, float(idx) * level.cell_size))
+	var blocker_branch_duration: float = level.call("_wall_slide_duration_for_points", points)
+	var ordinary_duration: float = level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0))
+	assert_true(blocker_branch_duration <= ordinary_duration + 0.01, "level 11's obstacle visual branch must not fall slower than ordinary levels")
 	level.free()
 
 
@@ -1035,8 +1058,8 @@ func test_level_fall_animation_timing_is_slightly_slower() -> void:
 	assert_true(src.contains("const FALL_EXTRA_CELL_TIME := 0.030"), "longer falls add only a small accelerated increment per extra cell")
 	assert_true(src.contains("const FALL_MAX_TIME := 0.42"), "long ordinary falls have a global cap so levels do not feel differently paced")
 	assert_true(src.contains("const ORDINARY_REFILL_MAX_TIME := 0.38"), "spawned refill stays brisk without collapsing into a paint effect")
-	assert_true(src.contains("const WALL_SLIDE_STEP_TIME := 0.045"), "wall slide timing stays readable but does not drag through blocker lanes")
-	assert_true(src.contains("const WALL_SLIDE_MAX_TIME := 0.55"), "wall slide wait cap prevents long obstacle paths from dragging")
+	assert_true(src.contains("const WALL_SLIDE_STEP_TIME := FALL_EXTRA_CELL_TIME"), "wall slide uses the same per-step acceleration as ordinary falls")
+	assert_true(src.contains("const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME"), "wall slide wait cap matches ordinary falls so blocker lanes do not feel slower")
 
 func test_level_wall_slide_visuals_only_cross_columns_under_fall_obstacles() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
