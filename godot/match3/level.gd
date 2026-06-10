@@ -84,11 +84,6 @@ const BOOK_INNER_B := 56.0  # 底(书脊厚)
 const BOOK_NINE_ML := 54    # 9-slice margin(≥内边线inset, 保金框/四角花不变形)
 const BOOK_NINE_MT := 28
 const BOOK_NINE_MB := 58
-const BOARD_INLAY_FRAME_NODE := "BoardInlayFrame"
-const BOARD_INLAY_BORDER := 2
-const BOARD_INLAY_RADIUS := 7
-const BOARD_INLAY_COLOR := Color(0.96, 0.73, 0.28, 0.82)
-const BOARD_INLAY_SHADOW_COLOR := Color(0.42, 0.22, 0.06, 0.34)
 const BG_TEXTURE := "res://assets/level/background.png"  # v0.02 新天空背景(941×1672, 按宽铺满)
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
@@ -384,9 +379,6 @@ func _board_cell_size_for_grid(cols: int, rows: int) -> float:
 func _book_frame_width_for_board() -> float:
 	return DESIGN_W + 6.0
 
-func _board_inlay_rect() -> Rect2:
-	return Rect2(board_origin, Vector2(float(board.width) * cell_size, float(board.height) * cell_size))
-
 func _cell_center(row: int, col: int) -> Vector2:
 	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
 
@@ -465,38 +457,10 @@ func _load_texture_from_file(path: String) -> Texture2D:
 	tex.take_over_path(path)
 	return tex
 
-# 棋盘自己的细金线镶边：贴实际棋格矩形，避免窄关卡误贴满宽书页内框。
+# 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
 func _render_board_frame() -> void:
-	var rect := _board_inlay_rect()
-	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
-		return
-	var shadow := Panel.new()
-	shadow.name = "%sShadow" % BOARD_INLAY_FRAME_NODE
-	var shadow_style := StyleBoxFlat.new()
-	shadow_style.bg_color = Color.TRANSPARENT
-	shadow_style.border_color = BOARD_INLAY_SHADOW_COLOR
-	shadow_style.set_border_width_all(BOARD_INLAY_BORDER + 2)
-	shadow_style.set_corner_radius_all(BOARD_INLAY_RADIUS + 1)
-	shadow.add_theme_stylebox_override("panel", shadow_style)
-	shadow.position = rect.position + Vector2(1.0, 2.0)
-	shadow.size = rect.size
-	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	shadow.z_index = 29
-	board_layer.add_child(shadow)
-
-	var frame := Panel.new()
-	frame.name = BOARD_INLAY_FRAME_NODE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color.TRANSPARENT
-	style.border_color = BOARD_INLAY_COLOR
-	style.set_border_width_all(BOARD_INLAY_BORDER)
-	style.set_corner_radius_all(BOARD_INLAY_RADIUS)
-	frame.add_theme_stylebox_override("panel", style)
-	frame.position = rect.position
-	frame.size = rect.size
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	frame.z_index = 30
-	board_layer.add_child(frame)
+	# v0.02: 棋盘金边框改由 parchment_panel(底框自带金边)提供, 不再画紫金 band/line/corner。
+	return
 
 func _render_board(opening_drop: bool = false) -> void:
 	_clear_layer(board_layer)
