@@ -136,24 +136,37 @@ func test_colorbomb_idle_does_not_tween_board_position() -> void:
 	assert_true(body.contains("\"offset\""), "colorbomb bob uses visual offset instead of board position")
 
 
-func test_colorbomb_has_flowing_ring_highlight() -> void:
+func test_colorbomb_has_internal_color_light_cycle() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const COLORBOMB_RIM_SHADER := \"res://match3/colorbomb_rim.gdshader\""), "5-match colorbomb owns a dedicated flowing rim shader")
-	assert_true(src.contains("const COLORBOMB_FLOWING_RIM_NAME := \"FlowingRim\""), "flowing rim is a named removable colorbomb layer")
-	assert_true(src.contains("_attach_colorbomb_flowing_rim(node, core)"), "colorbomb application attaches a circular flowing rim layer")
-	assert_true(src.contains("func _colorbomb_rim_material()"), "colorbomb rim uses its own shader material")
-	assert_true(src.contains("rim.z_index = 3"), "flowing rim must draw above the colorbomb core")
-	assert_true(src.contains("const COLORBOMB_RIM_WIDTH := 0.018"), "gold_amulet2 colorbomb only needs one thin light strand")
-	assert_true(src.contains("const COLORBOMB_RIM_SPARK_WIDTH := 0.052"), "flowing strand should be narrow, not a thick outer band")
+	assert_true(src.contains("const COLORBOMB_INNER_LIGHT_SHADER := \"res://match3/colorbomb_inner_light.gdshader\""), "5-match colorbomb owns a dedicated internal light shader")
+	assert_true(src.contains("const COLORBOMB_INNER_LIGHT_NAME := \"InnerLight\""), "internal light is a named removable colorbomb layer")
+	assert_true(src.contains("_attach_colorbomb_inner_light(node, core)"), "colorbomb application attaches an internal light layer")
+	assert_true(src.contains("func _colorbomb_inner_light_material()"), "colorbomb internal light uses its own shader material")
+	assert_true(src.contains("light.z_index = 3"), "internal light must draw above the diamond core")
+	assert_false(src.contains("_attach_colorbomb_flowing_rim(node, core)"), "colorbomb no longer attaches an outer ring")
+	assert_false(src.contains("COLORBOMB_RIM_SHADER"), "outer rim shader is not used by the colorbomb")
 
-	var shader := FileAccess.get_file_as_string("res://match3/colorbomb_rim.gdshader")
-	assert_true(not shader.is_empty(), "flowing rim shader file exists")
-	assert_true(shader.contains("TIME"), "rim highlight flows over time without moving the board sprite")
-	assert_true(shader.contains("atan("), "rim highlight is driven around the circular angle")
-	assert_true(shader.contains("spark_angle"), "shader exposes a moving spark angle along the ring")
-	assert_true(shader.contains("rim_radius"), "shader draws a controlled circular rim")
-	assert_false(shader.contains("second_spark"), "flowing rim should be one light, not multiple orbiting spots")
-	assert_false(shader.contains("soft_halo"), "flowing rim should not add a thick halo around gold_amulet2")
+	var color_order := [
+		"Color(1.0, 0.10, 0.08",
+		"Color(0.16, 0.92, 0.22",
+		"Color(0.56, 0.20, 1.0",
+		"Color(1.0, 0.24, 0.76",
+		"Color(1.0, 0.88, 0.14",
+		"Color(0.12, 0.54, 1.0",
+	]
+	var previous := -1
+	for color_token in color_order:
+		var index := src.find(color_token)
+		assert_true(index > previous, "internal light color order keeps red, green, purple, pink, yellow, blue")
+		previous = index
+
+	var shader := FileAccess.get_file_as_string("res://match3/colorbomb_inner_light.gdshader")
+	assert_true(not shader.is_empty(), "internal light shader file exists")
+	assert_true(shader.contains("TIME"), "internal light changes color over time without moving the board sprite")
+	assert_true(shader.contains("inner_radius"), "shader confines the light to the diamond center, not the edge")
+	assert_true(shader.contains("light_color_0") and shader.contains("light_color_5"), "shader receives the six ordered light colors")
+	assert_false(shader.contains("rim_radius"), "internal light shader must not draw an outer rim")
+	assert_false(shader.contains("atan("), "internal light should not orbit around the outside edge")
 
 
 func test_combo_idle_uses_restrained_directional_motion() -> void:

@@ -40,17 +40,20 @@ const GEM_TINT := [Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE, Color.WHI
 const GEM_SATURATION := 0.86  # 实验: 棋盘宝石整体降一点饱和度, 不改原图
 const GEM_SATURATION_SHADER := "res://match3/gem_saturation.gdshader"
 # 5合1 = 独立分层水晶球，不套普通阴影。(4合1 站立特效见下方 _start_combo_idle)
-const COLORBOMB_CORE := "res://assets/level/colorbomb_gold_amulet2.png"  # v0.02 单张 5 合 1 gold_amulet2
-const COLORBOMB_RIM_SHADER := "res://match3/colorbomb_rim.gdshader"
-const COLORBOMB_FLOWING_RIM_NAME := "FlowingRim"
-const COLORBOMB_LAYER_NAMES := [COLORBOMB_FLOWING_RIM_NAME, "GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
-const COLORBOMB_RIM_SCALE := 1.04
-const COLORBOMB_RIM_COLOR := Color(1.0, 0.90, 0.54, 0.92)
-const COLORBOMB_RIM_SECONDARY := Color(1.0, 0.80, 0.30, 0.72)
-const COLORBOMB_RIM_RADIUS := 0.455
-const COLORBOMB_RIM_WIDTH := 0.018
-const COLORBOMB_RIM_FLOW_SPEED := 0.34
-const COLORBOMB_RIM_SPARK_WIDTH := 0.052
+const COLORBOMB_CORE := "res://assets/level/diamond_white.png"  # v0.02 单张 5 合 1 白钻球
+const COLORBOMB_INNER_LIGHT_SHADER := "res://match3/colorbomb_inner_light.gdshader"
+const COLORBOMB_INNER_LIGHT_NAME := "InnerLight"
+const COLORBOMB_LAYER_NAMES := [COLORBOMB_INNER_LIGHT_NAME, "FlowingRim", "GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
+const COLORBOMB_INNER_LIGHT_COLORS := [
+	Color(1.0, 0.10, 0.08, 0.48),  # red
+	Color(0.16, 0.92, 0.22, 0.46), # green
+	Color(0.56, 0.20, 1.0, 0.48),  # purple
+	Color(1.0, 0.24, 0.76, 0.46),  # pink
+	Color(1.0, 0.88, 0.14, 0.42),  # yellow
+	Color(0.12, 0.54, 1.0, 0.48),  # blue
+]
+const COLORBOMB_INNER_LIGHT_RADIUS := 0.36
+const COLORBOMB_INNER_LIGHT_SECONDS := 0.56
 # v0.02: 特殊棋子站立特效(替换旧 shine 静态光贴图) —— 姿态循环动画 + 本体高光。
 # 消除方向=运动轴: 横=左右挤压摇头 / 纵=上下挤压点头 / 十字(SP_BOMB)=全向脉冲(最强)。
 # 动画相对棋子"基础 scale"做乘法；十字只提亮棋子本体，不额外加外圈白光。
@@ -213,7 +216,7 @@ var _key_mat: ShaderMaterial = null
 var _dir_glow_shader: Shader = null  # 横/纵摇头点头的方向性高光 shader(缓存资源)
 var _gem_saturation_shader: Shader = null
 var _gem_saturation_mat: ShaderMaterial = null
-var _colorbomb_rim_shader: Shader = null
+var _colorbomb_inner_light_shader: Shader = null
 # 阶段7: 技能充能状态(改: 不再按时间冷却, 而是消除对应色宝石才涨)。idx 与 SKILLS 对齐。
 const SKILL_CHARGE_REQ := 10.0                  # 满充能所需消除数(20 * 0.5)
 var _skill_charge := [0.0, 0.0, 0.0, 0.0]      # 各技能当前充能数(消对应色宝石累加, 满=可用)
@@ -1089,7 +1092,7 @@ func _clear_colorbomb_layers(node: Sprite2D) -> void:
 			child.queue_free()
 
 func _apply_colorbomb_layers(node: Sprite2D) -> void:
-	# v0.02: 彩球用单张 gold_amulet_2.png, 不再叠 5 层老素材合成。
+	# v0.02: 彩球用 diamond_white.png, 内部中心照光, 不再画外圈流光。
 	if not _asset_exists(COLORBOMB_CORE):
 		return
 	var core := _load_texture(COLORBOMB_CORE)
@@ -1101,33 +1104,30 @@ func _apply_colorbomb_layers(node: Sprite2D) -> void:
 	node.z_index = 2
 	# v0.02: 5合1 改用与普通棋子一致的形状阴影(本体星辰球纹理染黑), 不再用金色地面光晕素材。
 	_attach_shape_shadow(node, core)
-	_attach_colorbomb_flowing_rim(node, core)
+	_attach_colorbomb_inner_light(node, core)
 	# 轻微上下浮动(idle), 不依赖任何子层
 	var bob := node.create_tween().set_loops()
 	node.set_meta("colorbomb_tween", bob)
 	bob.tween_property(node, "offset", Vector2(0, -3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	bob.tween_property(node, "offset", Vector2(0, 3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
-func _attach_colorbomb_flowing_rim(node: Sprite2D, core: Texture2D) -> void:
-	var rim := Sprite2D.new()
-	rim.name = COLORBOMB_FLOWING_RIM_NAME
-	rim.texture = core
-	rim.scale = Vector2(COLORBOMB_RIM_SCALE, COLORBOMB_RIM_SCALE)
-	rim.z_index = 3
-	rim.material = _colorbomb_rim_material()
-	node.add_child(rim)
+func _attach_colorbomb_inner_light(node: Sprite2D, core: Texture2D) -> void:
+	var light := Sprite2D.new()
+	light.name = COLORBOMB_INNER_LIGHT_NAME
+	light.texture = core
+	light.z_index = 3
+	light.material = _colorbomb_inner_light_material()
+	node.add_child(light)
 
-func _colorbomb_rim_material() -> ShaderMaterial:
-	if _colorbomb_rim_shader == null:
-		_colorbomb_rim_shader = load(COLORBOMB_RIM_SHADER)
+func _colorbomb_inner_light_material() -> ShaderMaterial:
+	if _colorbomb_inner_light_shader == null:
+		_colorbomb_inner_light_shader = load(COLORBOMB_INNER_LIGHT_SHADER)
 	var mat := ShaderMaterial.new()
-	mat.shader = _colorbomb_rim_shader
-	mat.set_shader_parameter("rim_color", COLORBOMB_RIM_COLOR)
-	mat.set_shader_parameter("secondary_color", COLORBOMB_RIM_SECONDARY)
-	mat.set_shader_parameter("rim_radius", COLORBOMB_RIM_RADIUS)
-	mat.set_shader_parameter("rim_width", COLORBOMB_RIM_WIDTH)
-	mat.set_shader_parameter("flow_speed", COLORBOMB_RIM_FLOW_SPEED)
-	mat.set_shader_parameter("spark_width", COLORBOMB_RIM_SPARK_WIDTH)
+	mat.shader = _colorbomb_inner_light_shader
+	for i in range(COLORBOMB_INNER_LIGHT_COLORS.size()):
+		mat.set_shader_parameter("light_color_%d" % i, COLORBOMB_INNER_LIGHT_COLORS[i])
+	mat.set_shader_parameter("inner_radius", COLORBOMB_INNER_LIGHT_RADIUS)
+	mat.set_shader_parameter("cycle_seconds", COLORBOMB_INNER_LIGHT_SECONDS)
 	return mat
 
 # ───────── 整页 UI（对齐参考图） ─────────

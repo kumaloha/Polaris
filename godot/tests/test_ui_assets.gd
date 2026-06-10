@@ -11,8 +11,8 @@ const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const JELLY_MARKER_NAME := "JellyGoalSprite"
 const WALL_STONE_SYNCED := "res://assets/obstacles/ob_stone.png"
 const WALL_MARKER_NAME := "WallStoneSprite"
-const COLORBOMB_CORE_SOURCE := "resources/0.02/gem/gold_amulet_2.png"
-const COLORBOMB_CORE_SYNCED := "res://assets/level/colorbomb_gold_amulet2.png"
+const COLORBOMB_CORE_SOURCE := "resources/0.02/gem/diamond_white.png"
+const COLORBOMB_CORE_SYNCED := "res://assets/level/diamond_white.png"
 const PINK_GEM_SOURCE := "resources/0.02/gem/heart_neon.png"
 const PINK_GEM_SYNCED := "res://art/gems/base/heart_neon.png"
 const BG3_SOURCE := "resources/0.02/bg3.png"
@@ -424,13 +424,13 @@ func test_level_can_load_magic_match_pngs_before_import_metadata_exists() -> voi
 	level.free()
 
 
-func test_colorbomb_core_uses_synced_gold_amulet2_art() -> void:
-	assert_true(FileAccess.file_exists(_repo_path(COLORBOMB_CORE_SOURCE)), "source gold_amulet_2.png 5-match art exists")
-	assert_true(FileAccess.file_exists(COLORBOMB_CORE_SYNCED), "synced gold_amulet2 5-match art exists")
+func test_colorbomb_core_uses_synced_diamond_white_art() -> void:
+	assert_true(FileAccess.file_exists(_repo_path(COLORBOMB_CORE_SOURCE)), "source diamond_white.png 5-match art exists")
+	assert_true(FileAccess.file_exists(COLORBOMB_CORE_SYNCED), "synced diamond_white 5-match art exists")
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains('const COLORBOMB_CORE := "%s"' % COLORBOMB_CORE_SYNCED), "5-match colorbomb core uses synced gold_amulet2 art")
+	assert_true(src.contains('const COLORBOMB_CORE := "%s"' % COLORBOMB_CORE_SYNCED), "5-match colorbomb core uses synced diamond_white art")
 	var img := Image.load_from_file(ProjectSettings.globalize_path(COLORBOMB_CORE_SYNCED))
-	assert_true(img != null and img.detect_alpha() != Image.ALPHA_NONE, "synced gold_amulet2 keeps transparency so it does not render as a square")
+	assert_true(img != null and img.detect_alpha() != Image.ALPHA_NONE, "synced diamond_white keeps transparency so it does not render as a square")
 
 
 func test_colorbomb_core_keeps_cell_sized_fit_after_art_swap() -> void:
@@ -441,7 +441,7 @@ func test_colorbomb_core_keeps_cell_sized_fit_after_art_swap() -> void:
 	var tex := level.call("_load_texture", COLORBOMB_CORE_SYNCED) as Texture2D
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	assert_true(src.contains("const COLORBOMB_FILL := 0.74"), "5-match crystal ball should be smaller than the previous oversized 0.86 fit")
-	assert_true(tex != null, "gold_amulet2 5-match art loads as a texture")
+	assert_true(tex != null, "diamond_white 5-match art loads as a texture")
 	if tex != null:
 		var scale: Vector2 = level.call("_fit_scale", tex, level.cell_size * 0.74)
 		var fitted_max := maxf(tex.get_width() * scale.x, tex.get_height() * scale.y)
