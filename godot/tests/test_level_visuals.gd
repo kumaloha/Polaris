@@ -83,6 +83,30 @@ func test_colorbomb_preview_centers_on_virtual_conversion_targets() -> void:
 	level.free()
 
 
+func test_colorbomb_conversion_outlines_cover_every_virtual_target() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_colorbomb_conversion_outline_targets"), "Level exposes uncapped conversion outline target selection")
+	if not level.has_method("_colorbomb_conversion_outline_targets"):
+		level.free()
+		return
+	var cb := Vector2i(0, 0)
+	var cells := [cb]
+	var virtual_targets := []
+	for y in range(5):
+		for x in range(5):
+			var p := Vector2i(x, y)
+			if p == cb:
+				continue
+			cells.append(p)
+			virtual_targets.append(p)
+	var targets: Array = level.call("_colorbomb_conversion_outline_targets", cb, cells, virtual_targets)
+	assert_eq(targets.size(), virtual_targets.size(), "every same-color conversion target gets a rectangular outline, independent of absorb orb budget")
+	assert_eq(targets[0], Vector2i(1, 0), "outline targets keep stable top-to-bottom ordering")
+	assert_eq(targets[targets.size() - 1], Vector2i(4, 4), "outline target selection does not drop later cells")
+	level.free()
+
+
 func test_colorbomb_resolve_passes_virtual_targets_to_absorb_preview() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _resolve_colorbomb")
@@ -855,7 +879,8 @@ func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
 	for idx in range(10):
 		points.append(Vector2(0, float(idx) * 70.0))
 	var duration: float = level.call("_wall_slide_duration_for_points", points)
-	assert_true(duration >= 0.65, "ten cell-steps must not be compressed under the per-cell pacing budget")
+	assert_true(duration >= 0.52, "ten cell-steps still read as a multi-step slide")
+	assert_true(duration <= 0.56, "ten cell-steps use the brisk global cap instead of dragging blocker levels")
 	level.free()
 
 
@@ -894,8 +919,8 @@ func test_ordinary_long_falls_keep_per_cell_pacing() -> void:
 		return
 	level.cell_size = 70.0
 	var duration: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	assert_true(duration >= 0.58, "ordinary ten-cell fall must not be squeezed into the one-cell fall duration")
-	assert_true(duration <= 0.66, "ordinary ten-cell fall stays brisk enough for cascades")
+	assert_true(duration >= 0.39, "ordinary ten-cell fall still reads as movement, not a teleport")
+	assert_true(duration <= 0.44, "ordinary ten-cell fall is capped so tall or blocker-heavy levels do not feel slower")
 	level.free()
 
 
@@ -943,8 +968,10 @@ func test_fall_durations_scale_with_each_cell_step() -> void:
 	assert_true(one_cell <= 0.17, "one-cell fall should be brisk")
 	assert_true(two_cells > one_cell, "a two-cell fall still reads as a longer fall")
 	assert_true(two_cells < one_cell * 1.6, "fall timing accelerates instead of adding a full duration per cell")
-	assert_true(ten_cells >= 0.58, "long falls should remain readable")
-	assert_true(ten_cells <= 0.66, "long falls must not feel sluggish during auto cascades")
+	assert_true(ten_cells >= 0.39, "long falls should remain readable")
+	assert_true(ten_cells <= 0.44, "long falls must not feel sluggish during auto cascades")
+	var very_long: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 1400))
+	assert_true(very_long <= 0.43, "very long falls share the same brisk cap instead of making tall levels feel different")
 	var wall_one: float = level.call("_wall_slide_duration_for_points", [Vector2(0, 70)])
 	var wall_three: float = level.call("_wall_slide_duration_for_points", [Vector2(0, 70), Vector2(0, 140), Vector2(70, 210)])
 	assert_true(wall_three > wall_one, "multi-step wall slide still takes longer than one step")
@@ -957,8 +984,8 @@ func test_refill_duration_cap_stays_near_long_fall_speed() -> void:
 	level.cell_size = 70.0
 	var long_fall: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
 	var long_refill: float = level.call("_ordinary_refill_duration_for_positions", Vector2(0, -735), Vector2(0, 0))
-	assert_true(long_refill >= long_fall - 0.12, "long refill should stay visually connected to an equally long existing-gem fall")
-	assert_true(long_refill <= long_fall - 0.04, "long refill should finish a little sooner so automatic cascades do not feel late")
+	assert_true(long_refill >= long_fall - 0.07, "long refill should stay visually connected to an equally long existing-gem fall")
+	assert_true(long_refill <= long_fall - 0.02, "long refill should finish a little sooner so automatic cascades do not feel late")
 	level.free()
 
 func test_level_fall_animation_timing_is_slightly_slower() -> void:
@@ -968,10 +995,11 @@ func test_level_fall_animation_timing_is_slightly_slower() -> void:
 		return
 	var src: String = f.get_as_text()
 	assert_true(src.contains("const FALL_TIME := 0.16"), "ordinary one-cell falling is readable without dragging")
-	assert_true(src.contains("const FALL_EXTRA_CELL_TIME := 0.050"), "longer falls add a moderate accelerated increment per extra cell")
-	assert_true(src.contains("const ORDINARY_REFILL_MAX_TIME := 0.52"), "spawned refill stays brisk without collapsing into a paint effect")
-	assert_true(src.contains("const WALL_SLIDE_STEP_TIME := 0.065"), "wall slide timing is a little slower than the too-fast pass")
-	assert_true(src.contains("const WALL_SLIDE_MAX_TIME := 0.85"), "wall slide wait cap prevents long obstacle paths from dragging")
+	assert_true(src.contains("const FALL_EXTRA_CELL_TIME := 0.030"), "longer falls add only a small accelerated increment per extra cell")
+	assert_true(src.contains("const FALL_MAX_TIME := 0.42"), "long ordinary falls have a global cap so levels do not feel differently paced")
+	assert_true(src.contains("const ORDINARY_REFILL_MAX_TIME := 0.38"), "spawned refill stays brisk without collapsing into a paint effect")
+	assert_true(src.contains("const WALL_SLIDE_STEP_TIME := 0.045"), "wall slide timing stays readable but does not drag through blocker lanes")
+	assert_true(src.contains("const WALL_SLIDE_MAX_TIME := 0.55"), "wall slide wait cap prevents long obstacle paths from dragging")
 
 func test_level_wall_slide_visuals_only_cross_columns_under_fall_obstacles() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)

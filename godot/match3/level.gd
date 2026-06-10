@@ -140,11 +140,12 @@ const COLORBOMB_ABSORB_TARGET_BUDGET := 18
 const COLORBOMB_FINE_CLEAR_BUDGET := 12
 const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
 const FALL_TIME := 0.16
-const FALL_EXTRA_CELL_TIME := 0.050
-const ORDINARY_REFILL_MAX_TIME := 0.52  # 长距离新棋子略早落稳, 让后续自动连锁更紧凑
+const FALL_EXTRA_CELL_TIME := 0.030
+const FALL_MAX_TIME := 0.42
+const ORDINARY_REFILL_MAX_TIME := 0.38  # 长距离新棋子略早落稳, 让后续自动连锁更紧凑
 const ORDINARY_REFILL_TOP_POUR := 2.5   # v0.02 新棋子额外抬高格数, 统一从棋盘顶边明显上方落入(pour from top)
-const WALL_SLIDE_STEP_TIME := 0.065
-const WALL_SLIDE_MAX_TIME := 0.85
+const WALL_SLIDE_STEP_TIME := 0.045
+const WALL_SLIDE_MAX_TIME := 0.55
 const ELIM_HOLD := 0.156  # 消除后停顿(等普通消除动画跑完)再下落
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
 const OPENING_DROP_TIME := 0.56
@@ -1906,28 +1907,9 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 
 
 func _colorbomb_absorb_preview_targets(cb_pos: Vector2i, cells: Array, priority_targets: Array = [], budget_limit: int = COLORBOMB_ABSORB_TARGET_BUDGET) -> Array:
-	var allowed := {}
 	var targets := []
-	for p in cells:
-		if p == cb_pos:
-			continue
-		allowed[p] = true
 	if not priority_targets.is_empty():
-		var seen := {}
-		for p in priority_targets:
-			if p == cb_pos:
-				continue
-			if not allowed.has(p):
-				continue
-			if seen.has(p):
-				continue
-			seen[p] = true
-			targets.append(p)
-		targets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-			if a.y == b.y:
-				return a.x < b.x
-			return a.y < b.y
-		)
+		targets = _colorbomb_conversion_outline_targets(cb_pos, cells, priority_targets)
 	else:
 		for p in cells:
 			if p == cb_pos:
@@ -1943,6 +1925,33 @@ func _colorbomb_absorb_preview_targets(cb_pos: Vector2i, cells: Array, priority_
 	return capped
 
 
+func _colorbomb_conversion_outline_targets(cb_pos: Vector2i, cells: Array, priority_targets: Array = []) -> Array:
+	if priority_targets.is_empty():
+		return []
+	var allowed := {}
+	for p in cells:
+		if p == cb_pos:
+			continue
+		allowed[p] = true
+	var seen := {}
+	var targets := []
+	for p in priority_targets:
+		if p == cb_pos:
+			continue
+		if not allowed.has(p):
+			continue
+		if seen.has(p):
+			continue
+		seen[p] = true
+		targets.append(p)
+	targets.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		if a.y == b.y:
+			return a.x < b.x
+		return a.y < b.y
+	)
+	return targets
+
+
 func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_targets: Array = []) -> void:
 	var end_pos := _cell_center(cb_pos.y, cb_pos.x) + Vector2(0.0, cell_size * 0.18)
 	var available_cells := []
@@ -1954,6 +1963,12 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_tar
 		if board.grid[p.y][p.x] < 0:
 			continue
 		available_cells.append(p)
+	var conversion_outline_targets := _colorbomb_conversion_outline_targets(cb_pos, available_cells, priority_targets)
+	for i in range(conversion_outline_targets.size()):
+		var outline_pos: Vector2i = conversion_outline_targets[i]
+		var outline_start := _cell_center(outline_pos.y, outline_pos.x)
+		var outline_col := _fx_color(board.grid[outline_pos.y][outline_pos.x])
+		Fx.spawn_target_outline(outline_start, outline_col, cell_size * 0.88, 0.012 * float(i % 8))
 	var targets := _colorbomb_absorb_preview_targets(cb_pos, available_cells, priority_targets, COLORBOMB_ABSORB_TARGET_BUDGET)
 	var budget: int = mini(targets.size(), COLORBOMB_ABSORB_TARGET_BUDGET)
 	var max_arrival := 0.0
@@ -1968,7 +1983,8 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_tar
 			get_tree().create_timer(delay).timeout.connect(Fx.spawn_absorb_residue.bind(start, col), CONNECT_ONE_SHOT)
 		else:
 			Fx.spawn_absorb_residue(start, col)
-		Fx.spawn_target_outline(start, col, cell_size * 0.88, delay * 0.35)
+		if conversion_outline_targets.is_empty():
+			Fx.spawn_target_outline(start, col, cell_size * 0.88, delay * 0.35)
 		Fx.spawn_color_absorb_orb(start, end_pos, col, delay, orb_dur)
 		var arrival := delay + orb_dur * 1.22
 		max_arrival = maxf(max_arrival, arrival)
@@ -2618,7 +2634,7 @@ func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Ar
 func _fall_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
 	var size := maxf(1.0, cell_size)
 	var cells := maxf(1.0, start_pos.distance_to(target) / size)
-	return FALL_TIME + maxf(0.0, cells - 1.0) * FALL_EXTRA_CELL_TIME
+	return minf(FALL_TIME + maxf(0.0, cells - 1.0) * FALL_EXTRA_CELL_TIME, FALL_MAX_TIME)
 
 func _grid_has_fall_obstacle(grid_data: Array) -> bool:
 	for row in range(grid_data.size()):
