@@ -2180,6 +2180,7 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 		await _animate_swap(na, nb, pb, pa)  # 非法换回
 		_busy = false
 		return
+	_remember_time_rewind_snapshot()
 	# 提交交换(数据 + 节点引用)
 	ME._swap_cells(board.grid, a, b)
 	ME._swap_cells(board.fx, a, b)
@@ -2190,6 +2191,14 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	var settle: Dictionary = await _resolve_cascades(spawn_preference, true)
 	await _finish_consumed_move(int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	_busy = false
+
+func _remember_time_rewind_snapshot() -> void:
+	if board == null:
+		return
+	if board.skill != "timerewind" or board.rewind_used:
+		return
+	board._push_history()
+	_update_skill_cd_visual()
 
 ## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_plan 读交换前 fx/grid)。
 ## 彩球+普通=该色全消; 彩球+条纹=全场该色变条纹引爆; 彩球+十字=全场该色变十字引爆; 双彩球=全盘消。
@@ -2206,6 +2215,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	if cells.is_empty():
 		_busy = false
 		return
+	_remember_time_rewind_snapshot()
 	# 算账(在清空前读 species/fx): 目标计数 + 计分 + 技能充能。复用 board 累加逻辑。
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
@@ -2420,6 +2430,7 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	var nb: Sprite2D = _gem_nodes[b.y][b.x]
 	var pa: Vector2 = _cell_center(a.y, a.x)
 	var pb: Vector2 = _cell_center(b.y, b.x)
+	_remember_time_rewind_snapshot()
 	await _animate_swap(na, nb, pa, pb)
 	ME._swap_cells(board.grid, a, b)
 	ME._swap_cells(board.fx, a, b)

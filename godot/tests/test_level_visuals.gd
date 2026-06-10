@@ -701,6 +701,29 @@ func test_level_consumed_move_paths_share_board_settlement() -> void:
 		var body: String = src.substr(start, end - start)
 		assert_true(body.contains("await _finish_consumed_move("), "%s uses Board settlement instead of local move-only bookkeeping" % name)
 
+func test_level_consumed_move_paths_record_time_rewind_history_before_mutation() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
+	if f == null:
+		return
+	var src: String = f.get_as_text()
+	assert_true(src.contains("func _remember_time_rewind_snapshot("), "Level exposes a shared time-rewind history hook")
+	for name in ["func _try_swap", "func _resolve_colorbomb", "func _resolve_fusion"]:
+		var start: int = src.find(name)
+		assert_true(start >= 0, "%s exists" % name)
+		if start < 0:
+			continue
+		var end: int = src.find("\nfunc ", start + 1)
+		if end < 0:
+			end = src.length()
+		var body: String = src.substr(start, end - start)
+		var history_idx: int = body.find("_remember_time_rewind_snapshot()")
+		assert_true(history_idx >= 0, "%s records a rewind snapshot for real level-page moves" % name)
+		var mutation_idx: int = body.find("ME._swap_cells")
+		if mutation_idx < 0:
+			mutation_idx = body.find("ME._apply_clears")
+		assert_true(mutation_idx < 0 or history_idx < mutation_idx, "%s records the snapshot before mutating the board" % name)
+
 func test_level_collapse_refill_uses_core_layers_and_feed() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
