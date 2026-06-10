@@ -112,6 +112,7 @@ const KEY_SHADER := "res://match3/magenta_key.gdshader"
 const LV_STAR_GOLD := "res://assets/level/star_gold.png"       # 174×176 金星(已点亮)
 const LV_TOP := "res://assets/level/top_transparent.png"  # v0.02 顶栏原图(1024×1536, 下方透明长画布)
 const LV_TOP_REGION := Rect2(0, 340, 1024, 507)  # 只显示顶栏主体区域, 避免透明长画布压缩框和圆
+const TOPBAR_Y_OFFSET := -48.0  # 顶部整组上提, 让吊链露出的长度更短
 const TB_LEVEL_LABEL_UV := Vector2(142.0 / 720.0, 176.0 / 356.0)
 const TB_MOVES_LABEL_UV := Vector2(146.0 / 720.0, 237.0 / 356.0)
 const TB_MOVES_NUMBER_UV := Vector2(140.0 / 720.0, 282.0 / 356.0)
@@ -1153,7 +1154,7 @@ func _render_topbar_v2(cfg: Dictionary) -> void:
 		top.texture = top_tex
 		top.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		top.stretch_mode = TextureRect.STRETCH_SCALE
-		top.position = Vector2.ZERO
+		top.position = Vector2(0.0, TOPBAR_Y_OFFSET)
 		top.size = Vector2(tw, th)
 		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ui_layer.add_child(top)
@@ -1192,7 +1193,7 @@ func _topbar_height() -> float:
 	return DESIGN_W * LV_TOP_REGION.size.y / LV_TOP_REGION.size.x
 
 func _topbar_point(uv: Vector2) -> Vector2:
-	return Vector2(DESIGN_W * uv.x, _topbar_height() * uv.y)
+	return Vector2(DESIGN_W * uv.x, TOPBAR_Y_OFFSET + _topbar_height() * uv.y)
 
 func _topbar_level_label_center() -> Vector2:
 	return _topbar_point(TB_LEVEL_LABEL_UV)
@@ -1205,7 +1206,7 @@ func _topbar_moves_number_center() -> Vector2:
 
 func _topbar_star_center(index: int, tw: float, th: float) -> Vector2:
 	var i: int = clampi(index, 0, TB_STAR_XS.size() - 1)
-	return Vector2(tw * float(TB_STAR_XS[i]), th * TB_STAR_Y)
+	return Vector2(tw * float(TB_STAR_XS[i]), TOPBAR_Y_OFFSET + th * TB_STAR_Y)
 
 func _objective_counter_text(item: Dictionary) -> String:
 	if item.has("n"):
@@ -1217,7 +1218,7 @@ func _objective_counter_text(item: Dictionary) -> String:
 func _topbar_objective_slot(index: int, count: int, tw: float, th: float) -> Dictionary:
 	var n: int = maxi(1, mini(count, 3))
 	var center_x: float = tw * 0.62 + (float(index) - float(n - 1) * 0.5) * TB_OBJ_SLOT_GAP
-	var y: float = th * TB_OBJ_Y_UV
+	var y: float = TOPBAR_Y_OFFSET + th * TB_OBJ_Y_UV
 	return {
 		"icon": Vector2(center_x - TB_OBJ_ICON_TEXT_GAP * 0.5, y),
 		"text": Vector2(center_x + TB_OBJ_ICON_TEXT_GAP * 0.5, y),

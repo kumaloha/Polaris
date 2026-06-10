@@ -534,8 +534,8 @@ func test_topbar_objective_slots_keep_number_near_icon() -> void:
 	var objective_gap: float = absf((second["icon"] as Vector2).x - (first["text"] as Vector2).x)
 	assert_true(icon_text_gap <= 58.0, "number sits close to its own objective icon")
 	assert_true(objective_gap > icon_text_gap, "space between two objectives is larger than icon-to-number spacing")
-	assert_eq(int(roundf((first["icon"] as Vector2).y)), 281, "objective icon sits slightly lower in the target panel")
-	assert_eq(int(roundf((first["text"] as Vector2).y)), 281, "objective number sits slightly lower with the icon")
+	assert_eq(int(roundf((first["icon"] as Vector2).y)), 233, "objective icon moves up with the shortened-chain topbar")
+	assert_eq(int(roundf((first["text"] as Vector2).y)), 233, "objective number moves up with the shortened-chain topbar")
 	var third: Dictionary = level.call("_topbar_objective_slot", 2, 3, 720.0, 356.0)
 	assert_true((third["text"] as Vector2).x <= 640.0, "three objectives still fit inside the topbar target area")
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
@@ -553,7 +553,7 @@ func test_topbar_moves_number_center_matches_transparent_art() -> void:
 		return
 	var center: Vector2 = level.call("_topbar_moves_number_center")
 	assert_eq(int(roundf(center.x)), 140, "moves-number anchor is nudged slightly left after following the label")
-	assert_eq(int(roundf(center.y)), 282, "moves-number anchor matches the transparent-art counter box y placement")
+	assert_eq(int(roundf(center.y)), 234, "moves-number anchor moves up with the shortened-chain topbar")
 	level.free()
 
 
@@ -568,9 +568,9 @@ func test_topbar_text_anchors_align_with_transparent_art() -> void:
 	var level_center: Vector2 = level.call("_topbar_level_label_center")
 	var moves_label: Vector2 = level.call("_topbar_moves_label_center")
 	assert_eq(int(roundf(level_center.x)), 142, "level title sits slightly right on the new red ribbon")
-	assert_eq(int(roundf(level_center.y)), 176, "level title sits lower inside the new red ribbon")
+	assert_eq(int(roundf(level_center.y)), 128, "level title moves up with the shortened-chain topbar")
 	assert_eq(int(roundf(moves_label.x)), 146, "moves label shifts farther right in the transparent-art left counter panel")
-	assert_eq(int(roundf(moves_label.y)), 237, "moves label sits closer to the moves number in the left panel")
+	assert_eq(int(roundf(moves_label.y)), 189, "moves label moves up with the shortened-chain topbar")
 	level.free()
 
 
@@ -583,7 +583,7 @@ func test_topbar_star_icons_align_with_transparent_art_slots() -> void:
 		return
 	var first: Vector2 = level.call("_topbar_star_center", 0, 720.0, 356.0)
 	assert_eq(int(roundf(first.x)), 360, "first star stays centered over the first topbar slot")
-	assert_eq(int(roundf(first.y)), 199, "stars sit in the new transparent-art star slots")
+	assert_eq(int(roundf(first.y)), 151, "stars move up with the shortened-chain topbar")
 	level.free()
 
 
@@ -595,6 +595,14 @@ func test_topbar_renders_only_first_star_overlay() -> void:
 	level.add_child(layer)
 	level.ui_layer = layer
 	level.call("_render_topbar_v2", level._cur_cfg)
+	var topbar_rect: TextureRect = null
+	for child in layer.get_children():
+		if child is TextureRect:
+			topbar_rect = child as TextureRect
+			break
+	assert_true(topbar_rect != null, "topbar background texture renders")
+	if topbar_rect != null:
+		assert_eq(int(roundf(topbar_rect.position.y)), -48, "topbar background moves up to shorten the visible chains")
 	assert_eq(_count_sprite_texture(layer, TOPBAR_STAR_GOLD), 1, "topbar renders only the first gold star overlay")
 	level.free()
 
