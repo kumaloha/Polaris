@@ -3,7 +3,6 @@ extends Control
 const CharacterData := preload("res://ui/character_data.gd")
 const GameScript := preload("res://view/game.gd")
 const CelestialBg := preload("res://ui/celestial_bg.gd")
-const BeeRig := preload("res://ui/bee_rig.gd")
 const MetaState := preload("res://meta/meta_state.gd")
 const Enchants := preload("res://meta/enchants.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
@@ -599,12 +598,6 @@ func _add_bottom_nav(active: String) -> void:
 
 
 func _add_character_art(character: Dictionary, rect: Rect2, use_card: bool) -> void:
-	if not use_card and BeeRig.supports(character):
-		var rig := BeeRig.new()
-		rig.position = rect.position
-		rig.setup(character, rect.size)
-		add_child(rig)
-		return
 	var tex_path := String(character.get("card" if use_card else "portrait", ""))
 	var art := TextureRect.new()
 	art.position = rect.position

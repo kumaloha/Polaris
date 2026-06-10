@@ -3,7 +3,6 @@
 Flat character art used by the Godot UI.
 
 - `*.png`: one square character illustration per playable character.
-- `bee_rig/*.png`: layered parts rendered by `res://ui/bee_rig.gd` for the collector character.
 - `characters.json`: stable manifest for code. Paths are repo-relative `resources/characters/...` entries.
 
 To rebuild the manifest after adding or removing PNG files:
