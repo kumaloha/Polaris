@@ -153,8 +153,6 @@ const OPENING_FREEZE_STAGGER := 0.035
 const OPENING_FREEZE_SETTLE := 0.24
 const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
-const ENDGAME_BONUS_MATRIX_PREVIEW_HOLD := 0.44
-const ENDGAME_BONUS_MATRIX_OUTLINE_FILL := 1.08
 const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
@@ -1490,8 +1488,7 @@ func _play_endgame_bonus() -> void:
 
 func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
 	var virtual_fx := {}
-	var marker_targets := []
-	var idx := 0
+	var preview_cells := []
 	for item in picks:
 		var p: Vector2i = item["pos"]
 		var kind: int = int(item["kind"])
@@ -1501,28 +1498,19 @@ func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
 		if n == null or not is_instance_valid(n):
 			continue
 		virtual_fx[p] = kind
-		var sp: int = board.grid[p.y][p.x]
-		marker_targets.append({
-			"pos": p,
-			"species": sp,
-			"delay": 0.012 * float(idx % 8),
-		})
-		idx += 1
+		preview_cells.append(p)
 	if virtual_fx.is_empty():
 		return
-	var marker_hold := ENDGAME_BONUS_MATRIX_PREVIEW_HOLD + ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx)
-	for item in marker_targets:
-		var marker_pos: Vector2i = item["pos"]
-		var marker_sp: int = int(item["species"])
-		Fx.spawn_conversion_matrix_marker(
-			_cell_center(marker_pos.y, marker_pos.x),
-			_fx_color(marker_sp),
-			cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL,
-			marker_hold,
-			float(item["delay"])
-		)
-	await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout
+	await _play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)
 	await _show_colorbomb_virtual_conversion(virtual_fx)
+
+func _endgame_bonus_conversion_preview_center(preview_cells: Array) -> Vector2:
+	if preview_cells.is_empty():
+		return Vector2.ZERO
+	var center := Vector2.ZERO
+	for p in preview_cells:
+		center += _cell_center(p.y, p.x)
+	return center / float(preview_cells.size())
 
 func _play_endgame_bonus_special_blast(seeds: Array, score_level: int) -> bool:
 	var clear_set: Dictionary = ME._expand_triggers(board.grid, board.fx, seeds)
@@ -1963,8 +1951,10 @@ func _colorbomb_conversion_outline_targets(cb_pos: Vector2i, cells: Array, prior
 	return targets
 
 
-func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_targets: Array = []) -> void:
+func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_targets: Array = [], end_pos_override: Variant = null, pulse_core: bool = true) -> void:
 	var end_pos := _cell_center(cb_pos.y, cb_pos.x) + Vector2(0.0, cell_size * 0.18)
+	if end_pos_override is Vector2:
+		end_pos = end_pos_override
 	var available_cells := []
 	for p in cells:
 		if p == cb_pos:
@@ -1999,10 +1989,12 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_tar
 		Fx.spawn_color_absorb_orb(start, end_pos, col, delay, orb_dur)
 		var arrival := delay + orb_dur * 1.22
 		max_arrival = maxf(max_arrival, arrival)
-		_pulse_colorbomb_core(cb_pos, arrival)
+		if pulse_core:
+			_pulse_colorbomb_core(cb_pos, arrival)
 	if budget > 0:
 		await get_tree().create_timer(max_arrival + 0.08).timeout
-		_pulse_colorbomb_core(cb_pos)
+		if pulse_core:
+			_pulse_colorbomb_core(cb_pos)
 		await get_tree().create_timer(0.18).timeout
 	else:
 		await get_tree().create_timer(0.08).timeout

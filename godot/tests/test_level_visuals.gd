@@ -1289,6 +1289,8 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	assert_false(src.contains("ENDGAME_BONUS_BEAM_COLOR"), "endgame bonus no longer has reward-beam color state")
 	assert_false(src.contains("ENDGAME_BONUS_BEAM_TRAVEL"), "endgame bonus no longer waits on a fired beam")
 	assert_false(src.contains("ENDGAME_BONUS_CONVERT_HOLD"), "endgame bonus uses the 5+4 conversion timing without the old extra reward-beam hold")
+	assert_false(src.contains("ENDGAME_BONUS_MATRIX_PREVIEW_HOLD"), "endgame bonus must not add settlement-only preview timing")
+	assert_false(src.contains("ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), "endgame bonus must not use a settlement-only outline size")
 	var start: int = src.find("func _play_endgame_bonus()")
 	assert_true(start >= 0, "_play_endgame_bonus exists")
 	if start < 0:
@@ -1309,38 +1311,32 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	if helper_start < 0 or helper_end <= helper_start:
 		return
 	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_PREVIEW_HOLD := 0.44"), "endgame conversion matrix holds the rectangles long enough to read")
-	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_OUTLINE_FILL := 1.08"), "endgame conversion rectangles are larger than the gem body")
-	assert_true(helper_body.contains("var marker_hold := ENDGAME_BONUS_MATRIX_PREVIEW_HOLD + ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx)"), "endgame matrix marker stays alive through preview and conversion")
-	assert_true(helper_body.contains("Fx.spawn_conversion_matrix_marker"), "each picked gem gets a persistent readable matrix marker")
-	assert_true(helper_body.contains("cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), "endgame conversion rectangles use the larger readable outline size")
-	var outline_idx: int = helper_body.find("Fx.spawn_conversion_matrix_marker")
-	var hold_idx: int = helper_body.find("await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout", outline_idx)
-	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", hold_idx)
-	assert_true(hold_idx > outline_idx, "endgame conversion holds the target rectangles before changing pieces")
-	assert_true(convert_idx > hold_idx, "special conversion starts after the rectangle preview")
+	assert_true(helper_body.contains("preview_cells.append(p)"), "each picked gem is passed into the same preview target list used by colorbomb conversion")
+	assert_true(helper_body.contains("await _play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)"), "endgame bonus reuses the 5+4 absorb/matrix preview without inventing a settlement-only marker")
+	assert_false(helper_body.contains("spawn_conversion_matrix_marker"), "endgame bonus does not use the abandoned custom marker")
+	var outline_idx: int = helper_body.find("await _play_colorbomb_absorb_preview")
+	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", outline_idx)
+	assert_true(convert_idx > outline_idx, "special conversion starts after the shared 5+4 preview")
 	assert_true(helper_body.contains("await _show_colorbomb_virtual_conversion(virtual_fx)"), "endgame bonus reuses the 5+4 special-conversion animation")
 	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
 
 
-func test_endgame_bonus_matrix_marker_is_persistent_and_readable() -> void:
-	var f := FileAccess.open("res://match3/effect_manager.gd", FileAccess.READ)
-	assert_true(f != null, "effect_manager.gd can be inspected")
+func test_endgame_bonus_reuses_colorbomb_preview_without_core_pulse() -> void:
+	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	assert_true(f != null, "level.gd can be inspected")
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	var start: int = src.find("func spawn_conversion_matrix_marker")
-	var end: int = src.find("func spawn_absorb_residue", start)
-	assert_true(start >= 0 and end > start, "persistent conversion matrix marker exists")
+	assert_false(src.contains("func spawn_conversion_matrix_marker"), "settlement does not keep a custom marker that differs from 5+4")
+	var start: int = src.find("func _play_colorbomb_absorb_preview")
+	var end: int = src.find("func _colorbomb_node_at", start)
+	assert_true(start >= 0 and end > start, "colorbomb preview helper can be inspected")
 	if start < 0 or end <= start:
 		return
 	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("Polygon2D"), "matrix marker has a subtle filled rectangle so it reads on the book page")
-	assert_true(body.contains("frame.z_index = 2"), "matrix frame sits above its fill")
-	assert_true(body.contains("root.z_index = 40"), "matrix marker is above gem sprites and blocker overlays")
-	assert_true(body.contains("t.tween_interval(maxf(hold_time - 0.36, 0.08))"), "matrix marker holds for the requested conversion window")
-	assert_false(body.contains("_magic_flash_sprite"), "persistent matrix marker is not the short generic flash outline")
-	assert_false(body.contains("_add_mat"), "matrix marker uses normal alpha instead of additive blending on the pale book page")
+	assert_true(body.contains("end_pos_override: Variant = null"), "the shared 5+4 preview can be aimed at a virtual settlement center")
+	assert_true(body.contains("if end_pos_override is Vector2:"), "endgame can reuse the target-side preview without a real colorbomb source")
+	assert_true(body.contains("if pulse_core:"), "endgame can disable the single colorbomb core pulse")
 
 
 func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() -> void:

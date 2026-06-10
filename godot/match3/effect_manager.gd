@@ -421,53 +421,6 @@ func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
 func spawn_target_outline(pos: Vector2, color: Color, diameter: float, delay: float = 0.0) -> void:
 	_magic_flash_sprite(MAGIC_ABSORB_TARGET_OUTLINE, pos, color, diameter * 0.72, diameter, 0.42, delay)
 
-func spawn_conversion_matrix_marker(pos: Vector2, color: Color, diameter: float, hold_time: float, delay: float = 0.0) -> void:
-	if not _asset_exists(MAGIC_ABSORB_TARGET_OUTLINE):
-		return
-	var tex := _load_texture(MAGIC_ABSORB_TARGET_OUTLINE)
-	if tex == null:
-		return
-	var root := Node2D.new()
-	root.position = pos
-	root.z_index = 40
-	root.scale = Vector2(0.94, 0.94)
-	root.modulate = Color(1, 1, 1, 0)
-	var frame_color := color.lerp(Color(1.0, 0.78, 0.24, 1.0), 0.42)
-	frame_color.a = 0.94
-	var fill_color := frame_color
-	fill_color.a = 0.16
-	var half := diameter * 0.44
-	var fill := Polygon2D.new()
-	fill.name = "matrix_fill"
-	fill.polygon = PackedVector2Array([
-		Vector2(-half, -half),
-		Vector2(half, -half),
-		Vector2(half, half),
-		Vector2(-half, half),
-	])
-	fill.color = fill_color
-	fill.z_index = 1
-	root.add_child(fill)
-	var frame := Sprite2D.new()
-	frame.name = "matrix_frame"
-	frame.texture = tex
-	frame.modulate = frame_color
-	var frame_scale := diameter / maxf(float(tex.get_width()), 1.0)
-	frame.scale = Vector2(frame_scale, frame_scale)
-	frame.z_index = 2
-	root.add_child(frame)
-	_layer().add_child(root)
-	var t := create_tween()
-	if delay > 0.0:
-		t.tween_interval(delay)
-	t.tween_callback(func() -> void: root.modulate.a = 1.0)
-	t.tween_property(root, "scale", Vector2(1.05, 1.05), 0.10).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t.tween_property(root, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_interval(maxf(hold_time - 0.36, 0.08))
-	t.tween_property(root, "modulate:a", 0.0, 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	t.parallel().tween_property(root, "scale", Vector2(1.10, 1.10), 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_auto_free(root, delay + maxf(hold_time, 0.08) + 0.28)
-
 func spawn_absorb_residue(global_pos: Vector2, color: Color) -> void:
 	var count := randi_range(ABSORB_RESIDUE_COUNT_MIN, ABSORB_RESIDUE_COUNT_MAX)
 	var layer := _layer()
