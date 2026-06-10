@@ -40,17 +40,17 @@ const GEM_TINT := [Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE, Color.WHI
 const GEM_SATURATION := 0.86  # 实验: 棋盘宝石整体降一点饱和度, 不改原图
 const GEM_SATURATION_SHADER := "res://match3/gem_saturation.gdshader"
 # 5合1 = 独立分层水晶球，不套普通阴影。(4合1 站立特效见下方 _start_combo_idle)
-const COLORBOMB_CORE := "res://assets/level/diamond_white.png"  # v0.02 单张 5 合 1 白钻球
+const COLORBOMB_CORE := "res://assets/level/colorbomb_55.png"  # v0.02 单张 5 合 1 星河球
 const COLORBOMB_RIM_SHADER := "res://match3/colorbomb_rim.gdshader"
 const COLORBOMB_FLOWING_RIM_NAME := "FlowingRim"
 const COLORBOMB_LAYER_NAMES := [COLORBOMB_FLOWING_RIM_NAME, "GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
-const COLORBOMB_RIM_SCALE := 1.18
-const COLORBOMB_RIM_COLOR := Color(1.0, 0.52, 0.02, 1.0)
-const COLORBOMB_RIM_SECONDARY := Color(0.00, 0.58, 1.0, 1.0)
-const COLORBOMB_RIM_RADIUS := 0.425
-const COLORBOMB_RIM_WIDTH := 0.064
+const COLORBOMB_RIM_SCALE := 1.04
+const COLORBOMB_RIM_COLOR := Color(1.0, 0.90, 0.54, 0.92)
+const COLORBOMB_RIM_SECONDARY := Color(1.0, 0.80, 0.30, 0.72)
+const COLORBOMB_RIM_RADIUS := 0.455
+const COLORBOMB_RIM_WIDTH := 0.018
 const COLORBOMB_RIM_FLOW_SPEED := 0.34
-const COLORBOMB_RIM_SPARK_WIDTH := 0.090
+const COLORBOMB_RIM_SPARK_WIDTH := 0.052
 # v0.02: 特殊棋子站立特效(替换旧 shine 静态光贴图) —— 姿态循环动画 + 本体高光。
 # 消除方向=运动轴: 横=左右挤压摇头 / 纵=上下挤压点头 / 十字(SP_BOMB)=全向脉冲(最强)。
 # 动画相对棋子"基础 scale"做乘法；十字只提亮棋子本体，不额外加外圈白光。
@@ -1089,7 +1089,7 @@ func _clear_colorbomb_layers(node: Sprite2D) -> void:
 			child.queue_free()
 
 func _apply_colorbomb_layers(node: Sprite2D) -> void:
-	# v0.02: 彩球用单张 diamond_white.png, 不再叠 5 层老素材合成。
+	# v0.02: 彩球用单张 55.png 星河球, 不再叠 5 层老素材合成。
 	if not _asset_exists(COLORBOMB_CORE):
 		return
 	var core := _load_texture(COLORBOMB_CORE)
