@@ -259,13 +259,18 @@ func test_app_character_art_uses_bee_rig_for_collector() -> void:
 	app.free()
 
 
-func test_level_page_renders_bee_avatar_as_skillbar_companion() -> void:
+func test_level_page_renders_bee_avatar_between_topbar_and_board() -> void:
 	assert_true(ResourceLoader.exists(BEE_AVATAR) or FileAccess.file_exists(ProjectSettings.globalize_path(BEE_AVATAR)), "bee skill avatar exists")
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	assert_eq(_count_texture_button_texture(level.skill_bar, BEE_AVATAR), 1, "level skill bar renders the polished bee avatar once")
+	var badge := _find_named_node(level.character_layer, "LevelBeeBadge") as Sprite2D
+	assert_true(badge != null, "level page renders the polished bee avatar between topbar and board")
+	if badge != null:
+		assert_eq(badge.texture.resource_path, BEE_AVATAR, "level bee badge uses the polished bee avatar")
+		assert_true(badge.position.y > 356.0 and badge.position.y < 500.0, "bee badge sits between the top HUD and board")
+	assert_eq(_count_texture_button_texture(level.skill_bar, BEE_AVATAR), 0, "bee avatar is not rendered in the bottom skill bar")
 	assert_true(_find_named_node(level, "BeeRig") == null, "level page does not use the rough bee rig")
-	assert_eq(_count_label_text(level.skill_bar, "蜜蜂"), 1, "level skill bar labels the bee companion")
+	assert_eq(_count_label_text(level.skill_bar, "瓢虫"), 1, "level skill bar keeps the original lucky skill companion")
 	level.free()
 
 
