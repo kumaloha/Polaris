@@ -22,7 +22,6 @@ const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
-const BEE_AVATAR := "res://assets/avatars/av_bee.png"
 const BEE_RIG_DIR := "res://art/characters/bee_rig"
 const BEE_RIG_PARTS := [
 	"wing_L",
@@ -131,17 +130,6 @@ func _count_sprite_texture(root: Node, texture_path: String) -> int:
 			count += 1
 	for child in root.get_children():
 		count += _count_sprite_texture(child, texture_path)
-	return count
-
-
-func _count_texture_button_texture(root: Node, texture_path: String) -> int:
-	var count := 0
-	if root is TextureButton:
-		var btn := root as TextureButton
-		if btn.texture_normal != null and btn.texture_normal.resource_path == texture_path:
-			count += 1
-	for child in root.get_children():
-		count += _count_texture_button_texture(child, texture_path)
 	return count
 
 
@@ -259,17 +247,16 @@ func test_app_character_art_uses_bee_rig_for_collector() -> void:
 	app.free()
 
 
-func test_level_page_renders_bee_avatar_between_topbar_and_board() -> void:
-	assert_true(ResourceLoader.exists(BEE_AVATAR) or FileAccess.file_exists(ProjectSettings.globalize_path(BEE_AVATAR)), "bee skill avatar exists")
+func test_level_page_renders_living_bee_above_book_edge() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	var badge := _find_named_node(level.character_layer, "LevelBeeBadge") as Sprite2D
-	assert_true(badge != null, "level page renders the polished bee avatar between topbar and board")
-	if badge != null:
-		assert_eq(badge.texture.resource_path, BEE_AVATAR, "level bee badge uses the polished bee avatar")
-		assert_true(badge.position.y > 356.0 and badge.position.y < 500.0, "bee badge sits between the top HUD and board")
-	assert_eq(_count_texture_button_texture(level.skill_bar, BEE_AVATAR), 0, "bee avatar is not rendered in the bottom skill bar")
-	assert_true(_find_named_node(level, "BeeRig") == null, "level page does not use the rough bee rig")
+	var rig := _find_named_node(level.character_layer, "LevelBeeRig")
+	assert_true(rig != null, "level page renders a living bee above the magic book edge")
+	if rig != null:
+		assert_true(rig.position.y > 340.0 and rig.position.y < 390.0, "bee hovers just above the magic book edge")
+		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "level bee renders the animated rig body once")
+		assert_true(_find_named_node(rig, "BeePart_wing_L") is Sprite2D, "living bee has a left wing layer")
+		assert_true(_find_named_node(rig, "BeePart_wing_R") is Sprite2D, "living bee has a right wing layer")
 	assert_eq(_count_label_text(level.skill_bar, "瓢虫"), 1, "level skill bar keeps the original lucky skill companion")
 	level.free()
 
