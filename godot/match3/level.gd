@@ -167,8 +167,10 @@ const RABBIT_REWIND_PEEK_W := 126.0
 const RABBIT_REWIND_LEAP_W := 168.0
 const RABBIT_REWIND_CAST_W := 150.0
 const RABBIT_REWIND_HOURGLASS_W := 42.0
-const RABBIT_REWIND_TIME_SCALE := 1.35
-const RABBIT_REWIND_CAST_HOLD := 0.18
+const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(48.0, -150.0)
+const RABBIT_REWIND_BOOK_GAP := 36.0
+const RABBIT_REWIND_TIME_SCALE := 2.75
+const RABBIT_REWIND_CAST_HOLD := 0.82
 const TIME_REWIND_RING_STEPS := 64
 const TIME_REWIND_FLASH_COLOR := Color(0.52, 0.84, 1.0, 0.24)
 const TIME_REWIND_RING_COLOR := Color(0.56, 0.88, 1.0, 0.82)
@@ -1536,7 +1538,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	rabbit.z_index = 2
 	rig.add_child(rabbit)
 	var hourglass := _make_time_rabbit_sprite(RABBIT_REWIND_HOURGLASS_NODE, RABBIT_REWIND_HOURGLASS, RABBIT_REWIND_HOURGLASS_W)
-	hourglass.position = Vector2(54.0, -20.0)
+	hourglass.position = RABBIT_REWIND_HOURGLASS_OFFSET
 	hourglass.modulate.a = 0.0
 	hourglass.visible = cast_effect
 	hourglass.z_index = 1
@@ -1569,8 +1571,12 @@ func _time_rabbit_home_anchor() -> Vector2:
 
 func _time_rabbit_cast_anchor() -> Vector2:
 	if board != null:
-		return board_origin + Vector2(float(board.width) * cell_size * 0.5, float(board.height) * cell_size * 0.58)
-	return Vector2(DESIGN_W * 0.5, DESIGN_H * 0.52)
+		var book_rect := _book_frame_rect()
+		return Vector2(book_rect.get_center().x, book_rect.end.y + RABBIT_REWIND_BOOK_GAP)
+	return Vector2(DESIGN_W * 0.5, DESIGN_H * 0.78)
+
+func _time_rewind_effect_anchor() -> Vector2:
+	return _current_board_rect().get_center()
 
 func _rabbit_rewind_time(seconds: float) -> float:
 	return seconds * RABBIT_REWIND_TIME_SCALE
@@ -1646,7 +1652,7 @@ func _spawn_time_rewind_cast_effect() -> void:
 	var effect := Node2D.new()
 	effect.name = RABBIT_REWIND_CAST_EFFECT_NODE
 	effect.z_index = 180
-	effect.position = _time_rabbit_cast_anchor()
+	effect.position = _time_rewind_effect_anchor()
 	effect.set_meta("effect", "time_rewind")
 	skill_bar.add_child(effect)
 	var board_rect := _current_board_rect()

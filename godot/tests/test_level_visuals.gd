@@ -726,8 +726,8 @@ func test_level_consumed_move_paths_record_time_rewind_history_before_mutation()
 
 func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const RABBIT_REWIND_TIME_SCALE := 1.35"), "time rabbit animation uses a readable timing scale instead of raw fast keyframes")
-	assert_true(src.contains("const RABBIT_REWIND_CAST_HOLD := 0.18"), "time rabbit cast frame is held briefly before the board rewinds")
+	assert_true(src.contains("const RABBIT_REWIND_TIME_SCALE := 2.75"), "time rabbit animation follows the slower full skill animatic timing")
+	assert_true(src.contains("const RABBIT_REWIND_CAST_HOLD := 0.82"), "time rabbit cast frame is held through the readable hourglass beat")
 	var start: int = src.find("func _start_time_rabbit_tween")
 	assert_true(start >= 0, "time rabbit tween builder exists")
 	if start < 0:
@@ -740,6 +740,35 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var hold_idx: int = body.find("t.tween_interval(RABBIT_REWIND_CAST_HOLD)", k8_idx)
 	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
 	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
+
+func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("const RABBIT_REWIND_BOOK_GAP := 36.0"), "time rabbit cast position sits just below the magic book")
+	assert_true(src.contains("const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(48.0, -150.0)"), "hourglass floats back inside the book while the rabbit stays below it")
+	var start: int = src.find("func _time_rabbit_cast_anchor")
+	assert_true(start >= 0, "time rabbit cast anchor exists")
+	if start < 0:
+		return
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("var book_rect := _book_frame_rect()"), "rabbit cast anchor is derived from the magic book frame")
+	assert_true(body.contains("book_rect.end.y + RABBIT_REWIND_BOOK_GAP"), "rabbit lands just below the book bottom edge")
+	assert_false(body.contains("board.height) * cell_size * 0.58"), "rabbit must not jump into the board center")
+
+func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("func _time_rewind_effect_anchor()"), "time rewind effect has a board-centered anchor separate from the rabbit")
+	var start: int = src.find("func _spawn_time_rewind_cast_effect")
+	assert_true(start >= 0, "time rewind effect spawner exists")
+	if start < 0:
+		return
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("effect.position = _time_rewind_effect_anchor()"), "board flash and rings stay centered on the book/board, not on the rabbit's feet")
 
 func test_level_collapse_refill_uses_core_layers_and_feed() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
