@@ -22,6 +22,7 @@ const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const TOPBAR_SYNCED := "res://assets/level/top_transparent.png"
 const TOPBAR_STAR_GOLD := "res://assets/level/star_gold.png"
+const BEE_AVATAR := "res://assets/avatars/av_bee.png"
 const BEE_RIG_DIR := "res://art/characters/bee_rig"
 const BEE_RIG_PARTS := [
 	"wing_L",
@@ -130,6 +131,17 @@ func _count_sprite_texture(root: Node, texture_path: String) -> int:
 			count += 1
 	for child in root.get_children():
 		count += _count_sprite_texture(child, texture_path)
+	return count
+
+
+func _count_texture_button_texture(root: Node, texture_path: String) -> int:
+	var count := 0
+	if root is TextureButton:
+		var btn := root as TextureButton
+		if btn.texture_normal != null and btn.texture_normal.resource_path == texture_path:
+			count += 1
+	for child in root.get_children():
+		count += _count_texture_button_texture(child, texture_path)
 	return count
 
 
@@ -247,14 +259,12 @@ func test_app_character_art_uses_bee_rig_for_collector() -> void:
 	app.free()
 
 
-func test_level_page_renders_bee_rig_as_skillbar_companion() -> void:
+func test_level_page_renders_bee_avatar_as_skillbar_companion() -> void:
+	assert_true(ResourceLoader.exists(BEE_AVATAR) or FileAccess.file_exists(ProjectSettings.globalize_path(BEE_AVATAR)), "bee skill avatar exists")
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	var rig := _find_named_node(level.skill_bar, "BeeRig")
-	assert_true(rig != null, "level page renders the bee companion inside the skill bar")
-	if rig != null:
-		assert_eq(_count_sprite_texture(rig, "%s/body.png" % BEE_RIG_DIR), 1, "level bee rig renders the body texture once")
-	assert_true(_find_named_node(level.character_layer, "BeeRig") == null, "level page does not float the bee over the board")
+	assert_eq(_count_texture_button_texture(level.skill_bar, BEE_AVATAR), 1, "level skill bar renders the polished bee avatar once")
+	assert_true(_find_named_node(level, "BeeRig") == null, "level page does not use the rough bee rig")
 	assert_eq(_count_label_text(level.skill_bar, "蜜蜂"), 1, "level skill bar labels the bee companion")
 	level.free()
 

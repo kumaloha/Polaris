@@ -11,7 +11,6 @@ const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
-const BeeRig := preload("res://ui/bee_rig.gd")
 const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
@@ -126,7 +125,7 @@ const SKILLS := [
 	{"av": "res://assets/avatars/av_deer_oracle.png", "name": "星鹿", "skill": "提示", "gem": "purple"},
 	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障", "gem": "blue"},
 	{"av": "res://assets/avatars/av_dragon_red.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
-	{"rig": "bee", "name": "蜜蜂", "skill": "幸运祝福", "gem": "red"},
+	{"av": "res://assets/avatars/av_bee.png", "name": "蜜蜂", "skill": "幸运祝福", "gem": "red"},
 ]
 
 const DESIGN_W := 720.0
@@ -168,8 +167,6 @@ const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住�
 const TRAY_TOP := 1236.0  # 技能栏顶(棋盘底锚定于此); 下移让棋盘整体下移, 露出更多角色
 const SKILL_AV_Y := 1374.0
 const SKILL_AV_W := 132.0
-const BEE_SKILL_MEDAL_W := 124.0
-const BEE_SKILL_RIG_W := 122.0
 const SKILL_CD_Y := 1440.0
 const SKILL_NAME_Y := 1472.0
 
@@ -317,7 +314,9 @@ func _load_texture(path: String) -> Texture2D:
 	if err != OK:
 		push_warning("Unable to load PNG texture: %s" % path)
 		return null
-	return ImageTexture.create_from_image(image)
+	var tex := ImageTexture.create_from_image(image)
+	tex.take_over_path(path)
+	return tex
 
 func load_level(idx: int) -> void:
 	_kill_opening_drop_tween()
@@ -454,7 +453,9 @@ func _load_texture_from_file(path: String) -> Texture2D:
 	var image := Image.load_from_file(file_path)
 	if image == null or image.is_empty():
 		return _load_texture(path)
-	return ImageTexture.create_from_image(image)
+	var tex := ImageTexture.create_from_image(image)
+	tex.take_over_path(path)
+	return tex
 
 # 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
 func _render_board_frame() -> void:
@@ -1217,10 +1218,7 @@ func _render_skillbar() -> void:
 	for i in range(n):
 		var sk: Dictionary = SKILLS[i]
 		var cx: float = DESIGN_W * (float(i) + 0.5) / float(n)
-		if String(sk.get("rig", "")) == "bee":
-			_bee_skill_button(Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
-		else:
-			_skill_button(String(sk["av"]), Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
+		_skill_button(String(sk["av"]), Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
 		# 充能条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前充能数。
 		var gem_col: Color = GEM_COLORS.get(sk.get("gem", "purple"), Color(0.82, 0.45, 1.0))
 		var track_col: Color = gem_col.darkened(0.72)
@@ -1236,10 +1234,10 @@ func _render_skillbar() -> void:
 ## 可点技能头像: TextureButton(品红抠像), 按宽等比缩放, Control 左上角定位(中心-半尺寸)。
 ## 存进 _skill_btns 供 _process 置灰/禁用。
 func _skill_button(path: String, center: Vector2, width: float, idx: int) -> void:
-	if not ResourceLoader.exists(path):
+	var tex := _load_texture(path)
+	if tex == null:
 		_skill_btns.append(null)
 		return
-	var tex: Texture2D = load(path)
 	var btn := TextureButton.new()
 	btn.texture_normal = tex
 	btn.ignore_texture_size = true
@@ -1252,78 +1250,6 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 	btn.pressed.connect(_on_skill_pressed.bind(idx))
 	skill_bar.add_child(btn)
 	_skill_btns.append(btn)
-
-func _bee_skill_button(center: Vector2, width: float, idx: int) -> void:
-	var btn := Button.new()
-	btn.text = ""
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.size = Vector2(width, width)
-	btn.position = center - btn.size * 0.5
-	btn.add_theme_stylebox_override("normal", _empty_stylebox())
-	btn.add_theme_stylebox_override("hover", _empty_stylebox())
-	btn.add_theme_stylebox_override("pressed", _empty_stylebox())
-	btn.add_theme_stylebox_override("disabled", _empty_stylebox())
-
-	var medal_pos := (btn.size - Vector2(BEE_SKILL_MEDAL_W, BEE_SKILL_MEDAL_W)) * 0.5
-	var shadow := _skill_medal_panel(
-		Rect2(medal_pos + Vector2(0, 5), Vector2(BEE_SKILL_MEDAL_W, BEE_SKILL_MEDAL_W)),
-		Color(0.10, 0.05, 0.02, 0.28),
-		Color(0, 0, 0, 0)
-	)
-	btn.add_child(shadow)
-	var medal := _skill_medal_panel(
-		Rect2(medal_pos, Vector2(BEE_SKILL_MEDAL_W, BEE_SKILL_MEDAL_W)),
-		Color(1.0, 0.84, 0.32, 1.0),
-		Color(0.64, 0.30, 0.02)
-	)
-	btn.add_child(medal)
-	var inner := _skill_medal_panel(
-		Rect2(medal_pos + Vector2(10, 10), Vector2(BEE_SKILL_MEDAL_W - 20.0, BEE_SKILL_MEDAL_W - 20.0)),
-		Color(1.0, 0.94, 0.62, 0.88),
-		Color(1.0, 0.98, 0.80, 0.82)
-	)
-	btn.add_child(inner)
-	_skill_badge_sprite(btn, GEM_TEXTURES[3], Vector2(102, 30), 28.0, 0.88)
-	_skill_badge_sprite(btn, GEM_TEXTURES[2], Vector2(30, 92), 30.0, 0.82)
-
-	var rig := BeeRig.new()
-	rig.position = (btn.size - Vector2(BEE_SKILL_RIG_W, BEE_SKILL_RIG_W)) * 0.5 + Vector2(0, -12)
-	rig.setup({"rig": "bee", "rig_parts": BeeRig.default_part_paths()}, Vector2(BEE_SKILL_RIG_W, BEE_SKILL_RIG_W))
-	btn.add_child(rig)
-	btn.pressed.connect(_on_skill_pressed.bind(idx))
-	skill_bar.add_child(btn)
-	_skill_btns.append(btn)
-
-func _skill_medal_panel(rect: Rect2, bg_color: Color, border_color: Color) -> Panel:
-	var panel := Panel.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.size = rect.size
-	panel.position = rect.position
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg_color
-	sb.set_corner_radius_all(int(rect.size.x * 0.5))
-	if border_color.a > 0.0:
-		sb.set_border_width_all(4)
-		sb.border_color = border_color
-	panel.add_theme_stylebox_override("panel", sb)
-	return panel
-
-func _skill_badge_sprite(parent: Node, path: String, center: Vector2, width: float, alpha: float) -> void:
-	var tex := _load_texture(path)
-	if tex == null:
-		return
-	var sprite := Sprite2D.new()
-	sprite.texture = tex
-	sprite.position = center
-	sprite.scale = _scale_to_width(tex, width)
-	sprite.modulate.a = alpha
-	parent.add_child(sprite)
-
-func _empty_stylebox() -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0, 0, 0, 0)
-	sb.set_border_width_all(0)
-	return sb
 
 ## 冷却条(圆角胶囊): 与 _rounded_bar 同款外观, 但持有填充 Panel 引用(存 _skill_bar_fills),
 ## 并记录几何(_skill_bar_geo) 供 _process 改宽。ratio 0..1。

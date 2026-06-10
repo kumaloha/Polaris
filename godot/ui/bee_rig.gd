@@ -128,7 +128,7 @@ func _load_texture(path: String) -> Texture2D:
 		push_warning("Unable to load bee rig texture: %s" % path)
 		return null
 	var tex := ImageTexture.create_from_image(image)
-	tex.resource_path = path
+	tex.take_over_path(path)
 	return tex
 
 
