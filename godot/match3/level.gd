@@ -147,6 +147,7 @@ const SKILLS := [
 	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
 ]
 const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
+const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
 const RABBIT_REWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
@@ -166,6 +167,9 @@ const RABBIT_REWIND_PEEK_W := 126.0
 const RABBIT_REWIND_LEAP_W := 168.0
 const RABBIT_REWIND_CAST_W := 150.0
 const RABBIT_REWIND_HOURGLASS_W := 42.0
+const TIME_REWIND_RING_STEPS := 64
+const TIME_REWIND_FLASH_COLOR := Color(0.52, 0.84, 1.0, 0.24)
+const TIME_REWIND_RING_COLOR := Color(0.56, 0.88, 1.0, 0.82)
 
 const DESIGN_W := LevelLayout.DESIGN_W
 const DESIGN_H := 1520.0
@@ -232,6 +236,7 @@ var _skill_charge := [0.0, 0.0, 0.0, 0.0]      # 各技能当前充能数(消对
 var _skill_btns: Array = []                     # 4 个 TextureButton 引用(随 disabled/置灰)
 var _skill_bar_fills: Array = []                # 4 个冷却条填充 Panel 引用(随 ratio 改宽)
 var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 改填充宽度复用
+var _time_rewind_cast_pending := false
 
 @onready var background_layer: CanvasLayer = $BackgroundLayer
 @onready var board_layer: CanvasLayer = $BoardLayer
@@ -1454,7 +1459,7 @@ func _skill_clickable(idx: int) -> bool:
 		return false
 	match String(SKILLS[idx].get("skill", "")):
 		"时间回退":
-			return board != null and board.skill == "timerewind" and not board.rewind_used and not board.is_over()
+			return board != null and board.skill == "timerewind" and not board.rewind_used and not _time_rewind_cast_pending and not board.is_over()
 		_:
 			return _skill_ready(idx)
 
@@ -1463,7 +1468,7 @@ func _skill_ready(idx: int) -> bool:
 		return false
 	match String(SKILLS[idx].get("skill", "")):
 		"时间回退":
-			return board != null and board.skill == "timerewind" and not board.rewind_used and not board.move_history.is_empty() and not board.is_over()
+			return board != null and board.skill == "timerewind" and not board.rewind_used and not _time_rewind_cast_pending and not board.move_history.is_empty() and not board.is_over()
 		_:
 			return _skill_charge[idx] >= SKILL_CHARGE_REQ
 
@@ -1521,7 +1526,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	var rig := Node2D.new()
 	rig.name = RABBIT_REWIND_CAST_NODE
 	rig.z_index = 200
-	rig.position = _time_rabbit_home_center() + Vector2(0.0, 22.0)
+	rig.position = _time_rabbit_home_anchor() + Vector2(0.0, 40.0)
 	var sequence: Array = RABBIT_REWIND_CAST_SEQUENCE if cast_effect else RABBIT_REWIND_PEEK_SEQUENCE
 	rig.set_meta("frame_sequence", PackedStringArray(sequence))
 	skill_bar.add_child(rig)
@@ -1551,26 +1556,29 @@ func _set_time_rabbit_frame(sprite: Sprite2D, path: String, width: float, flip_h
 		return
 	sprite.texture = tex
 	sprite.scale = _scale_to_width(tex, width)
+	var display_h: float = tex.get_size().y * sprite.scale.y
+	sprite.position = Vector2(0.0, -display_h * 0.5)
 	sprite.flip_h = flip_h
+	sprite.set_meta("anchor", "bottom")
 
-func _time_rabbit_home_center() -> Vector2:
+func _time_rabbit_home_anchor() -> Vector2:
 	var count: int = maxi(SKILLS.size(), 1)
-	return Vector2(DESIGN_W * 0.5 / float(count), SKILL_AV_Y - 8.0)
+	return Vector2(DESIGN_W * 0.5 / float(count), SKILL_AV_Y - SKILL_AV_W * 0.5 + 18.0)
 
-func _time_rabbit_cast_center() -> Vector2:
+func _time_rabbit_cast_anchor() -> Vector2:
 	if board != null:
-		return board_origin + Vector2(float(board.width) * cell_size * 0.5, float(board.height) * cell_size * 0.42)
+		return board_origin + Vector2(float(board.width) * cell_size * 0.5, float(board.height) * cell_size * 0.58)
 	return Vector2(DESIGN_W * 0.5, DESIGN_H * 0.52)
 
 func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D, cast_effect: bool) -> void:
-	var home := _time_rabbit_home_center()
-	var cast := _time_rabbit_cast_center()
+	var home := _time_rabbit_home_anchor()
+	var cast := _time_rabbit_cast_anchor()
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
-	t.tween_property(rig, "position", home + Vector2(0.0, -28.0), 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(4.0, -58.0), 0.08)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(9.0, -86.0), 0.08)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(10.0, -102.0), 0.08)
+	t.tween_property(rig, "position", home + Vector2(0.0, 28.0), 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(4.0, 10.0), 0.08)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(9.0, -10.0), 0.08)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(10.0, -22.0), 0.08)
 	if cast_effect:
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, cast + Vector2(-44.0, 38.0), 0.22)
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, RABBIT_REWIND_CAST_W * 0.84, cast, 0.10)
@@ -1579,17 +1587,18 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K75, RABBIT_REWIND_CAST_W, cast + Vector2(0.0, -4.0), 0.12)
 		t.parallel().tween_property(hourglass, "rotation", TAU, 0.24).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K8, RABBIT_REWIND_CAST_W, cast + Vector2(0.0, -8.0), 0.20)
-		t.parallel().tween_property(hourglass, "modulate:a", 0.0, 0.18)
+		t.tween_callback(Callable(self, "_commit_time_rewind_cast"))
+		t.tween_property(hourglass, "modulate:a", 0.0, 0.18)
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, home + Vector2(16.0, -82.0), 0.20, true)
 	else:
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, RABBIT_REWIND_CAST_W * 0.78, home + Vector2(14.0, -92.0), 0.12)
+		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, RABBIT_REWIND_CAST_W * 0.78, home + Vector2(14.0, -20.0), 0.12)
 		t.tween_property(rabbit, "rotation", 0.08, 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		t.tween_property(rabbit, "rotation", -0.08, 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		t.tween_property(rabbit, "rotation", 0.0, 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(8.0, -92.0), 0.07, true)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(4.0, -62.0), 0.07, true)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -34.0), 0.07, true)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 18.0), 0.07, true)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(8.0, -18.0), 0.07, true)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(4.0, 0.0), 0.07, true)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, 18.0), 0.07, true)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 40.0), 0.07, true)
 	t.tween_property(rabbit, "modulate:a", 0.0, 0.08)
 	t.tween_callback(Callable(self, "_retire_time_rabbit_rig").bind(rig))
 
@@ -1604,6 +1613,78 @@ func _show_time_rabbit_hourglass(hourglass: Sprite2D) -> void:
 	hourglass.modulate.a = 0.96
 	hourglass.rotation = 0.0
 
+func _commit_time_rewind_cast() -> void:
+	var did := false
+	if board != null:
+		did = board.skill_rewind()
+	if did:
+		_sel = Vector2i(-1, -1)
+		_sel_node = null
+		_clear_highlights()
+		_render_board(false)
+		_refresh_hud()
+		_spawn_time_rewind_cast_effect()
+	_time_rewind_cast_pending = false
+	_busy = false
+	_update_skill_cd_visual()
+
+func _spawn_time_rewind_cast_effect() -> void:
+	if skill_bar == null:
+		return
+	var old := skill_bar.get_node_or_null(RABBIT_REWIND_CAST_EFFECT_NODE)
+	if old != null:
+		if old.is_inside_tree():
+			old.queue_free()
+		else:
+			old.free()
+	var effect := Node2D.new()
+	effect.name = RABBIT_REWIND_CAST_EFFECT_NODE
+	effect.z_index = 180
+	effect.position = _time_rabbit_cast_anchor()
+	effect.set_meta("effect", "time_rewind")
+	skill_bar.add_child(effect)
+	var board_rect := _current_board_rect()
+	var flash := ColorRect.new()
+	flash.name = "TimeRewindBoardFlash"
+	flash.position = board_rect.position - effect.position
+	flash.size = board_rect.size
+	flash.color = TIME_REWIND_FLASH_COLOR
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	effect.add_child(flash)
+	var base_radius := maxf(board_rect.size.x, board_rect.size.y) * 0.36
+	for i in range(3):
+		var ring := Line2D.new()
+		ring.name = "TimeRewindRing%d" % i
+		ring.closed = true
+		ring.width = 4.0 - float(i) * 0.6
+		var col := TIME_REWIND_RING_COLOR
+		col.a = 0.78 - float(i) * 0.16
+		ring.default_color = col
+		var rx := base_radius * (1.0 + float(i) * 0.22)
+		var ry := rx * 0.56
+		ring.points = _ellipse_points(Vector2.ZERO, rx, ry, TIME_REWIND_RING_STEPS)
+		effect.add_child(ring)
+	if is_inside_tree():
+		var t := create_tween().set_parallel(true)
+		for child in effect.get_children():
+			if child is CanvasItem:
+				t.tween_property(child, "modulate:a", 0.0, 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		t.tween_property(effect, "scale", Vector2(1.18, 1.18), 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		t.finished.connect(_retire_time_rabbit_rig.bind(effect), CONNECT_ONE_SHOT)
+
+func _current_board_rect() -> Rect2:
+	if board == null:
+		return Rect2(Vector2(DESIGN_W * 0.18, DESIGN_H * 0.36), Vector2(DESIGN_W * 0.64, DESIGN_H * 0.32))
+	return Rect2(board_origin, Vector2(float(board.width) * cell_size, float(board.height) * cell_size))
+
+func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var n: int = maxi(8, steps)
+	for i in range(n):
+		var a: float = TAU * float(i) / float(n)
+		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
+	return pts
+
 func _retire_time_rabbit_rig(rig: Node2D) -> void:
 	if rig == null or not is_instance_valid(rig):
 		return
@@ -1615,14 +1696,12 @@ func _skill_time_rewind() -> bool:
 		return false
 	if board.skill != "timerewind":
 		board.skill = "timerewind"
-	if not board.skill_rewind():
+	if board.rewind_used or board.move_history.is_empty():
 		return false
+	_time_rewind_cast_pending = true
 	_play_time_rewind_pet_animation(true)
-	_sel = Vector2i(-1, -1)
-	_sel_node = null
-	_clear_highlights()
-	_render_board(false)
-	_refresh_hud()
+	if not is_inside_tree():
+		_commit_time_rewind_cast()
 	return true
 
 # ── 旧提示技能: 保留方法供后续宠物/调试复用。高亮最优一步两格, 不改盘/不resolve/不扣步。 ──

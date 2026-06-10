@@ -28,6 +28,7 @@ const RABBIT_TIMEREWIND_K5 := "res://assets/pets/timerewind/rabbit_k5_leap.png"
 const RABBIT_TIMEREWIND_K8 := "res://assets/pets/timerewind/rabbit_k8_cast.png"
 const RABBIT_TIMEREWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourglass.png"
 const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
+const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
 const BOOK_RIBBONS_NODE := "BookRibbons"
@@ -332,6 +333,43 @@ func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
 		assert_true(sequence.has(RABBIT_TIMEREWIND_K1), "sequence starts from the K1 peek/climb frame")
 		assert_true(sequence.has(RABBIT_TIMEREWIND_K5), "sequence includes the K5 leap frame")
 		assert_true(sequence.has(RABBIT_TIMEREWIND_K8), "sequence includes the K8 cast frame")
+	level.free()
+
+
+func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> void:
+	var level := _prepare_level_scene()
+	assert_true(level.has_method("_commit_time_rewind_cast"), "time rabbit cast has an explicit commit point")
+	if not level.has_method("_commit_time_rewind_cast"):
+		level.free()
+		return
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "timerewind"
+	var start_grid: Array = b.grid.duplicate(true)
+	var start_moves: int = b.moves_left
+	b._push_history()
+	b.grid[0][0] = (int(b.grid[0][0]) + 1) % b.species.size()
+	b.moves_left -= 2
+	level.board = b
+	level._cur_cfg = {"id": 1}
+	level.call("_compute_layout")
+	level.call("_commit_time_rewind_cast")
+	assert_eq(b.grid, start_grid, "cast commit restores the saved board grid")
+	assert_eq(b.moves_left, start_moves, "cast commit restores the saved move count")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_EFFECT_NODE) != null, "cast commit leaves a visible time-rewind effect on the board")
+	level.free()
+
+
+func test_level_time_rabbit_frames_use_bottom_anchor() -> void:
+	var level := _prepare_level_scene()
+	var frame := level.call("_make_time_rabbit_sprite", RABBIT_REWIND_FRAME_NODE, RABBIT_TIMEREWIND_K8, 150.0) as Sprite2D
+	assert_true(frame != null, "time rabbit frame helper returns a sprite")
+	if frame != null:
+		assert_eq(String(frame.get_meta("anchor", "")), "bottom", "time rabbit keyframes are foot/bottom anchored so cropped frame sizes do not shift the landing point")
+		if frame.texture != null:
+			var display_h: float = frame.texture.get_size().y * frame.scale.y
+			assert_true(absf(frame.position.y + display_h * 0.5) <= 1.0, "rabbit sprite bottom sits on the rig origin")
+	if frame != null:
+		frame.free()
 	level.free()
 
 
