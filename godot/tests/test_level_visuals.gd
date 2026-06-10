@@ -136,6 +136,22 @@ func test_colorbomb_idle_does_not_tween_board_position() -> void:
 	assert_true(body.contains("\"offset\""), "colorbomb bob uses visual offset instead of board position")
 
 
+func test_colorbomb_has_flowing_ring_highlight() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("const COLORBOMB_RIM_SHADER := \"res://match3/colorbomb_rim.gdshader\""), "5-match colorbomb owns a dedicated flowing rim shader")
+	assert_true(src.contains("const COLORBOMB_FLOWING_RIM_NAME := \"FlowingRim\""), "flowing rim is a named removable colorbomb layer")
+	assert_true(src.contains("_attach_colorbomb_flowing_rim(node, core)"), "colorbomb application attaches a circular flowing rim layer")
+	assert_true(src.contains("func _colorbomb_rim_material()"), "colorbomb rim uses its own shader material")
+	assert_true(src.contains("rim.z_index = 3"), "flowing rim must draw above the colorbomb core")
+
+	var shader := FileAccess.get_file_as_string("res://match3/colorbomb_rim.gdshader")
+	assert_true(not shader.is_empty(), "flowing rim shader file exists")
+	assert_true(shader.contains("TIME"), "rim highlight flows over time without moving the board sprite")
+	assert_true(shader.contains("atan("), "rim highlight is driven around the circular angle")
+	assert_true(shader.contains("spark_angle"), "shader exposes a moving spark angle along the ring")
+	assert_true(shader.contains("rim_radius"), "shader draws a controlled circular rim")
+
+
 func test_combo_idle_uses_restrained_directional_motion() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
