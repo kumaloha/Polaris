@@ -168,6 +168,7 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 const BOSS_C := Vector2(562, 336)
 const BOARD_TOP := 464.0
 const BOARD_LAYOUT_Y_OFFSET := -24.0  # 书本棋盘区整体上移, 8~11 行共享同一个更高视觉中心
+const BOARD_VISUAL_CENTER_Y := 806.0
 const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
@@ -360,17 +361,11 @@ func load_level(idx: int) -> void:
 func _compute_layout() -> void:
 	# 预留边框外凸: 角花顶点离格角 = 紫条中线偏移 + 角花半径; 取与紫条厚度的较大值
 	# v0.02: 棋盘落"书页内金线框"(book_frame 内边线), 与书页边缘留页边距(像书的正文区)。
-	# v0.02: 书本左右贴屏幕边(满屏宽,间距0); 棋格落书页内金线框、水平居中。
-	# 行数会在 8~11 间变化: cell 必须同时受宽度和棋盘区高度约束，再把书框居中放进棋盘区。
+	# v0.02: 书本左右贴屏幕边(满屏宽,间距0); playable 棋盘优先填满书内镶边宽度。
 	cell_size = _board_cell_size_for_grid(board.width, board.height)
 	var board_w: float = board.width * cell_size
 	var board_h: float = board.height * cell_size
-	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
-	var frame_top: float = _board_frame_top()
-	var frame_bottom: float = _board_frame_bottom()
-	var frame_h: float = frame_bottom - frame_top
-	var book_y: float = frame_top + maxf(0.0, frame_h - book_h) * 0.5
-	board_origin = Vector2((DESIGN_W - board_w) * 0.5, book_y + BOOK_INNER_T)
+	board_origin = Vector2((DESIGN_W - board_w) * 0.5, BOARD_VISUAL_CENTER_Y - board_h * 0.5)
 
 func _board_frame_top() -> float:
 	return BOARD_TOP + BOARD_LAYOUT_Y_OFFSET
@@ -381,9 +376,12 @@ func _board_frame_bottom() -> float:
 func _board_cell_size_for_grid(cols: int, rows: int) -> float:
 	var safe_cols := maxf(1.0, float(cols))
 	var safe_rows := maxf(1.0, float(rows))
-	var inner_w: float = DESIGN_W - BOOK_INNER_L - BOOK_INNER_R
-	var inner_h: float = _board_frame_bottom() - _board_frame_top() - BOOK_INNER_T - BOOK_INNER_B
-	return floor(minf(inner_w / safe_cols, inner_h / safe_rows))
+	var inner_w: float = _book_frame_width_for_board() - BOOK_INNER_L - BOOK_INNER_R
+	var width_fit: float = inner_w / safe_cols
+	var ribbons_h: float = _book_frame_width_for_board() * 77.0 / 982.0
+	var skill_top: float = SKILL_AV_Y - SKILL_AV_W * 0.5
+	var max_board_h: float = maxf(1.0, (skill_top - BOOK_INNER_B - ribbons_h - BOARD_VISUAL_CENTER_Y) * 2.0)
+	return minf(width_fit, max_board_h / safe_rows)
 
 func _book_frame_width_for_board() -> float:
 	return DESIGN_W + 6.0
@@ -472,6 +470,11 @@ func _render_book_inner_inlay() -> void:
 	var baked := _book_baked_inner_rect()
 	var target := _book_board_inner_rect()
 	if target.size.x <= 0.0 or target.size.y <= 0.0:
+		return
+	if absf(target.position.x - baked.position.x) <= 0.5 \
+			and absf(target.position.y - baked.position.y) <= 0.5 \
+			and absf(target.size.x - baked.size.x) <= 0.5 \
+			and absf(target.size.y - baked.size.y) <= 0.5:
 		return
 	var left_gap: float = target.position.x - baked.position.x
 	if left_gap > 0.5:

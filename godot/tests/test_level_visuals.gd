@@ -300,8 +300,9 @@ func test_board_layout_keeps_eleven_row_book_inside_play_area() -> void:
 	level.call("_compute_layout")
 	var book_y: float = level.board_origin.y - 21.0
 	var book_bottom: float = level.board_origin.y + float(level.board.height) * level.cell_size + 56.0
-	assert_true(book_y >= 440.0, "11-row book can sit closer to the top panel without entering it")
-	assert_true(book_bottom <= 1206.0, "11-row book should move up as a whole and stay above the skill tray")
+	var ribbons_bottom: float = book_bottom + 726.0 * 77.0 / 982.0
+	assert_true(book_y >= 356.0, "11-row book can sit under the top panel while filling the inner book width")
+	assert_true(ribbons_bottom <= 1308.0, "11-row book and ribbons should stay above the skill portraits")
 	level.free()
 
 
