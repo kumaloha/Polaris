@@ -1547,6 +1547,19 @@ func _pulse_skill_button(idx: int) -> void:
 	t.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	t.tween_property(btn, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
+func _time_rabbit_skill_button() -> TextureButton:
+	if _skill_btns.is_empty():
+		return null
+	var btn = _skill_btns[0]
+	if btn == null or not is_instance_valid(btn) or not (btn is TextureButton):
+		return null
+	return btn as TextureButton
+
+func _set_time_rabbit_avatar_visible(is_visible: bool) -> void:
+	var btn := _time_rabbit_skill_button()
+	if btn != null:
+		btn.visible = is_visible
+
 func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	if skill_bar == null:
 		return
@@ -1557,6 +1570,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 			old.queue_free()
 		else:
 			old.free()
+	_set_time_rabbit_avatar_visible(false)
 	var rig := Node2D.new()
 	rig.name = RABBIT_REWIND_CAST_NODE
 	rig.z_index = 200
@@ -1752,7 +1766,14 @@ func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> Packe
 func _retire_time_rabbit_rig(rig: Node2D) -> void:
 	if rig == null or not is_instance_valid(rig):
 		return
-	rig.queue_free()
+	var restores_avatar := skill_bar != null and rig.name == RABBIT_REWIND_CAST_NODE and skill_bar.get_node_or_null(RABBIT_REWIND_CAST_NODE) == rig
+	if restores_avatar:
+		_set_time_rabbit_avatar_visible(true)
+		_update_skill_cd_visual()
+	if rig.is_inside_tree():
+		rig.queue_free()
+	else:
+		rig.free()
 
 # ── idx0 时兔/时间回退: 回到历史窗口内最早一步, 不额外扣步。 ──
 func _skill_time_rewind() -> bool:

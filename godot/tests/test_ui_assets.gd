@@ -336,6 +336,25 @@ func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
 	level.free()
 
 
+func test_time_rabbit_cast_hides_bottom_avatar_until_retired() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
+	assert_true(btn != null, "time rabbit button exists")
+	if btn == null:
+		level.free()
+		return
+	assert_true(btn.visible, "time rabbit avatar starts visible in the bottom skill slot")
+	level.call("_play_time_rewind_pet_animation", false)
+	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
+	assert_true(rig != null, "time rabbit cast rig is created")
+	assert_false(btn.visible, "bottom avatar disappears as soon as the rabbit jumps out")
+	if rig != null:
+		level.call("_retire_time_rabbit_rig", rig)
+		assert_true(btn.visible, "bottom avatar returns after the cast rig is retired")
+	level.free()
+
+
 func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> void:
 	var level := _prepare_level_scene()
 	assert_true(level.has_method("_commit_time_rewind_cast"), "time rabbit cast has an explicit commit point")
