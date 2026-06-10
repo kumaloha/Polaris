@@ -724,6 +724,23 @@ func test_level_consumed_move_paths_record_time_rewind_history_before_mutation()
 			mutation_idx = body.find("ME._apply_clears")
 		assert_true(mutation_idx < 0 or history_idx < mutation_idx, "%s records the snapshot before mutating the board" % name)
 
+func test_time_rabbit_cast_animation_has_readable_timing() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	assert_true(src.contains("const RABBIT_REWIND_TIME_SCALE := 1.35"), "time rabbit animation uses a readable timing scale instead of raw fast keyframes")
+	assert_true(src.contains("const RABBIT_REWIND_CAST_HOLD := 0.18"), "time rabbit cast frame is held briefly before the board rewinds")
+	var start: int = src.find("func _start_time_rabbit_tween")
+	assert_true(start >= 0, "time rabbit tween builder exists")
+	if start < 0:
+		return
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	var body: String = src.substr(start, end - start)
+	var k8_idx: int = body.find("RABBIT_REWIND_K8")
+	var hold_idx: int = body.find("t.tween_interval(RABBIT_REWIND_CAST_HOLD)", k8_idx)
+	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
+	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
+
 func test_level_collapse_refill_uses_core_layers_and_feed() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
