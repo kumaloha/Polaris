@@ -370,6 +370,26 @@ func test_book_ribbons_render_full_width_under_frame() -> void:
 	level.free()
 
 
+func test_third_level_book_frame_hugs_height_limited_board_width() -> void:
+	var level := _prepare_level_scene()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "3"], level._levels.size())
+	level.load_level(raw_idx)
+	assert_eq(level.board.width, 8, "third playable level keeps the narrow eight-column board")
+	assert_eq(level.board.height, 10, "third playable level is height-limited by ten rows")
+	var layer := CanvasLayer.new()
+	level.add_child(layer)
+	level.board_layer = layer
+	level.call("_render_board_panel")
+	var rib := _find_named_node(layer, BOOK_RIBBONS_NODE) as Control
+	assert_true(rib != null, "book ribbons render for the third level")
+	if rib != null:
+		var expected_w: float = level.board.width * level.cell_size + 53.0 + 53.0 + 6.0
+		var expected_x: float = level.board_origin.x - 53.0 - 3.0
+		assert_eq(int(roundf(rib.size.x)), int(roundf(expected_w)), "third level book width follows the actual board plus inner insets")
+		assert_eq(int(roundf(rib.position.x)), int(roundf(expected_x)), "third level book inner left edge hugs the board left edge")
+	level.free()
+
+
 func test_topbar_art_background_fill_is_transparent() -> void:
 	var img := Image.load_from_file(ProjectSettings.globalize_path(TOPBAR_SYNCED))
 	assert_true(img != null and not img.is_empty(), "topbar art image loads")
