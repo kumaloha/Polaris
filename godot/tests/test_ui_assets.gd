@@ -31,6 +31,9 @@ const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
 const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
+const RABBIT_AVATAR_FRAME_NODE := "TimeRabbitAvatarFrame"
+const RABBIT_AVATAR_FRAME_BG_NODE := "TimeRabbitAvatarFrameBg"
+const RABBIT_AVATAR_FRAME_SYNCED := "res://assets/level/pet_avatar_frame.png"
 const RABBIT_REWIND_POCKET_NODE := "RabbitPocket"
 const RABBIT_REWIND_RING_FULL_NODE := "RabbitPocketRingFull"
 const RABBIT_REWIND_RING_TOP_NODE := "RabbitPocketRingTopLip"
@@ -352,38 +355,44 @@ func test_time_rabbit_cast_hides_bottom_avatar_until_retired() -> void:
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
 	assert_true(rig != null, "time rabbit cast rig is created")
 	assert_true(btn.visible, "bottom avatar slot stays present while the rabbit jumps out")
-	assert_true(absf(btn.modulate.a - 0.5) <= 0.01, "bottom avatar fades to 50% instead of becoming a black hole")
+	assert_eq(btn.texture_normal, null, "bottom avatar texture is removed while the live rabbit actor is outside the frame")
+	var frame_bg := _find_named_node(level.skill_bar, RABBIT_AVATAR_FRAME_BG_NODE) as Polygon2D
+	assert_true(frame_bg != null, "empty time-rabbit frame keeps a beige translucent magic background")
+	if frame_bg != null:
+		assert_true(frame_bg.color.r >= 0.85 and frame_bg.color.g >= 0.72 and frame_bg.color.b >= 0.50, "avatar frame background is warm beige")
+		assert_true(frame_bg.color.a >= 0.32 and frame_bg.color.a <= 0.72, "avatar frame background is translucent, not opaque")
 	if rig != null:
 		level.call("_retire_time_rabbit_rig", rig)
 		assert_true(not is_instance_valid(rig) or not rig.visible, "retired rabbit actor is hidden or freed immediately")
 		assert_true(btn.visible, "bottom avatar returns after the cast rig is retired")
 		assert_eq(btn.modulate.a, 1.0, "bottom avatar returns to full opacity after the rabbit is collected")
+		assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == RABBIT_TIMEREWIND_SYNCED, "bottom avatar texture returns after the rabbit is collected")
 	level.free()
 
 
-func test_time_rabbit_cast_builds_pocket_and_top_layer_hourglass() -> void:
+func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
+	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
+	assert_true(btn != null, "time rabbit button exists")
 	level.call("_play_time_rewind_pet_animation", true)
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
 	assert_true(rig != null, "time rabbit cast rig is created")
 	if rig == null:
 		level.free()
 		return
-	var pocket := _find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) as Node2D
-	assert_true(pocket != null, "pocket is fixed on the avatar slot instead of traveling with the rabbit actor")
-	if pocket == null:
-		level.free()
-		return
-	assert_eq(pocket.get_parent(), level.skill_bar, "pocket lives on the skill layer, not inside the moving rabbit rig")
-	assert_true(pocket.position.distance_to(level.call("_time_rabbit_home_anchor")) <= 0.5, "pocket stays anchored to the time-rabbit avatar slot")
-	var ring_full := _find_named_node(pocket, RABBIT_REWIND_RING_FULL_NODE)
-	var ring_top := _find_named_node(pocket, RABBIT_REWIND_RING_TOP_NODE)
-	assert_true(ring_full != null, "pocket has a full ring behind the emerging rabbit")
-	assert_true(ring_top != null, "pocket has a top lip above the emerging rabbit")
-	if ring_full != null and ring_top != null:
-		assert_true((ring_full as CanvasItem).z_index < rig.z_index, "back pocket ring draws behind the rabbit")
-		assert_true((ring_top as CanvasItem).z_index > rig.z_index, "top pocket lip draws above the rabbit for the pocket trick")
+	assert_true(ResourceLoader.exists(RABBIT_AVATAR_FRAME_SYNCED) or FileAccess.file_exists(RABBIT_AVATAR_FRAME_SYNCED), "time rabbit slot has a real avatar frame asset")
+	var frame_slot := _find_named_node(level.skill_bar, RABBIT_AVATAR_FRAME_NODE)
+	assert_true(frame_slot != null, "time rabbit has a visible avatar frame separate from the avatar texture")
+	var frame_bg := _find_named_node(level.skill_bar, RABBIT_AVATAR_FRAME_BG_NODE) as Polygon2D
+	assert_true(frame_bg != null, "time rabbit avatar frame has a persistent beige translucent center")
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) == null, "rabbit cast does not create a separate magic ring/pocket effect")
+	if btn != null:
+		assert_eq(btn.texture_normal, null, "avatar frame is empty after the rabbit actor jumps out")
+	var frame := _find_named_node(rig, RABBIT_REWIND_FRAME_NODE) as Sprite2D
+	assert_true(frame != null and frame.texture != null, "time rabbit actor has a visible frame")
+	if frame != null and frame.texture != null:
+		assert_eq(frame.texture.resource_path, RABBIT_TIMEREWIND_SYNCED, "the live actor starts as the same image as the avatar frame")
 	var hourglass := _find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
 	assert_true(hourglass != null and hourglass.texture != null, "top-layer hourglass prop exists")
 	if hourglass != null:
@@ -393,22 +402,24 @@ func test_time_rabbit_cast_builds_pocket_and_top_layer_hourglass() -> void:
 	level.free()
 
 
-func test_time_rabbit_retire_clears_actor_pocket_hourglass_and_emits_done() -> void:
+func test_time_rabbit_retire_clears_actor_hourglass_and_restores_avatar() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
+	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
+	assert_true(btn != null, "time rabbit button exists")
 	level.set_meta("rabbit_done", false)
 	level.time_rabbit_sequence_done.connect(func(): level.set_meta("rabbit_done", true))
 	level.call("_play_time_rewind_pet_animation", true)
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
 	assert_true(rig != null, "time rabbit cast rig is created")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) != null, "hourglass exists before retire")
-	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) != null, "pocket exists before retire")
 	if rig != null:
 		level.call("_retire_time_rabbit_rig", rig)
 	assert_true(bool(level.get_meta("rabbit_done", false)), "retiring the actor emits sequence_done")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) == null, "rabbit actor is removed from the skill layer")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) == null, "hourglass is removed with the rabbit sequence")
-	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) == null, "avatar pocket is removed with the rabbit sequence")
+	if btn != null:
+		assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == RABBIT_TIMEREWIND_SYNCED, "avatar texture is restored into the frame after retire")
 	level.free()
 
 

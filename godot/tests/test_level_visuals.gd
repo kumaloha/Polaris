@@ -750,7 +750,7 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 		level.free()
 		return
 	var home := Vector2(140.0, 1320.0)
-	var cast := Vector2(home.x, 1040.0)
+	var cast := Vector2(360.0, 1040.0)
 	var points: Array = level.call("_time_rabbit_jump_points", home, cast)
 	var durations: Array = level.call("_time_rabbit_jump_durations")
 	assert_true(points.size() >= 4, "rabbit jump is split into several visible inbetween positions instead of one fast leap")
@@ -762,8 +762,13 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	assert_true(points[0].y < home.y, "first jump inbetween lifts out of the skill slot")
 	assert_true(points[1].y < minf(home.y, cast.y), "middle jump inbetween reaches a visible arc apex before landing")
 	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
+	var moved_toward_book := false
 	for p in points:
-		assert_true(absf((p as Vector2).x - home.x) <= 0.5, "rabbit jump stays vertically above the avatar slot instead of drifting sideways")
+		var point := p as Vector2
+		assert_true(point.x >= home.x - 0.5 and point.x <= cast.x + 0.5, "rabbit jump stays between the avatar slot and the book-center cast point")
+		if point.x > home.x + 24.0:
+			moved_toward_book = true
+	assert_true(moved_toward_book, "rabbit visibly jumps out toward the book center instead of staying on the avatar column")
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _start_time_rabbit_tween")
 	var end: int = src.find("\nfunc ", start + 1)
@@ -791,9 +796,12 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	var cast: Vector2 = level.call("_time_rabbit_cast_anchor")
 	var cast_width: float = level.call("_time_rabbit_cast_width")
 	var board_rect: Rect2 = level.call("_current_board_rect")
-	assert_true(absf(cast.x - home.x) <= 0.5, "rabbit casts on the avatar column, not the book center")
+	var book_rect: Rect2 = level.call("_book_frame_rect")
+	assert_true(absf(cast.x - book_rect.get_center().x) <= 0.5, "rabbit casts below the center of the magic book")
+	assert_true(absf(cast.x - home.x) > 80.0, "rabbit leaves the avatar column after jumping out")
 	assert_true(cast.y < home.y, "rabbit cast point floats above the avatar slot")
-	assert_true(cast.y >= board_rect.end.y + 28.0, "rabbit cast point stays below the playable board")
+	assert_true(cast.y >= book_rect.end.y + 28.0, "rabbit cast point stays below the magic book")
+	assert_true(cast.y <= home.y - 84.0, "rabbit cast bottom stays above the avatar row instead of covering pet slots")
 	assert_false(board_rect.has_point(cast), "rabbit cast anchor must not overlap the playable board")
 	var hourglass_anchor: Vector2 = level.call("_time_rabbit_hourglass_float_anchor", cast)
 	assert_true(absf(hourglass_anchor.x - board_rect.get_center().x) <= 0.5, "hourglass floats to the board center, not over the pet slot")
@@ -806,9 +814,11 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	cast = level.call("_time_rabbit_cast_anchor")
 	cast_width = level.call("_time_rabbit_cast_width")
 	board_rect = level.call("_current_board_rect")
+	book_rect = level.call("_book_frame_rect")
 	cast_top = cast.y - 8.0 - cast_width * (1191.0 / 908.0)
 	assert_true(cast_width < 220.0, "tall boards shrink the cast sprite instead of moving it into the board")
-	assert_true(absf(cast.x - home.x) <= 0.5, "tall board rabbit cast still stays on the avatar column")
+	assert_true(absf(cast.x - book_rect.get_center().x) <= 0.5, "tall board rabbit cast still lands under the book center")
+	assert_true(cast.y <= home.y - 84.0, "tall board rabbit cast still stays above the avatar row")
 	assert_true(cast_top >= board_rect.end.y, "tall board rabbit K8 visible body stays below the playable board")
 	level.free()
 

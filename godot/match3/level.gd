@@ -152,7 +152,11 @@ const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
 const RABBIT_REWIND_CAST_EFFECT_NODE := "TimeRewindCastEffect"
 const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
 const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
-const RABBIT_REWIND_POCKET_NODE := "RabbitPocket"
+const RABBIT_REWIND_AVATAR_FRAME := "res://assets/level/pet_avatar_frame.png"
+const RABBIT_REWIND_AVATAR_FRAME_NODE := "TimeRabbitAvatarFrame"
+const RABBIT_REWIND_AVATAR_FRAME_BG_NODE := "TimeRabbitAvatarFrameBg"
+const RABBIT_REWIND_AVATAR_FRAME_BG_COLOR := Color(0.96, 0.84, 0.62, 0.48)
+const RABBIT_REWIND_AVATAR := "res://assets/pets/timerewind/rabbit_avatar.png"
 const RABBIT_REWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
 const RABBIT_REWIND_K2 := "res://assets/pets/timerewind/rabbit_k2_peek.png"
 const RABBIT_REWIND_K25 := "res://assets/pets/timerewind/rabbit_k25_pushup.png"
@@ -171,18 +175,15 @@ const RABBIT_REWIND_HOME_W := 138.0
 const RABBIT_REWIND_PEEK_W := 172.0
 const RABBIT_REWIND_LEAP_W := 232.0
 const RABBIT_REWIND_CAST_W := 220.0
-const RABBIT_REWIND_CAST_MIN_W := 148.0
+const RABBIT_REWIND_CAST_MIN_W := 96.0
 const RABBIT_REWIND_CAST_VISIBLE_ASPECT := 1191.0 / 908.0
-const RABBIT_REWIND_CAST_LIFT := 10.0
 const RABBIT_REWIND_CAST_TOP_GAP := 8.0
+const RABBIT_REWIND_CAST_AVATAR_GAP := 18.0
+const RABBIT_REWIND_CAST_GAP_BIAS := 36.0
 const RABBIT_REWIND_HOURGLASS_W := 28.0
 const RABBIT_REWIND_HOURGLASS_OFFSET := Vector2(28.0, -86.0)
 const RABBIT_REWIND_HOURGLASS_BOARD_Y := 0.24
 const RABBIT_REWIND_HOURGLASS_FLOAT_SCALE := 1.5
-const RABBIT_REWIND_PORTRAIT_CAST_ALPHA := 0.5
-const RABBIT_REWIND_RING_FULL_NODE := "RabbitPocketRingFull"
-const RABBIT_REWIND_RING_TOP_NODE := "RabbitPocketRingTopLip"
-const RABBIT_REWIND_BOOK_GAP := 36.0
 const RABBIT_REWIND_TIME_SCALE := 2.75
 const RABBIT_REWIND_CAST_HOLD := 0.82
 const TIME_REWIND_RING_STEPS := 64
@@ -1395,6 +1396,8 @@ func _render_skillbar() -> void:
 	for i in range(n):
 		var sk: Dictionary = SKILLS[i]
 		var cx: float = DESIGN_W * (float(i) + 0.5) / float(n)
+		if i == 0:
+			_skill_avatar_frame(Vector2(cx, SKILL_AV_Y), SKILL_AV_W)
 		_skill_button(String(sk["av"]), Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
 		# 充能条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前充能数。
 		var gem_col: Color = GEM_COLORS.get(sk.get("gem", "purple"), Color(0.82, 0.45, 1.0))
@@ -1423,10 +1426,33 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 	var h: float = width * (sz.y / sz.x) if sz.x > 0.0 else width
 	btn.size = Vector2(width, h)
 	btn.position = center - btn.size * 0.5   # TextureButton 是左上角定位 → 减半尺寸居中
+	btn.z_index = 2
 	btn.material = _magenta_material()        # 品红抠像(与静态头像一致)
+	btn.set_meta("avatar_texture_path", path)
+	btn.set_meta("avatar_texture", tex)
 	btn.pressed.connect(_on_skill_pressed.bind(idx))
 	skill_bar.add_child(btn)
 	_skill_btns.append(btn)
+
+func _skill_avatar_frame(center: Vector2, width: float) -> void:
+	var bg := Polygon2D.new()
+	bg.name = RABBIT_REWIND_AVATAR_FRAME_BG_NODE
+	bg.polygon = _ellipse_points(Vector2.ZERO, width * 0.44, width * 0.44, 56)
+	bg.color = RABBIT_REWIND_AVATAR_FRAME_BG_COLOR
+	bg.position = center
+	bg.z_index = 0
+	skill_bar.add_child(bg)
+
+	var frame_tex := _load_texture(RABBIT_REWIND_AVATAR_FRAME)
+	if frame_tex == null:
+		return
+	var frame := Sprite2D.new()
+	frame.name = RABBIT_REWIND_AVATAR_FRAME_NODE
+	frame.texture = frame_tex
+	frame.position = center
+	frame.scale = _fit_scale(frame_tex, width * 1.12)
+	frame.z_index = 4
+	skill_bar.add_child(frame)
 
 ## 冷却条(圆角胶囊): 与 _rounded_bar 同款外观, 但持有填充 Panel 引用(存 _skill_bar_fills),
 ## 并记录几何(_skill_bar_geo) 供 _process 改宽。ratio 0..1。
@@ -1493,7 +1519,8 @@ func _update_skill_cd_visual() -> void:
 		btn.disabled = not _skill_clickable(i)
 		if i == 0 and bool(btn.get_meta("time_rabbit_casting", false)):
 			btn.visible = true
-			btn.modulate.a = RABBIT_REWIND_PORTRAIT_CAST_ALPHA
+			btn.texture_normal = null
+			btn.modulate.a = 1.0
 		else:
 			btn.modulate.a = 1.0 if ready else 0.82
 
@@ -1579,7 +1606,18 @@ func _set_time_rabbit_avatar_casting(is_casting: bool) -> void:
 	if btn != null:
 		btn.visible = true
 		btn.set_meta("time_rabbit_casting", is_casting)
-		btn.modulate.a = RABBIT_REWIND_PORTRAIT_CAST_ALPHA if is_casting else 1.0
+		if is_casting:
+			if btn.texture_normal != null:
+				btn.set_meta("avatar_texture", btn.texture_normal)
+			btn.texture_normal = null
+		else:
+			var tex = btn.get_meta("avatar_texture", null)
+			if tex is Texture2D:
+				btn.texture_normal = tex
+			else:
+				var path := String(btn.get_meta("avatar_texture_path", RABBIT_REWIND_AVATAR))
+				btn.texture_normal = _load_texture(path)
+		btn.modulate.a = 1.0
 
 func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	if skill_bar == null:
@@ -1591,15 +1629,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	var old_hourglass := skill_bar.get_node_or_null(RABBIT_REWIND_HOURGLASS_NODE)
 	if old_hourglass != null:
 		_detach_and_free_later(old_hourglass)
-	var old_pocket := skill_bar.get_node_or_null(RABBIT_REWIND_POCKET_NODE)
-	if old_pocket != null:
-		_detach_and_free_later(old_pocket)
 	_set_time_rabbit_avatar_casting(true)
-	var pocket := Node2D.new()
-	pocket.name = RABBIT_REWIND_POCKET_NODE
-	pocket.position = _time_rabbit_home_anchor()
-	skill_bar.add_child(pocket)
-	_add_time_rabbit_pocket(pocket)
 	var rig := Node2D.new()
 	rig.name = RABBIT_REWIND_CAST_NODE
 	rig.z_index = 200
@@ -1607,7 +1637,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	var sequence: Array = RABBIT_REWIND_CAST_SEQUENCE if cast_effect else RABBIT_REWIND_PEEK_SEQUENCE
 	rig.set_meta("frame_sequence", PackedStringArray(sequence))
 	skill_bar.add_child(rig)
-	var rabbit := _make_time_rabbit_sprite(RABBIT_REWIND_FRAME_NODE, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W)
+	var rabbit := _make_time_rabbit_avatar_sprite(RABBIT_REWIND_FRAME_NODE, SKILL_AV_W)
 	rabbit.z_index = 2
 	rig.add_child(rabbit)
 	var hourglass := _make_time_rabbit_prop_sprite(RABBIT_REWIND_HOURGLASS_NODE, RABBIT_REWIND_HOURGLASS, RABBIT_REWIND_HOURGLASS_W)
@@ -1620,29 +1650,16 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	if is_inside_tree():
 		_start_time_rabbit_tween(rig, rabbit, hourglass, cast_effect)
 
-func _add_time_rabbit_pocket(rig: Node2D) -> void:
-	var full := Line2D.new()
-	full.name = RABBIT_REWIND_RING_FULL_NODE
-	full.closed = true
-	full.width = 4.0
-	full.default_color = Color(0.88, 0.62, 0.22, 0.34)
-	full.points = _ellipse_points(Vector2.ZERO, SKILL_AV_W * 0.42, SKILL_AV_W * 0.18, 48)
-	full.z_index = 198
-	rig.add_child(full)
-
-	var lip := Line2D.new()
-	lip.name = RABBIT_REWIND_RING_TOP_NODE
-	lip.closed = false
-	lip.width = 6.0
-	lip.default_color = Color(1.0, 0.78, 0.30, 0.92)
-	lip.points = _arc_points(Vector2.ZERO, SKILL_AV_W * 0.42, SKILL_AV_W * 0.18, PI, TAU, 28)
-	lip.z_index = 204
-	rig.add_child(lip)
-
 func _make_time_rabbit_sprite(node_name: String, path: String, width: float) -> Sprite2D:
 	var sprite := Sprite2D.new()
 	sprite.name = node_name
 	_set_time_rabbit_frame(sprite, path, width, false)
+	return sprite
+
+func _make_time_rabbit_avatar_sprite(node_name: String, width: float) -> Sprite2D:
+	var sprite := Sprite2D.new()
+	sprite.name = node_name
+	_set_time_rabbit_avatar_frame(sprite, width)
 	return sprite
 
 func _make_time_rabbit_prop_sprite(node_name: String, path: String, width: float) -> Sprite2D:
@@ -1667,6 +1684,20 @@ func _set_time_rabbit_frame(sprite: Sprite2D, path: String, width: float, flip_h
 	sprite.flip_h = flip_h
 	sprite.set_meta("anchor", "bottom")
 
+func _set_time_rabbit_avatar_frame(sprite: Sprite2D, width: float) -> void:
+	if sprite == null or not is_instance_valid(sprite):
+		return
+	var tex := _load_texture(RABBIT_REWIND_AVATAR)
+	if tex == null:
+		return
+	sprite.texture = tex
+	sprite.scale = _fit_scale(tex, width)
+	sprite.position = Vector2.ZERO
+	sprite.flip_h = false
+	sprite.rotation = 0.0
+	sprite.modulate.a = 1.0
+	sprite.set_meta("anchor", "center")
+
 func _time_rabbit_home_anchor() -> Vector2:
 	var count: int = maxi(SKILLS.size(), 1)
 	return Vector2(DESIGN_W * 0.5 / float(count), SKILL_AV_Y)
@@ -1674,16 +1705,26 @@ func _time_rabbit_home_anchor() -> Vector2:
 func _time_rabbit_cast_anchor() -> Vector2:
 	var home := _time_rabbit_home_anchor()
 	if board != null:
-		return Vector2(home.x, home.y - RABBIT_REWIND_CAST_LIFT)
+		var book_rect := _book_frame_rect()
+		var board_rect := _current_board_rect()
+		var avatar_top := SKILL_AV_Y - SKILL_AV_W * 0.5
+		var min_y := maxf(
+			book_rect.end.y + 28.0,
+			board_rect.end.y + 8.0 + RABBIT_REWIND_CAST_MIN_W * RABBIT_REWIND_CAST_VISIBLE_ASPECT + RABBIT_REWIND_CAST_TOP_GAP
+		)
+		var max_y := avatar_top - RABBIT_REWIND_CAST_AVATAR_GAP
+		var desired_y := (book_rect.end.y + avatar_top) * 0.5 + RABBIT_REWIND_CAST_GAP_BIAS
+		var cast_y := max_y if max_y < min_y else clampf(maxf(desired_y, min_y), min_y, max_y)
+		return Vector2(book_rect.get_center().x, cast_y)
 	return home + Vector2(0.0, -150.0)
 
 func _time_rabbit_cast_width() -> float:
 	if board == null:
 		return RABBIT_REWIND_CAST_W
-	var home := _time_rabbit_home_anchor()
+	var cast := _time_rabbit_cast_anchor()
 	var board_rect := _current_board_rect()
-	var cast_y := home.y - RABBIT_REWIND_CAST_LIFT - 8.0
-	var available_h: float = cast_y - board_rect.end.y - RABBIT_REWIND_CAST_TOP_GAP
+	var cast_bottom := cast.y - 8.0
+	var available_h: float = cast_bottom - board_rect.end.y - RABBIT_REWIND_CAST_TOP_GAP
 	var safe_w: float = available_h / RABBIT_REWIND_CAST_VISIBLE_ASPECT
 	return clampf(safe_w, RABBIT_REWIND_CAST_MIN_W, RABBIT_REWIND_CAST_W)
 
@@ -1697,8 +1738,8 @@ func _time_rabbit_jump_points(home: Vector2, cast: Vector2) -> Array:
 	var apex_y := minf(home.y, cast.y) - 170.0
 	return [
 		Vector2(home.x, home.y - 78.0),
-		Vector2(home.x, apex_y),
-		Vector2(home.x, cast.y - 48.0),
+		Vector2(lerpf(home.x, cast.x, 0.36), apex_y),
+		Vector2(lerpf(home.x, cast.x, 0.76), cast.y - 48.0),
 		cast,
 	]
 
@@ -1719,6 +1760,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
 	t.tween_property(rig, "position", home + Vector2(0.0, 12.0), _rabbit_rewind_time(0.08)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 8.0), _rabbit_rewind_time(0.06))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home, _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -18.0), _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -34.0), _rabbit_rewind_time(0.08))
@@ -1748,7 +1790,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -12.0), _rabbit_rewind_time(0.07), true)
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, 4.0), _rabbit_rewind_time(0.07), true)
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 16.0), _rabbit_rewind_time(0.07), true)
-	t.tween_property(rabbit, "modulate:a", 0.0, _rabbit_rewind_time(0.08))
+	_queue_time_rabbit_avatar_frame(t, rig, rabbit, home, _rabbit_rewind_time(0.08))
 	t.tween_callback(Callable(self, "_retire_time_rabbit_rig").bind(rig))
 
 func _queue_time_rabbit_jump(t: Tween, rig: Node2D, rabbit: Sprite2D, home: Vector2, cast: Vector2, leap_w: float, cast_w: float) -> void:
@@ -1766,6 +1808,10 @@ func _queue_time_rabbit_jump_frame(t: Tween, rig: Node2D, rabbit: Sprite2D, path
 func _queue_time_rabbit_frame(t: Tween, rig: Node2D, rabbit: Sprite2D, path: String, width: float, target: Vector2, seconds: float, flip_h: bool = false) -> void:
 	t.tween_callback(Callable(self, "_set_time_rabbit_frame").bind(rabbit, path, width, flip_h))
 	t.tween_property(rig, "position", target, seconds).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+func _queue_time_rabbit_avatar_frame(t: Tween, rig: Node2D, rabbit: Sprite2D, target: Vector2, seconds: float) -> void:
+	t.tween_callback(Callable(self, "_set_time_rabbit_avatar_frame").bind(rabbit, SKILL_AV_W))
+	t.tween_property(rig, "position", target, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 func _show_time_rabbit_hourglass(hourglass: Sprite2D) -> void:
 	if hourglass == null or not is_instance_valid(hourglass):
@@ -1885,9 +1931,6 @@ func _retire_time_rabbit_rig(rig: Node2D) -> void:
 		var hourglass := skill_bar.get_node_or_null(RABBIT_REWIND_HOURGLASS_NODE)
 		if hourglass != null:
 			_detach_and_free_later(hourglass)
-		var pocket := skill_bar.get_node_or_null(RABBIT_REWIND_POCKET_NODE)
-		if pocket != null:
-			_detach_and_free_later(pocket)
 		emit_signal("time_rabbit_sequence_done")
 	_detach_and_free_later(rig)
 
