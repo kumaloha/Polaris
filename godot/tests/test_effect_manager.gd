@@ -124,19 +124,15 @@ func test_color_absorb_orb_profile_uses_trail_and_hit_flash() -> void:
 	assert_eq(paths["absorb_hit_flash"], "res://art/vfx/color_absorb/vfx_absorb_hit_flash.png", "orb impact uses hit flash art")
 
 
-func test_endgame_comet_beam_profile_is_narrow_not_explosive() -> void:
+func test_endgame_reward_comet_beam_code_is_removed() -> void:
 	var fx := FxScript.new()
-	assert_true(fx.has_method("comet_beam_profile"), "Fx exposes reward comet beam sizing")
-	if not fx.has_method("comet_beam_profile"):
-		fx.free()
-		return
-	var profile: Dictionary = fx.call("comet_beam_profile", 420.0)
+	assert_false(fx.has_method("comet_beam_profile"), "endgame reward no longer exposes a fired comet-beam profile")
+	assert_false(fx.has_method("spawn_comet_beam"), "endgame reward no longer has a UI-to-board comet beam helper")
 	fx.free()
-	assert_true(float(profile["thickness_px"]) <= 24.0, "endgame reward comet should be a very narrow shot, not a wide white blast")
-	assert_true(float(profile["head_len_px"]) <= 116.0, "endgame reward comet head should stay compact")
-	assert_true(float(profile["alpha"]) <= 0.88, "endgame reward comet should not render as a solid full-alpha white slab")
-	assert_true(float(profile.get("fade_duration_scale", 1.0)) <= 0.55, "endgame reward comet white fade should be short")
-	assert_true(float(profile.get("fade_delay_scale", 1.0)) <= 0.35, "endgame reward comet should start fading before it becomes a lingering white smear")
+	var src := FileAccess.get_file_as_string("res://match3/effect_manager.gd")
+	assert_false(src.contains("func spawn_comet_beam"), "removed reward beam helper does not remain as dead code")
+	assert_true(src.contains("func spawn_line_blast"), "line blast rendering remains available")
+	assert_true(src.contains("load(COMET)"), "legacy line-blast fallback can still use the comet texture")
 
 
 func test_line_blast_colored_light_outlasts_thin_white_core() -> void:

@@ -522,10 +522,10 @@ func test_topbar_objective_slots_keep_number_near_icon() -> void:
 	level.free()
 
 
-func test_topbar_moves_number_center_is_shared_with_endgame_bonus() -> void:
+func test_topbar_moves_number_center_matches_transparent_art() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_topbar_moves_number_center"), "Level exposes the moves-number anchor")
+	assert_true(level.has_method("_topbar_moves_number_center"), "Level exposes the moves-number text anchor")
 	if not level.has_method("_topbar_moves_number_center"):
 		level.free()
 		return

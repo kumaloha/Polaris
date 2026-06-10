@@ -290,16 +290,6 @@ static func line_blast_profile(line_length_px: float, cell_size: float) -> Dicti
 		"cell_sweep_delay": LINE_BLAST_CELL_SWEEP_DELAY,
 	}
 
-func comet_beam_profile(line_length_px: float) -> Dictionary:
-	return {
-		"head_len_px": clampf(line_length_px * 0.20, 72.0, 112.0),
-		"thickness_px": 22.0,
-		"alpha": 0.82,
-		"fade_duration_scale": 0.48,
-		"fade_delay_scale": 0.28,
-		"free_extra_sec": 0.08,
-	}
-
 func _claim_heavy_fx(cost: int) -> bool:
 	var frame := Engine.get_process_frames()
 	if frame != _budget_frame:
@@ -798,37 +788,6 @@ func spawn_beam(from: Vector2, to: Vector2, color: Color) -> void:
 	_beam_layer(from, to, color, 72.0, 0.32)
 	_beam_layer(from, to, Color(1, 1, 1, 1), 14.0, 0.20)
 	_beam_sparks(from, to, color)
-
-## 奖励光波: 使用 beam_comet_white.png 做一道白色彗星头, 从 UI 数字飞向目标棋子。
-func spawn_comet_beam(from: Vector2, to: Vector2, color: Color, dur: float = 0.16) -> void:
-	var dir: Vector2 = to - from
-	var full_len: float = maxf(dir.length(), 1.0)
-	var travel_time := maxf(dur, 0.01)
-	if not ResourceLoader.exists(COMET):
-		spawn_beam(from, to, color)
-		return
-	var tex: Texture2D = load(COMET)
-	if tex == null:
-		spawn_beam(from, to, color)
-		return
-	var profile := comet_beam_profile(full_len)
-	var b := Sprite2D.new()
-	b.texture = tex
-	var beam_color := color
-	beam_color.a *= float(profile["alpha"])
-	b.modulate = beam_color
-	b.rotation = dir.angle()
-	b.material = _add_mat()
-	var head_len: float = float(profile["head_len_px"])
-	var thick: float = float(profile["thickness_px"])
-	b.scale = Vector2(head_len / maxf(float(tex.get_width()), 1.0), thick / maxf(float(tex.get_height()), 1.0))
-	b.global_position = from
-	_layer().add_child(b)
-	var t := create_tween()
-	t.set_parallel(true)
-	t.tween_property(b, "global_position", to, travel_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	t.tween_property(b, "modulate:a", 0.0, travel_time * float(profile["fade_duration_scale"])).set_delay(travel_time * float(profile["fade_delay_scale"])).set_trans(Tween.TRANS_CUBIC)
-	_auto_free(b, travel_time + float(profile["free_extra_sec"]))
 
 ## 行列横扫(升级版): 一道流星头(纯白拖尾素材 × color, additive)朝飞行方向从 from 飞到 to,
 ## 叠加"从中心向两端错峰的亮点", 营造扫过依次炸开。逐格棋子消除由 Level._play_clear 负责,

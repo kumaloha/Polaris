@@ -1280,17 +1280,15 @@ func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
 	assert_true(collapse_idx > clear_idx, "endgame bonus refills after reward blasts")
 
 
-func test_endgame_bonus_fires_white_light_from_moves_counter_before_converting() -> void:
+func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	assert_true(src.contains("const ENDGAME_BONUS_BEAM_COLOR := Color(1, 1, 1, 1)"), "endgame bonus beam is white")
-	assert_true(src.contains("const ENDGAME_BONUS_BEAM_TRAVEL := 0.12"), "endgame bonus beam travels a little slower so the shot reads")
-	var fx_src: String = FileAccess.get_file_as_string("res://match3/effect_manager.gd")
-	assert_true(fx_src.contains("func spawn_comet_beam"), "EffectManager exposes a comet-textured reward beam")
-	assert_true(fx_src.contains("load(COMET)"), "comet reward beam uses beam_comet_white.png")
+	assert_false(src.contains("ENDGAME_BONUS_BEAM_COLOR"), "endgame bonus no longer has reward-beam color state")
+	assert_false(src.contains("ENDGAME_BONUS_BEAM_TRAVEL"), "endgame bonus no longer waits on a fired beam")
+	assert_false(src.contains("ENDGAME_BONUS_CONVERT_HOLD"), "endgame bonus uses the 5+4 conversion timing without the old extra reward-beam hold")
 	var start: int = src.find("func _play_endgame_bonus()")
 	assert_true(start >= 0, "_play_endgame_bonus exists")
 	if start < 0:
@@ -1299,19 +1297,24 @@ func test_endgame_bonus_fires_white_light_from_moves_counter_before_converting()
 	if end < 0:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
-	var origin_idx: int = body.find("var moves_origin: Vector2 = _topbar_moves_number_center()")
-	var beam_idx: int = body.find("Fx.spawn_comet_beam(moves_origin, _cell_center(p.y, p.x), ENDGAME_BONUS_BEAM_COLOR, ENDGAME_BONUS_BEAM_TRAVEL)")
-	var travel_idx: int = body.find("await get_tree().create_timer(ENDGAME_BONUS_BEAM_TRAVEL).timeout", beam_idx)
-	var convert_idx: int = body.find("_apply_fx_overlay(n, int(item[\"kind\"]))", beam_idx)
-	var refresh_idx: int = body.find("_refresh_hud()")
-	assert_true(origin_idx >= 0, "endgame bonus starts from the moves-number anchor")
-	assert_true(beam_idx > origin_idx, "reward beam launches from the moves counter to each picked gem")
-	assert_true(travel_idx > beam_idx, "special conversion waits for the white light to travel")
-	assert_true(convert_idx > travel_idx, "ordinary gem turns special after the white light arrives")
-	assert_true(refresh_idx < 0 or refresh_idx > convert_idx, "remaining-moves number stays visible while reward beams launch")
+	assert_false(body.contains("_topbar_moves_number_center()"), "endgame bonus does not use the moves-number anchor as a launch point")
+	assert_false(body.contains("spawn_comet_beam"), "endgame bonus does not fire comet beams")
+	var conversion_idx: int = body.find("await _play_endgame_bonus_conversion_matrix(picks)")
+	var blast_idx: int = body.find("await _play_endgame_bonus_special_blast(seeds, 1)")
+	assert_true(conversion_idx >= 0, "endgame bonus plays an in-board conversion matrix")
+	assert_true(blast_idx > conversion_idx, "reward specials blast only after the conversion matrix finishes")
+	var helper_start: int = src.find("func _play_endgame_bonus_conversion_matrix")
+	var helper_end: int = src.find("func _play_endgame_bonus_special_blast", helper_start)
+	assert_true(helper_start >= 0 and helper_end > helper_start, "endgame conversion matrix helper can be inspected")
+	if helper_start < 0 or helper_end <= helper_start:
+		return
+	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
+	assert_true(helper_body.contains("Fx.spawn_target_outline"), "each picked gem gets the same target/matrix marker used by 5+4 conversion")
+	assert_true(helper_body.contains("await _show_colorbomb_virtual_conversion(virtual_fx)"), "endgame bonus reuses the 5+4 special-conversion animation")
+	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
 
 
-func test_endgame_bonus_decrements_moves_counter_per_reward_beam() -> void:
+func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() -> void:
 	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
 	if f == null:
@@ -1330,18 +1333,14 @@ func test_endgame_bonus_decrements_moves_counter_per_reward_beam() -> void:
 	var body: String = src.substr(start, end - start)
 	var capture_idx: int = body.find("var bonus_moves: int = maxi(board.moves_left, 0)")
 	var prepare_idx: int = body.find("var picks: Array = board.prepare_endgame_bonus_lines()")
-	var init_idx: int = body.find("_set_moves_display_override(bonus_moves)", prepare_idx)
-	var beam_idx: int = body.find("Fx.spawn_comet_beam(moves_origin, _cell_center(p.y, p.x), ENDGAME_BONUS_BEAM_COLOR, ENDGAME_BONUS_BEAM_TRAVEL)")
-	var dec_idx: int = body.find("bonus_moves = maxi(bonus_moves - 1, 0)", beam_idx)
-	var update_idx: int = body.find("_set_moves_display_override(bonus_moves)", dec_idx)
-	var travel_idx: int = body.find("await get_tree().create_timer(ENDGAME_BONUS_BEAM_TRAVEL).timeout", beam_idx)
-	var clear_idx: int = body.find("_clear_moves_display_override()", update_idx)
+	var spend_idx: int = body.find("_set_moves_display_override(0)", prepare_idx)
+	var conversion_idx: int = body.find("await _play_endgame_bonus_conversion_matrix(picks)", spend_idx)
+	var clear_idx: int = body.find("_clear_moves_display_override()", conversion_idx)
 	assert_true(capture_idx >= 0 and capture_idx < prepare_idx, "endgame bonus captures the visible moves count before Board spends it")
-	assert_true(init_idx > prepare_idx, "endgame bonus starts from the old visible moves count")
-	assert_true(dec_idx > beam_idx, "each reward beam decrements the displayed moves count")
-	assert_true(update_idx > dec_idx, "displayed moves count is pushed after each decrement")
-	assert_true(update_idx < travel_idx, "moves count updates as the beam fires, not after all conversions")
-	assert_true(clear_idx > update_idx, "temporary moves display is cleared after reward beams")
+	assert_true(spend_idx > prepare_idx, "endgame bonus spends the visible moves count once instead of decrementing per fired beam")
+	assert_true(conversion_idx > spend_idx, "board conversion starts after the moves count is visibly spent")
+	assert_true(clear_idx > conversion_idx, "temporary moves display is cleared after board conversion and blasts")
+	assert_false(body.contains("bonus_moves = maxi(bonus_moves - 1, 0)"), "endgame bonus no longer decrements once per beam")
 
 
 func test_endgame_bonus_loops_special_blasts_until_plain_board() -> void:

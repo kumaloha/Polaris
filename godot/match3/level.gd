@@ -152,9 +152,6 @@ const OPENING_DROP_ROW_STAGGER := 0.045
 const OPENING_FREEZE_STAGGER := 0.035
 const OPENING_FREEZE_SETTLE := 0.24
 const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
-const ENDGAME_BONUS_BEAM_COLOR := Color(1, 1, 1, 1)
-const ENDGAME_BONUS_BEAM_TRAVEL := 0.12
-const ENDGAME_BONUS_CONVERT_HOLD := 0.70
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
 const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
@@ -1478,21 +1475,9 @@ func _play_endgame_bonus() -> void:
 	if picks.is_empty():
 		_clear_moves_display_override()
 		return
-	_set_moves_display_override(bonus_moves)
-	var moves_origin: Vector2 = _topbar_moves_number_center()
-	for item in picks:
-		var p: Vector2i = item["pos"]
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
-		if n != null and is_instance_valid(n):
-			Fx.spawn_comet_beam(moves_origin, _cell_center(p.y, p.x), ENDGAME_BONUS_BEAM_COLOR, ENDGAME_BONUS_BEAM_TRAVEL)
-			bonus_moves = maxi(bonus_moves - 1, 0)
-			_set_moves_display_override(bonus_moves)
-			await get_tree().create_timer(ENDGAME_BONUS_BEAM_TRAVEL).timeout
-			_apply_fx_overlay(n, int(item["kind"]))
 	if bonus_moves > 0:
-		bonus_moves = 0
-		_set_moves_display_override(bonus_moves)
-	await get_tree().create_timer(ENDGAME_BONUS_CONVERT_HOLD).timeout
+		_set_moves_display_override(0)
+	await _play_endgame_bonus_conversion_matrix(picks)
 	var seeds := []
 	for item in picks:
 		seeds.append(item["pos"])
@@ -1500,6 +1485,23 @@ func _play_endgame_bonus() -> void:
 	await _resolve_endgame_bonus_special_chain()
 	_clear_moves_display_override()
 	await get_tree().create_timer(ENDGAME_BONUS_RESULT_HOLD).timeout
+
+func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
+	var virtual_fx := {}
+	var idx := 0
+	for item in picks:
+		var p: Vector2i = item["pos"]
+		var kind: int = int(item["kind"])
+		if kind == ME.SP_NONE:
+			continue
+		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		if n == null or not is_instance_valid(n):
+			continue
+		virtual_fx[p] = kind
+		var sp: int = board.grid[p.y][p.x]
+		Fx.spawn_target_outline(_cell_center(p.y, p.x), _fx_color(sp), cell_size * 0.88, 0.012 * float(idx % 8))
+		idx += 1
+	await _show_colorbomb_virtual_conversion(virtual_fx)
 
 func _play_endgame_bonus_special_blast(seeds: Array, score_level: int) -> bool:
 	var clear_set: Dictionary = ME._expand_triggers(board.grid, board.fx, seeds)
