@@ -153,6 +153,8 @@ const OPENING_FREEZE_STAGGER := 0.035
 const OPENING_FREEZE_SETTLE := 0.24
 const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
 const ENDGAME_BONUS_RESULT_HOLD := 0.45
+const ENDGAME_BONUS_MATRIX_PREVIEW_HOLD := 0.44
+const ENDGAME_BONUS_MATRIX_OUTLINE_FILL := 1.08
 const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
@@ -1499,8 +1501,11 @@ func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
 			continue
 		virtual_fx[p] = kind
 		var sp: int = board.grid[p.y][p.x]
-		Fx.spawn_target_outline(_cell_center(p.y, p.x), _fx_color(sp), cell_size * 0.88, 0.012 * float(idx % 8))
+		Fx.spawn_target_outline(_cell_center(p.y, p.x), _fx_color(sp), cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL, 0.012 * float(idx % 8))
 		idx += 1
+	if virtual_fx.is_empty():
+		return
+	await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout
 	await _show_colorbomb_virtual_conversion(virtual_fx)
 
 func _play_endgame_bonus_special_blast(seeds: Array, score_level: int) -> bool:

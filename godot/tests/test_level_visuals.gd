@@ -1309,7 +1309,15 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	if helper_start < 0 or helper_end <= helper_start:
 		return
 	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
+	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_PREVIEW_HOLD := 0.44"), "endgame conversion matrix holds the rectangles long enough to read")
+	assert_true(src.contains("const ENDGAME_BONUS_MATRIX_OUTLINE_FILL := 1.08"), "endgame conversion rectangles are larger than the gem body")
 	assert_true(helper_body.contains("Fx.spawn_target_outline"), "each picked gem gets the same target/matrix marker used by 5+4 conversion")
+	assert_true(helper_body.contains("cell_size * ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), "endgame conversion rectangles use the larger readable outline size")
+	var outline_idx: int = helper_body.find("Fx.spawn_target_outline")
+	var hold_idx: int = helper_body.find("await get_tree().create_timer(ENDGAME_BONUS_MATRIX_PREVIEW_HOLD).timeout", outline_idx)
+	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", hold_idx)
+	assert_true(hold_idx > outline_idx, "endgame conversion holds the target rectangles before changing pieces")
+	assert_true(convert_idx > hold_idx, "special conversion starts after the rectangle preview")
 	assert_true(helper_body.contains("await _show_colorbomb_virtual_conversion(virtual_fx)"), "endgame bonus reuses the 5+4 special-conversion animation")
 	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
 
