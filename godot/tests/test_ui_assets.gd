@@ -23,6 +23,13 @@ const BOOK_RIBBONS_SYNCED := "res://assets/level/book_ribbons.png"
 const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const RABBIT_TIMEREWIND_SOURCE := "resources/0.02/rabbit_timerewind_set/rabbit_avatar.png"
 const RABBIT_TIMEREWIND_SYNCED := "res://assets/pets/timerewind/rabbit_avatar.png"
+const RABBIT_TIMEREWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
+const RABBIT_TIMEREWIND_K5 := "res://assets/pets/timerewind/rabbit_k5_leap.png"
+const RABBIT_TIMEREWIND_K8 := "res://assets/pets/timerewind/rabbit_k8_cast.png"
+const RABBIT_TIMEREWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourglass.png"
+const RABBIT_REWIND_CAST_NODE := "TimeRabbitRewindCast"
+const RABBIT_REWIND_FRAME_NODE := "RabbitFrame"
+const RABBIT_REWIND_HOURGLASS_NODE := "RabbitHourglass"
 const BOOK_RIBBONS_NODE := "BookRibbons"
 const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
 const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
@@ -301,6 +308,33 @@ func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
 	level.free()
 
 
+func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
+	var level := _prepare_level_scene()
+	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
+	b.skill = "timerewind"
+	b._push_history()
+	b.grid[0][0] = (int(b.grid[0][0]) + 1) % b.species.size()
+	level.board = b
+	level._cur_cfg = {"id": 1}
+	level.call("_compute_layout")
+	var did: bool = level.call("_skill_time_rewind")
+	assert_true(did, "time rewind succeeds before checking its cast animation")
+	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
+	assert_true(rig != null, "time rewind should spawn the documented rabbit cast animation on the top skill layer")
+	if rig != null:
+		var frame := _find_named_node(rig, RABBIT_REWIND_FRAME_NODE) as Sprite2D
+		var hourglass := _find_named_node(rig, RABBIT_REWIND_HOURGLASS_NODE) as Sprite2D
+		assert_true(frame != null and frame.texture != null, "rabbit cast animation has a visible frame sprite")
+		assert_true(hourglass != null and hourglass.texture != null, "rabbit cast animation includes the hourglass prop")
+		assert_eq(hourglass.texture.resource_path, RABBIT_TIMEREWIND_HOURGLASS, "hourglass prop uses the time-rewind document asset")
+		assert_true(rig.has_meta("frame_sequence"), "rabbit cast animation records the keyframe sequence from the document")
+		var sequence: PackedStringArray = rig.get_meta("frame_sequence", PackedStringArray())
+		assert_true(sequence.has(RABBIT_TIMEREWIND_K1), "sequence starts from the K1 peek/climb frame")
+		assert_true(sequence.has(RABBIT_TIMEREWIND_K5), "sequence includes the K5 leap frame")
+		assert_true(sequence.has(RABBIT_TIMEREWIND_K8), "sequence includes the K8 cast frame")
+	level.free()
+
+
 func test_level_time_rewind_button_enables_from_history_not_charge() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
@@ -327,6 +361,8 @@ func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
 		return
 	assert_false(btn.disabled, "time rabbit remains clickable before rewind history exists so taps can give feedback")
 	assert_true(btn.modulate.a < 1.0, "time rabbit still looks not-ready before there is history to rewind")
+	level.call("_on_skill_pressed", 0)
+	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) != null, "time rabbit tap feedback uses the documented rabbit animation instead of only button scaling")
 	level.free()
 
 
