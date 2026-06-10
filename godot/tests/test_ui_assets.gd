@@ -3,6 +3,7 @@ extends "res://tests/test_lib.gd"
 const CharacterData := preload("res://ui/character_data.gd")
 const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const LevelLayout := preload("res://match3/level_layout.gd")
 const ME := preload("res://core/match_engine.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
@@ -386,6 +387,20 @@ func test_all_real_playable_boards_fill_the_book_inner_inlay() -> void:
 		assert_eq(int(roundf(board_rect.position.x)), int(roundf(baked_rect.position.x)), "%s left edge aligns to book inner inlay" % label)
 		assert_eq(int(roundf(board_rect.size.x)), int(roundf(baked_rect.size.x)), "%s width fills book inner inlay" % label)
 	level.free()
+
+
+func test_level_layout_module_matches_level_book_geometry() -> void:
+	for dims in [Vector2i(8, 8), Vector2i(8, 10), Vector2i(9, 9), Vector2i(9, 11)]:
+		var level := _prepare_level_scene()
+		level.board = Board.new(dims.x, dims.y, [0, 1, 2, 3, 4, 5], 0, 25, 1)
+		level.call("_compute_layout")
+		var layout: Dictionary = LevelLayout.compute_layout(level.board.width, level.board.height)
+		assert_eq(int(roundf(float(layout["cell_size"]))), int(roundf(level.cell_size)), "layout module matches level cell size for %dx%d" % [dims.x, dims.y])
+		assert_eq(layout["board_origin"], level.board_origin, "layout module matches level board origin for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_frame_rect(level.board.height, level.cell_size, level.board_origin), level.call("_book_frame_rect"), "layout module matches book frame rect for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_baked_inner_rect(level.board.height, level.cell_size, level.board_origin), level.call("_book_baked_inner_rect"), "layout module matches baked inner rect for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_board_inner_rect(level.board.width, level.board.height, level.cell_size, level.board_origin), level.call("_book_board_inner_rect"), "layout module matches board rect for %dx%d" % [dims.x, dims.y])
+		level.free()
 
 
 func test_topbar_art_background_fill_is_transparent() -> void:

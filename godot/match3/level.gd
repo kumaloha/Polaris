@@ -11,6 +11,8 @@ const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
+const LevelLayout := preload("res://match3/level_layout.gd")
+const LevelMotion := preload("res://match3/level_motion.gd")
 const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
@@ -88,11 +90,6 @@ const CELL_TEXTURE := "res://assets/board/board_cell.png"
 const BOOK_FRAME := "res://assets/level/book_frame.png"      # v0.02 魔法书主体(982×980, 9-slice缩放适配棋盘)
 const BOOK_RIBBONS := "res://assets/level/book_ribbons.png"  # v0.02 书底书签(982×77, 与 book_frame 同宽)
 const CELL_SQ := "res://assets/level/cell_sq.png"            # v0.02 米黄圆角棋格(cell.png 128²)
-# 书页内金线框(book_frame 内边线, PIL实测 982×980)相对 book 边缘的像素 inset:
-const BOOK_INNER_L := 53.0  # 左(书脊+金框+页边距)
-const BOOK_INNER_T := 21.0  # 顶(书页开口薄)
-const BOOK_INNER_R := 53.0  # 右
-const BOOK_INNER_B := 56.0  # 底(书脊厚)
 const BOOK_NINE_ML := 54    # 9-slice margin(≥内边线inset, 保金框/四角花不变形)
 const BOOK_NINE_MT := 28
 const BOOK_NINE_MB := 58
@@ -150,7 +147,7 @@ const SKILLS := [
 	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
 ]
 
-const DESIGN_W := 720.0
+const DESIGN_W := LevelLayout.DESIGN_W
 const DESIGN_H := 1520.0
 const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.156
@@ -160,13 +157,6 @@ const CLEAR_FX_BATCH_SIZE := 8
 const COLORBOMB_ABSORB_TARGET_BUDGET := 18
 const COLORBOMB_FINE_CLEAR_BUDGET := 12
 const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
-const FALL_TIME := 0.16
-const FALL_EXTRA_CELL_TIME := 0.030
-const FALL_MAX_TIME := 0.42
-const ORDINARY_REFILL_MAX_TIME := 0.38  # 长距离新棋子略早落稳, 让后续自动连锁更紧凑
-const ORDINARY_REFILL_TOP_POUR := 2.5   # v0.02 新棋子额外抬高格数, 统一从棋盘顶边明显上方落入(pour from top)
-const WALL_SLIDE_STEP_TIME := FALL_EXTRA_CELL_TIME
-const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME
 const ELIM_HOLD := 0.156  # 消除后停顿(等普通消除动画跑完)再下落
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
 const OPENING_DROP_TIME := 0.56
@@ -179,13 +169,12 @@ const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 const BOSS_C := Vector2(562, 336)
-const BOARD_VISUAL_CENTER_Y := 762.0  # 书本棋盘区在顶部栏底边与技能头像顶边之间居中
 const CELL_FILL := 1.0          # 格子填满格位
 const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
 const TRAY_TOP := 1236.0  # 技能栏顶(棋盘底锚定于此); 下移让棋盘整体下移, 露出更多角色
-const SKILL_AV_Y := 1374.0
-const SKILL_AV_W := 132.0
+const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
+const SKILL_AV_W := LevelLayout.SKILL_AV_W
 const SKILL_CD_Y := 1440.0
 const SKILL_NAME_Y := 1472.0
 
@@ -374,50 +363,30 @@ func _compute_layout() -> void:
 	# 预留边框外凸: 角花顶点离格角 = 紫条中线偏移 + 角花半径; 取与紫条厚度的较大值
 	# v0.02: 棋盘落"书页内金线框"(book_frame 内边线), 与书页边缘留页边距(像书的正文区)。
 	# v0.02: 书本左右贴屏幕边(满屏宽,间距0); playable 棋盘优先填满书内镶边宽度。
-	cell_size = _board_cell_size_for_grid(board.width, board.height)
-	var board_w: float = board.width * cell_size
-	var board_h: float = board.height * cell_size
-	board_origin = Vector2((DESIGN_W - board_w) * 0.5, BOARD_VISUAL_CENTER_Y - board_h * 0.5)
+	var layout: Dictionary = LevelLayout.compute_layout(board.width, board.height)
+	cell_size = float(layout["cell_size"])
+	board_origin = layout["board_origin"]
 
 func _board_cell_size_for_grid(cols: int, rows: int) -> float:
-	var safe_cols := maxf(1.0, float(cols))
-	var safe_rows := maxf(1.0, float(rows))
-	var inner_w: float = _book_frame_width_for_board() - BOOK_INNER_L - BOOK_INNER_R
-	var width_fit: float = inner_w / safe_cols
-	var ribbons_h: float = _book_frame_width_for_board() * 77.0 / 982.0
-	var skill_top: float = SKILL_AV_Y - SKILL_AV_W * 0.5
-	var max_board_h: float = maxf(1.0, (skill_top - BOOK_INNER_B - ribbons_h - BOARD_VISUAL_CENTER_Y) * 2.0)
-	return minf(width_fit, max_board_h / safe_rows)
+	return LevelLayout.board_cell_size_for_grid(cols, rows)
 
 func _book_frame_width_for_board() -> float:
-	return DESIGN_W + 6.0
+	return LevelLayout.book_frame_width_for_board()
 
 func _book_frame_rect() -> Rect2:
-	var board_h: float = board.height * cell_size
-	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
-	var book_y: float = board_origin.y - BOOK_INNER_T
-	var book_w: float = _book_frame_width_for_board()
-	return Rect2(Vector2(DESIGN_W * 0.5 - book_w * 0.5, book_y), Vector2(book_w, book_h))
+	return LevelLayout.book_frame_rect(board.height, cell_size, board_origin)
 
 func _book_baked_inner_rect() -> Rect2:
-	var book_rect := _book_frame_rect()
-	return Rect2(
-		book_rect.position + Vector2(BOOK_INNER_L, BOOK_INNER_T),
-		book_rect.size - Vector2(BOOK_INNER_L + BOOK_INNER_R, BOOK_INNER_T + BOOK_INNER_B)
-	)
+	return LevelLayout.book_baked_inner_rect(board.height, cell_size, board_origin)
 
 func _book_board_inner_rect() -> Rect2:
-	return Rect2(board_origin, Vector2(float(board.width) * cell_size, float(board.height) * cell_size))
+	return LevelLayout.book_board_inner_rect(board.width, board.height, cell_size, board_origin)
 
 func _cell_center(row: int, col: int) -> Vector2:
-	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
+	return LevelLayout.cell_center(row, col, cell_size, board_origin)
 
 func _pos_to_cell(p: Vector2) -> Vector2i:
-	var c: int = int(floor((p.x - board_origin.x) / cell_size))
-	var r: int = int(floor((p.y - board_origin.y) / cell_size))
-	if r < 0 or r >= board.height or c < 0 or c >= board.width:
-		return Vector2i(-1, -1)
-	return Vector2i(c, r)
+	return LevelLayout.pos_to_cell(p, board.width, board.height, cell_size, board_origin)
 
 # ───────── 背景 / 棋盘 ─────────
 
@@ -2686,9 +2655,7 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 		await get_tree().process_frame
 
 func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
-	if row < 0 or row >= grid_snapshot.size() or col < 0 or col >= grid_snapshot[row].size():
-		return false
-	return grid_snapshot[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
+	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
 
 func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_start: int, seg_end: int) -> Array:
 	var entries := []
@@ -2709,11 +2676,10 @@ func _segment_after_slots(col: int, seg_start: int, seg_end: int) -> Array:
 func _ordinary_refill_start_position(row: int, col: int, _spawn_index: int, spawn_count: int) -> Vector2:
 	# v0.02: 新棋子统一从棋盘顶边明显上方落入(pour from top), 不再只在目标格上方少量生成。
 	# 额外 +TOP_POUR 格, 保证即便单消(spawn_count小)新棋子也从顶部明显落下而非"中间冒出"。
-	var travel_cells := maxf(1.5, float(spawn_count) + 0.5) + ORDINARY_REFILL_TOP_POUR
-	return _cell_center(row, col) - Vector2(0.0, cell_size * travel_cells)
+	return LevelMotion.ordinary_refill_start_position(_cell_center(row, col), cell_size, spawn_count)
 
 func _ordinary_refill_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
-	return minf(_fall_duration_for_positions(start_pos, target), ORDINARY_REFILL_MAX_TIME)
+	return LevelMotion.ordinary_refill_duration_for_positions(start_pos, target, cell_size)
 
 func _queue_cascade_fall_tween(tween: Tween, node: Node2D, target: Vector2, duration: float) -> void:
 	tween.tween_property(node, "position", target, duration).set_trans(Tween.TRANS_LINEAR)
@@ -2764,118 +2730,31 @@ func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Ar
 	new_nodes[row][col] = _reuse_or_replace_gem_node(row, col, old_node)
 
 func _fall_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
-	var size := maxf(1.0, cell_size)
-	var cells := maxf(1.0, start_pos.distance_to(target) / size)
-	return minf(FALL_TIME + maxf(0.0, cells - 1.0) * FALL_EXTRA_CELL_TIME, FALL_MAX_TIME)
+	return LevelMotion.fall_duration_for_positions(start_pos, target, cell_size)
 
 func _grid_has_fall_obstacle(grid_data: Array) -> bool:
-	for row in range(grid_data.size()):
-		for col in range(grid_data[row].size()):
-			if _fall_barrier_in_grid(grid_data, row, col):
-				return true
-	return false
+	return LevelMotion.grid_has_fall_obstacle(grid_data, board.coat, board.choco)
 
 func _wall_refill_start_position(row: int, col: int, source_map: Array = []) -> Vector2:
-	var source_col := _wall_slide_spawn_source_col(source_map, row, col)
-	if source_col < 0:
-		source_col = col
-		return _cell_center(0, source_col) - Vector2(0.0, cell_size * float(row + 1.5))
-	var travel_cells := _wall_slide_spawn_travel_cells(source_map, source_col)
-	return _cell_center(row, source_col) - Vector2(0.0, cell_size * travel_cells)
+	return LevelMotion.wall_refill_start_position(row, col, source_map, board_origin, cell_size)
 
 func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int) -> bool:
-	if row <= 0 or grid_data.is_empty() or col < 0 or col >= grid_data[0].size():
-		return false
-	for y in range(row):
-		if _layer_value(board.cannon, y, col) > 0:
-			continue
-		if _fall_barrier_in_grid(grid_data, y, col):
-			return true
-	return false
+	return LevelMotion.wall_slide_target_has_fall_obstacle_above(grid_data, board.coat, board.choco, board.cannon, row, col)
 
 func _wall_slide_path_points(start_pos: Vector2, target: Vector2) -> Array:
-	var points := []
-	var cur := start_pos
-	var top_entry_y := board_origin.y + cell_size * 0.5
-	if cur.y < top_entry_y - 0.5 and target.y >= top_entry_y:
-		cur = Vector2(cur.x, top_entry_y)
-		points.append(cur)
-	var safety: int = board.width + board.height + 8
-	while safety > 0 and cur.distance_to(target) > 0.5:
-		safety -= 1
-		var dx := target.x - cur.x
-		var dy := target.y - cur.y
-		var step_x := 0.0
-		if absf(dx) > cell_size * 0.35 and dy > cell_size * 0.35:
-			step_x = signf(dx) * minf(cell_size, absf(dx))
-		var step_y := minf(cell_size, maxf(0.0, dy))
-		if step_y <= 0.0 and absf(dx) > 0.5:
-			step_x = signf(dx) * minf(cell_size, absf(dx))
-		var next := cur + Vector2(step_x, step_y)
-		if next.distance_to(target) < cell_size * 0.35:
-			next = target
-		points.append(next)
-		cur = next
-	if points.is_empty() or points[points.size() - 1] != target:
-		points.append(target)
-	return points
+	return LevelMotion.wall_slide_path_points(start_pos, target, board_origin, cell_size, board.width, board.height)
 
 func _wall_slide_cell_path_points(start_pos: Vector2, cell_path: Array, target: Vector2) -> Array:
-	if cell_path.is_empty():
-		return _wall_slide_path_points(start_pos, target)
-	var points := []
-	for raw_cell in cell_path:
-		var cell: Vector2i = raw_cell
-		if cell.y < 0 or cell.x < 0:
-			continue
-		var point := _cell_center(cell.y, cell.x)
-		if point.distance_to(start_pos) <= 0.5:
-			continue
-		if not points.is_empty() and point.distance_to(points[points.size() - 1]) <= 0.5:
-			continue
-		points.append(point)
-	if points.is_empty() or points[points.size() - 1].distance_to(target) > 0.5:
-		points.append(target)
-	return points
+	return LevelMotion.wall_slide_cell_path_points(start_pos, cell_path, target, board_origin, cell_size, board.width, board.height)
 
 func _wall_slide_position_at(start_pos: Vector2, points: Array, progress: float) -> Vector2:
-	if points.is_empty():
-		return start_pos
-	var clamped := clampf(progress, 0.0, 1.0)
-	var total := 0.0
-	var prev := start_pos
-	for raw_point in points:
-		var point: Vector2 = raw_point
-		total += prev.distance_to(point)
-		prev = point
-	if total <= 0.001:
-		return points[points.size() - 1]
-	var target_distance := total * clamped
-	var traveled := 0.0
-	prev = start_pos
-	for raw_point in points:
-		var point: Vector2 = raw_point
-		var segment := prev.distance_to(point)
-		if segment <= 0.001:
-			prev = point
-			continue
-		if traveled + segment >= target_distance:
-			var local_progress := clampf((target_distance - traveled) / segment, 0.0, 1.0)
-			return prev.lerp(point, local_progress)
-		traveled += segment
-		prev = point
-	return points[points.size() - 1]
+	return LevelMotion.wall_slide_position_at(start_pos, points, progress)
 
 func _wall_slide_duration_for_points(points: Array) -> float:
-	if points.is_empty():
-		return 0.0
-	var steps := maxf(1.0, float(points.size()))
-	return minf(FALL_TIME + maxf(0.0, steps - 1.0) * WALL_SLIDE_STEP_TIME, WALL_SLIDE_MAX_TIME)
+	return LevelMotion.wall_slide_duration_for_points(points)
 
 func _wall_slide_duration_for_target(points: Array, duration_override: float = -1.0) -> float:
-	if duration_override > 0.0:
-		return duration_override
-	return _wall_slide_duration_for_points(points)
+	return LevelMotion.wall_slide_duration_for_target(points, duration_override)
 
 func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = [], duration_override: float = -1.0) -> float:
 	if node == null or not is_instance_valid(node) or node.position == target:
@@ -2893,139 +2772,25 @@ func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = 
 	return total_time
 
 func _source_none() -> Vector2i:
-	return Vector2i(-1, -1)
+	return LevelMotion.source_none()
 
 func _source_spawn(col: int) -> Vector2i:
-	return Vector2i(col, -2)
+	return LevelMotion.source_spawn(col)
 
 func _wall_slide_path_rows(grid_snapshot: Array) -> Array:
-	var rows := []
-	for row in range(board.height):
-		var out_row := []
-		for col in range(board.width):
-			if grid_snapshot[row][col] >= 0:
-				out_row.append([Vector2i(col, row)])
-			else:
-				out_row.append([])
-		rows.append(out_row)
-	return rows
+	return LevelMotion.wall_slide_path_rows(grid_snapshot)
 
 func _wall_slide_source_rows(grid_snapshot: Array) -> Array:
-	var rows := []
-	for row in range(board.height):
-		var out_row := []
-		for col in range(board.width):
-			if grid_snapshot[row][col] >= 0:
-				out_row.append(Vector2i(col, row))
-			else:
-				out_row.append(_source_none())
-		rows.append(out_row)
-	return rows
+	return LevelMotion.wall_slide_source_rows(grid_snapshot)
 
 func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, row: int, col: int) -> bool:
-	return grid_snapshot[row][col] == ME.WALL or _layer_value(board.coat, row, col) > 0 or _layer_value(board.choco, row, col) > 0
-
-func _wall_slide_tracking_empty_cell(grid_snapshot: Array, row: int, col: int) -> bool:
-	if row < 0 or row >= board.height or col < 0 or col >= board.width:
-		return false
-	return grid_snapshot[row][col] == ME.EMPTY and not _wall_slide_tracking_fixed_cell(grid_snapshot, row, col)
-
-func _wall_slide_tracking_movable_cell(grid_snapshot: Array, row: int, col: int) -> bool:
-	if row < 0 or row >= board.height or col < 0 or col >= board.width:
-		return false
-	return grid_snapshot[row][col] >= 0 and not _wall_slide_tracking_fixed_cell(grid_snapshot, row, col)
-
-func _wall_slide_tracking_blocked_above(grid_snapshot: Array, row: int, col: int) -> bool:
-	if row <= 0 or col < 0 or col >= board.width:
-		return false
-	for y in range(row):
-		if _layer_value(board.cannon, y, col) > 0:
-			continue
-		if _wall_slide_tracking_fixed_cell(grid_snapshot, y, col):
-			return true
-	return false
-
-func _wall_slide_tracking_has_vertical_source_above(grid_snapshot: Array, row: int, col: int) -> bool:
-	if row <= 0 or col < 0 or col >= board.width:
-		return false
-	for y in range(row - 1, -1, -1):
-		if _wall_slide_tracking_fixed_cell(grid_snapshot, y, col):
-			return false
-		if _wall_slide_tracking_movable_cell(grid_snapshot, y, col):
-			return true
-	return false
-
-func _move_wall_slide_tracking_cell(grid_snapshot: Array, source_map: Array, path_map: Array, from_row: int, from_col: int, to_row: int, to_col: int) -> void:
-	grid_snapshot[to_row][to_col] = grid_snapshot[from_row][from_col]
-	grid_snapshot[from_row][from_col] = ME.EMPTY
-	source_map[to_row][to_col] = source_map[from_row][from_col]
-	source_map[from_row][from_col] = _source_none()
-	var path: Array = path_map[from_row][from_col].duplicate()
-	path.append(Vector2i(to_col, to_row))
-	path_map[to_row][to_col] = path
-	path_map[from_row][from_col] = []
-
-func _try_fill_wall_slide_tracking_slot(grid_snapshot: Array, source_map: Array, path_map: Array, target_row: int, target_col: int) -> bool:
-	if target_row <= 0 or not _wall_slide_tracking_empty_cell(grid_snapshot, target_row, target_col):
-		return false
-	var source_row := target_row - 1
-	var candidates := [Vector2i(target_col, source_row)]
-	if _wall_slide_tracking_blocked_above(grid_snapshot, target_row, target_col) and not _wall_slide_tracking_has_vertical_source_above(grid_snapshot, target_row, target_col):
-		candidates.append(Vector2i(target_col + 1, source_row))
-		candidates.append(Vector2i(target_col - 1, source_row))
-	for p in candidates:
-		if _wall_slide_tracking_movable_cell(grid_snapshot, p.y, p.x):
-			_move_wall_slide_tracking_cell(grid_snapshot, source_map, path_map, p.y, p.x, target_row, target_col)
-			return true
-	return false
-
-func _apply_wall_slide_tracking_gravity(grid_snapshot: Array, source_map: Array, path_map: Array) -> void:
-	var moved := true
-	var guard := 0
-	var max_steps: int = maxi(1, board.height * board.width * 2)
-	while moved and guard < max_steps:
-		moved = false
-		guard += 1
-		for row in range(board.height - 1, 0, -1):
-			for col in range(board.width):
-				moved = _try_fill_wall_slide_tracking_slot(grid_snapshot, source_map, path_map, row, col) or moved
+	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
 
 func _build_wall_slide_tracking_maps(before_grid: Array) -> Dictionary:
-	var tracking_grid: Array = before_grid.duplicate(true)
-	var source_map := _wall_slide_source_rows(tracking_grid)
-	var path_map := _wall_slide_path_rows(tracking_grid)
-	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
-	if board.is_scrolling:
-		return {"source": source_map, "path": path_map}
-	var max_steps: int = maxi(1, board.height * board.width * 2)
-	for _i in range(max_steps):
-		_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
-		var spawned := false
-		for col in range(board.width):
-			if not _wall_slide_tracking_empty_cell(tracking_grid, 0, col):
-				continue
-			tracking_grid[0][col] = 0
-			source_map[0][col] = _source_spawn(col)
-			path_map[0][col] = [Vector2i(col, 0)]
-			spawned = true
-		if not spawned:
-			_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
-			return {"source": source_map, "path": path_map}
-	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map)
-	return {"source": source_map, "path": path_map}
+	return LevelMotion.build_wall_slide_tracking_maps(before_grid, board.coat, board.choco, board.cannon, board.is_scrolling)
 
 func _wall_slide_source_priority(row: int, col: int, target_row: int, target_col: int, allow_cross_column: bool) -> int:
-	if row > target_row:
-		return -1
-	if col == target_col:
-		return target_row - row
-	if not allow_cross_column or row >= target_row:
-		return -1
-	if col == target_col + 1:
-		return 1000 + target_row - row
-	if col == target_col - 1:
-		return 2000 + target_row - row
-	return 3000 + absi(col - target_col) * 100 + target_row - row
+	return LevelMotion.wall_slide_source_priority(row, col, target_row, target_col, allow_cross_column)
 
 func _take_wall_slide_source(before_grid: Array, old_nodes: Array, used: Dictionary, target_row: int, target_col: int, sp: int, allow_cross_column: bool = false, source_map: Array = []) -> Sprite2D:
 	if not source_map.is_empty() and target_row >= 0 and target_row < source_map.size() and target_col >= 0 and target_col < source_map[target_row].size():
@@ -3065,63 +2830,22 @@ func _take_wall_slide_source(before_grid: Array, old_nodes: Array, used: Diction
 	return old_nodes[best_key.y][best_key.x]
 
 func _wall_slide_spawn_source_col(source_map: Array, row: int, col: int) -> int:
-	if source_map.is_empty() or row < 0 or row >= source_map.size():
-		return -1
-	if col < 0 or col >= source_map[row].size():
-		return -1
-	var source: Vector2i = source_map[row][col]
-	if source.y != -2:
-		return -1
-	return source.x
+	return LevelMotion.wall_slide_spawn_source_col(source_map, row, col)
 
 func _wall_slide_spawn_travel_cells(source_map: Array, source_col: int) -> float:
-	if source_col < 0:
-		return 1.5
-	var spawn_count := 0
-	var deepest_row := -1
-	for row in range(source_map.size()):
-		if not (source_map[row] is Array):
-			continue
-		var source_row: Array = source_map[row]
-		for col in range(source_row.size()):
-			var source: Vector2i = source_row[col]
-			if source.y == -2 and source.x == source_col:
-				spawn_count += 1
-				deepest_row = maxi(deepest_row, row)
-	if spawn_count <= 0:
-		return 1.5
-	return maxf(float(spawn_count) + 0.5, float(deepest_row) + 1.5)
+	return LevelMotion.wall_slide_spawn_travel_cells(source_map, source_col)
 
 func _wall_slide_target_refill_cap(source_map: Array, row: int, col: int) -> float:
-	if _wall_slide_spawn_source_col(source_map, row, col) >= 0:
-		return ORDINARY_REFILL_MAX_TIME
-	return -1.0
+	return LevelMotion.wall_slide_target_refill_cap(source_map, row, col)
 
 func _wall_slide_target_path(path_map: Array, row: int, col: int) -> Array:
-	if path_map.is_empty() or row < 0 or row >= path_map.size():
-		return []
-	if col < 0 or col >= path_map[row].size():
-		return []
-	return path_map[row][col]
+	return LevelMotion.wall_slide_target_path(path_map, row, col)
 
 func _wall_slide_target_visual_path(source_map: Array, path_map: Array, row: int, col: int) -> Array:
-	if _wall_slide_spawn_source_col(source_map, row, col) >= 0:
-		return []
-	return _wall_slide_target_path(path_map, row, col)
+	return LevelMotion.wall_slide_target_visual_path(source_map, path_map, row, col)
 
 func _wall_slide_visual_start_position(source_map: Array, path_map: Array, row: int, col: int) -> Vector2:
-	if not source_map.is_empty() and row >= 0 and row < source_map.size() and col >= 0 and col < source_map[row].size():
-		var source: Vector2i = source_map[row][col]
-		if source.y >= 0 and source.x >= 0:
-			return _cell_center(source.y, source.x)
-		if source.y == -2:
-			return _wall_refill_start_position(row, col, source_map)
-	var path: Array = _wall_slide_target_path(path_map, row, col)
-	if not path.is_empty():
-		var first: Vector2i = path[0]
-		if first.y >= 0 and first.x >= 0:
-			return _cell_center(first.y, first.x)
-	return _wall_refill_start_position(row, col, source_map)
+	return LevelMotion.wall_slide_visual_start_position(source_map, path_map, row, col, board_origin, cell_size)
 
 func _free_unused_wall_slide_sources(old_nodes: Array, used: Dictionary) -> void:
 	for row in range(board.height):

@@ -3,6 +3,7 @@ extends "res://tests/test_lib.gd"
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
 const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const LevelMotion := preload("res://match3/level_motion.gd")
 const ME := preload("res://core/match_engine.gd")
 
 
@@ -824,7 +825,12 @@ func test_level_wall_slide_visuals_tween_cell_steps() -> void:
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	assert_true(src.contains("WALL_SLIDE_STEP_TIME"), "wall slide animation has a per-cell step duration")
+	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
+	assert_true(mf != null, "level_motion.gd can be inspected")
+	if mf == null:
+		return
+	var motion_src: String = mf.get_as_text()
+	assert_true(motion_src.contains("WALL_SLIDE_STEP_TIME"), "wall slide animation has a per-cell step duration")
 	assert_true(src.contains("func _wall_slide_path_points"), "Level exposes a path builder for wall slide visuals")
 	assert_true(src.contains("func _wall_slide_position_at"), "Level samples wall slide paths continuously")
 	assert_true(src.contains("func _tween_wall_slide_node"), "Level tweens wall slide nodes through path steps")
@@ -970,6 +976,23 @@ func test_all_real_playable_levels_share_fall_timing_caps() -> void:
 	level.free()
 
 
+func test_level_motion_module_matches_level_fall_helpers() -> void:
+	var level := _prepare_level_scene_with_real_levels()
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
+	level.board = LevelLibrary.to_board(level._levels[raw_idx])
+	level.call("_compute_layout")
+	var target: Vector2 = level.call("_cell_center", level.board.height - 1, 0)
+	var refill_start: Vector2 = LevelMotion.ordinary_refill_start_position(target, level.cell_size, level.board.height)
+	assert_eq(refill_start, level.call("_ordinary_refill_start_position", level.board.height - 1, 0, 0, level.board.height), "motion module matches ordinary refill start")
+	assert_eq(LevelMotion.fall_duration_for_positions(Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0), level.cell_size), level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0)), "motion module matches ordinary fall duration")
+	var start := Vector2(level.board_origin.x + level.cell_size * 2.5, level.board_origin.y - level.cell_size * 2.0)
+	var slide_target := Vector2(level.board_origin.x + level.cell_size * 1.5, level.board_origin.y + level.cell_size * 3.5)
+	assert_eq(LevelMotion.wall_slide_path_points(start, slide_target, level.board_origin, level.cell_size, level.board.width, level.board.height), level.call("_wall_slide_path_points", start, slide_target), "motion module matches wall-slide path points")
+	var maps: Dictionary = LevelMotion.build_wall_slide_tracking_maps(level.board.grid.duplicate(true), level.board.coat, level.board.choco, level.board.cannon, level.board.is_scrolling)
+	assert_eq(maps, level.call("_build_wall_slide_tracking_maps", level.board.grid.duplicate(true)), "motion module matches wall-slide tracking maps")
+	level.free()
+
+
 func test_wall_slide_replacement_node_starts_at_recorded_source() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
@@ -1075,8 +1098,8 @@ func test_refill_duration_cap_stays_near_long_fall_speed() -> void:
 	level.free()
 
 func test_level_fall_animation_timing_is_slightly_slower() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
+	var f := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
+	assert_true(f != null, "level_motion.gd can be inspected")
 	if f == null:
 		return
 	var src: String = f.get_as_text()
@@ -1113,13 +1136,18 @@ func test_level_wall_slide_source_prefers_right_above_before_left_above() -> voi
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	assert_true(src.contains("func _wall_slide_source_priority"), "wall slide visuals expose a deterministic source priority helper")
-	var start: int = src.find("func _wall_slide_source_priority")
-	var end: int = src.find("func _take_wall_slide_source", start)
+	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
+	assert_true(mf != null, "level_motion.gd can be inspected")
+	if mf == null:
+		return
+	var motion_src: String = mf.get_as_text()
+	assert_true(motion_src.contains("static func wall_slide_source_priority"), "wall slide visuals expose a deterministic source priority helper")
+	var start: int = motion_src.find("static func wall_slide_source_priority")
+	var end: int = motion_src.find("static func wall_slide_spawn_source_col", start)
 	assert_true(start >= 0 and end > start, "wall slide source priority body can be inspected")
 	if start < 0 or end <= start:
 		return
-	var body: String = src.substr(start, end - start)
+	var body: String = motion_src.substr(start, end - start)
 	assert_true(body.contains("col == target_col + 1"), "right-above source has an explicit priority branch")
 	assert_true(body.contains("col == target_col - 1"), "left-above source has an explicit priority branch")
 	assert_true(body.find("col == target_col + 1") < body.find("col == target_col - 1"), "right-above branch is checked before left-above")
@@ -1139,14 +1167,19 @@ func test_level_wall_refill_start_uses_spawn_source_map() -> void:
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	assert_true(src.contains("func _wall_slide_spawn_source_col"), "wall slide visuals can recover the spawned top source column")
-	var refill_start: int = src.find("func _wall_refill_start_position")
-	var refill_end: int = src.find("func _wall_slide_target_has_fall_obstacle_above", refill_start)
+	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
+	assert_true(mf != null, "level_motion.gd can be inspected")
+	if mf == null:
+		return
+	var motion_src: String = mf.get_as_text()
+	assert_true(motion_src.contains("static func wall_slide_spawn_source_col"), "wall slide visuals can recover the spawned top source column")
+	var refill_start: int = motion_src.find("static func wall_refill_start_position")
+	var refill_end: int = motion_src.find("static func wall_slide_target_has_fall_obstacle_above", refill_start)
 	assert_true(refill_start >= 0 and refill_end > refill_start, "_wall_refill_start_position can be inspected")
 	if refill_start < 0 or refill_end <= refill_start:
 		return
-	var refill_body: String = src.substr(refill_start, refill_end - refill_start)
-	assert_true(refill_body.contains("_wall_slide_spawn_source_col(source_map, row, col)"), "new wall-slide pieces start from the exact spawned source column")
+	var refill_body: String = motion_src.substr(refill_start, refill_end - refill_start)
+	assert_true(refill_body.contains("wall_slide_spawn_source_col(source_map, row, col)"), "new wall-slide pieces start from the exact spawned source column")
 	var sync_start: int = src.find("func _sync_wall_slide_visuals")
 	var sync_end: int = src.find("func _collapse_and_refill", sync_start)
 	assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
@@ -1154,12 +1187,12 @@ func test_level_wall_refill_start_uses_spawn_source_map() -> void:
 		return
 	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
 	assert_true(sync_body.contains("_wall_slide_visual_start_position(source_map, path_map, row, col)"), "wall-slide visual refill passes the replayed source and path maps into start-position calculation")
-	var start_pos_start: int = src.find("func _wall_slide_visual_start_position")
-	var start_pos_end: int = src.find("func _free_unused_wall_slide_sources", start_pos_start)
+	var start_pos_start: int = motion_src.find("static func wall_slide_visual_start_position")
+	var start_pos_end: int = motion_src.find("static func _apply_wall_slide_tracking_gravity", start_pos_start)
 	assert_true(start_pos_start >= 0 and start_pos_end > start_pos_start, "_wall_slide_visual_start_position can be inspected")
 	if start_pos_start >= 0 and start_pos_end > start_pos_start:
-		var start_pos_body: String = src.substr(start_pos_start, start_pos_end - start_pos_start)
-		assert_true(start_pos_body.contains("_wall_refill_start_position(row, col, source_map)"), "spawned replacement pieces still use the source-map-aware off-board start")
+		var start_pos_body: String = motion_src.substr(start_pos_start, start_pos_end - start_pos_start)
+		assert_true(start_pos_body.contains("wall_refill_start_position(row, col, source_map, board_origin, cell_size)"), "spawned replacement pieces still use the source-map-aware off-board start")
 	assert_false(sync_body.contains("_wall_refill_start_position(row, col, allow_cross_column)"), "wall-slide visual refill must not guess the start column from allow_cross_column alone")
 
 
