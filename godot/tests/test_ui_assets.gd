@@ -332,7 +332,7 @@ func test_book_ribbons_render_full_width_under_frame() -> void:
 	level.free()
 
 
-func test_third_level_book_frame_hugs_height_limited_board_width() -> void:
+func test_third_level_book_frame_still_touches_screen_sides() -> void:
 	var level := _prepare_level_scene()
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "3"], level._levels.size())
 	level.load_level(raw_idx)
@@ -345,10 +345,10 @@ func test_third_level_book_frame_hugs_height_limited_board_width() -> void:
 	var rib := _find_named_node(layer, BOOK_RIBBONS_NODE) as Control
 	assert_true(rib != null, "book ribbons render for the third level")
 	if rib != null:
-		var expected_w: float = level.board.width * level.cell_size + 53.0 + 53.0 + 6.0
-		var expected_x: float = level.board_origin.x - 53.0 - 3.0
-		assert_eq(int(roundf(rib.size.x)), int(roundf(expected_w)), "third level book width follows the actual board plus inner insets")
-		assert_eq(int(roundf(rib.position.x)), int(roundf(expected_x)), "third level book inner left edge hugs the board left edge")
+		var expected_w := 726.0
+		assert_eq(int(roundf(rib.size.x)), int(expected_w), "third level book keeps the same full-bleed width as wider boards")
+		assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "third level book left edge bleeds to the screen side")
+		assert_eq(int(roundf(rib.position.x + rib.size.x)), int(roundf(360.0 + expected_w * 0.5)), "third level book right edge bleeds to the screen side")
 	level.free()
 
 

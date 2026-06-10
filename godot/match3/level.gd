@@ -377,11 +377,7 @@ func _board_cell_size_for_grid(cols: int, rows: int) -> float:
 	return floor(minf(inner_w / safe_cols, inner_h / safe_rows))
 
 func _book_frame_width_for_board() -> float:
-	var board_w: float = float(board.width) * cell_size
-	var fit_w: float = board_w + BOOK_INNER_L + BOOK_INNER_R + 6.0
-	if fit_w >= DESIGN_W:
-		return DESIGN_W + 6.0
-	return fit_w
+	return DESIGN_W + 6.0
 
 func _cell_center(row: int, col: int) -> Vector2:
 	return board_origin + Vector2(col, row) * cell_size + Vector2(cell_size, cell_size) * 0.5
@@ -428,7 +424,7 @@ func _render_board_panel() -> void:
 	# book_frame 9-slice(金框/四角花不变形); 内边线框=棋格(board_origin 即内边线左上)。
 	var book_y: float = board_origin.y - BOOK_INNER_T
 	var book_h: float = board_h + BOOK_INNER_T + BOOK_INNER_B
-	# 宽度受限棋盘继续满屏贴边；高度受限的窄棋盘让书内镶边跟着棋盘收窄，避免左右脱开。
+	# 书本始终满屏贴边；窄棋盘只影响内页上的棋格宽度。
 	var book_w: float = _book_frame_width_for_board()
 	var center := Vector2(DESIGN_W * 0.5, book_y + book_h * 0.5)
 	_nine(board_layer, BOOK_FRAME, center, book_w, book_h, BOOK_NINE_ML, BOOK_NINE_MT, BOOK_NINE_MB)
