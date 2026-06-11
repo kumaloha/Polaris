@@ -120,6 +120,10 @@ var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
 var _budget_frame := -1
 var _heavy_fx_this_frame := 0
 
+# 路径全为编译期常量, 运行期不写磁盘, 无失效风险。
+static var _exists_cache: Dictionary = {}
+static var _tex_cache: Dictionary = {}
+
 func attach(target: Node, shake_node: CanvasLayer = null) -> void:
 	_target = target
 	_shake_node = shake_node
@@ -130,23 +134,33 @@ func _layer() -> Node:
 	return get_tree().current_scene
 
 func _asset_exists(path: String) -> bool:
-	return ResourceLoader.exists(path) or FileAccess.file_exists(path)
+	if _exists_cache.has(path):
+		return _exists_cache[path]
+	var result := ResourceLoader.exists(path) or FileAccess.file_exists(path)
+	_exists_cache[path] = result
+	return result
 
 func _load_texture(path: String) -> Texture2D:
+	if _tex_cache.has(path):
+		return _tex_cache[path]
+	var tex: Texture2D = null
 	if ResourceLoader.exists(path):
-		var tex := load(path) as Texture2D
-		if tex != null:
-			return tex
-	if not FileAccess.file_exists(path):
-		return null
-	var image := Image.new()
-	var err := image.load(ProjectSettings.globalize_path(path))
-	if err != OK:
-		err = image.load(path)
-	if err != OK:
-		push_warning("Unable to load PNG texture: %s" % path)
-		return null
-	return ImageTexture.create_from_image(image)
+		tex = load(path) as Texture2D
+	if tex == null:
+		if not FileAccess.file_exists(path):
+			_tex_cache[path] = null
+			return null
+		var image := Image.new()
+		var err := image.load(ProjectSettings.globalize_path(path))
+		if err != OK:
+			err = image.load(path)
+		if err != OK:
+			push_warning("Unable to load PNG texture: %s" % path)
+			_tex_cache[path] = null
+			return null
+		tex = ImageTexture.create_from_image(image)
+	_tex_cache[path] = tex
+	return tex
 
 static func magic_vfx_paths() -> Dictionary:
 	return {
@@ -464,7 +478,6 @@ static func local_burst_bounds(clear_radius_px: float, clear_cells: int = LOCAL_
 	var flash_diameter := clear_radius_px * LOCAL_BURST_FLASH_DIAMETER_RATIO
 	var outer_wisp_radius := clear_radius_px * LOCAL_BURST_OUTER_WISP_RADIUS_RATIO
 	return {
-		"clear_cells": clear_cells,
 		"clear_radius_px": clear_radius_px,
 		"flash_diameter_px": flash_diameter,
 		"flash_peak_radius_px": flash_diameter * LOCAL_BURST_FLASH_PEAK_SCALE * 0.5,

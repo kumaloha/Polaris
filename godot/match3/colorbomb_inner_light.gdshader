@@ -37,7 +37,7 @@ void fragment() {
 	float inner_mask = smoothstep(inner_radius, inner_radius * 0.26, dist);
 
 	float phase = mod(TIME / max(cycle_seconds, 0.01), 6.0);
-	float color_index = floor(phase);
+	float color_index = min(floor(phase), 5.0);
 	float next_index = mod(color_index + 1.0, 6.0);
 	float blend_t = smoothstep(0.18, 0.82, fract(phase));
 	vec4 active = mix(light_at(color_index), light_at(next_index), blend_t);

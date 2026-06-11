@@ -14,7 +14,7 @@ uniform float specular_strength : hint_range(0.0, 1.0) = 0.0; // 白色镜面热
 uniform float base_saturation : hint_range(0.0, 1.5) = 1.0; // 与普通棋子统一的基础饱和度
 
 void fragment() {
-	vec4 col = texture(TEXTURE, UV);
+	vec4 col = COLOR;
 	vec3 base_gray = vec3(dot(col.rgb, vec3(0.299, 0.587, 0.114)));
 	col.rgb = mix(base_gray, col.rgb, base_saturation);
 	vec2 axis = normalize(light_axis);

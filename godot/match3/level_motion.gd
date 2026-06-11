@@ -108,6 +108,8 @@ static func wall_slide_cell_path_points(start_pos: Vector2, cell_path: Array, ta
 	return points
 
 
+## @deprecated: 每帧重算弧长（两遍循环）。迁移 board_view 调用点后改用
+## wall_slide_position_at_table(start_pos, points, wall_slide_arclength_table(start_pos, points), progress)。
 static func wall_slide_position_at(start_pos: Vector2, points: Array, progress: float) -> Vector2:
 	if points.is_empty():
 		return start_pos
@@ -135,6 +137,48 @@ static func wall_slide_position_at(start_pos: Vector2, points: Array, progress: 
 		traveled += segment
 		prev = point
 	return points[points.size() - 1]
+
+
+## 前缀和弧长表: 元素 i 存从 start_pos 到 points[i] 的累计弧长。
+## 调用方在 tween 外预计算一次, 传给 wall_slide_position_at_table 反复使用。
+static func wall_slide_arclength_table(start_pos: Vector2, points: Array) -> Array:
+	var table: Array = []
+	var acc := 0.0
+	var prev := start_pos
+	for raw_point in points:
+		var point: Vector2 = raw_point
+		acc += prev.distance_to(point)
+		table.append(acc)
+		prev = point
+	return table
+
+
+## 用预计算的弧长表做 O(log n) 二分定位, 无每帧重算开销。
+## table 由 wall_slide_arclength_table(start_pos, points) 生成。
+static func wall_slide_position_at_table(start_pos: Vector2, points: Array, table: Array, progress: float) -> Vector2:
+	if points.is_empty() or table.is_empty():
+		return start_pos
+	var total: float = table[table.size() - 1]
+	if total <= 0.001:
+		return points[points.size() - 1]
+	var target_distance := total * clampf(progress, 0.0, 1.0)
+	# 二分找第一个 table[mid] >= target_distance 的位置
+	var lo := 0
+	var hi := table.size() - 1
+	while lo < hi:
+		var mid := (lo + hi) / 2
+		if table[mid] < target_distance:
+			lo = mid + 1
+		else:
+			hi = mid
+	var seg_end: float = table[lo]
+	var seg_start: float = table[lo - 1] if lo > 0 else 0.0
+	var prev_pos := start_pos if lo == 0 else (points[lo - 1] as Vector2)
+	var seg_len := seg_end - seg_start
+	if seg_len <= 0.001:
+		return points[lo] as Vector2
+	var local_progress := clampf((target_distance - seg_start) / seg_len, 0.0, 1.0)
+	return prev_pos.lerp(points[lo] as Vector2, local_progress)
 
 
 static func wall_slide_duration_for_points(points: Array) -> float:

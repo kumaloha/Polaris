@@ -312,7 +312,7 @@ func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
 	assert_true(did, "time rewind skill succeeds when the board has history")
 	assert_eq(b.grid, start_grid, "time rewind restores the saved board grid")
 	assert_eq(b.moves_left, start_moves, "time rewind restores moves from the saved board state")
-	assert_eq(level._gem_nodes.size(), b.height, "time rewind rerenders the board visuals after restoring")
+	assert_eq(level.board_view._gem_nodes.size(), b.height, "time rewind rerenders the board visuals after restoring")
 	level.free()
 
 
@@ -648,7 +648,7 @@ func test_book_ribbons_render_full_width_under_frame() -> void:
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.board_layer = layer
-	level.call("_render_board_panel")
+	level.board_view.call("_render_board_panel")
 	var rib := _find_named_node(layer, BOOK_RIBBONS_NODE) as Control
 	assert_true(rib != null, "book ribbons render as a named control")
 	if rib == null:
@@ -678,7 +678,7 @@ func test_third_level_book_frame_still_touches_screen_sides() -> void:
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.board_layer = layer
-	level.call("_render_board_panel")
+	level.board_view.call("_render_board_panel")
 	var rib := _find_named_node(layer, BOOK_RIBBONS_NODE) as Control
 	assert_true(rib != null, "book ribbons render for the third level")
 	if rib != null:
@@ -694,14 +694,14 @@ func test_playable_board_widths_fill_the_book_inner_inlay() -> void:
 		var level := _prepare_level_scene()
 		level.board = Board.new(dims.x, dims.y, [0, 1, 2, 3, 4, 5], 0, 25, 1)
 		level.call("_compute_layout")
-		var baked_rect: Rect2 = level.call("_book_baked_inner_rect")
-		var board_rect: Rect2 = level.call("_book_board_inner_rect")
+		var baked_rect: Rect2 = level.board_view.call("_book_baked_inner_rect")
+		var board_rect: Rect2 = level.board_view.call("_book_board_inner_rect")
 		assert_eq(int(roundf(board_rect.position.x)), int(roundf(baked_rect.position.x)), "board left edge aligns to book inner inlay for %dx%d" % [dims.x, dims.y])
 		assert_eq(int(roundf(board_rect.size.x)), int(roundf(baked_rect.size.x)), "board width fills book inner inlay for %dx%d" % [dims.x, dims.y])
 		var layer := CanvasLayer.new()
 		level.add_child(layer)
 		level.board_layer = layer
-		level.call("_render_board_panel")
+		level.board_view.call("_render_board_panel")
 		assert_eq(_find_named_node(layer, BOOK_INLAY_MASK_LEFT_NODE), null, "width-filled boards do not need a left inlay mask for %dx%d" % [dims.x, dims.y])
 		assert_eq(_find_named_node(layer, BOOK_INLAY_MASK_RIGHT_NODE), null, "width-filled boards do not need a right inlay mask for %dx%d" % [dims.x, dims.y])
 		assert_eq(_find_named_node(layer, BOOK_INNER_INLAY_NODE), null, "width-filled boards use the book art's native inner inlay for %dx%d" % [dims.x, dims.y])
@@ -713,8 +713,8 @@ func test_all_real_playable_boards_fill_the_book_inner_inlay() -> void:
 	for raw_idx in level._playable:
 		level.board = LevelLibrary.to_board(level._levels[raw_idx])
 		level.call("_compute_layout")
-		var baked_rect: Rect2 = level.call("_book_baked_inner_rect")
-		var board_rect: Rect2 = level.call("_book_board_inner_rect")
+		var baked_rect: Rect2 = level.board_view.call("_book_baked_inner_rect")
+		var board_rect: Rect2 = level.board_view.call("_book_board_inner_rect")
 		var label := "playable level %d raw %d %dx%d" % [level.call("_display_level_number", raw_idx), raw_idx, level.board.width, level.board.height]
 		assert_eq(int(roundf(board_rect.position.x)), int(roundf(baked_rect.position.x)), "%s left edge aligns to book inner inlay" % label)
 		assert_eq(int(roundf(board_rect.size.x)), int(roundf(baked_rect.size.x)), "%s width fills book inner inlay" % label)
@@ -729,9 +729,9 @@ func test_level_layout_module_matches_level_book_geometry() -> void:
 		var layout: Dictionary = LevelLayout.compute_layout(level.board.width, level.board.height)
 		assert_eq(int(roundf(float(layout["cell_size"]))), int(roundf(level.cell_size)), "layout module matches level cell size for %dx%d" % [dims.x, dims.y])
 		assert_eq(layout["board_origin"], level.board_origin, "layout module matches level board origin for %dx%d" % [dims.x, dims.y])
-		assert_eq(LevelLayout.book_frame_rect(level.board.height, level.cell_size, level.board_origin), level.call("_book_frame_rect"), "layout module matches book frame rect for %dx%d" % [dims.x, dims.y])
-		assert_eq(LevelLayout.book_baked_inner_rect(level.board.height, level.cell_size, level.board_origin), level.call("_book_baked_inner_rect"), "layout module matches baked inner rect for %dx%d" % [dims.x, dims.y])
-		assert_eq(LevelLayout.book_board_inner_rect(level.board.width, level.board.height, level.cell_size, level.board_origin), level.call("_book_board_inner_rect"), "layout module matches board rect for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_frame_rect(level.board.height, level.cell_size, level.board_origin), level.board_view.call("_book_frame_rect"), "layout module matches book frame rect for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_baked_inner_rect(level.board.height, level.cell_size, level.board_origin), level.board_view.call("_book_baked_inner_rect"), "layout module matches baked inner rect for %dx%d" % [dims.x, dims.y])
+		assert_eq(LevelLayout.book_board_inner_rect(level.board.width, level.board.height, level.cell_size, level.board_origin), level.board_view.call("_book_board_inner_rect"), "layout module matches board rect for %dx%d" % [dims.x, dims.y])
 		level.free()
 
 
@@ -787,7 +787,8 @@ func test_level_can_load_magic_match_pngs_before_import_metadata_exists() -> voi
 func test_colorbomb_core_uses_synced_diamond_white_art() -> void:
 	assert_true(FileAccess.file_exists(_repo_path(COLORBOMB_CORE_SOURCE)), "source diamond_white.png 5-match art exists")
 	assert_true(FileAccess.file_exists(COLORBOMB_CORE_SYNCED), "synced diamond_white 5-match art exists")
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	# 彩球核心贴图常量迁至 board_view(契约 E)。
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	assert_true(src.contains('const COLORBOMB_CORE := "%s"' % COLORBOMB_CORE_SYNCED), "5-match colorbomb core uses synced diamond_white art")
 	var img := Image.load_from_file(ProjectSettings.globalize_path(COLORBOMB_CORE_SYNCED))
 	assert_true(img != null and img.detect_alpha() != Image.ALPHA_NONE, "synced diamond_white keeps transparency so it does not render as a square")
@@ -799,7 +800,8 @@ func test_colorbomb_core_keeps_cell_sized_fit_after_art_swap() -> void:
 	assert_true(level.has_method("_load_texture"), "Level can load the raw 5-match PNG")
 	level.cell_size = 70.0
 	var tex := level.call("_load_texture", COLORBOMB_CORE_SYNCED) as Texture2D
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	# 彩球贴图 fit 路径(_apply_colorbomb_layers)迁至 board_view(契约 E)。
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	assert_true(src.contains("const COLORBOMB_FILL := 0.74"), "5-match crystal ball should be smaller than the previous oversized 0.86 fit")
 	assert_true(tex != null, "diamond_white 5-match art loads as a texture")
 	if tex != null:
@@ -1097,6 +1099,7 @@ func test_level_scene_renders_wall_cells_as_stone_sprites() -> void:
 func test_wall_slide_source_map_replays_gravity_order() -> void:
 	var level := _prepare_level_scene()
 	level.board = Board.new(3, 4, [0, 1, 2], 0, 25, 1)
+	level.board_view.board = level.board
 	level.board.is_scrolling = true
 	var E := ME.EMPTY
 	var W := ME.WALL
@@ -1106,11 +1109,11 @@ func test_wall_slide_source_map_replays_gravity_order() -> void:
 		[7, E, 9],
 		[1, 2, 3],
 	]
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay gravity to map targets to exact old sources")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
+	assert_true(level.board_view.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay gravity to map targets to exact old sources")
+	if not level.board_view.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var maps: Dictionary = level.board_view.call("_build_wall_slide_tracking_maps", before_grid)
 	var source_map: Array = maps["source"]
 	assert_eq(source_map[2][1], Vector2i(2, 1), "lower blocked slot uses the immediate right-above tile, matching gravity order")
 	assert_eq(source_map[1][1], Vector2i(2, 0), "upper blocked slot then uses the top right tile after the lower move")
@@ -1120,6 +1123,7 @@ func test_wall_slide_source_map_replays_gravity_order() -> void:
 func test_wall_slide_source_map_tracks_spawn_source_column() -> void:
 	var level := _prepare_level_scene()
 	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
+	level.board_view.board = level.board
 	var E := ME.EMPTY
 	var W := ME.WALL
 	var before_grid := [
@@ -1127,11 +1131,11 @@ func test_wall_slide_source_map_tracks_spawn_source_column() -> void:
 		[5, E, 6],
 		[7, 8, 9],
 	]
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay spawned sources")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
+	assert_true(level.board_view.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals can replay spawned sources")
+	if not level.board_view.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var maps: Dictionary = level.board_view.call("_build_wall_slide_tracking_maps", before_grid)
 	var source_map: Array = maps["source"]
 	var source: Vector2i = source_map[1][1]
 	assert_eq(source.x, 2, "new piece filling the wall pocket should enter from the right top column, matching gravity's right-above priority")
@@ -1142,6 +1146,7 @@ func test_wall_slide_source_map_tracks_spawn_source_column() -> void:
 func test_wall_slide_path_map_preserves_delayed_diagonal_step() -> void:
 	var level := _prepare_level_scene()
 	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
+	level.board_view.board = level.board
 	level.board.is_scrolling = true
 	var E := ME.EMPTY
 	var W := ME.WALL
@@ -1150,11 +1155,11 @@ func test_wall_slide_path_map_preserves_delayed_diagonal_step() -> void:
 		[E, W, E],
 		[7, E, 9],
 	]
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals record each gravity step, not just final source")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
+	assert_true(level.board_view.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals record each gravity step, not just final source")
+	if not level.board_view.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
-	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+	var maps: Dictionary = level.board_view.call("_build_wall_slide_tracking_maps", before_grid)
 	var path_map: Array = maps["path"]
 	assert_eq(path_map[2][1], [Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 2)], "piece falls vertically first, then diagonally into the wall pocket")
 	level.free()
@@ -1163,8 +1168,9 @@ func test_wall_slide_path_map_preserves_delayed_diagonal_step() -> void:
 func test_wall_slide_tracking_maps_stress_paths_are_contiguous() -> void:
 	var level := _prepare_level_scene()
 	level.board = Board.new(6, 7, [0, 1, 2, 3], 0, 25, 1)
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals expose source/path tracking maps for stress validation")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
+	level.board_view.board = level.board
+	assert_true(level.board_view.has_method("_build_wall_slide_tracking_maps"), "wall slide visuals expose source/path tracking maps for stress validation")
+	if not level.board_view.has_method("_build_wall_slide_tracking_maps"):
 		level.free()
 		return
 	for seed in range(48):
@@ -1181,7 +1187,7 @@ func test_wall_slide_tracking_maps_stress_paths_are_contiguous() -> void:
 				else:
 					out_row.append(seed * 100 + row * level.board.width + col)
 			before_grid.append(out_row)
-		var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", before_grid)
+		var maps: Dictionary = level.board_view.call("_build_wall_slide_tracking_maps", before_grid)
 		var source_map: Array = maps["source"]
 		var path_map: Array = maps["path"]
 		for row in range(level.board.height):

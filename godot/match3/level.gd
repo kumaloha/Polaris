@@ -6,6 +6,10 @@ extends Node2D
 #   中部：魔法书棋盘，可变尺寸，障碍和棋子按数据层增量同步。
 #   底部：4 个萌宠技能头像 + 充能条。
 
+# 契约D(P9) app 接线：有外部连接者(game_root)时结算交回壳层, 无连接者保持现行为(直接翻关)。
+# game_root 鸭子调用 receive_session_config(config) 注入开局 + 连 session_ended 收结算。
+signal session_ended(result: Dictionary)
+
 const CoreBoard := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
 const LevelConfig := preload("res://match3/level_config.gd")
@@ -35,84 +39,18 @@ const GEM_TEXTURES := [
 	"res://art/gems/base/gem_clover.png", "res://art/gems/base/gem_star.png",
 	"res://art/gems/base/gem_orb.png", "res://art/gems/base/heart_neon.png",
 ]
-const GEM_SHADOW_COLOR := Color(0.10, 0.08, 0.16, 0.28)
 # v0.02: 各棋子图案占整图比例不同(PIL实测), 按 1/max(宽高占比) 补偿 scale, 统一视觉大小。
 # species 顺序: 0红方块 1蓝水滴 2绿四叶 3金星 4紫月 5粉心
-const GEM_CONTENT_COMP := [1.16, 1.16, 0.84, 1.28, 1.25, 0.88]  # 实体统一(PIL测; greenx→0.84, 粉色素材填满显大→压到0.88)
-const GEM_TINT := [Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE]  # green_new 素材已降白点, 不再用 modulate 压
-const GEM_SATURATION := 0.86  # 实验: 棋盘宝石整体降一点饱和度, 不改原图
-const GEM_SATURATION_SHADER := "res://match3/gem_saturation.gdshader"
 # 5合1 = 独立分层水晶球，不套普通阴影。(4合1 站立特效见下方 _start_combo_idle)
-const COLORBOMB_CORE := "res://assets/level/diamond_white.png"  # v0.02 单张 5 合 1 白钻球
-const COLORBOMB_INNER_LIGHT_SHADER := "res://match3/colorbomb_inner_light.gdshader"
 const COLORBOMB_INNER_LIGHT_NAME := "InnerLight"
-const COLORBOMB_LAYER_NAMES := [COLORBOMB_INNER_LIGHT_NAME, "FlowingRim", "GoldGroundGlow", "CoreInnerSwirl", "CoreInnerStars", "CubeRing"]
-const COLORBOMB_INNER_LIGHT_COLORS := [
-	Color(1.0, 0.10, 0.08, 0.48),  # red
-	Color(0.16, 0.92, 0.22, 0.46), # green
-	Color(0.56, 0.20, 1.0, 0.48),  # purple
-	Color(1.0, 0.24, 0.76, 0.46),  # pink
-	Color(1.0, 0.88, 0.14, 0.42),  # yellow
-	Color(0.12, 0.54, 1.0, 0.48),  # blue
-]
-const COLORBOMB_INNER_LIGHT_RADIUS := 0.36
-const COLORBOMB_INNER_LIGHT_SECONDS := 0.56
 # v0.02: 特殊棋子站立特效(替换旧 shine 静态光贴图) —— 姿态循环动画 + 本体高光。
 # 消除方向=运动轴: 横=左右挤压摇头 / 纵=上下挤压点头 / 十字(SP_BOMB)=全向脉冲(最强)。
 # 动画相对棋子"基础 scale"做乘法；十字只提亮棋子本体，不额外加外圈白光。
-const COMBO_GLOW_NAME := "combo_glow"      # 兼容旧版本残留的白光子节点名，停止特效时清掉
 # 横/纵 挤压摇摆(单轴): 慢悠悠 idle, 相对 base 的幅度
-const COMBO_SWING_AMP := 0.14              # 转头时沿轴收窄幅度(相对base; 端点最窄)
-const COMBO_SWING_WIDEN := 0.025           # 过中间(正面)时沿轴轻微鼓出, 避免 4 合 1 idle 摇晃过大
-const COMBO_VERTICAL_SCALE_AMP := 0.075     # 纵向点头只轻微压 y, 避免水滴/心形读成左右晃或过度变形
-const COMBO_VERTICAL_SCALE_WIDEN := 0.012   # 纵向回正时很轻的 y 轴鼓出
-const COMBO_SWING_OFFSET := 3.0            # 小幅视觉偏移, 让对称素材也能读出左/右或上/下方向
-const COMBO_VERTICAL_SWING_OFFSET := 1.8   # 纵向点头更克制, 避免水滴/蓝宝石读成单向上翘
 # 十字(SP_BOMB): 心跳节奏(lub-dub-rest)。第一下更大, 第二下更小, 都是快起快落, 最后留休止。
-const COMBO_HEARTBEAT_FIRST_AMP := 0.16    # 第一跳(lub)峰值, 稍大一点才像心脏先重击
-const COMBO_HEARTBEAT_SECOND_AMP := 0.09   # 第二跳(dub)峰值, 小于第一跳形成节奏差
-const COMBO_HEARTBEAT_UP := 0.12           # 快速鼓起, 避免慢慢膨胀
-const COMBO_HEARTBEAT_DOWN := 0.10         # 快速回落
-const COMBO_HEARTBEAT_GAP := 0.07          # 两跳之间的短间隔
-const COMBO_HEARTBEAT_REST := 0.58         # 第二跳后的长休止, 读成心跳而不是连续呼吸
 # v0.02: 十字站立特效用「暖金提亮」(同点击选中 _select 的发光), 放大时亮、缩回原色。
-const COMBO_BRIGHTEN := Color(1.5, 1.42, 1.18)  # 恒定暖金提亮(首轮随第1次放大淡入, 之后整轮保持)
 # 横/纵: 方向性中性白高光(光在哪侧=朝哪侧转), 取代无方向感的整体提亮。
-const DIR_GLOW_SHADER := "res://match3/directional_glow.gdshader"
-const COMBO_LIGHT_STRENGTH := 1.65         # 高光强度(够强才压过棋子美术自带明暗, 方向清晰)
-const COMBO_LIGHT_W := 0.30                 # 高光半宽(越小一侧亮一侧暗对比越强)
-const COMBO_LIGHT_TINT := Color(1.0, 1.0, 1.0)  # 中性白光, 避免蓝色 4 合 1 被暖色重染成紫
-const COMBO_LIGHT_SWING := 0.40            # 光泽相对中心(0.5)的扫动振幅 → 钟摆于 [0.10, 0.90]
-const COMBO_SWING_CYCLE := 1.7             # 一个完整摇动来回(钟摆正弦)时长(秒)
-const COMBO_RIM_STRENGTH := 0.28           # 伪 3D: 边缘光补出厚度
-const COMBO_BULGE_STRENGTH := 0.86         # 伪 3D: 高光按弧面鼓起分布
-const COMBO_SPECULAR_STRENGTH := 0.34      # 伪 3D: 白色镜面小热点, 强化宝石弧面
-const CELL_TEXTURE := "res://assets/board/board_cell.png"
-const BOOK_FRAME := "res://assets/level/book_frame.png"      # v0.02 魔法书主体(982×980, 9-slice缩放适配棋盘)
-const BOOK_RIBBONS := "res://assets/level/book_ribbons.png"  # v0.02 书底书签(982×77, 与 book_frame 同宽)
-const CELL_SQ := "res://assets/level/cell_sq.png"            # v0.02 米黄圆角棋格(cell.png 128²)
-const BOOK_NINE_ML := 54    # 9-slice margin(≥内边线inset, 保金框/四角花不变形)
-const BOOK_NINE_MT := 28
-const BOOK_NINE_MB := 58
-const BOOK_INNER_INLAY_NODE := "BookInnerInlay"
-const BOOK_INLAY_MASK_LEFT_NODE := "BookInlayMaskLeft"
-const BOOK_INLAY_MASK_RIGHT_NODE := "BookInlayMaskRight"
-const BOOK_INLAY_MASK_BLEED := 8.0
-const BOOK_PAGE_PATCH_LEFT_REGION := Rect2(130, 108, 64, 760)
-const BOOK_PAGE_PATCH_RIGHT_REGION := Rect2(788, 108, 64, 760)
-const BOOK_PAGE_PATCH_COLOR := Color(0.99, 0.86, 0.58, 1.0)
-const BOOK_INLAY_COLOR := Color(0.72, 0.49, 0.18, 0.70)
-const BOOK_INLAY_HIGHLIGHT := Color(1.0, 0.86, 0.42, 0.42)
 const BG_TEXTURE := "res://assets/level/background.png"  # v0.02 新天空背景(941×1672, 按宽铺满)
-const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
-const BARRIER_MARKER_NAME := "CoatBarrierSprite"
-const BARRIER_FILL := 1.26  # v0.02 冰块放大补偿(ob_ice实体仅占0.686, ×1.26→实体≈cell*0.86, 与棋子一致)
-const JELLY_MARKER_NAME := "JellyGoalSprite"
-const JELLY_FILL := 0.94
-const JELLY_TINT := Color(0.46, 0.82, 1.0, 0.26)
-const WALL_STONE_ICON := "res://assets/obstacles/ob_stone.png"
-const WALL_MARKER_NAME := "WallStoneSprite"
-const WALL_FILL := 0.90
 # UI 素材
 const KEY_SHADER := "res://match3/magenta_key.gdshader"
 
@@ -122,33 +60,12 @@ const KEY_SHADER := "res://match3/magenta_key.gdshader"
 
 const DESIGN_W := LevelLayout.DESIGN_W
 const DESIGN_H := 1520.0
-const SWAP_TIME := 0.14
-const CLEAR_TIME := 0.156
-const CLEAR_POP_TIME := 0.117
-const CLEAR_POP_SCALE := 1.32
-const CLEAR_BURST_SCALE := 1.52  # 炸裂瞬间冲大的残影倍率(替代旧"缩回吸走"收尾)
-const CLEAR_FX_BATCH_SIZE := 8
 const COLORBOMB_ABSORB_TARGET_BUDGET := 18
 const COLORBOMB_FINE_CLEAR_BUDGET := 12
 const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
-const ELIM_HOLD := 0.156  # 消除后停顿(等普通消除动画跑完)再下落
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
-const OPENING_DROP_TIME := 0.56
-const OPENING_DROP_ROW_STAGGER := 0.045
-const OPENING_DROP_MAX_STAGGER := 0.30
-const OPENING_FREEZE_STAGGER := 0.018
-const OPENING_FREEZE_MAX_STAGGER := 0.18
-const OPENING_FREEZE_SETTLE := 0.16
-const OPENING_STONE_COLOR := Color(0.62, 0.56, 0.50)
-const ENDGAME_BONUS_RESULT_HOLD := 0.45
-const ENDGAME_BONUS_SPECIAL_CHAIN_MAX := 30
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
-const BOSS_C := Vector2(562, 336)
-const CELL_FILL := 1.0          # 格子填满格位
-const GEM_FILL := 0.84
-const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
-const TRAY_TOP := 1236.0  # 技能栏顶(棋盘底锚定于此); 下移让棋盘整体下移, 露出更多角色
 
 var board
 var board_origin: Vector2
@@ -159,25 +76,17 @@ var _play_pos: int = 0           # 当前在 _playable 列表中的位置(翻关
 var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]); _levels 空时复用为 LevelConfig 下标
 var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
 var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
-var _gem_nodes: Array = []
-var _jelly_nodes: Array = []
-var _coat_nodes: Array = []
-var _wall_nodes: Array = []
-var _sel := Vector2i(-1, -1)
-var _sel_node: Sprite2D = null  # 当前选中的棋子节点(放大提亮置顶)
-var _sel_node_scale := Vector2.ONE
-var _sel_node_mod := Color.WHITE
+# 棋子节点所有权迁至 board_view(契约 E)。外界经 board_view.node_at(cell) 访问。
+var _sel := Vector2i(-1, -1)     # 选中坐标(输入路由用); 选中视觉在 board_view
 var _hl_markers: Array = []
 var _busy := false
 var _level_generation: int = 0
-var _opening_drop_tween: Tween = null
 var _key_mat: ShaderMaterial = null
-var _dir_glow_shader: Shader = null  # 横/纵摇头点头的方向性高光 shader(缓存资源)
-var _gem_saturation_shader: Shader = null
-var _gem_saturation_mat: ShaderMaterial = null
-var _colorbomb_inner_light_shader: Shader = null
 var _time_rewind_cast_pending := false
 var _active_cast: PetCast = null               # 当前在途宠物施法控制器(契约 C); 换关/退场时 cancel + free
+# 契约D(P9): receive_session_config 注入的开局参数; load_level 后据此补步数。
+var _session_extra_moves: int = 0              # loadout.extra_moves(独立运行=0)
+var _session_pets: Array = []                  # 出战宠物注册表 key(空=skills 用默认 SKILLS)
 
 @onready var background_layer: CanvasLayer = $BackgroundLayer
 @onready var board_layer: CanvasLayer = $BoardLayer
@@ -186,14 +95,24 @@ var _active_cast: PetCast = null               # 当前在途宠物施法控制�
 @onready var ui_layer: CanvasLayer = $UILayer
 @onready var skill_bar: CanvasLayer = $SkillBar
 
-# ── 子控制器(契约 A 消费者, 铁律2 挂 level 子树)。公开供测试经 level.hud / level.skills 断言。──
+# ── 子控制器(契约 A/E 消费者 + P6 directors, 铁律2 挂 level 子树)。公开供测试经 level.hud / .skills / .board_view / .opening / .endgame 断言。──
 const LevelHud := preload("res://match3/hud.gd")
 const LevelSkills := preload("res://match3/skills.gd")
+const BoardViewScript := preload("res://match3/board_view.gd")
+const LevelOpeningScript := preload("res://match3/directors/opening.gd")
+const LevelEndgameScript := preload("res://match3/directors/endgame.gd")
 var hud: LevelHud = null
 var skills: LevelSkills = null
+var board_view: BoardView = null   # 契约 E: 棋子节点所有权 + 渲染 + 增量同步 + 墙滑视觉
+var opening: LevelOpening = null    # P6: 开局掉落 + freeze reveal 演出
+var endgame: LevelEndgame = null    # P6: 通关奖励连锁演出
 
-# _init 在 .new()/instantiate 时即运行(早于 _ready), 保证不入树的测试也拿到 level.hud / level.skills。
+# _init 在 .new()/instantiate 时即运行(早于 _ready), 保证不入树的测试也拿到 level.hud / level.skills / level.board_view / level.opening / level.endgame。
 func _init() -> void:
+	board_view = BoardViewScript.new()
+	board_view.name = "BoardView"
+	add_child(board_view)
+	board_view.setup(self)
 	hud = LevelHud.new()
 	hud.name = "Hud"
 	add_child(hud)
@@ -203,6 +122,15 @@ func _init() -> void:
 	add_child(skills)
 	skills.setup(self)
 	skills.skill_pressed.connect(_on_skill_pressed)
+	opening = LevelOpeningScript.new()
+	opening.name = "Opening"
+	add_child(opening)
+	opening.setup(self)
+	opening.opening_finished.connect(_on_opening_finished)
+	endgame = LevelEndgameScript.new()
+	endgame.name = "Endgame"
+	add_child(endgame)
+	endgame.setup(self)
 
 func _ready() -> void:
 	# 图层顺序：背景(0) < 棋盘格(2)/棋子(3) < 角色层(4) < UI(5) < 技能栏(6)
@@ -232,8 +160,12 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_level_generation += 1
-	_kill_opening_drop_tween()
+	opening.kill_drop_tween()
 	_cancel_active_cast()
+
+# P6: 开局演出收尾 → 释放输入锁(状态闸门只住 level, 铁律1)。
+func _on_opening_finished() -> void:
+	_busy = false
 
 func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 	for i in range(args.size()):
@@ -312,7 +244,7 @@ func _load_texture(path: String) -> Texture2D:
 	return tex
 
 func load_level(idx: int) -> void:
-	_kill_opening_drop_tween()
+	opening.kill_drop_tween()
 	_cancel_active_cast()
 	_level_generation += 1
 	var generation := _level_generation
@@ -332,17 +264,19 @@ func load_level(idx: int) -> void:
 		board = CoreBoard.new(lc["cols"], lc["rows"], species, 999999, 999, 12345 + idx)
 		cfg = {"id": lc["id"]}
 	board.skill = "timerewind"
+	if _session_extra_moves > 0:
+		board.moves_left += _session_extra_moves   # 契约D(P9): loadout.extra_moves 加进步数
 	_sel = Vector2i(-1, -1)
-	_sel_node = null
+	board_view.clear_selected()   # 旧选中节点引用随重建释放, 先清 board_view 侧引用
 	_hl_markers = []
 	_busy = true
 	_settled = false
 	skills.reset_charge()   # 新关重置技能充能
 	_compute_layout()
 	_render_background()
-	_render_board(true)
+	board_view.rebuild(board, cell_size, board_origin, true)
 	_render_chrome(cfg)
-	_play_opening_drop(generation)
+	opening.play_drop(generation)   # P6: 开局掉落+施石(收尾经 opening_finished 解锁 _busy)
 	print("[阶段6] 关卡 #%d  %d×%d  cell=%d  目标=%s  步数=%d  合法移动=%s"
 		% [cfg["id"], board.width, board.height, int(cell_size), str(board.objectives), board.moves_left, str(ME.has_legal_move(board.grid, board._layers()))])
 
@@ -353,21 +287,7 @@ func _compute_layout() -> void:
 	var layout: Dictionary = LevelLayout.compute_layout(board.width, board.height)
 	cell_size = float(layout["cell_size"])
 	board_origin = layout["board_origin"]
-
-func _board_cell_size_for_grid(cols: int, rows: int) -> float:
-	return LevelLayout.board_cell_size_for_grid(cols, rows)
-
-func _book_frame_width_for_board() -> float:
-	return LevelLayout.book_frame_width_for_board()
-
-func _book_frame_rect() -> Rect2:
-	return LevelLayout.book_frame_rect(board.height, cell_size, board_origin)
-
-func _book_baked_inner_rect() -> Rect2:
-	return LevelLayout.book_baked_inner_rect(board.height, cell_size, board_origin)
-
-func _book_board_inner_rect() -> Rect2:
-	return LevelLayout.book_board_inner_rect(board.width, board.height, cell_size, board_origin)
+	board_view.sync_geometry(board, cell_size, board_origin)   # board_view 渲染计算用自己的几何副本
 
 func _cell_center(row: int, col: int) -> Vector2:
 	return LevelLayout.cell_center(row, col, cell_size, board_origin)
@@ -403,117 +323,6 @@ func _render_background() -> void:
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	background_layer.add_child(tr)
 
-func _render_board_panel() -> void:
-	# v0.02: 魔法书主体 book_frame 用 9-slice —— 四角装饰(~37px)+金框/书脊不变形, 只拉书页中段;
-	#        书页内框(左右38/顶≈角38/底44)对齐棋格。书签与书框同宽, 上沿贴书框下沿。
-	var book_rect := _book_frame_rect()
-	var center := book_rect.position + book_rect.size * 0.5
-	_nine(board_layer, BOOK_FRAME, center, book_rect.size.x, book_rect.size.y, BOOK_NINE_ML, BOOK_NINE_MT, BOOK_NINE_MB)
-	_render_book_inner_inlay()
-	if _asset_exists(BOOK_RIBBONS):
-		var rib_tex := _load_texture_from_file(BOOK_RIBBONS)
-		if rib_tex == null:
-			return
-		var rib := NinePatchRect.new()
-		rib.name = "BookRibbons"
-		rib.texture = rib_tex
-		var rw: float = book_rect.size.x
-		var rh: float = rw * float(rib_tex.get_height()) / float(rib_tex.get_width())
-		rib.size = Vector2(rw, rh)
-		rib.position = Vector2(center.x - rw * 0.5, book_rect.position.y + book_rect.size.y)
-		rib.patch_margin_left = BOOK_NINE_ML
-		rib.patch_margin_right = BOOK_NINE_ML
-		rib.patch_margin_top = 0
-		rib.patch_margin_bottom = 0
-		rib.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		board_layer.add_child(rib)
-
-func _render_book_inner_inlay() -> void:
-	var baked := _book_baked_inner_rect()
-	var target := _book_board_inner_rect()
-	if target.size.x <= 0.0 or target.size.y <= 0.0:
-		return
-	if absf(target.position.x - baked.position.x) <= 0.5 \
-			and absf(target.position.y - baked.position.y) <= 0.5 \
-			and absf(target.size.x - baked.size.x) <= 0.5 \
-			and absf(target.size.y - baked.size.y) <= 0.5:
-		return
-	var left_gap: float = target.position.x - baked.position.x
-	if left_gap > 0.5:
-		_book_inlay_mask(
-			BOOK_INLAY_MASK_LEFT_NODE,
-			Rect2(
-				Vector2(baked.position.x - BOOK_INLAY_MASK_BLEED, baked.position.y - BOOK_INLAY_MASK_BLEED),
-				Vector2(left_gap + BOOK_INLAY_MASK_BLEED, baked.size.y + BOOK_INLAY_MASK_BLEED * 2.0)
-			)
-		)
-	var right_gap: float = baked.end.x - target.end.x
-	if right_gap > 0.5:
-		_book_inlay_mask(
-			BOOK_INLAY_MASK_RIGHT_NODE,
-			Rect2(
-				Vector2(target.end.x, baked.position.y - BOOK_INLAY_MASK_BLEED),
-				Vector2(right_gap + BOOK_INLAY_MASK_BLEED, baked.size.y + BOOK_INLAY_MASK_BLEED * 2.0)
-			)
-		)
-
-	var inlay := Panel.new()
-	inlay.name = BOOK_INNER_INLAY_NODE
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color.TRANSPARENT
-	style.border_color = BOOK_INLAY_COLOR
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(5)
-	inlay.add_theme_stylebox_override("panel", style)
-	inlay.position = target.position
-	inlay.size = target.size
-	inlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	inlay.z_index = 30
-	board_layer.add_child(inlay)
-
-	var highlight := Panel.new()
-	highlight.name = "%sHighlight" % BOOK_INNER_INLAY_NODE
-	var hi_style := StyleBoxFlat.new()
-	hi_style.bg_color = Color.TRANSPARENT
-	hi_style.border_color = BOOK_INLAY_HIGHLIGHT
-	hi_style.set_border_width_all(1)
-	hi_style.set_corner_radius_all(4)
-	highlight.add_theme_stylebox_override("panel", hi_style)
-	highlight.position = target.position + Vector2(2.0, 2.0)
-	highlight.size = target.size - Vector2(4.0, 4.0)
-	highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	highlight.z_index = 31
-	board_layer.add_child(highlight)
-
-func _book_inlay_mask(node_name: String, rect: Rect2) -> void:
-	var patch := _book_page_patch_texture(node_name == BOOK_INLAY_MASK_LEFT_NODE)
-	if patch != null:
-		var mask := TextureRect.new()
-		mask.name = node_name
-		mask.texture = patch
-		mask.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		mask.stretch_mode = TextureRect.STRETCH_SCALE
-		mask.position = rect.position
-		mask.size = rect.size
-		mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		board_layer.add_child(mask)
-		return
-	var fallback := ColorRect.new()
-	fallback.name = node_name
-	fallback.color = BOOK_PAGE_PATCH_COLOR
-	fallback.position = rect.position
-	fallback.size = rect.size
-	fallback.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	board_layer.add_child(fallback)
-
-func _book_page_patch_texture(left: bool) -> Texture2D:
-	var base: Texture2D = load(BOOK_FRAME) if ResourceLoader.exists(BOOK_FRAME) else _load_texture_from_file(BOOK_FRAME)
-	if base == null:
-		return null
-	var patch := AtlasTexture.new()
-	patch.atlas = base
-	patch.region = BOOK_PAGE_PATCH_LEFT_REGION if left else BOOK_PAGE_PATCH_RIGHT_REGION
-	return patch
 
 func _load_texture_from_file(path: String) -> Texture2D:
 	var file_path := ProjectSettings.globalize_path(path)
@@ -526,587 +335,9 @@ func _load_texture_from_file(path: String) -> Texture2D:
 	tex.take_over_path(path)
 	return tex
 
-func _render_board(opening_drop: bool = false) -> void:
-	_clear_layer(board_layer)
-	_clear_layer(gem_layer)
-	_jelly_nodes = []
-	_coat_nodes = []
-	_wall_nodes = []
-	_render_board_panel()
-	_gem_nodes = []
-	var cell_tex: Texture2D = load(CELL_SQ) if ResourceLoader.exists(CELL_SQ) else null
-	for r in range(board.height):
-		var node_row: Array = []
-		for c in range(board.width):
-			var center: Vector2 = _cell_center(r, c)
-			# v0.02: 米黄圆角棋格(cell_sq.png), 半透叠魔法书页上
-			if cell_tex != null:
-				var cs := Sprite2D.new()
-				cs.texture = cell_tex
-				cs.position = center
-				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
-				cs.modulate = Color(1, 1, 1, 0.5)
-				board_layer.add_child(cs)
-			var visual_sp: int = _opening_visual_species(r, c) if opening_drop else board.grid[r][c]
-			var gnode: Sprite2D = _make_gem(visual_sp, center)
-			if gnode != null and opening_drop:
-				gnode.position = _opening_drop_start_position(center, r)
-			# 阶段5: 若该格已是特效棋子(交换后/续局), 叠 shine 标记
-			if gnode != null and board.fx[r][c] != ME.SP_NONE:
-				_apply_fx_overlay(gnode, board.fx[r][c])
-			node_row.append(gnode)
-		_gem_nodes.append(node_row)
-	_render_jelly_visuals()
-	if opening_drop:
-		_wall_nodes = _blank_visual_rows()
-	else:
-		_render_wall_visuals()
-	if opening_drop:
-		_render_opening_coat_visuals()
-	else:
-		_render_coat_visuals()
-
-func _blank_visual_rows() -> Array:
-	var rows := []
-	for r in range(board.height):
-		var row := []
-		for c in range(board.width):
-			row.append(null)
-		rows.append(row)
-	return rows
-
-func _opening_visual_species(row: int, col: int) -> int:
-	var sp: int = board.grid[row][col]
-	if _layer_value(board.coat, row, col) > 0:
-		return ME.EMPTY
-	if sp >= 0:
-		return sp
-	if board.species.is_empty():
-		return sp
-	if sp != ME.WALL:
-		return sp
-	return int(board.species[abs(row * 31 + col * 17) % board.species.size()])
-
-func _opening_drop_start_position(final_center: Vector2, row: int) -> Vector2:
-	return final_center - Vector2(0.0, cell_size * float(row + 1.5))
-
-func _opening_drop_delay(row: int, height: int = -1) -> float:
-	var h: int = height if height > 0 else board.height
-	if h <= 1:
-		return 0.0
-	var row_from_bottom: int = clampi(h - 1 - row, 0, h - 1)
-	var full_span := float(h - 1) * OPENING_DROP_ROW_STAGGER
-	var capped_span := minf(full_span, OPENING_DROP_MAX_STAGGER)
-	return capped_span * float(row_from_bottom) / float(h - 1)
-
-func _opening_drop_window(height: int = -1) -> float:
-	var h: int = height if height > 0 else board.height
-	return OPENING_DROP_TIME + _opening_drop_delay(0, h)
-
-func _opening_wall_cells() -> Array:
-	var cells := []
-	for r in range(board.height):
-		for c in range(board.width):
-			if board.grid[r][c] == ME.WALL:
-				cells.append(Vector2i(c, r))
-	return cells
-
-func _opening_freeze_delay(index: int, count: int = -1) -> float:
-	var wall_count: int = count if count > 0 else _opening_wall_cells().size()
-	if wall_count <= 1:
-		return 0.0
-	var safe_index: int = clampi(index, 0, wall_count - 1)
-	return minf(float(safe_index) * OPENING_FREEZE_STAGGER, OPENING_FREEZE_MAX_STAGGER)
-
-func _opening_freeze_window(wall_count: int) -> float:
-	if wall_count <= 0:
-		return 0.0
-	return _opening_freeze_delay(wall_count - 1, wall_count) + OPENING_FREEZE_SETTLE
-
-func _settle_opening_gems(generation: int) -> bool:
-	if generation != _level_generation:
-		return false
-	for r in range(board.height):
-		for c in range(board.width):
-			var n: Sprite2D = _gem_nodes[r][c]
-			if n != null and is_instance_valid(n):
-				n.position = _cell_center(r, c)
-	return true
-
-func _settle_opening_coat_markers(generation: int) -> bool:
-	if generation != _level_generation:
-		return false
-	for r in range(_coat_nodes.size()):
-		var row = _coat_nodes[r]
-		if not (row is Array):
-			continue
-		for c in range(row.size()):
-			var n: Sprite2D = row[c]
-			if n != null and is_instance_valid(n):
-				n.position = _coat_marker_position(r, c)
-	return true
-
-func _show_opening_wall_marker(pos: Vector2i, animate: bool) -> void:
-	_clear_gem_node_at(pos.y, pos.x)
-	if _wall_nodes.is_empty():
-		_wall_nodes = _blank_visual_rows()
-	var tex := _load_texture(WALL_STONE_ICON) if _asset_exists(WALL_STONE_ICON) else null
-	if tex == null:
-		return
-	var marker := _make_wall_marker(pos.y, pos.x, tex)
-	_wall_nodes[pos.y][pos.x] = marker
-	if marker == null or not animate or not is_inside_tree():
-		return
-	var base_scale: Vector2 = marker.scale
-	marker.modulate.a = 0.0
-	marker.scale = base_scale * 0.55
-	var t := create_tween().set_parallel(true)
-	t.tween_property(marker, "modulate:a", 1.0, 0.16)
-	t.tween_property(marker, "scale", base_scale, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-
-func _play_opening_freeze(generation: int) -> void:
-	var wall_cells: Array = _opening_wall_cells()
-	if wall_cells.is_empty() or generation != _level_generation:
-		return
-	var last_delay := 0.0
-	for i in range(wall_cells.size()):
-		var delay := _opening_freeze_delay(i, wall_cells.size())
-		if delay > last_delay:
-			await get_tree().create_timer(delay - last_delay).timeout
-			last_delay = delay
-		if generation != _level_generation:
-			return
-		var p: Vector2i = wall_cells[i]
-		Fx.spawn_beam(BOSS_C, _cell_center(p.y, p.x), OPENING_STONE_COLOR)
-		_show_opening_wall_marker(p, true)
-	await get_tree().create_timer(OPENING_FREEZE_SETTLE).timeout
-	if generation != _level_generation:
-		return
-
-func _apply_opening_freeze_instant(generation: int) -> void:
-	if generation != _level_generation:
-		return
-	_settle_opening_coat_markers(generation)
-	for p in _opening_wall_cells():
-		_show_opening_wall_marker(p, false)
-
-func _play_opening_drop(generation: int) -> void:
-	if not is_inside_tree():
-		if _settle_opening_gems(generation):
-			_settle_opening_coat_markers(generation)
-			_apply_opening_freeze_instant(generation)
-			_finish_opening_drop(generation)
-		return
-	var t: Tween = null
-	var any := false
-	for r in range(board.height):
-		for c in range(board.width):
-			var n: Sprite2D = _gem_nodes[r][c]
-			if n == null or not is_instance_valid(n):
-				continue
-			if t == null:
-				t = create_tween().set_parallel(true)
-				_opening_drop_tween = t
-			var target := _cell_center(r, c)
-			_queue_opening_drop_node(t, n, target, r)
-			any = true
-	for r in range(_coat_nodes.size()):
-		var row = _coat_nodes[r]
-		if not (row is Array):
-			continue
-		for c in range(row.size()):
-			var n: Sprite2D = row[c]
-			if n == null or not is_instance_valid(n):
-				continue
-			if t == null:
-				t = create_tween().set_parallel(true)
-				_opening_drop_tween = t
-			_queue_opening_drop_node(t, n, _coat_marker_position(r, c), r)
-			any = true
-	if any and t != null:
-		t.finished.connect(_on_opening_drop_finished.bind(generation, t), CONNECT_ONE_SHOT)
-		return
-	_on_opening_drop_finished(generation, null)
-
-func _on_opening_drop_finished(generation: int, tween: Tween) -> void:
-	if _opening_drop_tween == tween:
-		_opening_drop_tween = null
-	if not _settle_opening_gems(generation):
-		return
-	if not _settle_opening_coat_markers(generation):
-		return
-	await _play_opening_freeze(generation)
-	_finish_opening_drop(generation)
-
-func _queue_opening_drop_node(t: Tween, n: Node2D, target: Vector2, row: int) -> void:
-	var delay := _opening_drop_delay(row)
-	var tw := t.tween_property(n, "position", target, OPENING_DROP_TIME)
-	tw.set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-
-func _kill_opening_drop_tween() -> void:
-	if _opening_drop_tween != null and _opening_drop_tween.is_valid():
-		_opening_drop_tween.kill()
-	_opening_drop_tween = null
-
-func _finish_opening_drop(generation: int) -> void:
-	if generation != _level_generation:
-		return
-	_busy = false
-
-func _make_gem(sp: int, center: Vector2) -> Sprite2D:
-	if sp < 0 or sp >= GEM_TEXTURES.size() or not _asset_exists(GEM_TEXTURES[sp]):
-		return null
-	var tex := _load_texture(GEM_TEXTURES[sp])
-	if tex == null:
-		return null
-	var gs := Sprite2D.new()
-	gs.texture = tex
-	gs.position = center
-	gs.scale = _fit_scale(tex, cell_size * GEM_FILL) * GEM_CONTENT_COMP[sp]
-	gs.modulate = GEM_TINT[sp]  # v0.02 绿棋子降高光白点(其余白色不变)
-	gs.material = _gem_saturation_material()
-	gs.set_meta("species", sp)
-	gs.set_meta("fx", ME.SP_NONE)
-	_attach_shape_shadow(gs, tex)  # v0.02: 统一棋子形状阴影(自身纹理染黑)
-	gem_layer.add_child(gs)
-	return gs
-
-# v0.02: 统一棋子形状阴影 —— 用本体纹理染成轻软暗紫灰(同形状)×0.85, 下偏移一丢丢, 居本体下层半透。
-# 复用已存在的 "shadow" 子节点(无则新建)。普通棋子 / 冰块 / 5合1彩球共用同一套逻辑。
-func _attach_shape_shadow(node: Sprite2D, tex: Texture2D) -> void:
-	var sh: Sprite2D = node.get_node_or_null("shadow")
-	if sh == null:
-		sh = Sprite2D.new()
-		sh.name = "shadow"
-		node.add_child(sh)
-	sh.texture = tex
-	sh.z_index = -1
-	sh.scale = Vector2(0.85, 0.85)
-	sh.position = Vector2(0.0, (cell_size * 0.14) / (node.scale.y if node.scale.y != 0.0 else 1.0))
-	sh.modulate = GEM_SHADOW_COLOR
-
-func _layer_value(layer: Array, row: int, col: int) -> int:
-	if layer.is_empty() or row < 0 or row >= layer.size():
-		return 0
-	var row_data = layer[row]
-	if not (row_data is Array) or col < 0 or col >= row_data.size():
-		return 0
-	return int(row_data[col])
-
-func _free_layer_visual_rows(rows: Array) -> void:
-	for row in rows:
-		for node in row:
-			if node != null and is_instance_valid(node):
-				node.queue_free()
-
-func _refresh_coat_visuals() -> void:
-	_free_layer_visual_rows(_coat_nodes)
-	_render_coat_visuals()
-
-func _refresh_jelly_visuals() -> void:
-	_free_layer_visual_rows(_jelly_nodes)
-	_render_jelly_visuals()
-
-func _refresh_wall_visuals() -> void:
-	_free_layer_visual_rows(_wall_nodes)
-	_render_wall_visuals()
-
-func _render_jelly_visuals() -> void:
-	_jelly_nodes = []
-	if board == null or board_layer == null:
-		return
-	for r in range(board.height):
-		var row: Array = []
-		for c in range(board.width):
-			row.append(_make_jelly_marker(r, c))
-		_jelly_nodes.append(row)
-
-func _make_jelly_marker(row: int, col: int) -> ColorRect:
-	if _layer_value(board.jelly, row, col) <= 0 or board.grid[row][col] == ME.WALL:
-		return null
-	var marker := ColorRect.new()
-	marker.name = JELLY_MARKER_NAME
-	marker.add_to_group(JELLY_MARKER_NAME)
-	var size := Vector2(cell_size * JELLY_FILL, cell_size * JELLY_FILL)
-	marker.position = _cell_center(row, col) - size * 0.5
-	marker.size = size
-	marker.color = JELLY_TINT
-	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	marker.z_index = 1
-	board_layer.add_child(marker)
-	return marker
-
-func _render_wall_visuals() -> void:
-	_wall_nodes = []
-	if board == null or gem_layer == null:
-		return
-	var tex := _load_texture(WALL_STONE_ICON) if _asset_exists(WALL_STONE_ICON) else null
-	for r in range(board.height):
-		var row: Array = []
-		for c in range(board.width):
-			row.append(_make_wall_marker(r, c, tex))
-		_wall_nodes.append(row)
-
-func _make_wall_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
-	if board.grid[row][col] != ME.WALL or tex == null:
-		return null
-	var marker := Sprite2D.new()
-	marker.name = WALL_MARKER_NAME
-	marker.add_to_group(WALL_MARKER_NAME)
-	marker.texture = tex
-	marker.material = _magenta_material()
-	marker.position = _cell_center(row, col)
-	marker.scale = _fit_scale(tex, cell_size * WALL_FILL)
-	marker.z_index = 5
-	gem_layer.add_child(marker)
-	return marker
-
-func _render_coat_visuals() -> void:
-	_coat_nodes = []
-	if board == null or gem_layer == null or not ResourceLoader.exists(BARRIER_ICE_ICON):
-		return
-	var tex: Texture2D = load(BARRIER_ICE_ICON)
-	for r in range(board.height):
-		var row: Array = []
-		for c in range(board.width):
-			row.append(_make_coat_marker(r, c, tex))
-		_coat_nodes.append(row)
-
-func _render_opening_coat_visuals() -> void:
-	_coat_nodes = []
-	if board == null or gem_layer == null or not ResourceLoader.exists(BARRIER_ICE_ICON):
-		return
-	var tex: Texture2D = load(BARRIER_ICE_ICON)
-	for r in range(board.height):
-		var row: Array = []
-		for c in range(board.width):
-			var marker := _make_coat_marker(r, c, tex)
-			if marker != null:
-				marker.position = _opening_drop_start_position(_coat_marker_position(r, c), r)
-			row.append(marker)
-		_coat_nodes.append(row)
-
-func _coat_marker_position(row: int, col: int) -> Vector2:
-	return _cell_center(row, col) + Vector2(0.0, cell_size * 0.05)
-
-func _make_coat_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
-	var layers := _layer_value(board.coat, row, col)
-	if layers <= 0 or board.grid[row][col] == ME.WALL:
-		return null
-	var marker := Sprite2D.new()
-	marker.name = BARRIER_MARKER_NAME
-	marker.add_to_group(BARRIER_MARKER_NAME)
-	marker.texture = tex
-	marker.material = _magenta_material()
-	marker.position = _coat_marker_position(row, col)  # v0.02 冰块水平居中, 仅保留轻微下沉贴合格子
-	marker.scale = _fit_scale(tex, cell_size * BARRIER_FILL)
-	marker.z_index = 8
-	_attach_shape_shadow(marker, tex)  # v0.02: 统一形状阴影(同棋子)
-	gem_layer.add_child(marker)
-	return marker
-
-## 阶段5: 标记棋子为特效棋子并施加「站立特效」。kind==SP_NONE / 其它则清除特效回普通棋子。
-## v0.02: 站立特效 = 姿态循环动画 + 贴边白光描边(见 _start_combo_idle), 取代旧 shine 静态光贴图。
-func _apply_fx_overlay(node: Sprite2D, kind: int) -> void:
-	if node == null or not is_instance_valid(node):
-		return
-	if _fx_overlay_is_current(node, kind):
-		return
-	node.set_meta("fx", kind)
-	_stop_combo_idle(node)  # 先停旧站立特效(kill tween + 移描边 + 复位 scale), 再按新 kind 施加
-	_stop_colorbomb_idle(node)
-	var old: Node = node.get_node_or_null("shine")  # 兼容: 清掉可能残留的旧 shine 贴图
-	if old != null:
-		old.queue_free()
-	_clear_colorbomb_layers(node)
-	if kind == ME.SP_COLORBOMB:
-		_apply_colorbomb_layers(node)
-		return
-	if kind == ME.SP_NONE:
-		return
-	if kind == ME.SP_LINE_H or kind == ME.SP_LINE_V or kind == ME.SP_BOMB:
-		_start_combo_idle(node, kind)
-
-func _fx_overlay_is_current(node: Sprite2D, kind: int) -> bool:
-	if int(node.get_meta("fx", ME.SP_NONE)) != kind:
-		return false
-	match kind:
-		ME.SP_LINE_H, ME.SP_LINE_V, ME.SP_BOMB:
-			return _stored_tween_is_running(node, "combo_tween")
-		ME.SP_COLORBOMB:
-			return _stored_tween_is_running(node, "colorbomb_tween")
-		ME.SP_NONE:
-			return not _stored_tween_is_running(node, "combo_tween") and not _stored_tween_is_running(node, "colorbomb_tween")
-		_:
-			return false
-
-func _stored_tween_is_running(node: Sprite2D, key: String) -> bool:
-	if not node.has_meta(key):
-		return false
-	var tw = node.get_meta(key)
-	return tw is Tween and tw.is_valid()
-
-func _gem_saturation_material() -> ShaderMaterial:
-	if _gem_saturation_mat != null:
-		return _gem_saturation_mat
-	if _gem_saturation_shader == null:
-		_gem_saturation_shader = load(GEM_SATURATION_SHADER)
-	_gem_saturation_mat = ShaderMaterial.new()
-	_gem_saturation_mat.shader = _gem_saturation_shader
-	_gem_saturation_mat.set_shader_parameter("saturation", GEM_SATURATION)
-	return _gem_saturation_mat
-
-# 启动特殊棋子站立特效:
-#   横/纵 = 方向性高光(光左右/上下扫, 表达朝哪侧转) + 转头变窄; 十字 = 全向脉冲 + 峰值暖金提亮。
-func _start_combo_idle(node: Sprite2D, kind: int) -> void:
-	var base: Vector2 = node.scale
-	var base_mod: Color = node.modulate
-	var base_offset: Vector2 = node.offset
-	node.set_meta("combo_base_scale", base)
-	node.set_meta("combo_base_mod", base_mod)
-	node.set_meta("combo_base_offset", base_offset)
-	var t := node.create_tween().set_loops()
-	match kind:
-		ME.SP_LINE_H:
-			node.material = _directional_glow_material(true)
-			_build_swing_loop(t, node, base, true, node.material)
-		ME.SP_LINE_V:
-			node.material = _directional_glow_material(false)
-			_build_swing_loop(t, node, base, false, node.material)
-		ME.SP_BOMB:
-			_build_pulse_loop(t, node, base, base_mod)
-	node.set_meta("combo_tween", t)
-
-# 方向性高光材质(每棋子独立, 各自动画 light_pos)。horizontal=横(光左右扫), false=纵(光上下扫)。
-func _directional_glow_material(horizontal: bool) -> ShaderMaterial:
-	if _dir_glow_shader == null:
-		_dir_glow_shader = load(DIR_GLOW_SHADER)
-	var m := ShaderMaterial.new()
-	m.shader = _dir_glow_shader
-	m.set_shader_parameter("light_axis", Vector2(1.0, 0.0) if horizontal else Vector2(0.0, 1.0))
-	m.set_shader_parameter("light_w", COMBO_LIGHT_W)
-	m.set_shader_parameter("light_strength", COMBO_LIGHT_STRENGTH)
-	m.set_shader_parameter("light_tint", COMBO_LIGHT_TINT)
-	m.set_shader_parameter("rim_strength", COMBO_RIM_STRENGTH)
-	m.set_shader_parameter("bulge_strength", COMBO_BULGE_STRENGTH)
-	m.set_shader_parameter("specular_strength", COMBO_SPECULAR_STRENGTH)
-	m.set_shader_parameter("base_saturation", GEM_SATURATION)
-	m.set_shader_parameter("light_pos", 0.5)
-	return m
-
-# 横(horizontal=true)=左右摇头; 纵=上下点头。方向由"高光位置"表达: 光扫到一侧=朝该侧转;
-# 配合本体沿轴"转头变窄"(透视), 回正最宽。光左右/上下扫一个来回 + 停顿。
-func _build_swing_loop(t: Tween, node: Sprite2D, base: Vector2, horizontal: bool, mat: ShaderMaterial) -> void:
-	# 单条相位 tween(0→TAU, 线性, loop) 同时驱动「光泽位置」+「转头形变」, 二者天然同相、连续循环。
-	# 光泽 = 0.5 + 振幅*sin(ph): 过中间最快、到两端减速回头(钟摆), 无停顿、不卡中间。
-	# 转头形变按运动轴选择: 横向只改 x, 纵向只改 y, 避免上下点头读成左右摇。
-	var cb := func(ph: float) -> void:
-		var s: float = sin(ph)
-		mat.set_shader_parameter("light_pos", 0.5 + COMBO_LIGHT_SWING * s)
-		node.scale = _combo_swing_scale(base, horizontal, s)
-		node.offset = Vector2(COMBO_SWING_OFFSET * s, 0.0) if horizontal else Vector2(0.0, COMBO_VERTICAL_SWING_OFFSET * s)
-	t.tween_method(cb, 0.0, TAU, COMBO_SWING_CYCLE).set_trans(Tween.TRANS_LINEAR)
-
-func _combo_swing_scale(base: Vector2, horizontal: bool, s: float) -> Vector2:
-	var depth := absf(s)
-	if horizontal:
-		var widen_x: float = base.x * COMBO_SWING_WIDEN
-		var shrink_x: float = base.x * COMBO_SWING_AMP
-		return Vector2(base.x + widen_x - (widen_x + shrink_x) * depth, base.y)
-	var widen_y: float = base.y * COMBO_VERTICAL_SCALE_WIDEN
-	var shrink_y: float = base.y * COMBO_VERTICAL_SCALE_AMP
-	return Vector2(base.x, base.y + widen_y - (widen_y + shrink_y) * depth)
-
-# 十字(SP_BOMB)=lub-dub-rest 心跳: 快速大跳提亮 → 原色回落 → 短停 → 快速小跳提亮 → 原色回落 → 长休止。
-func _build_pulse_loop(t: Tween, node: Sprite2D, base: Vector2, base_mod: Color) -> void:
-	var first_peak: Vector2 = base * (1.0 + COMBO_HEARTBEAT_FIRST_AMP)
-	var second_peak: Vector2 = base * (1.0 + COMBO_HEARTBEAT_SECOND_AMP)
-	t.tween_property(node, "scale", first_peak, COMBO_HEARTBEAT_UP).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.parallel().tween_property(node, "modulate", COMBO_BRIGHTEN, COMBO_HEARTBEAT_UP).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(node, "scale", base, COMBO_HEARTBEAT_DOWN).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	t.parallel().tween_property(node, "modulate", base_mod, COMBO_HEARTBEAT_DOWN).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	t.tween_interval(COMBO_HEARTBEAT_GAP)
-	t.tween_property(node, "scale", second_peak, COMBO_HEARTBEAT_UP).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.parallel().tween_property(node, "modulate", COMBO_BRIGHTEN, COMBO_HEARTBEAT_UP).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_property(node, "scale", base, COMBO_HEARTBEAT_DOWN).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	t.parallel().tween_property(node, "modulate", base_mod, COMBO_HEARTBEAT_DOWN).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	t.tween_interval(COMBO_HEARTBEAT_REST)
-
-# 停止站立特效: kill 姿态/提亮 tween, 复位 scale 与 modulate 到 base。
-func _stop_combo_idle(node: Sprite2D) -> void:
-	for key in ["combo_tween", "combo_mod_tween"]:
-		if node.has_meta(key):
-			var tw = node.get_meta(key)
-			if tw is Tween and tw.is_valid():
-				tw.kill()
-			node.remove_meta(key)
-	var glow := node.get_node_or_null(COMBO_GLOW_NAME)  # 兼容: 清掉可能残留的旧白光节点
-	if glow != null:
-		glow.queue_free()
-	node.material = _gem_saturation_material()  # 清横/纵方向高光后仍保留本轮宝石降饱和实验
-	if node.has_meta("combo_base_scale"):
-		node.scale = node.get_meta("combo_base_scale")
-		node.remove_meta("combo_base_scale")
-	if node.has_meta("combo_base_mod"):
-		node.modulate = node.get_meta("combo_base_mod")
-		node.remove_meta("combo_base_mod")
-	if node.has_meta("combo_base_offset"):
-		node.offset = node.get_meta("combo_base_offset")
-		node.remove_meta("combo_base_offset")
-
-func _stop_colorbomb_idle(node: Sprite2D) -> void:
-	if not node.has_meta("colorbomb_tween"):
-		return
-	var tw = node.get_meta("colorbomb_tween")
-	if tw is Tween and tw.is_valid():
-		tw.kill()
-	node.remove_meta("colorbomb_tween")
-
-func _clear_colorbomb_layers(node: Sprite2D) -> void:
-	node.offset = Vector2.ZERO
-	for layer_name in COLORBOMB_LAYER_NAMES:
-		var child := node.get_node_or_null(String(layer_name))
-		if child != null:
-			child.queue_free()
-
-func _apply_colorbomb_layers(node: Sprite2D) -> void:
-	# v0.02: 彩球用 diamond_white.png, 内部中心照光, 不再画外圈流光。
-	if not _asset_exists(COLORBOMB_CORE):
-		return
-	var core := _load_texture(COLORBOMB_CORE)
-	if core == null:
-		return
-	node.texture = core
-	node.offset = Vector2.ZERO
-	node.scale = _fit_scale(core, cell_size * COLORBOMB_FILL)
-	node.z_index = 2
-	# v0.02: 5合1 改用与普通棋子一致的形状阴影(本体星辰球纹理染黑), 不再用金色地面光晕素材。
-	_attach_shape_shadow(node, core)
-	_attach_colorbomb_inner_light(node, core)
-	# 轻微上下浮动(idle), 不依赖任何子层
-	var bob := node.create_tween().set_loops()
-	node.set_meta("colorbomb_tween", bob)
-	bob.tween_property(node, "offset", Vector2(0, -3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	bob.tween_property(node, "offset", Vector2(0, 3.0), 1.15).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-
-func _attach_colorbomb_inner_light(node: Sprite2D, core: Texture2D) -> void:
-	var light := Sprite2D.new()
-	light.name = COLORBOMB_INNER_LIGHT_NAME
-	light.texture = core
-	light.z_index = 3
-	light.material = _colorbomb_inner_light_material()
-	node.add_child(light)
-
-func _colorbomb_inner_light_material() -> ShaderMaterial:
-	if _colorbomb_inner_light_shader == null:
-		_colorbomb_inner_light_shader = load(COLORBOMB_INNER_LIGHT_SHADER)
-	var mat := ShaderMaterial.new()
-	mat.shader = _colorbomb_inner_light_shader
-	for i in range(COLORBOMB_INNER_LIGHT_COLORS.size()):
-		mat.set_shader_parameter("light_color_%d" % i, COLORBOMB_INNER_LIGHT_COLORS[i])
-	mat.set_shader_parameter("inner_radius", COLORBOMB_INNER_LIGHT_RADIUS)
-	mat.set_shader_parameter("cycle_seconds", COLORBOMB_INNER_LIGHT_SECONDS)
-	return mat
+# 棋盘整盘渲染 / 棋子节点创建 / 站立特效 / 增量同步 / 墙滑视觉 → board_view.gd(契约 E)。
+# 开局掉落+施石 → directors/opening.gd; 通关奖励连锁 → directors/endgame.gd(P6)。
+# 状态闸门 _busy/_level_generation 只住 level(铁律1); director 经信号/参数请求, 不写闸门。
 
 # ───────── 整页 UI（对齐参考图） ─────────
 
@@ -1132,19 +363,6 @@ func _set_moves_display_override(value: int) -> void:
 func _clear_moves_display_override() -> void:
 	hud.clear_moves_display_override()
 
-## NinePatch 素材(金框/横幅/底纹),四边 patch_margin。
-func _nine(layer: CanvasLayer, path: String, center: Vector2, w: float, h: float, ml: int, mt: int, mb: int) -> void:
-	if not ResourceLoader.exists(path):
-		return
-	var np := NinePatchRect.new()
-	np.texture = load(path)
-	np.position = center - Vector2(w, h) * 0.5
-	np.size = Vector2(w, h)
-	np.patch_margin_left = ml
-	np.patch_margin_right = ml
-	np.patch_margin_top = mt
-	np.patch_margin_bottom = mb
-	layer.add_child(np)
 
 # 技能栏按钮点击 dispatcher(经 skills.skill_pressed 信号触发)。
 # 忙/结算闸门 + PetCast dispatch + 锁回调留在 level(铁律1/§4.7); 充能态查 skills。
@@ -1214,10 +432,11 @@ func _on_pet_cast_started() -> void:
 
 func _on_pet_cast_committed() -> void:
 	# 效果已落地(board 已 rewind), 同步棋盘视图 + HUD。
+	# 直摸点#3(契约 E): 时兔 commit 重渲染改走 board_view.rebuild。
 	_sel = Vector2i(-1, -1)
-	_sel_node = null
+	board_view.clear_selected()
 	_clear_highlights()
-	_render_board(false)
+	board_view.rebuild(board)
 	_refresh_hud()
 
 func _on_pet_cast_finished(cast: PetCast) -> void:
@@ -1279,11 +498,8 @@ func _skill_dragon() -> bool:
 	Fx.shake(14.0)
 	ME._apply_clears(board.grid, board.fx, cells, [])
 	for p in cells:
-		var node: Sprite2D = _gem_nodes[p.y][p.x]
-		if node != null and is_instance_valid(node):
-			node.queue_free()
-		_gem_nodes[p.y][p.x] = null
-	await _collapse_and_refill()
+		board_view.clear_node_at(p)
+	await board_view.collapse_and_refill()
 	await _resolve_cascades()
 	_busy = false
 	return true
@@ -1300,9 +516,9 @@ func _skill_blessing() -> bool:
 		return false
 	var p: Vector2i = cands[board.rng.randi() % cands.size()]
 	board.fx[p.y][p.x] = ME.SP_BOMB
-	var node: Sprite2D = _gem_nodes[p.y][p.x]
+	var node: Sprite2D = board_view.node_at(p)
 	if node != null and is_instance_valid(node):
-		_apply_fx_overlay(node, ME.SP_BOMB)
+		board_view.apply_fx_overlay(node, ME.SP_BOMB)
 	Fx.spawn_explosion(_cell_center(p.y, p.x), Color(1.0, 0.85, 0.3), 1.5)
 	return true
 
@@ -1316,117 +532,15 @@ func _check_settlement() -> bool:
 	if board.is_won():
 		_settled = true
 		_busy = true
-		await _run_win_bonus_and_show()
+		# P6: 奖励连锁演出经 endgame director; 刷 HUD + 弹结算面板(状态闸门/面板只住 level)留这。
+		await endgame.run_win_bonus()
+		_refresh_hud()
+		_show_result(true)
 		return true
 	elif board.is_lost():
 		_show_result(false)
 		return true
 	return false
-
-func _run_win_bonus_and_show() -> void:
-	await _play_endgame_bonus()
-	_refresh_hud()
-	_show_result(true)
-
-func _play_endgame_bonus() -> void:
-	var bonus_moves: int = maxi(board.moves_left, 0)
-	var picks: Array = board.prepare_endgame_bonus_lines()
-	if picks.is_empty():
-		_clear_moves_display_override()
-		return
-	if bonus_moves > 0:
-		_set_moves_display_override(0)
-	await _play_endgame_bonus_conversion_matrix(picks)
-	var seeds := []
-	for item in picks:
-		seeds.append(item["pos"])
-	await _play_endgame_bonus_special_blast(seeds, 1)
-	await _resolve_endgame_bonus_special_chain()
-	_clear_moves_display_override()
-	await get_tree().create_timer(ENDGAME_BONUS_RESULT_HOLD).timeout
-
-func _play_endgame_bonus_conversion_matrix(picks: Array) -> void:
-	var virtual_fx := {}
-	var preview_cells := []
-	for item in picks:
-		var p: Vector2i = item["pos"]
-		var kind: int = int(item["kind"])
-		if kind == ME.SP_NONE:
-			continue
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
-		if n == null or not is_instance_valid(n):
-			continue
-		virtual_fx[p] = kind
-		preview_cells.append(p)
-	if virtual_fx.is_empty():
-		return
-	await _play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)
-	await _show_colorbomb_virtual_conversion(virtual_fx)
-
-func _endgame_bonus_conversion_preview_center(preview_cells: Array) -> Vector2:
-	if preview_cells.is_empty():
-		return Vector2.ZERO
-	var center := Vector2.ZERO
-	for p in preview_cells:
-		center += _cell_center(p.y, p.x)
-	return center / float(preview_cells.size())
-
-func _play_endgame_bonus_special_blast(seeds: Array, score_level: int) -> bool:
-	var clear_set: Dictionary = ME._expand_triggers(board.grid, board.fx, seeds)
-	var cells: Array = clear_set.keys()
-	if cells.is_empty():
-		return false
-	var raw_special_fx_cells = _special_fx_cells_for_clear_visuals(cells)
-	var clear_visual_timing := _clear_visual_timing_for_triggers(seeds)
-	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
-	board._accumulate(acc.get("by_species", {}))
-	board._accumulate_progress(acc)
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
-	var locked := {}
-	for p in acc.get("locked", []):
-		locked[p] = true
-	var to_clear := []
-	for p in cells:
-		if not locked.has(p):
-			to_clear.append(p)
-	for bp in acc.get("cake_blast", []):
-		to_clear.append(bp)
-	board._gain(ME.score_for_clear(to_clear.size(), score_level))
-	await _play_clear(to_clear, [], {}, raw_special_fx_cells, clear_visual_timing)
-	ME._apply_clears(board.grid, board.fx, to_clear, [])
-	for p in to_clear:
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-		_gem_nodes[p.y][p.x] = null
-	await _collapse_and_refill()
-	return true
-
-func _resolve_endgame_bonus_special_chain() -> void:
-	var guard := 0
-	while guard < ENDGAME_BONUS_SPECIAL_CHAIN_MAX:
-		guard += 1
-		await _resolve_cascades()
-		var seeds := _endgame_bonus_special_seeds()
-		if seeds.is_empty():
-			break
-		var blasted: bool = await _play_endgame_bonus_special_blast(seeds, guard + 1)
-		if not blasted:
-			break
-
-func _endgame_bonus_special_seeds() -> Array:
-	var seeds := []
-	if board == null or board.fx.is_empty():
-		return seeds
-	for y in range(board.height):
-		for x in range(board.width):
-			var cell: int = board.grid[y][x]
-			if cell == ME.EMPTY or cell == ME.WALL:
-				continue
-			if int(board.fx[y][x]) != ME.SP_NONE:
-				seeds.append(Vector2i(x, y))
-	return seeds
 
 # 程序绘制居中半透明遮罩 + 结算面板(标题 + 下一关/重试按钮)。无现成素材, 纯绘制。
 # 锁输入(_settled=true), 按钮: 通关→下一关 / 失败→重试本关。
@@ -1436,14 +550,37 @@ func _show_result(win: bool) -> void:
 	_busy = true
 	hud.show_result(win, Callable(self, "_on_result_button"))
 
-# 结算按钮点击: 通关→下一关; 失败→重载本关。先解锁结算态再 load。
+# 结算按钮点击: 有外部连接者(game_root)→交回壳层结算; 无连接者→保持现行为(直接翻关)。
+# 契约D(P9): 用 session_ended.get_connections().is_empty() 判断是否独立运行。
 func _on_result_button(win: bool) -> void:
 	_settled = false
 	_busy = false
+	if not session_ended.get_connections().is_empty():
+		session_ended.emit(_session_result(win))   # 壳层接管: bank_result + record_clear + 推关
+		return
 	if win:
-		_goto_relative(1)   # 下一关(可玩关循环)
+		_goto_relative(1)   # 独立运行: 下一关(可玩关循环)
 	else:
 		load_level(_level_idx)   # 重试本关
+
+# 契约D(P9): 组装 SessionResult = board 结算数据 + collected + level_index。字段与 bank_result 入参对齐。
+func _session_result(win: bool) -> Dictionary:
+	var result: Dictionary = board.result() if board != null else {"won": win}
+	result["collected"] = board.collected.duplicate() if board != null else {}
+	result["level_index"] = _level_idx
+	return result
+
+# 契约D(P9): game_root 鸭子调用注入开局配置。读 loadout.extra_moves 加步数、pets 交 skills(无则默认)。
+# main_scene 不切——Level.tscn 仍可独立运行(无 config 时走现行为)。
+func receive_session_config(config: Dictionary) -> void:
+	var loadout: Dictionary = config.get("loadout", {})
+	_session_extra_moves = int(loadout.get("extra_moves", 0))
+	var pets = config.get("pets", [])
+	_session_pets = pets.duplicate() if pets is Array else []
+	if skills.has_method("set_pets"):
+		skills.set_pets(_session_pets)   # 未来宠物可配; 现 skills 用固定 SKILLS, 无 set_pets 则 no-op
+	var idx: int = int(config.get("level_index", _level_idx))
+	load_level(idx)   # 重新载入指定关(load_level 据 _session_extra_moves 补步数)
 
 # ───────── 渲染 helper ─────────
 
@@ -1566,7 +703,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_on_cell_clicked(cell)
 
 func _on_cell_clicked(cell: Vector2i) -> void:
-	if _gem_nodes[cell.y][cell.x] == null:
+	if board_view.node_at(cell) == null:
 		return
 	if _sel.x < 0:
 		_select(cell)
@@ -1583,25 +720,14 @@ func _on_cell_clicked(cell: Vector2i) -> void:
 func _is_adjacent(a: Vector2i, b: Vector2i) -> bool:
 	return (a.y == b.y and absi(a.x - b.x) == 1) or (a.x == b.x and absi(a.y - b.y) == 1)
 
+# 选中坐标/路由住 level(铁律1); 选中视觉(放大提亮置顶/复原)经 board_view(契约 E)。
 func _select(cell: Vector2i) -> void:
 	_sel = cell
-	var n: Sprite2D = _gem_nodes[cell.y][cell.x]
-	if n == null or not is_instance_valid(n):
-		return
-	_sel_node = n
-	_sel_node_scale = n.scale
-	_sel_node_mod = n.modulate
-	n.scale = _sel_node_scale * 1.25       # 放大
-	n.modulate = Color(1.5, 1.42, 1.18)    # 提亮(暖金光)
-	n.z_index = 20                          # 置顶, 不被相邻棋子盖住(修"偶尔不显示")
+	board_view.set_selected(cell)
 
 func _deselect() -> void:
 	_sel = Vector2i(-1, -1)
-	if _sel_node != null and is_instance_valid(_sel_node):
-		_sel_node.scale = _sel_node_scale
-		_sel_node.modulate = _sel_node_mod
-		_sel_node.z_index = 0
-	_sel_node = null
+	board_view.clear_selected()
 
 func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	# 问题2: 彩球参与的交换(彩球+任意相邻格)是激活组合, 不走 is_legal_swap。
@@ -1625,21 +751,20 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	_busy = true
 	_clear_highlights()
 	var legal: bool = ME.is_legal_swap(board.grid, a, b, 1, board._layers())
-	var na: Sprite2D = _gem_nodes[a.y][a.x]
-	var nb: Sprite2D = _gem_nodes[b.y][b.x]
+	var na: Sprite2D = board_view.node_at(a)
+	var nb: Sprite2D = board_view.node_at(b)
 	var pa: Vector2 = _cell_center(a.y, a.x)
 	var pb: Vector2 = _cell_center(b.y, b.x)
-	await _animate_swap(na, nb, pa, pb)
+	await board_view.play_swap(na, nb, pa, pb)
 	if not legal:
-		await _animate_swap(na, nb, pb, pa)  # 非法换回
+		await board_view.play_swap(na, nb, pb, pa)  # 非法换回
 		_busy = false
 		return
 	_remember_time_rewind_snapshot()
 	# 提交交换(数据 + 节点引用)
 	ME._swap_cells(board.grid, a, b)
 	ME._swap_cells(board.fx, a, b)
-	_gem_nodes[a.y][a.x] = nb
-	_gem_nodes[b.y][b.x] = na
+	board_view.swap_nodes(a, b)
 	# 阶段3: 消除-下落-补充-连锁
 	var spawn_preference := ME.swap_special_spawn_preference(board.grid, board.fx, board._layers(), b, a)
 	var settle: Dictionary = await _resolve_cascades(spawn_preference, true)
@@ -1675,8 +800,7 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
+	board_view.refresh_jelly_coat_visuals()
 	skills.charge(acc.get("by_species", {}))
 	var locked := {}
 	for p in acc.get("locked", []):
@@ -1701,10 +825,10 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		var fk: int = board.fx[p.y][p.x]
 		var vk: int = int(virtual_fx.get(p, ME.SP_NONE))
 		if vk != ME.SP_NONE:
-			_play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
+			board_view.play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
 			spawned_fx = true
 		elif fk != ME.SP_NONE:
-			_play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
+			board_view.play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
 			spawned_fx = true
 		elif visual_species.has(p):
 			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
@@ -1724,11 +848,8 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	# 清除: 只清 account_clears 过滤后的格，锁住/原料/巧克力/爆米花/神秘糖仅破层或揭开。
 	ME._apply_clears(board.grid, board.fx, to_clear, [])
 	for p in to_clear:
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-		_gem_nodes[p.y][p.x] = null
-	await _collapse_and_refill()
+		board_view.clear_node_at(p)
+	await board_view.collapse_and_refill()
 	var settle: Dictionary = await _resolve_cascades()   # 收尾连锁(下落后可能形成新匹配)
 	var settled_now: bool = await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	if not settled_now:
@@ -1789,7 +910,7 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_tar
 	for p in cells:
 		if p == cb_pos:
 			continue
-		if _gem_nodes[p.y][p.x] == null:
+		if board_view.node_at(p) == null:
 			continue
 		if board.grid[p.y][p.x] < 0:
 			continue
@@ -1830,9 +951,7 @@ func _play_colorbomb_absorb_preview(cb_pos: Vector2i, cells: Array, priority_tar
 		await get_tree().create_timer(0.08).timeout
 
 func _colorbomb_node_at(cb_pos: Vector2i) -> Sprite2D:
-	if cb_pos.y < 0 or cb_pos.y >= _gem_nodes.size() or cb_pos.x < 0 or cb_pos.x >= _gem_nodes[cb_pos.y].size():
-		return null
-	var root: Sprite2D = _gem_nodes[cb_pos.y][cb_pos.x]
+	var root: Sprite2D = board_view.node_at(cb_pos)
 	if root == null or not is_instance_valid(root):
 		return null
 	return root
@@ -1862,10 +981,10 @@ func _show_colorbomb_virtual_conversion(virtual_fx: Dictionary) -> void:
 		var kind: int = int(virtual_fx[p])
 		if kind == ME.SP_NONE:
 			continue
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
+		var n: Sprite2D = board_view.node_at(p)
 		if n == null or not is_instance_valid(n):
 			continue
-		_apply_fx_overlay(n, kind)
+		board_view.apply_fx_overlay(n, kind)
 		var base_scale: Vector2 = n.scale
 		var base_mod: Color = n.modulate
 		var glow_mod := base_mod.lerp(Color(1.0, 0.96, 0.62, base_mod.a), 0.62)
@@ -1882,16 +1001,15 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	_deselect()
 	var ka: int = board.fx[a.y][a.x]
 	var kb: int = board.fx[b.y][b.x]
-	var na: Sprite2D = _gem_nodes[a.y][a.x]
-	var nb: Sprite2D = _gem_nodes[b.y][b.x]
+	var na: Sprite2D = board_view.node_at(a)
+	var nb: Sprite2D = board_view.node_at(b)
 	var pa: Vector2 = _cell_center(a.y, a.x)
 	var pb: Vector2 = _cell_center(b.y, b.x)
 	_remember_time_rewind_snapshot()
-	await _animate_swap(na, nb, pa, pb)
+	await board_view.play_swap(na, nb, pa, pb)
 	ME._swap_cells(board.grid, a, b)
 	ME._swap_cells(board.fx, a, b)
-	_gem_nodes[a.y][a.x] = nb
-	_gem_nodes[b.y][b.x] = na
+	board_view.swap_nodes(a, b)
 	var seeds: Array = ME.special_fusion_cells(board.grid, a, b, ka, kb)
 	var fusion_fx: Array = board.fx.duplicate(true)
 	fusion_fx[a.y][a.x] = ME.SP_NONE
@@ -1908,8 +1026,7 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
 	board._accumulate(acc.get("by_species", {}))
 	board._accumulate_progress(acc)
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
+	board_view.refresh_jelly_coat_visuals()
 	skills.charge(acc.get("by_species", {}))
 	var locked := {}
 	for p in acc.get("locked", []):
@@ -1926,14 +1043,11 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	board.fx[b.y][b.x] = ME.SP_NONE
 	fusion_special_fx_cells.erase(a)
 	fusion_special_fx_cells.erase(b)
-	await _play_clear(to_clear, [], {}, fusion_special_fx_cells, fusion_clear_timing)
+	await board_view.play_clear(to_clear, [], {}, fusion_special_fx_cells, fusion_clear_timing)
 	ME._apply_clears(board.grid, board.fx, to_clear, [])
 	for p in to_clear:
-		var n: Sprite2D = _gem_nodes[p.y][p.x]
-		if n != null and is_instance_valid(n):
-			n.queue_free()
-		_gem_nodes[p.y][p.x] = null
-	await _collapse_and_refill()
+		board_view.clear_node_at(p)
+	await board_view.collapse_and_refill()
 	var settle: Dictionary = await _resolve_cascades()
 	var settled_now: bool = await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	if not settled_now:
@@ -1948,8 +1062,8 @@ func _play_fusion_fx_after_swap(a: Vector2i, b: Vector2i, ka: int, kb: int) -> v
 	var a_bomb := ka == ME.SP_BOMB
 	var b_bomb := kb == ME.SP_BOMB
 	if a_line and b_line:
-		_play_special_fx(a_after, ka)
-		_play_special_fx(b_after, kb)
+		board_view.play_special_fx(a_after, ka)
+		board_view.play_special_fx(b_after, kb)
 	elif a_bomb and b_line:
 		_play_wide_line_fx(b_after, kb, _line_fx_color(board.grid[b_after.y][b_after.x]))
 	elif a_line and b_bomb:
@@ -1976,17 +1090,7 @@ func _play_wide_line_fx(pos: Vector2i, kind: int, col: Color) -> void:
 				Fx.spawn_line_blast(_cell_center(0, col_idx), _cell_center(board.height - 1, col_idx), col)
 
 
-func _animate_swap(na: Sprite2D, nb: Sprite2D, to_a: Vector2, to_b: Vector2) -> void:
-	var t := create_tween().set_parallel(true)
-	var any := false
-	if na != null and is_instance_valid(na):
-		t.tween_property(na, "position", to_b, SWAP_TIME)
-		any = true
-	if nb != null and is_instance_valid(nb):
-		t.tween_property(nb, "position", to_a, SWAP_TIME)
-		any = true
-	if any:
-		await t.finished
+# 交换/回弹动画迁至 board_view.play_swap(契约 E)。
 
 func _clear_highlights() -> void:
 	for mk in _hl_markers:
@@ -2032,9 +1136,8 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1), force_prefe
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
 		step_choco += int(acc.get("choco_cleared", 0))
-		# 占位: overlays 消费者(契约B, P7)尚不存在; 现 jelly/coat 视觉刷新即其雏形(§2.4), 暂留原位。
-		_refresh_jelly_visuals()
-		_refresh_coat_visuals()                       # 同步已破冰锁, 避免数据清了画面还在
+		# 障碍底片(果冻/冰锁)视觉刷新随 board 障碍层扣减同步; 障碍 overlay 演出(契约B)在 board_view.play_step 广播。
+		board_view.refresh_jelly_coat_visuals()       # 同步已破冰锁, 避免数据清了画面还在
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}
 		for p in acc.get("locked", []):
@@ -2058,31 +1161,15 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1), force_prefe
 			"to_clear": to_clear,                       # 已剔 locked、已并 cake_blast
 			"spawns": spawns,
 			"protected_spawns": protected_spawn_set,
+			"triggered_spawns": triggered_spawn_set,    # _apply_clears 用(spawn 格保留 species)
 			"triggered_spawn_fx": triggered_spawn_fx,
 			"account": acc,                             # account_clears 原样(9 计数器/by_species/locked/cake_blast)
 			"score_gained": score_gained,
 		}
 		hud.on_step(report)                            # 目标进度/步数(读 report.account)
 		skills.on_step(report)                         # by_species 充能(现 _charge_skills)
-		# overlays.on_step(report)                     # 占位: 障碍演出消费者(契约B, P7)尚不存在
-		await _play_clear(to_clear, spawns, protected_spawn_set, raw_special_fx_cells, clear_visual_timing)
-		# 引擎执行清除: spawn 格落特效(保留 species), 其余格 grid=EMPTY/fx=SP_NONE
-		ME._apply_clears(board.grid, board.fx, to_clear, spawns, triggered_spawn_set)
-		# 节点同步: 非 spawn 格删节点置 null; spawn 格给节点叠 shine(此时 board.fx 已是新 kind)
-		var cleared_this_step := {}
-		for p in to_clear:
-			cleared_this_step[p] = true
-			if protected_spawn_set.has(p):
-				_apply_fx_overlay(_gem_nodes[p.y][p.x], board.fx[p.y][p.x])
-			else:
-				var n: Sprite2D = _gem_nodes[p.y][p.x]
-				if n != null and is_instance_valid(n):
-					n.queue_free()
-				_gem_nodes[p.y][p.x] = null
-		for p in protected_spawn_set:
-			if not cleared_this_step.has(p):
-				_apply_fx_overlay(_gem_nodes[p.y][p.x], board.fx[p.y][p.x])
-		await _collapse_and_refill()
+		# 唯一 await 点(契约A §2.3): board_view 播消除动画 + overlays 广播 + 落特效/清格节点同步 + 下落补充。
+		await board_view.play_step(report, raw_special_fx_cells, clear_visual_timing)
 	return {"choco_cleared": step_choco, "cascades": cascade_level}
 
 func _special_fx_cells_for_clear_visuals(cells: Array, overrides: Dictionary = {}) -> Dictionary:
@@ -2159,225 +1246,6 @@ func _special_effect_cell_delay(trigger: Vector2i, kind: int, cell: Vector2i) ->
 		_:
 			return 0.0
 
-func _spawn_shatter_delayed(pos: Vector2, color: Color, delay: float) -> void:
-	if delay <= 0.0:
-		Fx.spawn_shatter(pos, color)
-		return
-	get_tree().create_timer(delay).timeout.connect(Fx.spawn_shatter.bind(pos, color), CONNECT_ONE_SHOT)
-
-func _play_special_fx_delayed(pos: Vector2i, kind: int, delay: float) -> void:
-	if delay <= 0.0:
-		_play_special_fx(pos, kind)
-		return
-	get_tree().create_timer(delay).timeout.connect(_play_special_fx.bind(pos, kind), CONNECT_ONE_SHOT)
-
-## 阶段5 消除表现: 遍历 to_clear——被触发的已存在特效格放对应 Fx; 普通格碎裂; 非 spawn 格淡出。
-func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_special_fx_cells: Dictionary = {}, clear_visual_timing: Dictionary = {}) -> void:
-	# 行/列横扫、十字星爆炸：路径棋子碎成触发特效的原色粒子，避免按各格颜色炸成彩虹。
-	var visual_species: Dictionary = ClearVisuals.special_clear_species_overrides(board.grid, board.fx, to_clear, spawn_set)
-	var line_clear_delays: Dictionary = clear_visual_timing.get("cell_delay", {})
-	var special_fx_delays: Dictionary = clear_visual_timing.get("special_delay", {})
-	var any := false
-	var spawned_fx_count := 0
-	var max_fx_delay := 0.0
-	var clear_set := {}
-	var played_special_fx := {}
-	for p in to_clear:
-		clear_set[p] = true
-	for p in to_clear:
-		var clear_delay: float = float(line_clear_delays.get(p, 0.0))
-		max_fx_delay = maxf(max_fx_delay, clear_delay)
-		var fx_kind: int = board.fx[p.y][p.x]
-		var spawned_fx := false
-		# 被卷入消除的【已存在】特效棋子(它不在本级 spawn_set): 放对应 Fx 表现
-		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
-			var special_delay: float = float(special_fx_delays.get(p, clear_delay))
-			max_fx_delay = maxf(max_fx_delay, special_delay)
-			_play_special_fx_delayed(p, fx_kind, special_delay)
-			played_special_fx[p] = true
-			spawned_fx = true
-		else:
-			var sp: int = board.grid[p.y][p.x]
-			if sp >= 0 and sp < GEM_KEYS.size():
-				if visual_species.has(p):
-					# 横竖横扫/十字星: 不叠加三帧, 路径棋子碎成触发特效的纯色粒子
-					_spawn_shatter_delayed(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])), clear_delay)
-					spawned_fx = true
-				else:
-					# 普通消除: 染色后的三帧基础爆炸特效(蓄力→炸裂→消散)
-					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
-					spawned_fx = true
-		if spawned_fx:
-			spawned_fx_count += 1
-			if spawned_fx_count >= CLEAR_FX_BATCH_SIZE and is_inside_tree():
-				spawned_fx_count = 0
-				await get_tree().process_frame
-		# spawn 格不淡出(它要变特效棋子, 留住节点); 非 spawn 格缩放淡出
-		if not spawn_set.has(p):
-			var n: Sprite2D = _gem_nodes[p.y][p.x]
-			if n != null and is_instance_valid(n):
-				_stop_combo_idle(n)
-				var base_scale: Vector2 = n.scale
-				var pop := create_tween()
-				if clear_delay > 0.0:
-					pop.tween_interval(clear_delay)
-				pop.tween_property(n, "scale", base_scale * CLEAR_POP_SCALE, CLEAR_POP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-				pop.tween_property(n, "scale", base_scale * CLEAR_BURST_SCALE, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-				pop.parallel().tween_property(n, "modulate:a", 0.0, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-				any = true
-	for p in extra_special_fx_cells:
-		if clear_set.has(p):
-			continue
-		if played_special_fx.has(p):
-			continue
-		var fx_kind: int = int(extra_special_fx_cells[p])
-		if fx_kind == ME.SP_NONE:
-			continue
-		var special_delay: float = float(special_fx_delays.get(p, line_clear_delays.get(p, 0.0)))
-		max_fx_delay = maxf(max_fx_delay, special_delay)
-		_play_special_fx_delayed(p, fx_kind, special_delay)
-		played_special_fx[p] = true
-		spawned_fx_count += 1
-		any = true
-		if spawned_fx_count >= CLEAR_FX_BATCH_SIZE and is_inside_tree():
-			spawned_fx_count = 0
-			await get_tree().process_frame
-	# (按需移除消除震动)
-	if any:
-		# 等消除特效炸裂完再返回(下落发生在消除之后); 棋子淡出 tween 在此期间并行跑完
-		await get_tree().create_timer(ELIM_HOLD + max_fx_delay).timeout
-
-## 某已存在特效棋子被触发时的几何表现: 行/列用 beam, 3x3/彩球用 explosion。
-func _play_special_fx(pos: Vector2i, kind: int) -> void:
-	var line_col: Color = _line_fx_color(board.grid[pos.y][pos.x])
-	var area_col: Color = _fx_color(board.grid[pos.y][pos.x])
-	var c: Vector2 = _cell_center(pos.y, pos.x)
-	match kind:
-		ME.SP_LINE_H:
-			Fx.spawn_line_blast(_cell_center(pos.y, 0), _cell_center(pos.y, board.width - 1), line_col)
-		ME.SP_LINE_V:
-			Fx.spawn_line_blast(_cell_center(0, pos.x), _cell_center(board.height - 1, pos.x), line_col)
-		ME.SP_BOMB:
-			Fx.spawn_local_burst(c, area_col, cell_size * 1.5)   # 3x3 范围内粒子爆裂, 不超实际清除边界
-		ME.SP_COLORBOMB:
-			Fx.spawn_explosion(c, area_col, 3.0)
-		_:
-			Fx.spawn_shatter(c, area_col)
-
-func _clear_gem_node_at(row: int, col: int) -> void:
-	var n: Sprite2D = _gem_nodes[row][col]
-	_gem_nodes[row][col] = null
-	if n != null and is_instance_valid(n):
-		n.queue_free()
-
-func _node_matches_species(node: Sprite2D, sp: int) -> bool:
-	if node == null or not is_instance_valid(node):
-		return false
-	if not node.has_meta("species"):
-		return false
-	return int(node.get_meta("species")) == sp
-
-func _replace_gem_node(row: int, col: int, old_node: Sprite2D = null) -> Sprite2D:
-	if old_node != null and is_instance_valid(old_node):
-		old_node.queue_free()
-	var sp: int = board.grid[row][col]
-	if sp < 0:
-		return null
-	var node := _make_gem(sp, _cell_center(row, col))
-	if node != null:
-		_apply_fx_overlay(node, board.fx[row][col])
-	return node
-
-func _reuse_or_replace_gem_node(row: int, col: int, node: Sprite2D) -> Sprite2D:
-	var sp: int = board.grid[row][col]
-	if sp < 0:
-		if node != null and is_instance_valid(node):
-			node.queue_free()
-		return null
-	if not _node_matches_species(node, sp):
-		return _replace_gem_node(row, col, node)
-	node.position = _cell_center(row, col)
-	node.modulate.a = 1.0
-	_apply_fx_overlay(node, board.fx[row][col])
-	return node
-
-func _repair_missing_gem_nodes_from_board() -> void:
-	if board == null or _gem_nodes.size() != board.height:
-		return
-	for row in range(board.height):
-		if not (_gem_nodes[row] is Array) or _gem_nodes[row].size() != board.width:
-			return
-	for row in range(board.height):
-		for col in range(board.width):
-			var sp: int = board.grid[row][col]
-			var node: Sprite2D = _gem_nodes[row][col]
-			if sp < 0:
-				if node != null and is_instance_valid(node):
-					node.queue_free()
-				_gem_nodes[row][col] = null
-				continue
-			if node == null or not is_instance_valid(node):
-				_gem_nodes[row][col] = _replace_gem_node(row, col)
-				continue
-			if not _node_matches_species(node, sp):
-				_gem_nodes[row][col] = _replace_gem_node(row, col, node)
-				continue
-			node.modulate.a = 1.0
-			_apply_fx_overlay(node, board.fx[row][col])
-
-func _sync_changed_visuals_to_board() -> void:
-	if board == null:
-		return
-	if _gem_nodes.size() != board.height:
-		_render_board(false)
-		return
-	for row in range(board.height):
-		if not (_gem_nodes[row] is Array) or _gem_nodes[row].size() != board.width:
-			_render_board(false)
-			return
-		for col in range(board.width):
-			_gem_nodes[row][col] = _reuse_or_replace_gem_node(row, col, _gem_nodes[row][col])
-	_repair_missing_gem_nodes_from_board()
-	_refresh_wall_visuals()
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
-
-func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) -> void:
-	if board == null:
-		return
-	if before_grid.is_empty() or old_nodes.is_empty():
-		_sync_changed_visuals_to_board()
-		return
-	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
-		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
-		_repair_missing_gem_nodes_from_board()
-		_refresh_wall_visuals()
-		_refresh_jelly_visuals()
-		_refresh_coat_visuals()
-		if wall_slide_time > 0.0:
-			await get_tree().create_timer(wall_slide_time).timeout
-		return
-	var new_nodes: Array = _blank_visual_rows()
-	var t := create_tween().set_parallel(true)
-	var moved := false
-	for col in range(board.width):
-		var seg_end: int = board.height - 1
-		for row in range(board.height - 1, -2, -1):
-			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
-				continue
-			if row + 1 <= seg_end:
-				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved
-			if row >= 0:
-				_sync_fixed_cell_visual(row, col, old_nodes, new_nodes)
-			seg_end = row - 1
-	_gem_nodes = new_nodes
-	_repair_missing_gem_nodes_from_board()
-	_refresh_wall_visuals()
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
-	if moved:
-		await t.finished
-
 func debug_first_legal_swap() -> bool:
 	for y in range(board.height):
 		for x in range(board.width):
@@ -2392,13 +1260,12 @@ func debug_first_legal_swap() -> bool:
 func _finish_consumed_move(step_choco: int, cascades: int) -> bool:
 	var before_grid: Array = board.grid.duplicate(true)
 	var before_fx: Array = board.fx.duplicate(true)
-	var old_nodes: Array = _gem_nodes.duplicate(true)
+	var old_nodes: Array = board_view.snapshot_gem_nodes()
 	board._settle_consumed_move(step_choco, cascades)
 	if before_grid != board.grid or before_fx != board.fx:
-		await _animate_board_changes_from_snapshot(before_grid, old_nodes)
+		await board_view.animate_board_changes_from_snapshot(before_grid, old_nodes)
 	else:
-		_refresh_jelly_visuals()
-		_refresh_coat_visuals()
+		board_view.refresh_jelly_coat_visuals()
 	_refresh_hud()
 	skills.refresh_visual()
 	var settled_now: bool = await _check_settlement()
@@ -2406,275 +1273,3 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> bool:
 		await get_tree().process_frame
 	return settled_now
 
-func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
-	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
-
-func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_start: int, seg_end: int) -> Array:
-	var entries := []
-	for row in range(seg_start, seg_end + 1):
-		if grid_snapshot[row][col] == ME.EMPTY or grid_snapshot[row][col] == ME.WALL:
-			continue
-		var node: Sprite2D = old_nodes[row][col]
-		entries.append({"row": row, "node": node})
-	return entries
-
-func _segment_after_slots(col: int, seg_start: int, seg_end: int) -> Array:
-	var slots := []
-	for row in range(seg_start, seg_end + 1):
-		if board.grid[row][col] != ME.EMPTY and board.grid[row][col] != ME.WALL:
-			slots.append(row)
-	return slots
-
-func _ordinary_refill_start_position(row: int, col: int, _spawn_index: int, spawn_count: int) -> Vector2:
-	# v0.02: 新棋子统一从棋盘顶边明显上方落入(pour from top), 不再只在目标格上方少量生成。
-	# 额外 +TOP_POUR 格, 保证即便单消(spawn_count小)新棋子也从顶部明显落下而非"中间冒出"。
-	return LevelMotion.ordinary_refill_start_position(_cell_center(row, col), cell_size, spawn_count)
-
-func _ordinary_refill_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
-	return LevelMotion.ordinary_refill_duration_for_positions(start_pos, target, cell_size)
-
-func _queue_cascade_fall_tween(tween: Tween, node: Node2D, target: Vector2, duration: float) -> void:
-	tween.tween_property(node, "position", target, duration).set_trans(Tween.TRANS_LINEAR)
-
-func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: Array, col: int, seg_start: int, seg_end: int, tween: Tween) -> bool:
-	var moved := false
-	var old_entries := _segment_old_entries(grid_snapshot, old_nodes, col, seg_start, seg_end)
-	var after_slots := _segment_after_slots(col, seg_start, seg_end)
-	var old_count: int = mini(old_entries.size(), after_slots.size())
-	var first_old_slot: int = after_slots.size() - old_count
-
-	var spawn_i := 0
-	for idx in range(first_old_slot - 1, -1, -1):
-		var row: int = after_slots[idx]
-		var center := _cell_center(row, col)
-		var node := _replace_gem_node(row, col)
-		new_nodes[row][col] = node
-		if node != null:
-			node.position = _ordinary_refill_start_position(row, col, spawn_i, first_old_slot)
-			_queue_cascade_fall_tween(tween, node, center, _ordinary_refill_duration_for_positions(node.position, center))
-			moved = true
-		spawn_i += 1
-
-	for idx in range(old_count):
-		var row: int = after_slots[first_old_slot + idx]
-		var entry: Dictionary = old_entries[idx]
-		var node: Sprite2D = entry["node"]
-		if not _node_matches_species(node, board.grid[row][col]):
-			node = _replace_gem_node(row, col, node)
-		else:
-			node.modulate.a = 1.0
-			_apply_fx_overlay(node, board.fx[row][col])
-		new_nodes[row][col] = node
-		if node != null and is_instance_valid(node):
-			var target := _cell_center(row, col)
-			if node.position != target:
-				_queue_cascade_fall_tween(tween, node, target, _fall_duration_for_positions(node.position, target))
-				moved = true
-
-	for idx in range(old_count, old_entries.size()):
-		var stale: Sprite2D = old_entries[idx]["node"]
-		if stale != null and is_instance_valid(stale):
-			stale.queue_free()
-	return moved
-
-func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Array) -> void:
-	var old_node: Sprite2D = old_nodes[row][col]
-	new_nodes[row][col] = _reuse_or_replace_gem_node(row, col, old_node)
-
-func _fall_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
-	return LevelMotion.fall_duration_for_positions(start_pos, target, cell_size)
-
-func _grid_has_fall_obstacle(grid_data: Array) -> bool:
-	return LevelMotion.grid_has_fall_obstacle(grid_data, board.coat, board.choco)
-
-func _wall_refill_start_position(row: int, col: int, source_map: Array = []) -> Vector2:
-	return LevelMotion.wall_refill_start_position(row, col, source_map, board_origin, cell_size)
-
-func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int) -> bool:
-	return LevelMotion.wall_slide_target_has_fall_obstacle_above(grid_data, board.coat, board.choco, board.cannon, row, col)
-
-func _wall_slide_path_points(start_pos: Vector2, target: Vector2) -> Array:
-	return LevelMotion.wall_slide_path_points(start_pos, target, board_origin, cell_size, board.width, board.height)
-
-func _wall_slide_cell_path_points(start_pos: Vector2, cell_path: Array, target: Vector2) -> Array:
-	return LevelMotion.wall_slide_cell_path_points(start_pos, cell_path, target, board_origin, cell_size, board.width, board.height)
-
-func _wall_slide_position_at(start_pos: Vector2, points: Array, progress: float) -> Vector2:
-	return LevelMotion.wall_slide_position_at(start_pos, points, progress)
-
-func _wall_slide_duration_for_points(points: Array) -> float:
-	return LevelMotion.wall_slide_duration_for_points(points)
-
-func _wall_slide_duration_for_target(points: Array, duration_override: float = -1.0) -> float:
-	return LevelMotion.wall_slide_duration_for_target(points, duration_override)
-
-func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = [], duration_override: float = -1.0) -> float:
-	if node == null or not is_instance_valid(node) or node.position == target:
-		return 0.0
-	var start_pos := node.position
-	var points := _wall_slide_cell_path_points(start_pos, cell_path, target)
-	var total_time: float = _wall_slide_duration_for_target(points, duration_override)
-	if total_time <= 0.0:
-		return 0.0
-	var t := create_tween()
-	var apply_position := func(progress: float) -> void:
-		if node != null and is_instance_valid(node):
-			node.position = _wall_slide_position_at(start_pos, points, progress)
-	t.tween_method(apply_position, 0.0, 1.0, total_time).set_trans(Tween.TRANS_LINEAR)
-	return total_time
-
-func _source_none() -> Vector2i:
-	return LevelMotion.source_none()
-
-func _source_spawn(col: int) -> Vector2i:
-	return LevelMotion.source_spawn(col)
-
-func _wall_slide_path_rows(grid_snapshot: Array) -> Array:
-	return LevelMotion.wall_slide_path_rows(grid_snapshot)
-
-func _wall_slide_source_rows(grid_snapshot: Array) -> Array:
-	return LevelMotion.wall_slide_source_rows(grid_snapshot)
-
-func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, row: int, col: int) -> bool:
-	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
-
-func _build_wall_slide_tracking_maps(before_grid: Array) -> Dictionary:
-	return LevelMotion.build_wall_slide_tracking_maps(before_grid, board.coat, board.choco, board.cannon, board.is_scrolling)
-
-func _wall_slide_source_priority(row: int, col: int, target_row: int, target_col: int, allow_cross_column: bool) -> int:
-	return LevelMotion.wall_slide_source_priority(row, col, target_row, target_col, allow_cross_column)
-
-func _take_wall_slide_source(before_grid: Array, old_nodes: Array, used: Dictionary, target_row: int, target_col: int, sp: int, allow_cross_column: bool = false, source_map: Array = []) -> Sprite2D:
-	if not source_map.is_empty() and target_row >= 0 and target_row < source_map.size() and target_col >= 0 and target_col < source_map[target_row].size():
-		var source: Vector2i = source_map[target_row][target_col]
-		if source.x < 0:
-			return null
-		if source.y < 0:
-			return null
-		if used.has(source):
-			return null
-		var mapped_node: Sprite2D = old_nodes[source.y][source.x]
-		if not _node_matches_species(mapped_node, sp):
-			return null
-		used[source] = true
-		return mapped_node
-	var best_key := Vector2i(-1, -1)
-	var best_score := 1000000
-	for row in range(board.height):
-		for col in range(board.width):
-			if not allow_cross_column and col != target_col:
-				continue
-			var key := Vector2i(col, row)
-			if used.has(key) or before_grid[row][col] < 0:
-				continue
-			var score := _wall_slide_source_priority(row, col, target_row, target_col, allow_cross_column)
-			if score < 0:
-				continue
-			var node: Sprite2D = old_nodes[row][col]
-			if not _node_matches_species(node, sp):
-				continue
-			if score < best_score:
-				best_score = score
-				best_key = key
-	if best_key.x < 0:
-		return null
-	used[best_key] = true
-	return old_nodes[best_key.y][best_key.x]
-
-func _wall_slide_spawn_source_col(source_map: Array, row: int, col: int) -> int:
-	return LevelMotion.wall_slide_spawn_source_col(source_map, row, col)
-
-func _wall_slide_spawn_travel_cells(source_map: Array, source_col: int) -> float:
-	return LevelMotion.wall_slide_spawn_travel_cells(source_map, source_col)
-
-func _wall_slide_target_refill_cap(source_map: Array, row: int, col: int) -> float:
-	return LevelMotion.wall_slide_target_refill_cap(source_map, row, col)
-
-func _wall_slide_target_path(path_map: Array, row: int, col: int) -> Array:
-	return LevelMotion.wall_slide_target_path(path_map, row, col)
-
-func _wall_slide_target_visual_path(source_map: Array, path_map: Array, row: int, col: int) -> Array:
-	return LevelMotion.wall_slide_target_visual_path(source_map, path_map, row, col)
-
-func _wall_slide_visual_start_position(source_map: Array, path_map: Array, row: int, col: int) -> Vector2:
-	return LevelMotion.wall_slide_visual_start_position(source_map, path_map, row, col, board_origin, cell_size)
-
-func _free_unused_wall_slide_sources(old_nodes: Array, used: Dictionary) -> void:
-	for row in range(board.height):
-		for col in range(board.width):
-			var key := Vector2i(col, row)
-			if used.has(key):
-				continue
-			var node: Sprite2D = old_nodes[row][col]
-			if node != null and is_instance_valid(node):
-				node.queue_free()
-
-func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
-	var move_time := 0.0
-	var used := {}
-	var new_nodes := _blank_visual_rows()
-	var tracking_maps := _build_wall_slide_tracking_maps(before_grid)
-	var source_map: Array = tracking_maps["source"]
-	var path_map: Array = tracking_maps["path"]
-	for row in range(board.height - 1, -1, -1):
-		for col in range(board.width):
-			var sp: int = board.grid[row][col]
-			if sp < 0:
-				continue
-			var allow_cross_column := _wall_slide_target_has_fall_obstacle_above(before_grid, row, col)
-			var node := _take_wall_slide_source(before_grid, old_nodes, used, row, col, sp, allow_cross_column, source_map)
-			if node == null:
-				node = _replace_gem_node(row, col)
-				if node != null:
-					node.position = _wall_slide_visual_start_position(source_map, path_map, row, col)
-			else:
-				_apply_fx_overlay(node, board.fx[row][col])
-			new_nodes[row][col] = node
-			if node != null and is_instance_valid(node):
-				var target := _cell_center(row, col)
-				var refill_cap := _wall_slide_target_refill_cap(source_map, row, col)
-				var visual_path := _wall_slide_target_visual_path(source_map, path_map, row, col)
-				var node_time := _tween_wall_slide_node(node, target, visual_path, refill_cap)
-				if node_time > move_time:
-					move_time = node_time
-	_free_unused_wall_slide_sources(old_nodes, used)
-	_gem_nodes = new_nodes
-	return move_time
-
-## 每轮消除后用核心重力/补充收口，并增量移动/补充表现层，确保并行层不掉队且不全盘闪烁。
-func _collapse_and_refill() -> void:
-	var before_grid: Array = board.grid.duplicate(true)
-	var old_nodes: Array = _gem_nodes.duplicate(true)
-	ME.apply_gravity(board.grid, board.fx, false, board._layers())
-	var refill_feed: Array = board.feed if board.is_scrolling else []
-	if not board.is_scrolling:
-		ME.refill(board.grid, board.species, board.rng, board.fx, refill_feed, board._layers())
-	var new_nodes: Array = _blank_visual_rows()
-	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
-		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
-		_repair_missing_gem_nodes_from_board()
-		_refresh_wall_visuals()
-		_refresh_jelly_visuals()
-		_refresh_coat_visuals()
-		if wall_slide_time > 0.0:
-			await get_tree().create_timer(wall_slide_time).timeout
-		return
-	var t := create_tween().set_parallel(true)
-	var moved := false
-	for col in range(board.width):
-		var seg_end: int = board.height - 1
-		for row in range(board.height - 1, -2, -1):
-			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
-				continue
-			if row + 1 <= seg_end:
-				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved
-			if row >= 0:
-				_sync_fixed_cell_visual(row, col, old_nodes, new_nodes)
-			seg_end = row - 1
-	_gem_nodes = new_nodes
-	_repair_missing_gem_nodes_from_board()
-	_refresh_wall_visuals()
-	_refresh_jelly_visuals()
-	_refresh_coat_visuals()
-	if moved:
-		await t.finished

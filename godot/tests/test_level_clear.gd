@@ -201,9 +201,9 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	# 读真实常量并锁住"先膨胀再炸开"的数值决策: 膨胀倍率(1.32) < 炸裂倍率(1.52)
-	assert_eq(level.get("CLEAR_POP_SCALE"), 1.32, "basic clear gem body swells visibly before bursting")
-	assert_eq(level.get("CLEAR_POP_TIME"), 0.117, "basic clear gem body uses the requested 1.3x slower swell phase")
-	assert_true(float(level.get("CLEAR_POP_SCALE")) < float(level.get("CLEAR_BURST_SCALE")), "swell scale stays below the outward burst scale so the body pops then bursts, not collapses")
+	assert_eq(level.board_view.get("CLEAR_POP_SCALE"), 1.32, "basic clear gem body swells visibly before bursting")
+	assert_eq(level.board_view.get("CLEAR_POP_TIME"), 0.117, "basic clear gem body uses the requested 1.3x slower swell phase")
+	assert_true(float(level.board_view.get("CLEAR_POP_SCALE")) < float(level.board_view.get("CLEAR_BURST_SCALE")), "swell scale stays below the outward burst scale so the body pops then bursts, not collapses")
 	level.free()
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _play_clear")
@@ -217,7 +217,7 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 
 
 func test_level_clear_stops_combo_idle_before_clear_tween() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
+	var f := FileAccess.open("res://match3/board_view.gd", FileAccess.READ)
 	assert_true(f != null, "level.gd can be inspected")
 	if f == null:
 		return
@@ -239,10 +239,10 @@ func test_level_clear_stops_combo_idle_before_clear_tween() -> void:
 func test_level_clear_batches_vfx_creation_across_frames() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.get("CLEAR_FX_BATCH_SIZE") != null, "level defines a clear VFX batch size")
+	assert_true(level.board_view.get("CLEAR_FX_BATCH_SIZE") != null, "level defines a clear VFX batch size")
 	level.free()
 	# 大批消除的 VFX 分帧创建发生在 async _play_clear 内, headless 不便整跑; 锁住批处理与 yield 接线(性能演出契约)
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var start: int = src.find("func _play_clear")
 	var end: int = src.find("## 某已存在特效棋子", start)
 	if start < 0 or end <= start:
@@ -255,31 +255,32 @@ func test_level_clear_batches_vfx_creation_across_frames() -> void:
 func test_special_spawn_clear_hold_is_snappy() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_eq(level.get("CLEAR_TIME"), 0.156, "basic clear gem body uses the requested 1.3x slower total animation")
-	assert_eq(level.get("CLEAR_POP_TIME"), 0.117, "the swell phase stays in the same proportion after the 1.3x slowdown")
-	assert_eq(level.get("CLEAR_POP_SCALE"), 1.32, "the swell reads clearly before the special appears")
-	assert_eq(level.get("ELIM_HOLD"), 0.156, "post-clear hold matches the slower basic clear animation before freeing gems")
+	assert_eq(level.board_view.get("CLEAR_TIME"), 0.156, "basic clear gem body uses the requested 1.3x slower total animation")
+	assert_eq(level.board_view.get("CLEAR_POP_TIME"), 0.117, "the swell phase stays in the same proportion after the 1.3x slowdown")
+	assert_eq(level.board_view.get("CLEAR_POP_SCALE"), 1.32, "the swell reads clearly before the special appears")
+	assert_eq(level.board_view.get("ELIM_HOLD"), 0.156, "post-clear hold matches the slower basic clear animation before freeing gems")
 	level.free()
 
 
 func test_spawned_combo_idle_starts_after_clear_phase() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
+	# 节点同步段(消除动画后给 spawn 格叠 shine)迁至 board_view.play_step(契约 E §2.4)。
+	var f := FileAccess.open("res://match3/board_view.gd", FileAccess.READ)
+	assert_true(f != null, "board_view.gd can be inspected")
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	var start: int = src.find("func _resolve_cascades")
-	assert_true(start >= 0, "_resolve_cascades exists")
+	var start: int = src.find("func play_step")
+	assert_true(start >= 0, "play_step exists")
 	if start < 0:
 		return
-	var end: int = src.find("## 阶段5 消除表现", start)
+	var end: int = src.find("func _cell_center", start)
 	if end < 0:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
 	var play_idx: int = body.find("await _play_clear(to_clear, spawns, protected_spawn_set, raw_special_fx_cells, clear_visual_timing)")
-	var overlay_idx: int = body.find("if protected_spawn_set.has(p):\n\t\t\t\t_apply_fx_overlay")
-	var unfiltered_overlay_idx: int = body.find("if not cleared_this_step.has(p):\n\t\t\t\t_apply_fx_overlay")
-	assert_true(play_idx >= 0, "resolve cascades plays clear animation")
+	var overlay_idx: int = body.find("if protected_spawn_set.has(p):\n\t\t\t_apply_fx_overlay")
+	var unfiltered_overlay_idx: int = body.find("if not cleared_this_step.has(p):\n\t\t\t_apply_fx_overlay")
+	assert_true(play_idx >= 0, "play_step plays clear animation")
 	assert_true(overlay_idx > play_idx, "new 4-match specials start their idle only after the clear phase, not during nearby clear animations")
 	assert_true(unfiltered_overlay_idx > overlay_idx, "new 4-match specials still receive their idle overlay when their spawn cell was filtered out of to_clear")
 
@@ -301,7 +302,7 @@ func test_line_blast_hit_specials_keep_explosion_visual_even_if_filtered() -> vo
 	assert_eq(with_override.get(Vector2i(0, 0), -1), ME.SP_LINE_V, "virtual override hit specials are collected before filtering")
 	level.free()
 	# _play_clear 的"视觉专用命中特效在常规清除后补放且不重复"逻辑在 async 路径内, 锁住接线
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var play_start: int = src.find("func _play_clear")
 	var play_end: int = src.find("## 某已存在特效棋子", play_start)
 	if play_start < 0 or play_end <= play_start:
@@ -348,10 +349,10 @@ func test_line_blast_clear_animation_uses_ordered_delays() -> void:
 	var level := scene.instantiate()
 	# 有序延迟的具体数值已由 test_line_blast_visual_timing_spreads_... 行为测试覆盖(调 _clear_visual_timing_for_triggers)
 	# 这里只证明承接有序时间的延迟播放接口存在
-	assert_true(level.has_method("_spawn_shatter_delayed"), "line-hit gems shatter on their ordered delay")
-	assert_true(level.has_method("_play_special_fx_delayed"), "hit specials trigger on their ordered delay")
+	assert_true(level.board_view.has_method("_spawn_shatter_delayed"), "line-hit gems shatter on their ordered delay")
+	assert_true(level.board_view.has_method("_play_special_fx_delayed"), "hit specials trigger on their ordered delay")
 	level.free()
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var play_start: int = src.find("func _play_clear")
 	var play_end: int = src.find("## 某已存在特效棋子", play_start)
 	if play_start < 0 or play_end <= play_start:
@@ -418,7 +419,7 @@ func test_double_bomb_fusion_plays_both_burst_centers() -> void:
 
 func test_cascade_fall_tweens_land_linearly_before_next_match() -> void:
 	# 钉源码理由: 级联下落必须线性(TRANS_LINEAR)落地、禁止 EASE_OUT 末段减速 —— 缓出会让宝石在落点前"飘一下"拖慢下一次自动匹配的节奏, 这是已拍板的下落手感决策, headless 无法量化 tween 缓动故锁文本
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var helper_start: int = src.find("func _queue_cascade_fall_tween")
 	var helper_end: int = src.find("func _sync_collapse_segment", helper_start)
 	assert_true(helper_start >= 0 and helper_end > helper_start, "cascade fall movement is centralized in an inspectable helper")
@@ -470,13 +471,14 @@ func test_level_swap_passes_moved_position_to_first_cascade() -> void:
 
 
 func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
+	# 奖励连锁演出迁至 directors/endgame.gd(P6); 入口 run_win_bonus, gem 节点经 board_view。
+	var f := FileAccess.open("res://match3/directors/endgame.gd", FileAccess.READ)
+	assert_true(f != null, "endgame.gd can be inspected")
 	if f == null:
 		return
 	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
+	var start: int = src.find("func run_win_bonus()")
+	assert_true(start >= 0, "run_win_bonus exists")
 	if start < 0:
 		return
 	var end: int = src.find("\nfunc ", start + 1)
@@ -496,14 +498,15 @@ func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
 		return
 	var blast_body: String = src.substr(blast_start, blast_end - blast_start)
 	var clear_idx: int = blast_body.find("ME._apply_clears(board.grid, board.fx, to_clear, [])")
-	var collapse_idx: int = blast_body.find("await _collapse_and_refill()", clear_idx)
+	var collapse_idx: int = blast_body.find("await _level.board_view.collapse_and_refill()", clear_idx)
 	assert_true(clear_idx >= 0, "endgame bonus applies clears")
 	assert_true(collapse_idx > clear_idx, "endgame bonus refills after reward blasts")
 
 
 func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
+	# 奖励连锁演出迁至 directors/endgame.gd(P6)。
+	var f := FileAccess.open("res://match3/directors/endgame.gd", FileAccess.READ)
+	assert_true(f != null, "endgame.gd can be inspected")
 	if f == null:
 		return
 	var level: Node = load("res://Level.tscn").instantiate()
@@ -515,8 +518,8 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	assert_eq(level.get("ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), null, "endgame bonus must not use a settlement-only outline size")
 	level.free()
 	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
+	var start: int = src.find("func run_win_bonus()")
+	assert_true(start >= 0, "run_win_bonus exists")
 	if start < 0:
 		return
 	var end: int = src.find("\nfunc ", start + 1)
@@ -536,11 +539,11 @@ func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
 	if helper_start < 0 or helper_end <= helper_start:
 		return
 	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-	# 钉源码理由: 结算转化必须复用 5+4 的 absorb/conversion 预览(不发明结算专用 marker/光束), 这是"结算与 5+4 同一套演出"的统一契约; async 不便整跑故锁关键调用
-	assert_true(helper_body.contains("await _play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)"), "endgame bonus reuses the 5+4 absorb/matrix preview without inventing a settlement-only marker")
+	# 钉源码理由: 结算转化必须复用 5+4 的 absorb/conversion 预览(不发明结算专用 marker/光束), 这是"结算与 5+4 同一套演出"的统一契约; 经 _level 接口复用(彩球演出留 level), async 不便整跑故锁关键调用
+	assert_true(helper_body.contains("await _level._play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)"), "endgame bonus reuses the 5+4 absorb/matrix preview without inventing a settlement-only marker")
 	assert_false(helper_body.contains("spawn_conversion_matrix_marker"), "endgame bonus does not use the abandoned custom marker")
-	var outline_idx: int = helper_body.find("await _play_colorbomb_absorb_preview")
-	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", outline_idx)
+	var outline_idx: int = helper_body.find("await _level._play_colorbomb_absorb_preview")
+	var convert_idx: int = helper_body.find("await _level._show_colorbomb_virtual_conversion(virtual_fx)", outline_idx)
 	assert_true(convert_idx > outline_idx, "special conversion starts after the shared 5+4 preview")
 	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
 
@@ -567,9 +570,10 @@ func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() ->
 	assert_true(level.has_method("_set_moves_display_override"), "endgame bonus can update only the moves counter text")
 	assert_true(level.has_method("_clear_moves_display_override"), "endgame bonus clears the temporary moves display after the animation")
 	level.free()
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
+	# 奖励连锁演出迁至 directors/endgame.gd(P6)。
+	var src := FileAccess.get_file_as_string("res://match3/directors/endgame.gd")
+	var start: int = src.find("func run_win_bonus()")
+	assert_true(start >= 0, "run_win_bonus exists")
 	if start < 0:
 		return
 	var end: int = src.find("\nfunc ", start + 1)
@@ -590,13 +594,13 @@ func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() ->
 
 
 func test_endgame_bonus_loops_special_blasts_until_plain_board() -> void:
-	# _play_endgame_bonus 是长 async 协程(转化→爆裂→链式), headless 不便整跑; 锁住"初爆后进链式自动爆"的演出顺序契约
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
+	# run_win_bonus 是长 async 协程(转化→爆裂→链式), headless 不便整跑; 锁住"初爆后进链式自动爆"的演出顺序契约。演出迁至 directors/endgame.gd(P6)。
+	var src := FileAccess.get_file_as_string("res://match3/directors/endgame.gd")
+	var start: int = src.find("func run_win_bonus()")
+	assert_true(start >= 0, "run_win_bonus exists")
 	if start < 0:
 		return
-	var end: int = src.find("# 程序绘制", start)
+	var end: int = src.find("\nfunc _play_endgame_bonus_conversion_matrix", start)
 	if end < 0:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
@@ -608,16 +612,17 @@ func test_endgame_bonus_loops_special_blasts_until_plain_board() -> void:
 	if chain_start < 0 or chain_end <= chain_start:
 		return
 	var chain_body: String = src.substr(chain_start, chain_end - chain_start)
-	# 钉源码理由: 链式爆裂必须有上限护栏(ENDGAME_BONUS_SPECIAL_CHAIN_MAX)并循环"先级联成型→找新特效→自动爆", 锁住"结算自动连爆直到无特效"的演出逻辑
-	assert_true(chain_body.contains("while guard < ENDGAME_BONUS_SPECIAL_CHAIN_MAX") and chain_body.contains("await _resolve_cascades()"), "endgame special chain is guarded and lets falling matches form specials each loop")
+	# 钉源码理由: 链式爆裂必须有上限护栏(ENDGAME_BONUS_SPECIAL_CHAIN_MAX)并循环"先级联成型→找新特效→自动爆", 锁住"结算自动连爆直到无特效"的演出逻辑。级联主循环留 level, 经 _level 接口。
+	assert_true(chain_body.contains("while guard < ENDGAME_BONUS_SPECIAL_CHAIN_MAX") and chain_body.contains("await _level._resolve_cascades()"), "endgame special chain is guarded and lets falling matches form specials each loop")
 	assert_true(chain_body.contains("_endgame_bonus_special_seeds()") and chain_body.contains("await _play_endgame_bonus_special_blast(seeds"), "each loop searches for newly formed specials and auto-blasts the remaining batch")
 
 
 func test_endgame_bonus_special_seed_scan_finds_only_active_specials() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_endgame_bonus_special_seeds"), "Level exposes endgame special seed scanning")
-	if not level.has_method("_endgame_bonus_special_seeds"):
+	# 奖励特效种子扫描迁至 endgame director(P6); 读 level.board(子控制器经 _level 访问)。
+	assert_true(level.endgame.has_method("_endgame_bonus_special_seeds"), "endgame director exposes special seed scanning")
+	if not level.endgame.has_method("_endgame_bonus_special_seeds"):
 		level.free()
 		return
 	level.board = Board.new(4, 3, [0, 1, 2], 0, 25, 1)
@@ -631,7 +636,7 @@ func test_endgame_bonus_special_seed_scan_finds_only_active_specials() -> void:
 		[ME.SP_LINE_V, ME.SP_BOMB, ME.SP_COLORBOMB, ME.SP_LINE_H],
 		[ME.SP_NONE, ME.SP_NONE, ME.SP_COLORBOMB, ME.SP_NONE],
 	]
-	var seeds: Array = level.call("_endgame_bonus_special_seeds")
+	var seeds: Array = level.endgame.call("_endgame_bonus_special_seeds")
 	assert_true(seeds.has(Vector2i(1, 0)), "line special on a gem is a bonus seed")
 	assert_true(seeds.has(Vector2i(3, 0)), "bomb special on a gem is a bonus seed")
 	assert_true(seeds.has(Vector2i(0, 1)), "vertical line special on a gem is a bonus seed")

@@ -5,16 +5,15 @@
 ## ensure_overlays_at: board_view 按单格同步 overlay 节点的标准入口。
 
 const RENDERERS := {
-	"jelly": preload("res://match3/overlays/jelly_overlay.gd"),
-	"bomb":  preload("res://match3/overlays/bomb_overlay.gd"),
-	# 其余七种留待 P7 批量落地：
-	# "coat":    preload("res://match3/overlays/coat_overlay.gd"),
-	# "choco":   preload("res://match3/overlays/choco_overlay.gd"),
-	# "ing":     preload("res://match3/overlays/ing_overlay.gd"),
-	# "cannon":  preload("res://match3/overlays/cannon_overlay.gd"),
-	# "popcorn": preload("res://match3/overlays/popcorn_overlay.gd"),
-	# "cake":    preload("res://match3/overlays/cake_overlay.gd"),
-	# "mystery": preload("res://match3/overlays/mystery_overlay.gd"),
+	"jelly":   preload("res://match3/overlays/jelly_overlay.gd"),
+	"bomb":    preload("res://match3/overlays/bomb_overlay.gd"),
+	"coat":    preload("res://match3/overlays/coat_overlay.gd"),
+	"choco":   preload("res://match3/overlays/choco_overlay.gd"),
+	"ing":     preload("res://match3/overlays/ing_overlay.gd"),
+	"cannon":  preload("res://match3/overlays/cannon_overlay.gd"),
+	"popcorn": preload("res://match3/overlays/popcorn_overlay.gd"),
+	"cake":    preload("res://match3/overlays/cake_overlay.gd"),
+	"mystery": preload("res://match3/overlays/mystery_overlay.gd"),
 }
 
 ## 在 cell 上同步全部已注册的 overlay 节点。
