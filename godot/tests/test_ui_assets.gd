@@ -24,6 +24,7 @@ const BOOK_FRAME_SYNCED := "res://assets/level/book_frame.png"
 const RABBIT_TIMEREWIND_SOURCE := "resources/0.02/rabbit_timerewind_set/rabbit_avatar.png"
 const RABBIT_TIMEREWIND_SYNCED := "res://assets/pets/timerewind/rabbit_avatar.png"
 const RABBIT_TIMEREWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
+const RABBIT_TIMEREWIND_K2 := "res://assets/pets/timerewind/rabbit_k2_peek.png"
 const RABBIT_TIMEREWIND_K5 := "res://assets/pets/timerewind/rabbit_k5_leap.png"
 const RABBIT_TIMEREWIND_K8 := "res://assets/pets/timerewind/rabbit_k8_cast.png"
 const RABBIT_TIMEREWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourglass.png"
@@ -403,6 +404,22 @@ func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> 
 		assert_eq(hourglass.get_parent(), level.skill_bar, "hourglass is independent of the rabbit rig so it cannot be hidden behind the book or rabbit")
 		assert_true(hourglass.z_index > rig.z_index, "hourglass draws above the rabbit cast rig")
 		assert_true(hourglass.scale.x >= 0.07 and hourglass.scale.x <= 0.09, "hourglass starts as a readable prop without becoming a screen-tall tower")
+	level.free()
+
+
+func test_time_rabbit_peek_frames_crop_source_bottom_edge() -> void:
+	var level := _prepare_level_scene()
+	var sprite := Sprite2D.new()
+	level.call("_set_time_rabbit_frame", sprite, RABBIT_TIMEREWIND_K2, 172.0, false)
+	assert_true(sprite.texture != null, "peek frame texture loads")
+	assert_true(sprite.region_enabled, "peek frame crops away the source image bottom edge instead of showing a horizontal cut line")
+	if sprite.texture != null:
+		assert_true(sprite.region_rect.size.y <= sprite.texture.get_size().y - 16.0, "peek frame crop removes enough bottom pixels to hide the hard source edge")
+	var display_h := sprite.region_rect.size.y * sprite.scale.y
+	assert_true(absf(sprite.position.y + display_h * 0.5) <= 0.25, "cropped peek frame still uses the visible bottom as its anchor")
+	level.call("_set_time_rabbit_avatar_frame", sprite, 132.0)
+	assert_false(sprite.region_enabled, "switching back to the avatar frame clears the peek-frame crop")
+	sprite.free()
 	level.free()
 
 

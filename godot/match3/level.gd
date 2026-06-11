@@ -197,6 +197,11 @@ const RABBIT_REWIND_LEAP_W := 232.0
 const RABBIT_REWIND_CAST_W := 220.0
 const RABBIT_REWIND_CAST_MIN_W := 96.0
 const RABBIT_REWIND_CAST_VISIBLE_ASPECT := 1191.0 / 908.0
+const RABBIT_REWIND_FRAME_BOTTOM_CROP := {
+	RABBIT_REWIND_K1: 22.0,
+	RABBIT_REWIND_K2: 24.0,
+	RABBIT_REWIND_K25: 18.0,
+}
 const RABBIT_REWIND_CAST_TOP_GAP := 8.0
 const RABBIT_REWIND_CAST_AVATAR_GAP := 18.0
 const RABBIT_REWIND_CAST_GAP_BIAS := 36.0
@@ -1701,8 +1706,17 @@ func _set_time_rabbit_frame(sprite: Sprite2D, path: String, width: float, flip_h
 	if tex == null:
 		return
 	sprite.texture = tex
+	var display_size := tex.get_size()
+	var bottom_crop := float(RABBIT_REWIND_FRAME_BOTTOM_CROP.get(path, 0.0))
+	if bottom_crop > 0.0 and bottom_crop < display_size.y:
+		display_size.y -= bottom_crop
+		sprite.region_enabled = true
+		sprite.region_rect = Rect2(Vector2.ZERO, display_size)
+	else:
+		sprite.region_enabled = false
+		sprite.region_rect = Rect2(Vector2.ZERO, display_size)
 	sprite.scale = _scale_to_width(tex, _time_rabbit_frame_width(path, width))
-	var display_h: float = tex.get_size().y * sprite.scale.y
+	var display_h: float = display_size.y * sprite.scale.y
 	sprite.position = Vector2(0.0, -display_h * 0.5)
 	sprite.flip_h = flip_h
 	sprite.set_meta("anchor", "bottom")
@@ -1733,6 +1747,8 @@ func _set_time_rabbit_avatar_frame(sprite: Sprite2D, width: float) -> void:
 	if tex == null:
 		return
 	sprite.texture = tex
+	sprite.region_enabled = false
+	sprite.region_rect = Rect2(Vector2.ZERO, tex.get_size())
 	sprite.scale = _fit_scale(tex, width)
 	sprite.position = Vector2.ZERO
 	sprite.flip_h = false
