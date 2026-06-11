@@ -87,7 +87,8 @@ const BASIC_POP_FALLBACK_DURATION := 0.208
 const BASIC_POP_DUST_DURATION := 0.442
 const HEAVY_FX_FRAME_BUDGET := 18
 const BASIC_POP_HEAVY_COST := 3
-# 宝石碎裂(普通消除, gem_shatter_white_v2 五帧白图): 白贴图 × modulate 染色, 六色通用, ADD 混合。
+# 宝石碎裂(普通消除, gem_shatter_white_v2 五帧白图): 白贴图 × modulate 染色, 六色通用。
+# 混合: 裂纹/碎块用普通 alpha(实色, 米色亮底上 ADD 会把染色冲白); 仅崩拍白闪用 ADD。
 # 时序契约(与 board_view 本体动画对表): 0~0.08 本体膨胀+白推 → 0.08 裂纹帧叠于本体之上(本体仍可见)
 # → 0.15 崩拍(本体隐藏/中心白闪/碎块序列起跑) → 碎块 15fps 播完(~0.27s)。
 # 下落在崩拍 0.15 放行(board_view.ELIM_HOLD), 碎块飞散与棋子下落并行——跟手感全在这半拍。
@@ -192,7 +193,8 @@ func gem_shatter_profile() -> Dictionary:
 		"flash_radius_ratio": SHATTER_FLASH_RADIUS_RATIO,
 		"flash_fade": SHATTER_FLASH_FADE,
 		"flash_dedup_ms": SHATTER_FLASH_DEDUP_MS,
-		"add_blend": true,
+		"debris_add_blend": false,
+		"flash_add_blend": true,
 		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
 	}
 
@@ -568,8 +570,7 @@ func _spawn_gem_shatter(pos: Vector2, gem_color: Color, target_px: float) -> voi
 		var crack := Sprite2D.new()
 		crack.texture = crack_tex
 		crack.position = pos
-		crack.modulate = gem_color
-		crack.material = _add_mat()
+		crack.modulate = gem_color   # 白图×宝石色=实色裂纹; 米色亮底上不用 ADD(会冲白, 染色读不出)
 		var cs := span / maxf(float(crack_tex.get_width()), 1.0)
 		crack.scale = Vector2(cs, cs)
 		crack.visible = false
@@ -584,8 +585,7 @@ func _spawn_gem_shatter(pos: Vector2, gem_color: Color, target_px: float) -> voi
 	anim.sprite_frames = _shatter_frames_resource()
 	anim.animation = &"shatter"
 	anim.position = pos
-	anim.modulate = gem_color
-	anim.material = _add_mat()
+	anim.modulate = gem_color   # 普通 alpha 混合: 碎块保宝石实色(ADD 在亮底数学上必然趋白)
 	var first := _load_texture(SHATTER_FRAMES[1])
 	if first != null:
 		var sc := span / maxf(float(first.get_width()), 1.0)

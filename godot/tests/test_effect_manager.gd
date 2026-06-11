@@ -58,7 +58,10 @@ func test_gem_shatter_profile_follows_the_handoff_spec() -> void:
 	assert_eq(float(profile.get("fps", 0.0)), 15.0, "shatter_02-05 play at the spec'd 15fps")
 	assert_true(float(profile.get("span_ratio", 0.0)) > 1.0, "shatter spread reaches beyond the cell so debris flies outward")
 	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup within a window instead of stacking")
-	assert_true(bool(profile.get("add_blend", false)), "white frames are ADD-blended so modulate tinting never reads gray")
+	# 染色契约: 碎块/裂纹普通混合保宝石实色(米色亮底上 ADD 数学上必然冲白, 绿宝石碎片读不出绿);
+	# 白闪保留 ADD(闪光就是要亮白)。
+	assert_false(bool(profile.get("debris_add_blend", true)), "debris frames use normal alpha so the gem tint stays readable on the light board")
+	assert_true(bool(profile.get("flash_add_blend", false)), "the break-beat flash stays additive for the bright pop")
 
 
 func test_magic_clear_light_keeps_species_color_instead_of_whitewashing() -> void:
