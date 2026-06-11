@@ -131,6 +131,149 @@ func test_dependency_discipline_meta_no_match3() -> void:
 		"meta/ 包含 match3/ 引用（违反单向依赖）: " + ", ".join(violations)
 	)
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ── game_root 端到端状态机测试（不依赖 Level 信号，直接驱动状态机方法）────────
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# 策略：preload game_root.gd → new() → 手动初始化 _meta/_session/_library/_played_set
+#        → 调 _build_ui()（建 Node 子树，headless 下无渲染但不崩）
+#        → 通过 _enter_boot() / _on_session_ended() 直接驱动状态机
+#        → 断言内部字段（_state / _meta / _last_summary / _last_stars）
+# 不测 Control 像素/布局，只测逻辑正确性。
+
+const GameRoot := preload("res://app/game_root.gd")
+
+func _make_root_with_library(lib: Array) -> Node:
+	# 构造 game_root 实例并手动初始化——跳过 _ready() 的磁盘 IO 和 _enter_boot()
+	var gr := GameRoot.new()
+	gr._meta    = MetaState.new()
+	gr._session = Session.new()
+	gr._library = lib
+	gr._played_set = {}
+	gr._last_summary = {}
+	gr._last_stars = 0
+	# _build_ui 建 Node 子树：MapScroll/LevelRoot/ResultPanel
+	gr._build_ui()
+	return gr
+
+# ── Boot → Map：状态枚举 + 列表生成 ─────────────────────────────────────────
+
+func test_game_root_boot_enters_map_state() -> void:
+	# _enter_boot 直通 _enter_map → 状态应为 MAP
+	# 清空磁盘 level_stars 影响：_enter_boot 调 load_state，
+	# 但状态枚举不受存档影响，只验证最终 _state == MAP
+	var gr := _make_root_with_library([])
+	gr._enter_boot()
+	assert_eq(gr._state, GameRoot.State.MAP, "Boot 直通 MAP 状态")
+	gr.free()
+
+func test_game_root_map_builds_button_per_level() -> void:
+	# library 含 3 条 → MapContainer 应有 3 个子节点
+	var lib := [{"id": 0}, {"id": 1}, {"id": 2}]
+	var gr := _make_root_with_library(lib)
+	gr._enter_boot()
+	# MapContainer 的子节点数 == library.size()
+	assert_eq(gr._map_container.get_child_count(), 3, "3 关卡 → 3 个按钮")
+	gr.free()
+
+func test_game_root_map_shows_zero_stars_initially() -> void:
+	# 未通关时，地图按钮文字含 ☆☆☆
+	# 不走 _enter_boot（会 load_state 读磁盘存档），直接用新鲜 meta
+	var lib := [{"id": 0}]
+	var gr := _make_root_with_library(lib)
+	# _meta 已是 new()，level_stars 为空，直接进 Map
+	gr._enter_map()
+	var btn: Button = gr._map_container.get_child(0) as Button
+	assert_true(btn != null and "☆☆☆" in btn.text, "未通关显示 ☆☆☆，实际: " + (btn.text if btn != null else "null"))
+	gr.free()
+
+# ── Result 路径：bank 调用 + UI 数字 ─────────────────────────────────────────
+
+func test_game_root_session_ended_updates_summary() -> void:
+	# 模拟 session_ended：喂假 result，断言 _last_summary 被填充
+	# _make_root_with_library 内已调 _build_ui()，无需重复
+	var gr := _make_root_with_library([{"id": 0}])
+	gr._enter_boot()
+	gr._current_index = 0
+	var fake_result := {"won": true, "stars": 2, "score": 500, "fragments": 10, "is_scrolling": false}
+	gr._on_session_ended(fake_result)
+	assert_eq(gr._state, GameRoot.State.RESULT, "session_ended 后进入 RESULT 状态")
+	assert_eq(gr._last_stars, 2, "_last_stars 记录本局星级")
+	assert_eq(gr._last_summary.get("fragments_delta"), 10, "摘要 fragments_delta 正确")
+	assert_eq(gr._last_summary.get("coins_delta"), 10, "摘要 coins_delta 正确（500/50=10）")
+	assert_eq(gr._last_summary.get("crystals_delta"), 1, "摘要 crystals_delta=1（过关）")
+	gr.free()
+
+func test_game_root_result_panel_shows_stars_label() -> void:
+	# Result 面板应包含星级 Label
+	var gr := _make_root_with_library([{"id": 0}])
+	gr._enter_boot()
+	gr._current_index = 0
+	gr._last_stars = 3
+	gr._last_summary = {"coins_delta": 5, "fragments_delta": 2, "crystals_delta": 1}
+	gr._enter_result()
+	# 在 ResultPanel 子树里找 name="StarsLabel" 的节点
+	var stars_lbl: Node = _find_node_by_name(gr._result_panel, "StarsLabel")
+	assert_true(stars_lbl != null, "Result 面板含 StarsLabel 节点")
+	if stars_lbl != null and stars_lbl is Label:
+		assert_eq((stars_lbl as Label).text, "★★★", "3 星显示 ★★★")
+	gr.free()
+
+func test_game_root_result_panel_shows_summary_label() -> void:
+	# Result 面板 SummaryLabel 文字包含增量数字
+	var gr := _make_root_with_library([{"id": 0}])
+	gr._enter_boot()
+	gr._current_index = 0
+	gr._last_stars = 1
+	gr._last_summary = {"coins_delta": 8, "fragments_delta": 3, "crystals_delta": 0}
+	gr._enter_result()
+	var summary_lbl: Node = _find_node_by_name(gr._result_panel, "SummaryLabel")
+	assert_true(summary_lbl != null, "Result 面板含 SummaryLabel 节点")
+	if summary_lbl != null and summary_lbl is Label:
+		assert_true("8" in (summary_lbl as Label).text, "SummaryLabel 含 coins_delta=8")
+		assert_true("3" in (summary_lbl as Label).text, "SummaryLabel 含 fragments_delta=3")
+	gr.free()
+
+# ── 回 Map：星级刷新 ──────────────────────────────────────────────────────────
+
+func test_game_root_map_refreshes_stars_after_result() -> void:
+	# session_ended → _meta.level_stars 应记录新星级（数据层断言，不依赖 UI 节点生命周期）
+	var lib := [{"id": 0}, {"id": 1}]
+	var gr := _make_root_with_library(lib)
+	gr._enter_map()
+	gr._current_index = 0
+	# 模拟关 0 通关 2 星
+	var fake_result := {"won": true, "stars": 2, "score": 0, "fragments": 0, "is_scrolling": false}
+	gr._on_session_ended(fake_result)
+	# 星级已记录在 meta（_session.bank 内部调 record_clear）
+	assert_eq(int(gr._meta.level_stars.get("0", 0)), 2, "关 0 通关后 level_stars 记录 2 星")
+	assert_eq(int(gr._meta.level_stars.get("1", 0)), 0, "关 1 未通关仍 0 星")
+	# 回 Map 后 _stars_str 应正确（验证 _stars_str 方法本身）
+	assert_eq(gr._stars_str(2), "★★☆", "_stars_str(2) 返回 ★★☆")
+	assert_eq(gr._stars_str(0), "☆☆☆", "_stars_str(0) 返回 ☆☆☆")
+	gr.free()
+
+func test_game_root_played_set_updated_after_session_ended() -> void:
+	# session_ended 后 _played_set 应包含当前关索引
+	var gr := _make_root_with_library([{"id": 0}])
+	gr._enter_boot()
+	gr._current_index = 0
+	var fake_result := {"won": false, "stars": 0, "score": 0, "fragments": 0, "is_scrolling": false}
+	gr._on_session_ended(fake_result)
+	assert_true(gr._played_set.has(0), "_played_set 包含已玩关 0")
+	gr.free()
+
+# ── 工具：递归按 name 找节点 ──────────────────────────────────────────────────
+
+func _find_node_by_name(root: Node, target_name: String) -> Node:
+	if root.name == target_name:
+		return root
+	for ch in root.get_children():
+		var found := _find_node_by_name(ch, target_name)
+		if found != null:
+			return found
+	return null
+
 # ── 工具：递归搜索目录下 .gd 文件中的字符串 ──────────────────────────────────
 
 func _grep_dir(dir_path: String, needle: String) -> Array:

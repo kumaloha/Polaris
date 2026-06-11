@@ -20,6 +20,8 @@ var _session: Session
 var _library: Array         # levels.json 全量
 var _current_index: int = 0 # 当前进入关卡的库索引
 var _last_summary: Dictionary = {}  # bank() 返回的入账摘要，供 Result 页显示
+var _last_stars: int = 0            # 本局星级，供 Result 页显示
+var _played_set: Dictionary = {}    # 已玩关卡索引集 { int: bool }，供 recommend_next
 
 # ── 场景节点引用（build_ui 建立） ─────────────────────────────────────────────
 var _map_container: Control    # Map 状态的垂直列表容器
@@ -106,10 +108,15 @@ func _rebuild_map_list() -> void:
 		_map_container.add_child(lbl)
 		return
 
+	# 计算推荐关（有 library 时才调）
+	var recommended_idx: int = _session.recommend_next(_meta, _library, _played_set)
+
 	for i in _library.size():
 		var stars: int = int(_meta.level_stars.get(str(i), 0))
+		var is_recommended: bool = (i == recommended_idx)
 		var btn := Button.new()
-		btn.text = "关 %d  %s" % [i + 1, _stars_str(stars)]
+		var suffix := " [推荐]" if is_recommended else ""
+		btn.text = "关 %d  %s%s" % [i + 1, _stars_str(stars), suffix]
 		btn.name = "LevelBtn_%d" % i
 		# 闭包捕获 i
 		var idx := i
@@ -163,6 +170,8 @@ func _clear_level() -> void:
 # ── Result ────────────────────────────────────────────────────────────────────
 func _on_session_ended(result: Dictionary) -> void:
 	_last_summary = _session.bank(_meta, result, _current_index)
+	_last_stars = int(result.get("stars", 0))
+	_played_set[_current_index] = true
 	_enter_result()
 
 func _enter_result() -> void:
@@ -178,8 +187,15 @@ func _enter_result() -> void:
 	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_result_panel.add_child(vbox)
 
+	# 星级
+	var stars_lbl := Label.new()
+	stars_lbl.name = "StarsLabel"
+	stars_lbl.text = _stars_str(_last_stars)
+	vbox.add_child(stars_lbl)
+
 	# 入账摘要
 	var summary_lbl := Label.new()
+	summary_lbl.name = "SummaryLabel"
 	summary_lbl.text = "金币 +%d　碎片 +%d　水晶 +%d" % [
 		_last_summary.get("coins_delta", 0),
 		_last_summary.get("fragments_delta", 0),
