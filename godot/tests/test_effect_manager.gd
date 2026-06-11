@@ -40,26 +40,23 @@ func test_magic_vfx_profiles_use_the_new_art_pack() -> void:
 	assert_eq(paths["absorb_orb"], "res://art/vfx/color_absorb/vfx_absorb_orb.png", "colorbomb absorbs use the new orb")
 
 
-func test_basic_pop_profile_has_visible_flash_swell() -> void:
+func test_gem_burst_profile_shards_lead_the_show() -> void:
+	# 宝石炸裂语义(防回归到"白闪主角"旧方案): 本体鼓胀→爆点→实色碎片重力飞溅为主视觉。
 	var fx := FxScript.new()
-	assert_true(fx.has_method("basic_pop_profile"), "Fx exposes basic pop sizing profile")
-	if not fx.has_method("basic_pop_profile"):
+	assert_true(fx.has_method("gem_burst_profile"), "Fx exposes gem burst tuning profile")
+	if not fx.has_method("gem_burst_profile"):
 		fx.free()
 		return
-	var profile: Dictionary = fx.call("basic_pop_profile")
+	var profile: Dictionary = fx.call("gem_burst_profile")
 	fx.free()
-	assert_true(float(profile["blob_start_ratio"]) >= 0.78, "basic pop starts near gem size so the swell is visible immediately")
-	assert_true(float(profile["blob_end_ratio"]) >= 1.36, "basic pop flash swells a little more past the gem body")
-	assert_true(float(profile["blob_end_ratio"]) <= 1.40, "basic pop flash stays restrained instead of ballooning")
-	assert_true(float(profile["ring_end_ratio"]) >= 1.38, "basic pop ring opens a little wider around the gem body")
-	assert_true(float(profile["ring_end_ratio"]) <= 1.42, "basic pop ring stays restrained instead of ballooning")
-	assert_true(float(profile.get("blob_delay", 1.0)) <= 0.02, "main basic pop flash starts immediately with the gem-body swell")
-	assert_eq(float(profile.get("duration_scale", 0.0)), 1.3, "basic pop VFX timeline uses the requested 1.3x slowdown")
-	assert_eq(float(profile.get("blob_duration", 0.0)), 0.234, "basic pop flash duration is 0.18s * 1.3")
-	assert_eq(float(profile.get("star_duration", 0.0)), 0.234, "basic pop star duration is 0.18s * 1.3")
-	assert_eq(float(profile.get("ring_duration", 0.0)), 0.312, "basic pop ring duration is 0.24s * 1.3")
-	assert_eq(float(profile.get("star_delay", 0.0)), 0.0455, "basic pop star delay preserves the 1.3x timeline")
-	assert_eq(float(profile.get("ring_delay", 0.0)), 0.0585, "basic pop ring delay preserves the 1.3x timeline")
+	var pop_at := float(profile.get("pop_at", -1.0))
+	assert_true(pop_at >= 0.08 and pop_at <= 0.117, "burst fx waits out the gem-body swell and fires at the pop moment")
+	assert_true(float(profile["flash_end_ratio"]) <= 1.0, "pop flash stays a small spark instead of the old screen-grabbing blob")
+	assert_true(int(profile["shard_count"]) >= 10, "shards are the lead actor with a dense burst")
+	assert_true(float(profile["shard_lift_ratio"]) > 0.0, "shards launch upward before falling")
+	assert_true(float(profile["shard_gravity_ratio"]) > 0.0, "shards fall under gravity for a physical scatter")
+	assert_true(float(profile["shard_duration"]) > float(profile["flash_duration"]), "shards outlive the pop flash as the lingering read")
+	assert_true(float(profile["ring_end_ratio"]) >= 1.1, "a quick gem-colored shockwave ring sells the burst radius")
 
 
 func test_magic_clear_light_keeps_species_color_instead_of_whitewashing() -> void:

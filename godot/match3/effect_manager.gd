@@ -91,26 +91,26 @@ const LINE_BLAST_LEGACY_COMET_FADE_DELAY := 0.169
 const LINE_BLAST_LEGACY_FLASH_DELAY_MAX := 0.26
 const LINE_BLAST_LEGACY_FLASH_DURATION := 0.312
 const LINE_BLAST_FALLBACK_DURATION := 0.26
-const BASIC_POP_BLOB_START_RATIO := 0.84
-const BASIC_POP_BLOB_END_RATIO := 1.37
-const BASIC_POP_STAR_START_RATIO := 0.52
-const BASIC_POP_STAR_END_RATIO := 1.34
-const BASIC_POP_RING_START_RATIO := 0.64
-const BASIC_POP_RING_END_RATIO := 1.39
-const BASIC_POP_TIMING_SCALE := 1.3
 const BASIC_POP_FALLBACK_DURATION := 0.208
-const BASIC_POP_BLOB_DURATION := 0.234
-const BASIC_POP_STAR_DURATION := 0.234
-const BASIC_POP_RING_DURATION := 0.312
-const BASIC_POP_SHARD_DURATION := 0.364
 const BASIC_POP_DUST_DURATION := 0.442
-const BASIC_POP_BLOB_DELAY := 0.0
-const BASIC_POP_STAR_DELAY := 0.0455
-const BASIC_POP_RING_DELAY := 0.0585
-const BASIC_POP_SHARD_DELAY := 0.104
-const BASIC_POP_DUST_DELAY := 0.169
 const HEAVY_FX_FRAME_BUDGET := 18
 const BASIC_POP_HEAVY_COST := 3
+# 宝石炸裂(普通消除): 本体在 level.gd 鼓胀 0.117s(CLEAR_POP_TIME) 后炸开瞬灭,
+# 特效统一从爆点时刻 GEM_BURST_POP_AT 起跑——前奏留给本体表演, 爆点后碎片接管。
+const GEM_BURST_POP_AT := 0.10            # 爆点时刻(略早于本体瞬灭, 火花先冒头更有撑爆感)
+const GEM_BURST_FLASH_START_RATIO := 0.46
+const GEM_BURST_FLASH_END_RATIO := 0.95   # 爆点白闪收敛为小型(碎片才是主角)
+const GEM_BURST_FLASH_DURATION := 0.15
+const GEM_BURST_RING_START_RATIO := 0.5
+const GEM_BURST_RING_END_RATIO := 1.28
+const GEM_BURST_RING_DURATION := 0.22
+const GEM_BURST_SHARD_COUNT := 12
+const GEM_BURST_SHARD_SPEED_RATIO := 1.7  # 碎片初速(格倍率/s)
+const GEM_BURST_SHARD_LIFT_RATIO := 1.05  # 向上偏置初速(炸起再落)
+const GEM_BURST_SHARD_GRAVITY_RATIO := 7.2 # 重力加速度(格倍率/s²)
+const GEM_BURST_SHARD_DURATION := 0.5
+const GEM_BURST_DUST_COUNT := 5
+const GEM_BURST_DUST_DELAY := 0.16
 const AREA_BURST_HEAVY_COST := 7
 const LINE_BLAST_HEAVY_COST := 6
 const EXPLOSION_HEAVY_COST := 5
@@ -170,26 +170,25 @@ static func magic_vfx_paths() -> Dictionary:
 		"absorb_residue_flash_star": MAGIC_BASIC_FLASH_STAR,
 	}
 
-func basic_pop_profile() -> Dictionary:
+## 宝石炸裂参数表(供测试断言"碎片主角"语义, 防回归到白闪主角的旧方案)。
+func gem_burst_profile() -> Dictionary:
 	return {
-		"blob_start_ratio": BASIC_POP_BLOB_START_RATIO,
-		"blob_end_ratio": BASIC_POP_BLOB_END_RATIO,
-		"star_start_ratio": BASIC_POP_STAR_START_RATIO,
-		"star_end_ratio": BASIC_POP_STAR_END_RATIO,
-		"ring_start_ratio": BASIC_POP_RING_START_RATIO,
-		"ring_end_ratio": BASIC_POP_RING_END_RATIO,
-		"duration_scale": BASIC_POP_TIMING_SCALE,
-		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
-		"blob_duration": BASIC_POP_BLOB_DURATION,
-		"star_duration": BASIC_POP_STAR_DURATION,
-		"ring_duration": BASIC_POP_RING_DURATION,
-		"blob_delay": BASIC_POP_BLOB_DELAY,
-		"star_delay": BASIC_POP_STAR_DELAY,
-		"ring_delay": BASIC_POP_RING_DELAY,
-		"shard_duration": BASIC_POP_SHARD_DURATION,
-		"shard_delay": BASIC_POP_SHARD_DELAY,
+		"pop_at": GEM_BURST_POP_AT,
+		"flash_start_ratio": GEM_BURST_FLASH_START_RATIO,
+		"flash_end_ratio": GEM_BURST_FLASH_END_RATIO,
+		"flash_duration": GEM_BURST_FLASH_DURATION,
+		"ring_start_ratio": GEM_BURST_RING_START_RATIO,
+		"ring_end_ratio": GEM_BURST_RING_END_RATIO,
+		"ring_duration": GEM_BURST_RING_DURATION,
+		"shard_count": GEM_BURST_SHARD_COUNT,
+		"shard_speed_ratio": GEM_BURST_SHARD_SPEED_RATIO,
+		"shard_lift_ratio": GEM_BURST_SHARD_LIFT_RATIO,
+		"shard_gravity_ratio": GEM_BURST_SHARD_GRAVITY_RATIO,
+		"shard_duration": GEM_BURST_SHARD_DURATION,
+		"dust_count": GEM_BURST_DUST_COUNT,
 		"dust_duration": BASIC_POP_DUST_DURATION,
-		"dust_delay": BASIC_POP_DUST_DELAY,
+		"dust_delay": GEM_BURST_DUST_DELAY,
+		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
 	}
 
 func absorb_residue_profile() -> Dictionary:
@@ -330,67 +329,16 @@ func spawn_shatter(pos: Vector2, color: Color) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.55)
 
-## 消除魔法特效: 3帧发光帧(蓄力charge_up→炸裂burst→消散dissipate), additive。
-## 双精灵 alpha 交叉淡化平滑过渡, 约0.34s。
-const ELIM_DIR := "res://assets/fx/elim/"
-const ELIM_COLORS := ["red", "blue", "green", "gold", "purple", "pink"]
-
-func _elim_frames(color: String) -> Array:
-	var c: String = color if ELIM_COLORS.has(color) else "purple"
-	return [
-		load(ELIM_DIR + "gem_%s_charge_up_additive.png" % c) as Texture2D,
-		load(ELIM_DIR + "gem_%s_burst_additive.png" % c) as Texture2D,
-		load(ELIM_DIR + "gem_%s_dissipate_additive.png" % c) as Texture2D,
-	]
-
+## 普通消除「宝石炸裂」: 宝石本体(level.gd)先鼓胀再炸开瞬灭, 此处接管炸裂物——
+## 爆点短闪 + 宝石色冲击环 + 主角碎片(上抛初速+重力下坠+自转) + 余尘。
+## 时序契约: 本体鼓胀 0~CLEAR_POP_TIME(0.117s) 是"撑爆"前奏, 特效统一在爆点时刻
+## GEM_BURST_POP_AT 起跑(略早于本体瞬灭, 火花先冒头), 前奏期间不抢戏。
 func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
-	if _asset_exists(MAGIC_BASIC_FLASH_BLOB):
-		var magic_color := _color_key_to_magic_color(color)
-		if _claim_heavy_fx(BASIC_POP_HEAVY_COST):
-			_spawn_magic_basic_pop(pos, magic_color, target_px)
-		else:
-			_spawn_single_flash(pos, magic_color, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_FALLBACK_DURATION)
-		return
+	var magic_color := _color_key_to_magic_color(color)
 	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
-		_spawn_single_flash(pos, _color_key_to_magic_color(color), target_px, BASIC_POP_FALLBACK_DURATION)
+		_spawn_single_flash(pos, magic_color, target_px, BASIC_POP_FALLBACK_DURATION)
 		return
-	var fr: Array = _elim_frames(color)
-	var f0: Texture2D = fr[0]
-	if f0 == null:
-		return
-	var f1: Texture2D = fr[1]
-	var f2: Texture2D = fr[2]
-	# 双精灵交叉淡化(无自定义 shader, 实机可靠): 容器统一缩放, 两层相邻帧 A淡出/B淡入重叠过渡。
-	var root := Node2D.new()
-	root.position = pos
-	var b: float = target_px / maxf(float(f0.get_width()), 1.0)
-	root.scale = Vector2(b, b)
-	_layer().add_child(root)
-	var la := Sprite2D.new()
-	la.material = _add_mat()
-	la.texture = f0  # 帧1 charge_up
-	root.add_child(la)
-	var lb := Sprite2D.new()
-	lb.material = _add_mat()
-	lb.texture = f1  # 帧2 burst(预备, 先隐)
-	lb.modulate.a = 0.0
-	root.add_child(lb)
-	var tw := create_tween()
-	# ① charge_up: 蓄力(先收)
-	tw.tween_property(root, "scale", Vector2(b, b) * 0.92, 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	# ② charge_up ⤳ burst: la 淡出 / lb 淡入(重叠) + 放大
-	tw.tween_property(la, "modulate:a", 0.0, 0.11)
-	tw.parallel().tween_property(lb, "modulate:a", 1.0, 0.11)
-	tw.parallel().tween_property(root, "scale", Vector2(b, b) * 1.4, 0.11).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# ③ burst ⤳ dissipate: la 换帧3 淡入 / lb 淡出(重叠) + 微扩
-	tw.tween_callback(func() -> void: la.texture = f2)
-	tw.tween_property(la, "modulate:a", 1.0, 0.07)
-	tw.parallel().tween_property(lb, "modulate:a", 0.0, 0.07)
-	tw.parallel().tween_property(root, "scale", Vector2(b, b) * 1.5, 0.07).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	# ④ dissipate 淡出
-	tw.tween_property(la, "modulate:a", 0.0, 0.10).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.parallel().tween_property(root, "scale", Vector2(b, b) * 1.56, 0.10).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_auto_free(root, 0.40)
+	_spawn_gem_burst(pos, magic_color, target_px)
 
 ## 爆炸(炸弹/彩球): 中心亮闪 + 冲击波环 + 火花扩散。Additive。
 func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
@@ -607,13 +555,57 @@ func _color_key_to_magic_color(color_key: String) -> Color:
 func _quad_bezier(a: Vector2, b: Vector2, c: Vector2, t: float) -> Vector2:
 	return a.lerp(b, t).lerp(b.lerp(c, t), t)
 
-func _spawn_magic_basic_pop(pos: Vector2, color: Color, target_px: float) -> void:
-	var hot := color.lerp(Color(1, 1, 1, 1), 0.28)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * BASIC_POP_BLOB_START_RATIO, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_BLOB_DURATION, BASIC_POP_BLOB_DELAY)
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, color.lerp(Color(1, 1, 1, 1), 0.18), target_px * BASIC_POP_STAR_START_RATIO, target_px * BASIC_POP_STAR_END_RATIO, BASIC_POP_STAR_DURATION, BASIC_POP_STAR_DELAY)
-	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * BASIC_POP_RING_START_RATIO, target_px * BASIC_POP_RING_END_RATIO, BASIC_POP_RING_DURATION, BASIC_POP_RING_DELAY)
-	_magic_shard_burst(MAGIC_GEM_SHARDS, pos, hot, 8, target_px * 0.58, BASIC_POP_SHARD_DURATION, BASIC_POP_SHARD_DELAY)
-	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.22), 7, target_px * 0.42, BASIC_POP_DUST_DURATION, BASIC_POP_DUST_DELAY)
+## 宝石炸裂(普通消除主特效): 碎片是主角, 闪光只做爆点提示。全部从爆点时刻起跑。
+func _spawn_gem_burst(pos: Vector2, color: Color, target_px: float) -> void:
+	var hot := color.lerp(Color(1, 1, 1, 1), 0.30)
+	# 爆点短闪: 旧 blob 1.37x 是主角, 现在收敛为小型火花点
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * GEM_BURST_FLASH_START_RATIO, target_px * GEM_BURST_FLASH_END_RATIO, GEM_BURST_FLASH_DURATION, GEM_BURST_POP_AT)
+	# 冲击环: 宝石色快速扩散一圈, 给"炸开"的范围感
+	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * GEM_BURST_RING_START_RATIO, target_px * GEM_BURST_RING_END_RATIO, GEM_BURST_RING_DURATION, GEM_BURST_POP_AT + 0.01)
+	# 主角: 纯宝石色实色碎片, 上抛初速 + 重力下坠 + 自转
+	_gem_shard_scatter(MAGIC_GEM_SHARDS, pos, color.lerp(Color(1, 1, 1, 1), 0.10), GEM_BURST_SHARD_COUNT, target_px, GEM_BURST_SHARD_DURATION, GEM_BURST_POP_AT)
+	# 余尘: 少量光点缓散
+	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.22), GEM_BURST_DUST_COUNT, target_px * 0.42, BASIC_POP_DUST_DURATION, GEM_BURST_DUST_DELAY)
+
+## 宝石碎片飞溅: 上半圆偏置初速 + 重力抛物线 + 自转, 非 additive 保实色质感(素材近白靠染色)。
+## 与 _magic_shard_burst(直线放射光屑)的区别: 这里模拟实体碎片的物理弧线。
+func _gem_shard_scatter(tex_paths: Array, pos: Vector2, color: Color, count: int, cell_px: float, dur: float, delay: float = 0.0) -> void:
+	if tex_paths.is_empty() or count <= 0:
+		return
+	for i in range(count):
+		var path: String = String(tex_paths[i % tex_paths.size()])
+		if not _asset_exists(path):
+			continue
+		var tex := _load_texture(path)
+		if tex == null:
+			continue
+		var s := Sprite2D.new()
+		s.texture = tex
+		s.position = pos
+		s.modulate = color
+		var ang := TAU * float(i) / float(count) + 0.21 * float(i % 5)
+		var base_scale := (0.085 + 0.03 * float(i % 3)) * cell_px / 77.0   # 按格大小等比(素材512px, 77=设计格基准)
+		s.scale = Vector2(base_scale, base_scale)
+		s.rotation = ang
+		_layer().add_child(s)
+		var speed := cell_px * (GEM_BURST_SHARD_SPEED_RATIO + 0.45 * float(i % 4) / 3.0)
+		var vel := Vector2.RIGHT.rotated(ang) * speed + Vector2(0, -cell_px * GEM_BURST_SHARD_LIFT_RATIO)
+		var gravity := cell_px * GEM_BURST_SHARD_GRAVITY_RATIO
+		var spin := (1.0 if i % 2 == 0 else -1.0) * (2.4 + 0.9 * float(i % 3))
+		var t := create_tween()
+		if delay > 0.0:
+			t.tween_interval(delay + 0.006 * float(i % 4))
+		t.set_parallel(true)
+		t.tween_method(func(f: float) -> void:
+			if not is_instance_valid(s):
+				return
+			var et := f * dur
+			s.position = pos + vel * et + Vector2(0.0, 0.5 * gravity * et * et)
+			s.rotation = ang + spin * et
+		, 0.0, 1.0, dur)
+		t.tween_property(s, "modulate:a", 0.0, dur * 0.45).set_delay(dur * 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		t.tween_property(s, "scale", Vector2(base_scale * 0.55, base_scale * 0.55), dur * 0.6).set_delay(dur * 0.4)
+		_auto_free(s, delay + dur + 0.2)
 
 func _spawn_magic_area_blast(pos: Vector2, color: Color, radius_px: float, clear_cells: int) -> void:
 	var cells_per_side := 3.0 if clear_cells <= LOCAL_BURST_CLEAR_CELLS else 5.0
@@ -853,7 +845,11 @@ func _flash(pos: Vector2, color: Color, diameter: float, dur: float, additive: b
 		s.material = _add_mat()
 	var k: float = diameter / maxf(float(tex.get_width()), 1.0)
 	s.scale = Vector2(k * 0.5, k * 0.5)
-	_layer().add_child(s)
+	var layer := _layer()
+	if layer == null:
+		s.free()
+		return   # 延迟触发路径(create_timer)可能落在换场景的 null 窗口
+	layer.add_child(s)
 	var t := create_tween()
 	t.set_parallel(true)
 	t.tween_property(s, "scale", Vector2(k * 1.05, k * 1.05), dur * 0.5)
@@ -926,11 +922,17 @@ func _beam_sparks(from: Vector2, to: Vector2, color: Color, timing_scale: float 
 	_layer().add_child(p)
 	_auto_free(p, 0.65 * timing_scale)
 
-## 屏幕震动: 抖动注册的画布层 offset。
+## 屏幕震动: 抖动注册的画布层 offset。连续触发时先杀旧 tween, 防两条 tween 写同一 offset 打架/残留偏移。
+var _shake_tween: Tween
+
 func shake(intensity: float = 6.0) -> void:
 	if _shake_node == null or not is_instance_valid(_shake_node):
 		return
+	if _shake_tween != null and _shake_tween.is_valid():
+		_shake_tween.kill()
+	_shake_node.offset = Vector2.ZERO
 	var t := create_tween()
+	_shake_tween = t
 	for i in range(5):
 		var off := Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity))
 		t.tween_property(_shake_node, "offset", off, 0.035)
@@ -942,6 +944,7 @@ func _add_mat() -> CanvasItemMaterial:
 	return m
 
 func _auto_free(n: Node, delay: float) -> void:
-	var t := create_tween()
+	# tween 绑到 n 自身: n 随换关/场景销毁 free 时 tween 一并失效, 不再产生打 freed 对象的孤儿回调。
+	var t := n.create_tween()
 	t.tween_interval(delay)
 	t.tween_callback(n.queue_free)

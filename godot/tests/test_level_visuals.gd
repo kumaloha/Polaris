@@ -463,7 +463,7 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 	var src: String = f.get_as_text()
 	assert_true(src.contains("CLEAR_POP_SCALE"), "level defines a visible gem-body clear pop scale")
 	assert_true(src.contains("CLEAR_POP_TIME"), "level defines a short gem-body clear pop phase")
-	assert_true(src.contains("const CLEAR_POP_SCALE := 1.25"), "basic clear gem body swells a little more without ballooning")
+	assert_true(src.contains("const CLEAR_POP_SCALE := 1.32"), "basic clear gem body swells visibly before bursting")
 	assert_true(src.contains("const CLEAR_POP_TIME := 0.117"), "basic clear gem body uses the requested 1.3x slower swell phase")
 	var start: int = src.find("func _play_clear")
 	assert_true(start >= 0, "_play_clear exists")
@@ -475,8 +475,8 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 	var body: String = src.substr(start, end - start)
 	assert_true(body.contains("\n\t\tif not spawn_set.has(p):"), "all cleared non-spawn gems pop/fade, including existing special gems")
 	assert_true(body.contains("base_scale * CLEAR_POP_SCALE"), "clearing gem body first swells above its base scale")
-	assert_true(body.contains("base_scale * 0.1"), "clearing gem body still collapses out after the swell")
-	assert_true(body.find("base_scale * CLEAR_POP_SCALE") < body.find("base_scale * 0.1"), "gem body swell is scheduled before collapse")
+	assert_true(body.contains("base_scale * CLEAR_BURST_SCALE"), "clearing gem body bursts outward instead of collapsing inward")
+	assert_true(body.find("base_scale * CLEAR_POP_SCALE") < body.find("base_scale * CLEAR_BURST_SCALE"), "gem body swell is scheduled before the outward burst")
 	assert_true(body.contains("set_trans(Tween.TRANS_SINE)"), "basic clear swell should not use an overshooting Back tween")
 
 func test_level_clear_stops_combo_idle_before_clear_tween() -> void:
@@ -526,7 +526,7 @@ func test_special_spawn_clear_hold_is_snappy() -> void:
 	var src: String = f.get_as_text()
 	assert_true(src.contains("const CLEAR_TIME := 0.156"), "basic clear gem body uses the requested 1.3x slower total animation")
 	assert_true(src.contains("const CLEAR_POP_TIME := 0.117"), "the swell phase stays in the same proportion after the 1.3x slowdown")
-	assert_true(src.contains("const CLEAR_POP_SCALE := 1.25"), "the swell reads clearly before the special appears")
+	assert_true(src.contains("const CLEAR_POP_SCALE := 1.32"), "the swell reads clearly before the special appears")
 	assert_true(src.contains("const ELIM_HOLD := 0.156"), "post-clear hold matches the slower basic clear animation before freeing gems")
 
 
@@ -754,6 +754,28 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	assert_false(body.contains("RABBIT_REWIND_K55, leap_w * 0.92"), "return frame after K8 must not shrink smaller than the cast/readable rabbit scale")
 	assert_false(body.contains("RABBIT_REWIND_K5, leap_w * 0.86"), "return leap frame must not add a second scale drop after the cast beat")
 	assert_false(body.contains("home + Vector2(0.0, 12.0)"), "time rabbit should not sink the avatar actor before the first peek frame")
+
+func test_time_rewind_cast_locks_board_and_level_switch_cancels() -> void:
+	# B1 回归(2026-06-11 bugfix): 施法即锁盘、换关取消在途施法。锁协议见 docs/11 §10。
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_kill_time_rabbit_cast"), "level exposes the cast-cancel hook for level switches")
+	if level.has_method("_kill_time_rabbit_cast"):
+		level.set("_time_rewind_cast_pending", true)
+		level.call("_kill_time_rabbit_cast")
+		assert_eq(bool(level.get("_time_rewind_cast_pending")), false, "cancel hook resets the casting flag even with no rig alive")
+		level.call("_kill_time_rabbit_cast")   # 幂等: 无 rig 重复调用不崩
+	level.free()
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var cast_start: int = src.find("func _skill_time_rewind")
+	var cast_body: String = src.substr(cast_start, src.find("\nfunc ", cast_start + 10) - cast_start)
+	assert_true(cast_body.contains("_busy = true"), "starting the rewind cast locks the board for the whole sequence")
+	var load_start: int = src.find("func load_level")
+	var load_body: String = src.substr(load_start, src.find("\nfunc ", load_start + 10) - load_start)
+	assert_true(load_body.contains("_kill_time_rabbit_cast()"), "switching levels cancels any in-flight rabbit cast")
+	var input_start: int = src.find("func _unhandled_input")
+	var input_body: String = src.substr(input_start, src.find("\nfunc ", input_start + 10) - input_start)
+	assert_true(input_body.find("_time_rewind_cast_pending") < input_body.find("KEY_RIGHT"), "keyboard level-switch is gated behind the cast/busy/settled checks")
 
 func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	var scene: PackedScene = load("res://Level.tscn")

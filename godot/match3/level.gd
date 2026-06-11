@@ -222,7 +222,8 @@ const DESIGN_H := 1520.0
 const SWAP_TIME := 0.14
 const CLEAR_TIME := 0.156
 const CLEAR_POP_TIME := 0.117
-const CLEAR_POP_SCALE := 1.25
+const CLEAR_POP_SCALE := 1.32
+const CLEAR_BURST_SCALE := 1.52  # 炸裂瞬间冲大的残影倍率(替代旧"缩回吸走"收尾)
 const CLEAR_FX_BATCH_SIZE := 8
 const COLORBOMB_ABSORB_TARGET_BUDGET := 18
 const COLORBOMB_FINE_CLEAR_BUDGET := 12
@@ -322,6 +323,7 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	_level_generation += 1
 	_kill_opening_drop_tween()
+	_kill_time_rabbit_cast()
 
 func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 	for i in range(args.size()):
@@ -401,6 +403,7 @@ func _load_texture(path: String) -> Texture2D:
 
 func load_level(idx: int) -> void:
 	_kill_opening_drop_tween()
+	_kill_time_rabbit_cast()
 	_level_generation += 1
 	var generation := _level_generation
 	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
@@ -2022,6 +2025,27 @@ func _detach_and_free_later(node: Node) -> void:
 	else:
 		node.free()
 
+# 换关/退场时取消在途时兔施法: 杀 cast tween、回收 rig/沙漏/特效、复位施法标记。
+# 不动 _busy——load_level 自己重置锁。(P3 起由 PetCast 子控制器随场景树销毁自动化, 此处为最小补丁。)
+func _kill_time_rabbit_cast() -> void:
+	_time_rewind_cast_pending = false
+	if skill_bar == null:
+		return
+	var rig := skill_bar.get_node_or_null(RABBIT_REWIND_CAST_NODE)
+	if rig != null and is_instance_valid(rig):
+		if rig.has_meta("cast_tween"):
+			var t = rig.get_meta("cast_tween")
+			if t is Tween and t.is_valid():
+				t.kill()
+		_set_time_rabbit_avatar_casting(false)
+		var hourglass := skill_bar.get_node_or_null(RABBIT_REWIND_HOURGLASS_NODE)
+		if hourglass != null:
+			_detach_and_free_later(hourglass)
+		_detach_and_free_later(rig)
+	var effect := skill_bar.get_node_or_null(RABBIT_REWIND_CAST_EFFECT_NODE)
+	if effect != null:
+		_detach_and_free_later(effect)
+
 # ── idx0 时兔/时间回退: 回到历史窗口内最早一步, 不额外扣步。 ──
 func _skill_time_rewind() -> bool:
 	if board == null:
@@ -2031,8 +2055,11 @@ func _skill_time_rewind() -> bool:
 	if board.rewind_used or board.move_history.is_empty():
 		return false
 	_time_rewind_cast_pending = true
+	_busy = true   # 施法全程锁盘: 成功由 _commit_time_rewind_cast 释放, 中断由 _kill_time_rabbit_cast/load_level 接管
 	_play_time_rewind_pet_animation(true)
 	if not is_inside_tree():
+		# 无树(headless/测试)不跑 tween, 直接提交效果。rig 不在此回收——挂在 level 子树,
+		# 随 level.free() 释放(不真泄漏), 且结构测试需要观察 rig 的帧序列/道具。
 		_commit_time_rewind_cast()
 	return true
 
@@ -2062,6 +2089,8 @@ func _skill_hint() -> bool:
 # ── idx1 矿工程/破障: 占位——随机清 N 个普通格 + 连锁收尾。(关接 coat 层后改 ME.break_blockers) ──
 func _skill_break() -> bool:
 	# TODO(关卡): 当前关多无障碍 coat → 占位随机破普通格。接 coat 层后改调 ME.break_blockers 真破障。
+	# ⚠️ 占位旁路: 直接 ME._apply_clears 绕过 board 账本(目标不计数/炸弹不算拆), 勿用于有障碍/收集目标的关。
+	# 正式实现必须走 board.skill_*(核心算账), 视图只播特效——范式见 _resolve_colorbomb。_skill_dragon 同此问题。
 	var cands: Array = []
 	for r in range(board.height):
 		for c in range(board.width):
@@ -2150,15 +2179,19 @@ func _skill_blessing() -> bool:
 # ───────── 阶段6: 结算(通关/失败) ─────────
 
 # 一步完整结算后判定: 赢→通关面板 / 输→失败面板。须在扣步+刷HUD之后调。
-func _check_settlement() -> void:
+## 判定并进入结算。返回"是否已进入结算"——调用链据此跳过尾部解锁, 保住 _show_result 上的 _busy 锁。
+func _check_settlement() -> bool:
 	if _settled:
-		return
+		return true
 	if board.is_won():
 		_settled = true
 		_busy = true
 		await _run_win_bonus_and_show()
+		return true
 	elif board.is_lost():
 		_show_result(false)
+		return true
+	return false
 
 func _run_win_bonus_and_show() -> void:
 	await _play_endgame_bonus()
@@ -2429,14 +2462,16 @@ func _goto_relative(step: int) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
+		if _busy or _settled or _time_rewind_cast_pending:
+			return   # 演出/施法/结算进行中禁止键盘翻关, 防止 load_level 与在途 await 链并发撕裂
 		match event.keycode:
 			KEY_RIGHT, KEY_SPACE:
 				_goto_relative(1)
 			KEY_LEFT:
 				_goto_relative(-1)
 		return
-	if _busy or _settled:
-		return   # 结算遮罩展示中 → 棋盘交互锁死(只接结算面板按钮)
+	if _busy or _settled or _time_rewind_cast_pending:
+		return   # 结算遮罩/施法演出中 → 棋盘交互锁死(只接结算面板按钮)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var cell: Vector2i = _pos_to_cell(event.position)
 		if cell.x < 0:
@@ -2521,8 +2556,9 @@ func _try_swap(a: Vector2i, b: Vector2i) -> void:
 	# 阶段3: 消除-下落-补充-连锁
 	var spawn_preference := ME.swap_special_spawn_preference(board.grid, board.fx, board._layers(), b, a)
 	var settle: Dictionary = await _resolve_cascades(spawn_preference, true)
-	await _finish_consumed_move(int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
-	_busy = false
+	var settled_now: bool = await _finish_consumed_move(int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
+	if not settled_now:
+		_busy = false   # 已结算时保持 _show_result 的锁, 由结算面板按钮接管流转
 
 func _remember_time_rewind_snapshot() -> void:
 	if board == null:
@@ -2607,8 +2643,9 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		_gem_nodes[p.y][p.x] = null
 	await _collapse_and_refill()
 	var settle: Dictionary = await _resolve_cascades()   # 收尾连锁(下落后可能形成新匹配)
-	await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
-	_busy = false
+	var settled_now: bool = await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
+	if not settled_now:
+		_busy = false
 
 
 func _colorbomb_absorb_preview_targets(cb_pos: Vector2i, cells: Array, priority_targets: Array = [], budget_limit: int = COLORBOMB_ABSORB_TARGET_BUDGET) -> Array:
@@ -2775,8 +2812,9 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 	var to_set: Dictionary = ME._expand_triggers(board.grid, fusion_fx, seeds)
 	var cells: Array = to_set.keys()
 	if cells.is_empty():
-		await _finish_consumed_move(0, 0)
-		_busy = false
+		var settled_early: bool = await _finish_consumed_move(0, 0)
+		if not settled_early:
+			_busy = false
 		return
 	var fusion_special_fx_cells = _special_fx_cells_for_clear_visuals(cells)
 	var fusion_clear_timing := _clear_visual_timing_for_triggers(seeds, {}, fusion_fx)
@@ -2810,8 +2848,9 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 		_gem_nodes[p.y][p.x] = null
 	await _collapse_and_refill()
 	var settle: Dictionary = await _resolve_cascades()
-	await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
-	_busy = false
+	var settled_now: bool = await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
+	if not settled_now:
+		_busy = false
 
 
 func _play_fusion_fx_after_swap(a: Vector2i, b: Vector2i, ka: int, kb: int) -> void:
@@ -3081,8 +3120,8 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 				if clear_delay > 0.0:
 					pop.tween_interval(clear_delay)
 				pop.tween_property(n, "scale", base_scale * CLEAR_POP_SCALE, CLEAR_POP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-				pop.tween_property(n, "scale", base_scale * 0.1, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-				pop.parallel().tween_property(n, "modulate:a", 0.0, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+				pop.tween_property(n, "scale", base_scale * CLEAR_BURST_SCALE, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+				pop.parallel().tween_property(n, "modulate:a", 0.0, CLEAR_TIME - CLEAR_POP_TIME).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 				any = true
 	for p in extra_special_fx_cells:
 		if clear_set.has(p):
@@ -3248,7 +3287,7 @@ func debug_first_legal_swap() -> bool:
 					return true
 	return false
 
-func _finish_consumed_move(step_choco: int, cascades: int) -> void:
+func _finish_consumed_move(step_choco: int, cascades: int) -> bool:
 	var before_grid: Array = board.grid.duplicate(true)
 	var before_fx: Array = board.fx.duplicate(true)
 	var old_nodes: Array = _gem_nodes.duplicate(true)
@@ -3260,9 +3299,10 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> void:
 		_refresh_coat_visuals()
 	_refresh_hud()
 	_update_skill_cd_visual()
-	await _check_settlement()
+	var settled_now: bool = await _check_settlement()
 	if is_inside_tree():
 		await get_tree().process_frame
+	return settled_now
 
 func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
 	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
