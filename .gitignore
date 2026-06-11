@@ -9,9 +9,6 @@
 .godot/
 godot/_shot*.png
 
-# C++ 构建产物
-engine/build/
-
 # 编辑器
 .vscode/
 .idea/
