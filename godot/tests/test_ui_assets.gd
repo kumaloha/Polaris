@@ -389,7 +389,7 @@ func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> 
 	if frame_slot != null:
 		assert_true((frame_slot as CanvasItem).z_index < rig.z_index, "rabbit actor draws above the avatar frame border while emerging")
 	if frame_bg != null:
-		assert_true(frame_bg.z_index > rig.z_index, "beige magic center draws above the rabbit actor to mask the pocket interior")
+		assert_true(frame_bg.z_index < rig.z_index, "rabbit actor draws above the beige magic center while emerging")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_POCKET_NODE) == null, "rabbit cast does not create a separate magic ring/pocket effect")
 	if btn != null:
 		assert_eq(btn.texture_normal, null, "avatar frame is empty after the rabbit actor jumps out")
