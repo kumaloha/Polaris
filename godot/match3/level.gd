@@ -156,7 +156,10 @@ const RABBIT_REWIND_AVATAR_FRAME := "res://assets/level/pet_avatar_frame.png"
 const RABBIT_REWIND_AVATAR_FRAME_NODE := "TimeRabbitAvatarFrame"
 const RABBIT_REWIND_AVATAR_FRAME_BG_NODE := "TimeRabbitAvatarFrameBg"
 const RABBIT_REWIND_AVATAR_FRAME_BG_COLOR := Color(0.96, 0.84, 0.62, 0.48)
-const RABBIT_REWIND_AVATAR_FRAME_Z := 240
+const RABBIT_REWIND_AVATAR_FRAME_BG_BACK_Z := 0
+const RABBIT_REWIND_AVATAR_FRAME_Z := 200
+const RABBIT_REWIND_CAST_Z := 220
+const RABBIT_REWIND_AVATAR_FRAME_BG_COVER_Z := 230
 const RABBIT_REWIND_AVATAR := "res://assets/pets/timerewind/rabbit_avatar.png"
 const RABBIT_REWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
 const RABBIT_REWIND_K2 := "res://assets/pets/timerewind/rabbit_k2_peek.png"
@@ -1457,7 +1460,7 @@ func _skill_avatar_frame(center: Vector2, width: float) -> void:
 	bg.polygon = _ellipse_points(Vector2.ZERO, width * 0.44, width * 0.44, 56)
 	bg.color = RABBIT_REWIND_AVATAR_FRAME_BG_COLOR
 	bg.position = center
-	bg.z_index = 0
+	bg.z_index = RABBIT_REWIND_AVATAR_FRAME_BG_BACK_Z
 	skill_bar.add_child(bg)
 
 	var frame_tex := _load_texture(RABBIT_REWIND_AVATAR_FRAME)
@@ -1635,6 +1638,9 @@ func _set_time_rabbit_avatar_casting(is_casting: bool) -> void:
 				var path := String(btn.get_meta("avatar_texture_path", RABBIT_REWIND_AVATAR))
 				btn.texture_normal = _load_texture(path)
 		btn.modulate.a = 1.0
+	var frame_bg := skill_bar.get_node_or_null(RABBIT_REWIND_AVATAR_FRAME_BG_NODE) if skill_bar != null else null
+	if frame_bg is CanvasItem:
+		(frame_bg as CanvasItem).z_index = RABBIT_REWIND_AVATAR_FRAME_BG_COVER_Z if is_casting else RABBIT_REWIND_AVATAR_FRAME_BG_BACK_Z
 
 func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	if skill_bar == null:
@@ -1649,7 +1655,7 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	_set_time_rabbit_avatar_casting(true)
 	var rig := Node2D.new()
 	rig.name = RABBIT_REWIND_CAST_NODE
-	rig.z_index = 200
+	rig.z_index = RABBIT_REWIND_CAST_Z
 	rig.position = _time_rabbit_home_anchor()
 	var sequence: Array = RABBIT_REWIND_CAST_SEQUENCE if cast_effect else RABBIT_REWIND_PEEK_SEQUENCE
 	rig.set_meta("frame_sequence", PackedStringArray(sequence))
@@ -1801,7 +1807,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
 	t.tween_interval(_rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 8.0), _rabbit_rewind_time(0.06))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 16.0), _rabbit_rewind_time(0.06))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home, _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -18.0), _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -34.0), _rabbit_rewind_time(0.08))
@@ -1819,8 +1825,8 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 		t.tween_interval(RABBIT_REWIND_CAST_HOLD)
 		t.tween_callback(Callable(self, "_commit_time_rewind_cast"))
 		t.tween_property(hourglass, "modulate:a", 0.0, _rabbit_rewind_time(0.18))
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K55, leap_w * 0.92, home + Vector2(0.0, -118.0), _rabbit_rewind_time(0.14), true)
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, leap_w * 0.86, home + Vector2(0.0, -72.0), _rabbit_rewind_time(0.14), true)
+		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K55, leap_w, home + Vector2(0.0, -118.0), _rabbit_rewind_time(0.14), true)
+		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, leap_w, home + Vector2(0.0, -72.0), _rabbit_rewind_time(0.14), true)
 	else:
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, cast_w, home + Vector2(0.0, -20.0), _rabbit_rewind_time(0.12))
 		t.tween_property(rabbit, "rotation", 0.08, _rabbit_rewind_time(0.06)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)

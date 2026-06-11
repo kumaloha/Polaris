@@ -740,6 +740,12 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var hold_idx: int = body.find("t.tween_interval(RABBIT_REWIND_CAST_HOLD)", k8_idx)
 	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
 	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
+	var first_k1_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1")
+	var first_k1_end: int = body.find("\n", first_k1_idx)
+	var first_k1_line := body.substr(first_k1_idx, first_k1_end - first_k1_idx) if first_k1_idx >= 0 and first_k1_end > first_k1_idx else ""
+	assert_true(first_k1_line.contains("home + Vector2(0.0, 16.0)"), "third GIF frame starts lower, as if the rabbit is pushing up from the avatar frame bottom edge")
+	assert_false(body.contains("RABBIT_REWIND_K55, leap_w * 0.92"), "return frame after K8 must not shrink smaller than the cast/readable rabbit scale")
+	assert_false(body.contains("RABBIT_REWIND_K5, leap_w * 0.86"), "return leap frame must not add a second scale drop after the cast beat")
 	assert_false(body.contains("home + Vector2(0.0, 12.0)"), "time rabbit should not sink the avatar actor before the first peek frame")
 
 func test_time_rabbit_jump_has_inbetween_frames() -> void:
