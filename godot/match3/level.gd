@@ -1744,6 +1744,18 @@ func _time_rabbit_home_anchor() -> Vector2:
 	var count: int = maxi(SKILLS.size(), 1)
 	return Vector2(DESIGN_W * 0.5 / float(count), SKILL_AV_Y)
 
+func _time_rabbit_avatar_frame_bottom_offset() -> float:
+	var frame_w := SKILL_AV_W * 1.12
+	var tex := _load_texture(RABBIT_REWIND_AVATAR_FRAME)
+	if tex != null:
+		var sz := tex.get_size()
+		if sz.x > 0.0:
+			return frame_w * (sz.y / sz.x) * 0.5
+	return frame_w * 0.5
+
+func _time_rabbit_avatar_frame_bottom_anchor() -> Vector2:
+	return _time_rabbit_home_anchor() + Vector2(0.0, _time_rabbit_avatar_frame_bottom_offset())
+
 func _time_rabbit_cast_anchor() -> Vector2:
 	var home := _time_rabbit_home_anchor()
 	if board != null:
@@ -1782,16 +1794,17 @@ func _rabbit_rewind_time(seconds: float) -> float:
 	return seconds * RABBIT_REWIND_TIME_SCALE
 
 func _time_rabbit_jump_points(home: Vector2, cast: Vector2) -> Array:
-	var apex_y := minf(home.y, cast.y) - 170.0
-	return [
-		Vector2(home.x, home.y - 78.0),
-		Vector2(lerpf(home.x, cast.x, 0.36), apex_y),
-		Vector2(lerpf(home.x, cast.x, 0.76), cast.y - 48.0),
-		cast,
-	]
+	var start := home + Vector2(0.0, _time_rabbit_avatar_frame_bottom_offset() - 24.0)
+	var control := Vector2(lerpf(home.x, cast.x, 0.42), minf(home.y, cast.y) - 170.0)
+	var points := []
+	for t in [0.0, 0.08, 0.16, 0.24, 0.32, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.0]:
+		var k := float(t)
+		var u := 1.0 - k
+		points.append(start * (u * u) + control * (2.0 * u * k) + cast * (k * k))
+	return points
 
 func _time_rabbit_jump_durations() -> Array:
-	return [0.14, 0.13, 0.12, 0.11]
+	return [0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06, 0.06]
 
 func _time_rabbit_hourglass_float_anchor(cast: Vector2) -> Vector2:
 	if board == null:
@@ -1804,14 +1817,15 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	var cast := _time_rabbit_cast_anchor()
 	var cast_w := _time_rabbit_cast_width()
 	var leap_w := _time_rabbit_leap_width(cast_w)
+	var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
 	t.tween_interval(_rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 16.0), _rabbit_rewind_time(0.06))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home, _rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -18.0), _rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -34.0), _rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -42.0), _rabbit_rewind_time(0.08))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, emerge_bottom, _rabbit_rewind_time(0.06))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
 	if cast_effect:
 		_queue_time_rabbit_jump(t, rig, rabbit, home, cast, leap_w, cast_w)
 		t.tween_callback(Callable(self, "_show_time_rabbit_hourglass").bind(hourglass))

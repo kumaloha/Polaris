@@ -743,7 +743,13 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var first_k1_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1")
 	var first_k1_end: int = body.find("\n", first_k1_idx)
 	var first_k1_line := body.substr(first_k1_idx, first_k1_end - first_k1_idx) if first_k1_idx >= 0 and first_k1_end > first_k1_idx else ""
-	assert_true(first_k1_line.contains("home + Vector2(0.0, 16.0)"), "third GIF frame starts lower, as if the rabbit is pushing up from the avatar frame bottom edge")
+	assert_true(body.contains("var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()"), "emerge frames share the avatar frame lower lip as their bottom anchor")
+	assert_true(first_k1_line.contains("emerge_bottom"), "third GIF frame starts lower, as if the rabbit is pushing up from the avatar frame bottom edge")
+	for path_name in ["RABBIT_REWIND_K2", "RABBIT_REWIND_K25", "RABBIT_REWIND_K3", "RABBIT_REWIND_K4"]:
+		var line_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, %s" % path_name)
+		var line_end: int = body.find("\n", line_idx)
+		var line := body.substr(line_idx, line_end - line_idx) if line_idx >= 0 and line_end > line_idx else ""
+		assert_true(line.contains("emerge_bottom"), "%s keeps its image bottom on the avatar frame lower lip" % path_name)
 	assert_false(body.contains("RABBIT_REWIND_K55, leap_w * 0.92"), "return frame after K8 must not shrink smaller than the cast/readable rabbit scale")
 	assert_false(body.contains("RABBIT_REWIND_K5, leap_w * 0.86"), "return leap frame must not add a second scale drop after the cast beat")
 	assert_false(body.contains("home + Vector2(0.0, 12.0)"), "time rabbit should not sink the avatar actor before the first peek frame")
@@ -753,28 +759,37 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	var level := scene.instantiate()
 	assert_true(level.has_method("_time_rabbit_jump_points"), "time rabbit jump exposes inbetween arc points")
 	assert_true(level.has_method("_time_rabbit_jump_durations"), "time rabbit jump exposes per-inbetween timing")
-	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations"):
+	assert_true(level.has_method("_time_rabbit_avatar_frame_bottom_anchor"), "time rabbit exposes the avatar frame bottom anchor")
+	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations") or not level.has_method("_time_rabbit_avatar_frame_bottom_anchor"):
 		level.free()
 		return
 	var home := Vector2(140.0, 1320.0)
 	var cast := Vector2(360.0, 1040.0)
 	var points: Array = level.call("_time_rabbit_jump_points", home, cast)
 	var durations: Array = level.call("_time_rabbit_jump_durations")
-	assert_true(points.size() >= 4, "rabbit jump is split into several visible inbetween positions instead of one fast leap")
+	assert_true(points.size() >= 10, "rabbit jump is split into enough visible inbetween positions instead of two large sampled leaps")
 	assert_eq(points.size(), durations.size(), "each rabbit jump inbetween point has its own timing")
 	var raw_total := 0.0
 	for d in durations:
 		raw_total += float(d)
-	assert_true(raw_total >= 0.48, "rabbit jump gives the eye enough time to read the added inbetweens")
-	assert_true(points[0].y < home.y, "first jump inbetween lifts out of the skill slot")
-	assert_true(points[1].y < minf(home.y, cast.y), "middle jump inbetween reaches a visible arc apex before landing")
+	assert_true(raw_total >= 0.70, "rabbit jump gives the eye enough time to read the added inbetweens")
+	var bottom_anchor: Vector2 = level.call("_time_rabbit_avatar_frame_bottom_anchor")
+	assert_true(bottom_anchor.y > level.call("_time_rabbit_home_anchor").y + 70.0, "avatar frame bottom anchor is below the slot center")
+	assert_true(points[0].y > home.y, "first jump inbetween starts near the lower avatar-frame lip instead of popping above it")
+	var reaches_apex := false
 	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
 	var moved_toward_book := false
+	var previous: Vector2 = points[0]
 	for p in points:
 		var point := p as Vector2
 		assert_true(point.x >= home.x - 0.5 and point.x <= cast.x + 0.5, "rabbit jump stays between the avatar slot and the book-center cast point")
+		assert_true(previous.distance_to(point) <= 105.0, "adjacent rabbit jump frames stay close enough to avoid a dropped-frame leap")
+		if point.y < minf(home.y, cast.y):
+			reaches_apex = true
 		if point.x > home.x + 24.0:
 			moved_toward_book = true
+		previous = point
+	assert_true(reaches_apex, "middle jump inbetweens reach a visible arc apex before landing")
 	assert_true(moved_toward_book, "rabbit visibly jumps out toward the book center instead of staying on the avatar column")
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _start_time_rabbit_tween")
