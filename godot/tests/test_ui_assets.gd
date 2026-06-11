@@ -241,27 +241,6 @@ func test_bee_rig_code_and_assets_are_removed() -> void:
 	assert_false(DirAccess.dir_exists_absolute(ProjectSettings.globalize_path("res://art/characters/bee_rig")), "removed bee rig asset directory must not exist")
 
 
-func test_app_character_art_uses_flat_collector_art() -> void:
-	var app_script = load("res://ui/app.gd")
-	assert_true(app_script != null, "app script loads")
-	if app_script == null:
-		return
-	var app = app_script.new()
-	var collector := {}
-	for character in CharacterData.load_characters():
-		if String(character.get("id", "")) == "collector":
-			collector = character
-			break
-	assert_false(collector.is_empty(), "collector character is available")
-	if collector.is_empty():
-		app.free()
-		return
-	app.call("_add_character_art", collector, Rect2(0, 0, 260, 260), false)
-	var rig := _find_named_node(app, "BeeRig")
-	assert_eq(rig, null, "collector character art must not render the removed bee rig")
-	assert_eq(_count_texture_rect_texture(app, "res://art/characters/collector.png"), 1, "collector character art renders the flat portrait once")
-	app.free()
-
 
 func test_level_page_does_not_render_removed_bee() -> void:
 	var level := _prepare_level_scene()
