@@ -616,11 +616,6 @@ func _load_texture_from_file(path: String) -> Texture2D:
 	tex.take_over_path(path)
 	return tex
 
-# 棋盘金边框：4 边(edge拉伸) + 4 角(corner翻转复用同一张)。在格子之上渲染。
-func _render_board_frame() -> void:
-	# v0.02: 棋盘金边框改由 parchment_panel(底框自带金边)提供, 不再画紫金 band/line/corner。
-	return
-
 func _render_board(opening_drop: bool = false) -> void:
 	_clear_layer(board_layer)
 	_clear_layer(gem_layer)
@@ -660,7 +655,6 @@ func _render_board(opening_drop: bool = false) -> void:
 		_render_opening_coat_visuals()
 	else:
 		_render_coat_visuals()
-	_render_board_frame()  # 金边框(最上层,盖格子边缘)
 
 func _blank_visual_rows() -> Array:
 	var rows := []
@@ -1598,8 +1592,6 @@ func _on_skill_pressed(idx: int) -> void:
 	match SKILLS[idx]["skill"]:
 		"时间回退":
 			did = _skill_time_rewind()
-		"提示":
-			did = await _skill_hint()
 		"破障":
 			did = await _skill_break()
 		"龙息大招":
@@ -1681,12 +1673,6 @@ func _play_time_rewind_pet_animation(cast_effect: bool = true) -> void:
 	skill_bar.add_child(hourglass)
 	if is_inside_tree():
 		_start_time_rabbit_tween(rig, rabbit, hourglass, cast_effect)
-
-func _make_time_rabbit_sprite(node_name: String, path: String, width: float) -> Sprite2D:
-	var sprite := Sprite2D.new()
-	sprite.name = node_name
-	_set_time_rabbit_frame(sprite, path, width, false)
-	return sprite
 
 func _make_time_rabbit_avatar_sprite(node_name: String, width: float) -> Sprite2D:
 	var sprite := Sprite2D.new()
@@ -1990,15 +1976,6 @@ func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> Packe
 		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
 
-func _arc_points(center: Vector2, rx: float, ry: float, start_angle: float, end_angle: float, steps: int) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	var n: int = maxi(2, steps)
-	for i in range(n):
-		var t := float(i) / float(n - 1)
-		var a := lerpf(start_angle, end_angle, t)
-		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
-	return pts
-
 func _retire_time_rabbit_rig(rig: Node2D) -> void:
 	if rig == null or not is_instance_valid(rig):
 		return
@@ -2061,29 +2038,6 @@ func _skill_time_rewind() -> bool:
 		# 无树(headless/测试)不跑 tween, 直接提交效果。rig 不在此回收——挂在 level 子树,
 		# 随 level.free() 释放(不真泄漏), 且结构测试需要观察 rig 的帧序列/道具。
 		_commit_time_rewind_cast()
-	return true
-
-# ── 旧提示技能: 保留方法供后续宠物/调试复用。高亮最优一步两格, 不改盘/不resolve/不扣步。 ──
-func _skill_hint() -> bool:
-	var mv: Array = ME.best_moves(board.grid, 1, board._layers(), board.objectives)
-	if mv.is_empty():
-		return false
-	_clear_highlights()
-	var pair: Array = mv[0]   # [a, b]，a/b 为 Vector2i(col,row)
-	for cell in pair:
-		var mk := Sprite2D.new()
-		mk.texture = load(CELL_TEXTURE)
-		mk.modulate = Color(0.4, 1.0, 0.5, 0.7)
-		mk.scale = _fit_scale(mk.texture, cell_size * 1.04)
-		mk.position = _cell_center(cell.y, cell.x)   # cell=(col,row) → (y=row, x=col)
-		mk.z_index = 2
-		gem_layer.add_child(mk)
-		_hl_markers.append(mk)
-		var tw := create_tween().set_loops(0)
-		tw.tween_property(mk, "modulate:a", 0.25, 0.45)
-		tw.tween_property(mk, "modulate:a", 0.75, 0.45)
-	# 2.5s 后自动清除高亮(无阻塞 await: 用一次性计时器)
-	get_tree().create_timer(2.5).timeout.connect(_clear_highlights)
 	return true
 
 # ── idx1 矿工程/破障: 占位——随机清 N 个普通格 + 连锁收尾。(关接 coat 层后改 ME.break_blockers) ──

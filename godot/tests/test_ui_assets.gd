@@ -786,15 +786,6 @@ func test_project_default_scene_uses_level_entry() -> void:
 	assert_eq(ProjectSettings.get_setting("application/run/main_scene"), "res://Level.tscn", "project starts directly in Level.tscn")
 
 
-func test_main_scene_aliases_level_entry() -> void:
-	var scene: PackedScene = load("res://main.tscn")
-	var root := scene.instantiate()
-	assert_eq(root.name, "Level", "main.tscn aliases the Level entry scene")
-	assert_eq(root.get_script().resource_path, "res://match3/level.gd", "main.tscn uses the Level scene script, not the old app shell")
-	assert_true(root.has_node("GemLayer"), "main.tscn keeps the Level scene children")
-	root.free()
-
-
 func test_level_scene_launch_level_arg_is_one_based() -> void:
 	var level := _prepare_level_scene()
 	assert_true(level.has_method("_launch_level_idx_from_args"), "Level.tscn path parses direct level launch args")

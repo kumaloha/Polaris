@@ -7,7 +7,19 @@
 
 # Godot 导入缓存 / 临时渲染产物（不入库）
 .godot/
-godot/_shot*.png
+godot/_*shot*.png
+
+# 动画/调试导出临时产物
+godot/_burst_frames/
+godot/*_cast*.gif
+godot/*_cast_frames*/
+godot/*_gif_frames*/
+godot/*_frames*.zip
+godot/*_sheet.png
+
+# agent 工具本地状态
+.claude/
+.superpowers/
 
 # 编辑器
 .vscode/

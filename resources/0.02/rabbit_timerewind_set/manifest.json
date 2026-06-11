@@ -1,0 +1,189 @@
+{
+ "rabbit_k1_peektop.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   141,
+   174,
+   1104,
+   1136
+  ],
+  "out_size": [
+   963,
+   962
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k2_peek.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   0,
+   140,
+   1254,
+   973
+  ],
+  "out_size": [
+   1254,
+   833
+  ],
+  "ledge_cut_y": 965
+ },
+ "rabbit_k3_climb.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   0,
+   16,
+   1254,
+   1053
+  ],
+  "out_size": [
+   1254,
+   1037
+  ],
+  "ledge_cut_y": 1045
+ },
+ "rabbit_k4_crouch.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   138,
+   236,
+   1094,
+   999
+  ],
+  "out_size": [
+   956,
+   763
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k5_leap.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   0,
+   148,
+   1178,
+   1224
+  ],
+  "out_size": [
+   1178,
+   1076
+  ],
+  "ledge_cut_y": 1216
+ },
+ "rabbit_k6_idle.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   311,
+   29,
+   978,
+   1196
+  ],
+  "out_size": [
+   667,
+   1167
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k7_charge.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   242,
+   205,
+   1010,
+   1121
+  ],
+  "out_size": [
+   768,
+   916
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k75_castclosed.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   115,
+   16,
+   1138,
+   1212
+  ],
+  "out_size": [
+   1023,
+   1196
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k8_cast.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   176,
+   8,
+   1084,
+   1199
+  ],
+  "out_size": [
+   908,
+   1191
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_k5alt_pounce.png": {
+  "src_size": [
+   1254,
+   1254
+  ],
+  "bbox": [
+   115,
+   16,
+   1138,
+   1213
+  ],
+  "out_size": [
+   1023,
+   1197
+  ],
+  "ledge_cut_y": null
+ },
+ "rabbit_prop_hourglass.png": {
+  "src_size": [
+   1054,
+   1492
+  ],
+  "bbox": [
+   225,
+   86,
+   829,
+   1366
+  ],
+  "out_size": [
+   604,
+   1280
+  ],
+  "ledge_cut_y": null
+ }
+}
