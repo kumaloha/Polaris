@@ -807,7 +807,8 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	var hourglass_anchor: Vector2 = level.call("_time_rabbit_hourglass_float_anchor", cast)
 	assert_true(absf(hourglass_anchor.x - board_rect.get_center().x) <= 0.5, "hourglass floats to the board center, not over the pet slot")
 	assert_true(hourglass_anchor.y < board_rect.get_center().y, "hourglass floats in the upper half of the board airspace")
-	var cast_top := cast.y - 8.0 - cast_width * (1191.0 / 908.0)
+	var k8_width: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k8_cast.png", cast_width)
+	var cast_top := cast.y - 8.0 - k8_width * (1191.0 / 908.0)
 	assert_true(cast_top >= board_rect.end.y, "rabbit K8 visible body stays below the playable board, not just its anchor")
 	level.board = Board.new(8, 10, [0, 1, 2, 3, 4], 999999, 25, 8)
 	level.call("_compute_layout")
@@ -816,7 +817,8 @@ func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
 	cast_width = level.call("_time_rabbit_cast_width")
 	board_rect = level.call("_current_board_rect")
 	book_rect = level.call("_book_frame_rect")
-	cast_top = cast.y - 8.0 - cast_width * (1191.0 / 908.0)
+	k8_width = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k8_cast.png", cast_width)
+	cast_top = cast.y - 8.0 - k8_width * (1191.0 / 908.0)
 	assert_true(cast_width < 220.0, "tall boards shrink the cast sprite instead of moving it into the board")
 	assert_true(absf(cast.x - book_rect.get_center().x) <= 0.5, "tall board rabbit cast still lands under the book center")
 	assert_true(cast.y <= home.y - 84.0, "tall board rabbit cast still stays above the avatar row")
@@ -827,7 +829,7 @@ func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	assert_true(src.contains("RABBIT_REWIND_K25"), "rabbit climb uses the K2.5 push-up inbetween")
 	assert_true(src.contains("RABBIT_REWIND_K55"), "rabbit return uses the K5.5 falling inbetween")
-	assert_true(src.contains("RABBIT_REWIND_FRAME_WIDTH_SCALE"), "rabbit climb frames use per-frame scale corrections instead of one oversized peek width")
+	assert_true(src.contains("RABBIT_REWIND_FRAME_EYE_DISTANCE"), "rabbit open-eye frames are scaled from measured pupil distance instead of crop width")
 	assert_true(src.contains("TimeRewindSand"), "time rewind cast effect includes reverse sand particles")
 	assert_true(src.contains("TimeRewindClockHand"), "time rewind cast effect includes a clock projection beat")
 	assert_true(src.contains("emit_signal(\"time_rabbit_sequence_done\")"), "rabbit cast emits sequence_done when the actor is hidden")
@@ -843,8 +845,6 @@ func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
 		var k25: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k25_pushup.png", peek_w)
 		var k3: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k3_climb.png", peek_w)
 		var k4: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k4_crouch.png", peek_w)
-		assert_true(k1 <= 122.0, "first peek frame is reduced so it does not pop larger than the avatar frame")
-		assert_true(k2 <= 146.0, "wide peek face is reduced before the climb")
 		assert_true(k2 < peek_w, "wide peek face is slightly reduced before the climb")
 		assert_true(k25 < k2 and k3 < k2 and k4 < k2, "vertical climb frames are reduced so the head does not jump larger than surrounding frames")
 		assert_true(k4 <= k25, "crouch frame is not larger than the preceding push-up frame")
@@ -852,6 +852,26 @@ func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
 		if level.has_method("_time_rabbit_leap_width"):
 			var leap_w: float = level.call("_time_rabbit_leap_width", 96.0)
 			assert_true(leap_w >= k4, "first leap frame does not shrink smaller than the preceding crouch frame")
+		var avatar_eye_distance := 242.5
+		var target_eye := avatar_eye_distance * (132.0 / 1254.0)
+		var spacious_cast_w := 126.0
+		var leap_w_for_eye: float = level.call("_time_rabbit_leap_width", spacious_cast_w)
+		var open_eye_frames := [
+			{ "path": "res://assets/pets/timerewind/rabbit_k1_peektop.png", "width": home_w, "eye": 288.6, "tex_w": 963.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k2_peek.png", "width": peek_w, "eye": 203.4, "tex_w": 1254.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k25_pushup.png", "width": peek_w, "eye": 172.5, "tex_w": 762.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k3_climb.png", "width": peek_w, "eye": 182.4, "tex_w": 794.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k4_crouch.png", "width": peek_w, "eye": 157.7, "tex_w": 687.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k5_leap.png", "width": leap_w_for_eye, "eye": 176.1, "tex_w": 1123.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k55_fall.png", "width": leap_w_for_eye * 0.92, "eye": 149.3, "tex_w": 836.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k6_idle.png", "width": spacious_cast_w, "eye": 147.9, "tex_w": 668.0 },
+			{ "path": "res://assets/pets/timerewind/rabbit_k8_cast.png", "width": spacious_cast_w, "eye": 195.2, "tex_w": 908.0 },
+		]
+		for item in open_eye_frames:
+			var path := String(item["path"])
+			var display_w: float = level.call("_time_rabbit_frame_width", path, float(item["width"]))
+			var display_eye: float = float(item["eye"]) * display_w / float(item["tex_w"])
+			assert_true(absf(display_eye - target_eye) <= 1.25, "%s keeps pupil distance consistent with the avatar frame" % path)
 	level.free()
 
 func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:

@@ -172,12 +172,21 @@ const RABBIT_REWIND_K8 := "res://assets/pets/timerewind/rabbit_k8_cast.png"
 const RABBIT_REWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourglass.png"
 const RABBIT_REWIND_CAST_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K5, RABBIT_REWIND_K55, RABBIT_REWIND_K6, RABBIT_REWIND_K7, RABBIT_REWIND_K75, RABBIT_REWIND_K8]
 const RABBIT_REWIND_PEEK_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K6]
-const RABBIT_REWIND_FRAME_WIDTH_SCALE := {
-	RABBIT_REWIND_K1: 0.82,
-	RABBIT_REWIND_K2: 0.84,
-	RABBIT_REWIND_K25: 0.68,
-	RABBIT_REWIND_K3: 0.64,
-	RABBIT_REWIND_K4: 0.66,
+const RABBIT_REWIND_AVATAR_EYE_DISTANCE := 242.5
+const RABBIT_REWIND_FRAME_EYE_DISTANCE := {
+	RABBIT_REWIND_K1: 288.6,
+	RABBIT_REWIND_K2: 203.4,
+	RABBIT_REWIND_K25: 172.5,
+	RABBIT_REWIND_K3: 182.4,
+	RABBIT_REWIND_K4: 157.7,
+	RABBIT_REWIND_K5: 176.1,
+	RABBIT_REWIND_K55: 149.3,
+	RABBIT_REWIND_K6: 147.9,
+	RABBIT_REWIND_K8: 195.2,
+}
+const RABBIT_REWIND_FRAME_FIXED_WIDTH := {
+	RABBIT_REWIND_K7: 116.0,
+	RABBIT_REWIND_K75: 119.0,
 }
 const RABBIT_REWIND_HOME_W := 138.0
 const RABBIT_REWIND_PEEK_W := 172.0
@@ -1692,8 +1701,24 @@ func _set_time_rabbit_frame(sprite: Sprite2D, path: String, width: float, flip_h
 	sprite.flip_h = flip_h
 	sprite.set_meta("anchor", "bottom")
 
+func _time_rabbit_target_eye_distance() -> float:
+	var tex := _load_texture(RABBIT_REWIND_AVATAR)
+	if tex == null:
+		return RABBIT_REWIND_AVATAR_EYE_DISTANCE * (SKILL_AV_W / 1254.0)
+	var sz := tex.get_size()
+	if sz.x <= 0.0 or sz.y <= 0.0:
+		return RABBIT_REWIND_AVATAR_EYE_DISTANCE * (SKILL_AV_W / 1254.0)
+	return RABBIT_REWIND_AVATAR_EYE_DISTANCE * (SKILL_AV_W / maxf(sz.x, sz.y))
+
 func _time_rabbit_frame_width(path: String, width: float) -> float:
-	return width * float(RABBIT_REWIND_FRAME_WIDTH_SCALE.get(path, 1.0))
+	var source_eye := float(RABBIT_REWIND_FRAME_EYE_DISTANCE.get(path, 0.0))
+	if source_eye > 0.0:
+		var tex := _load_texture(path)
+		if tex != null and tex.get_size().x > 0.0:
+			return minf(tex.get_size().x * (_time_rabbit_target_eye_distance() / source_eye), width)
+	if RABBIT_REWIND_FRAME_FIXED_WIDTH.has(path):
+		return minf(float(RABBIT_REWIND_FRAME_FIXED_WIDTH[path]), width)
+	return width
 
 func _set_time_rabbit_avatar_frame(sprite: Sprite2D, width: float) -> void:
 	if sprite == null or not is_instance_valid(sprite):
@@ -1741,7 +1766,8 @@ func _time_rabbit_cast_width() -> float:
 
 func _time_rabbit_leap_width(cast_w: float) -> float:
 	var crouch_w := _time_rabbit_frame_width(RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W)
-	return minf(RABBIT_REWIND_LEAP_W, maxf(crouch_w, cast_w * 1.18))
+	var leap_w := _time_rabbit_frame_width(RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W)
+	return minf(RABBIT_REWIND_LEAP_W, maxf(maxf(crouch_w, leap_w), cast_w * 1.18))
 
 func _time_rewind_effect_anchor() -> Vector2:
 	return _current_board_rect().get_center()
@@ -1796,7 +1822,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K55, leap_w * 0.92, home + Vector2(0.0, -118.0), _rabbit_rewind_time(0.14), true)
 		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K5, leap_w * 0.86, home + Vector2(0.0, -72.0), _rabbit_rewind_time(0.14), true)
 	else:
-		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, cast_w * 0.78, home + Vector2(0.0, -20.0), _rabbit_rewind_time(0.12))
+		_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K6, cast_w, home + Vector2(0.0, -20.0), _rabbit_rewind_time(0.12))
 		t.tween_property(rabbit, "rotation", 0.08, _rabbit_rewind_time(0.06)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 		t.tween_property(rabbit, "rotation", -0.08, _rabbit_rewind_time(0.06)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		t.tween_property(rabbit, "rotation", 0.0, _rabbit_rewind_time(0.06)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
@@ -1812,7 +1838,7 @@ func _queue_time_rabbit_jump(t: Tween, rig: Node2D, rabbit: Sprite2D, home: Vect
 	var points := _time_rabbit_jump_points(home, cast)
 	var durations := _time_rabbit_jump_durations()
 	for i in range(points.size()):
-		var width := leap_w if i < points.size() - 1 else cast_w * 0.84
+		var width := leap_w if i < points.size() - 1 else cast_w
 		var path := RABBIT_REWIND_K5 if i < points.size() - 1 else RABBIT_REWIND_K6
 		_queue_time_rabbit_jump_frame(t, rig, rabbit, path, width, points[i], _rabbit_rewind_time(float(durations[i])))
 
