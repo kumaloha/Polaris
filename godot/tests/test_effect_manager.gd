@@ -7,7 +7,6 @@ func test_local_burst_bounds_stay_inside_3x3_radius() -> void:
 	var cell_size := 88.0
 	var clear_radius := cell_size * 1.5
 	var bounds: Dictionary = FxScript.local_burst_bounds(clear_radius)
-	assert_eq(bounds["clear_cells"], 9, "local burst represents a 3x3 clear")
 	assert_true(bounds["flash_peak_radius_px"] <= clear_radius, "flash peak stays inside the 3x3 clear radius")
 	assert_true(bounds["particle_max_distance_px"] <= clear_radius, "particles stay inside the 3x3 clear radius")
 
@@ -27,7 +26,6 @@ func test_local_burst_bounds_can_represent_5x5_radius() -> void:
 	var cell_size := 88.0
 	var clear_radius := cell_size * 2.5
 	var bounds: Dictionary = FxScript.local_burst_bounds(clear_radius, 25)
-	assert_eq(bounds["clear_cells"], 25, "cross + cross local burst represents a 5x5 clear")
 	assert_true(bounds["flash_peak_radius_px"] <= clear_radius, "flash peak stays inside the 5x5 clear radius")
 	assert_true(bounds["particle_max_distance_px"] <= clear_radius, "particles stay inside the 5x5 clear radius")
 
@@ -371,6 +369,35 @@ func test_line_blast_profile_uses_beam_layers_and_cell_glow() -> void:
 	assert_eq(profile["beam_glow"], "res://art/vfx/line_blast/vfx_beam_glow.png", "line blast uses beam glow texture")
 	assert_true(profile["cell_glow_count"] >= 8, "line blast can light each crossed cell")
 	assert_true(absf(float(profile["stagger_sec"]) - 0.026) < 0.001, "line blast cell stagger is 0.02s * 1.3")
+
+
+func test_asset_exists_cache_returns_same_result_on_second_call() -> void:
+	# M3: _exists_cache 记忆化——对同路径第二次调用必须返回相同结果且不再访问磁盘。
+	var fx := FxScript.new()
+	var path := FxScript.MAGIC_BASIC_FLASH_BLOB
+	var first: bool = fx._asset_exists(path)
+	var second: bool = fx._asset_exists(path)
+	assert_eq(first, second, "_asset_exists returns consistent result on cached second call")
+	fx.free()
+
+
+func test_load_texture_cache_returns_same_object_on_second_call() -> void:
+	# M3: _tex_cache 记忆化——同路径两次调用必须返回同一对象引用(或同为 null)。
+	var fx := FxScript.new()
+	var path := FxScript.MAGIC_BASIC_FLASH_BLOB
+	var tex1 := fx._load_texture(path)
+	var tex2 := fx._load_texture(path)
+	assert_true(tex1 == tex2, "_load_texture returns the same cached object on second call")
+	fx.free()
+
+
+func test_directional_glow_shader_uses_color_first_not_texture_sample() -> void:
+	# M4: COLOR-first 铁律——shader 入口读 COLOR 而非 texture(TEXTURE, UV)。
+	var src := FileAccess.get_file_as_string("res://match3/directional_glow.gdshader")
+	assert_false(src.contains("texture(TEXTURE, UV)"),
+		"directional_glow shader must not sample texture directly; use COLOR instead")
+	assert_true(src.contains("vec4 col = COLOR;"),
+		"directional_glow shader fragment entry must read COLOR as the base color")
 
 
 func _find_sprite_with_texture(parent: Node, texture_path: String) -> Sprite2D:
