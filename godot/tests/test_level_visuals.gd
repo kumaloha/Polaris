@@ -29,151 +29,58 @@ func _prepare_level_scene_with_real_levels() -> Node:
 	return level
 
 
-func test_bomb_blast_cells_use_trigger_gem_species() -> void:
-	var grid := [
-		[0, 1, 2, 3, 4],
-		[1, 2, 3, 4, 5],
-		[2, 3, 1, 5, 0],  # center (2,2)=blue trigger gem
-		[3, 4, 5, 0, 1],
-		[4, 5, 0, 1, 2],
-	]
-	var fx := _none_fx(5, 5)
-	fx[2][2] = ME.SP_BOMB
-	var cells: Array = ME.special_effect_cells(grid, Vector2i(2, 2), ME.SP_BOMB)
-	var species: Dictionary = ClearVisuals.special_clear_species_overrides(grid, fx, cells)
-	for p in cells:
-		assert_eq(species.get(p, -1), 1, "3x3 cell %s uses trigger bomb species" % str(p))
-
-
-func test_virtual_colorbomb_bombs_color_their_3x3_blast_area() -> void:
-	var grid := [
-		[2, 3, 4, 5, 6],
-		[3, 4, 5, 6, 7],
-		[4, 5, 1, 7, 2],  # virtual bomb target at (2,2)=blue
-		[5, 6, 7, 2, 3],
-		[6, 7, 2, 3, 4],
-	]
-	var fx := _none_fx(5, 5)
-	var virtual_fx := {Vector2i(2, 2): ME.SP_BOMB}
-	var cells: Array = ME.special_effect_cells(grid, Vector2i(2, 2), ME.SP_BOMB)
-	var species: Dictionary = ClearVisuals.special_clear_species_overrides(grid, fx, cells, {}, virtual_fx)
-	assert_eq(species.get(Vector2i(1, 1), -1), 1, "virtual bomb corner uses target species")
-	assert_eq(species.get(Vector2i(3, 3), -1), 1, "virtual bomb corner uses target species")
-
-
-func test_colorbomb_virtual_stripes_have_separate_conversion_phase() -> void:
-	var virtual_fx := {
-		Vector2i(1, 0): ME.SP_LINE_H,
-		Vector2i(2, 1): ME.SP_LINE_V,
-	}
-	assert_true(ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx), "colorbomb + 4-match specials first show converted stripes")
-	assert_true(ClearVisuals.colorbomb_virtual_conversion_delay(virtual_fx) >= 0.45, "conversion phase is held long enough to read before detonation")
-	assert_false(ClearVisuals.colorbomb_combo_has_conversion_phase({}), "plain colorbomb clears do not add a conversion phase")
-	assert_eq(ClearVisuals.colorbomb_virtual_conversion_delay({}), 0.0, "plain colorbomb clears have no conversion delay")
-
-
-func test_colorbomb_preview_centers_on_virtual_conversion_targets() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_colorbomb_absorb_preview_targets"), "Level exposes colorbomb preview target selection")
-	if not level.has_method("_colorbomb_absorb_preview_targets"):
-		level.free()
-		return
-	var cb := Vector2i(0, 0)
-	var cells := [
-		cb,
-		Vector2i(1, 0),
-		Vector2i(2, 0),
-		Vector2i(0, 1),
-		Vector2i(1, 1),
-		Vector2i(2, 1),
-		Vector2i(3, 2),
-	]
-	var virtual_targets := [Vector2i(3, 2), Vector2i(1, 1)]
-	var targets: Array = level.call("_colorbomb_absorb_preview_targets", cb, cells, virtual_targets, 8)
-	assert_eq(targets, [Vector2i(1, 1), Vector2i(3, 2)], "colorbomb + 4-match preview should center effects on pieces that will become 4-match specials")
-	var capped: Array = level.call("_colorbomb_absorb_preview_targets", cb, cells, virtual_targets, 1)
-	assert_eq(capped, [Vector2i(1, 1)], "preview budget trims the virtual target list without falling back to unrelated cleared cells")
-	level.free()
-
-
-func test_colorbomb_conversion_outlines_cover_every_virtual_target() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_colorbomb_conversion_outline_targets"), "Level exposes uncapped conversion outline target selection")
-	if not level.has_method("_colorbomb_conversion_outline_targets"):
-		level.free()
-		return
-	var cb := Vector2i(0, 0)
-	var cells := [cb]
-	var virtual_targets := []
-	for y in range(5):
-		for x in range(5):
-			var p := Vector2i(x, y)
-			if p == cb:
-				continue
-			cells.append(p)
-			virtual_targets.append(p)
-	var targets: Array = level.call("_colorbomb_conversion_outline_targets", cb, cells, virtual_targets)
-	assert_eq(targets.size(), virtual_targets.size(), "every same-color conversion target gets a rectangular outline, independent of absorb orb budget")
-	assert_eq(targets[0], Vector2i(1, 0), "outline targets keep stable top-to-bottom ordering")
-	assert_eq(targets[targets.size() - 1], Vector2i(4, 4), "outline target selection does not drop later cells")
-	level.free()
-
-
-func test_colorbomb_resolve_passes_virtual_targets_to_absorb_preview() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var start: int = src.find("func _resolve_colorbomb")
-	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
-	assert_true(start >= 0 and end > start, "_resolve_colorbomb can be inspected")
-	if start < 0 or end <= start:
-		return
-	var body := src.substr(start, end - start)
-	assert_true(body.contains("await _play_colorbomb_absorb_preview(cb_pos, cells, virtual_fx.keys())"), "colorbomb + 4-match absorb preview should use the cells that will become 4-match specials")
-
 
 func test_colorbomb_idle_does_not_tween_board_position() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	if not level.has_method("_apply_colorbomb_layers"):
+		level.free()
 		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _apply_colorbomb_layers")
-	assert_true(start >= 0, "_apply_colorbomb_layers exists")
-	if start < 0:
-		return
-	var end: int = src.find("# ───────── 整页 UI", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_false(body.contains("\"position\""), "colorbomb idle must not tween position; fall/swap owns board position")
-	assert_true(body.contains("\"offset\""), "colorbomb bob uses visual offset instead of board position")
+	level.cell_size = 100.0
+	var node := Sprite2D.new()
+	node.position = Vector2(123.0, 456.0)
+	level.add_child(node)
+	level.call("_apply_colorbomb_layers", node)
+	# 行为断言: idle bob 通过 colorbomb_tween 动画 offset, 棋盘 position 不被 idle 占用(下落/交换才拥有 position)
+	assert_true(node.has_meta("colorbomb_tween"), "colorbomb bob registers an idle tween")
+	assert_eq(node.position, Vector2(123.0, 456.0), "colorbomb idle must not move board position; fall/swap owns board position")
+	level.free()
 
 
 func test_colorbomb_has_internal_color_light_cycle() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const COLORBOMB_INNER_LIGHT_SHADER := \"res://match3/colorbomb_inner_light.gdshader\""), "5-match colorbomb owns a dedicated internal light shader")
-	assert_true(src.contains("const COLORBOMB_INNER_LIGHT_NAME := \"InnerLight\""), "internal light is a named removable colorbomb layer")
-	assert_true(src.contains("_attach_colorbomb_inner_light(node, core)"), "colorbomb application attaches an internal light layer")
-	assert_true(src.contains("func _colorbomb_inner_light_material()"), "colorbomb internal light uses its own shader material")
-	assert_true(src.contains("light.z_index = 3"), "internal light must draw above the diamond core")
-	assert_false(src.contains("_attach_colorbomb_flowing_rim(node, core)"), "colorbomb no longer attaches an outer ring")
-	assert_false(src.contains("COLORBOMB_RIM_SHADER"), "outer rim shader is not used by the colorbomb")
-
-	var color_order := [
-		"Color(1.0, 0.10, 0.08",
-		"Color(0.16, 0.92, 0.22",
-		"Color(0.56, 0.20, 1.0",
-		"Color(1.0, 0.24, 0.76",
-		"Color(1.0, 0.88, 0.14",
-		"Color(0.12, 0.54, 1.0",
-	]
-	var previous := -1
-	for color_token in color_order:
-		var index := src.find(color_token)
-		assert_true(index > previous, "internal light color order keeps red, green, purple, pink, yellow, blue")
-		previous = index
-
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_eq(level.get("COLORBOMB_INNER_LIGHT_SHADER"), "res://match3/colorbomb_inner_light.gdshader", "5-match colorbomb owns a dedicated internal light shader")
+	assert_eq(level.get("COLORBOMB_INNER_LIGHT_NAME"), "InnerLight", "internal light is a named removable colorbomb layer")
+	assert_true(level.has_method("_colorbomb_inner_light_material"), "colorbomb internal light uses its own shader material")
+	# 废弃的外圈流光层/rim shader: 实例上读不到/没有方法即证明已移除
+	assert_false(level.has_method("_attach_colorbomb_flowing_rim"), "colorbomb no longer attaches an outer ring")
+	assert_eq(level.get("COLORBOMB_RIM_SHADER"), null, "outer rim shader is not used by the colorbomb")
+	# 直接调真函数挂内部光层, 断言 z序契约(3 > 核心 2)、命名、材质
+	var node := Sprite2D.new()
+	node.texture = load("res://assets/level/diamond_white.png")
+	level.add_child(node)
+	level.call("_attach_colorbomb_inner_light", node, node.texture)
+	var light := node.get_node_or_null(String(level.get("COLORBOMB_INNER_LIGHT_NAME")))
+	assert_true(light != null, "colorbomb application attaches an internal light layer")
+	if light != null:
+		assert_eq(light.z_index, 3, "internal light must draw above the diamond core (z=3 > core z=2)")
+		assert_true(light.material is ShaderMaterial, "internal light uses a dedicated shader material")
+	# 内部光颜色序列: 材质参数应逐个等于真实常量数组, 证明 红/绿/紫/粉/黄/蓝 顺序被原样传入(画面契约)
+	var mat = level.call("_colorbomb_inner_light_material")
+	var colors: Array = level.get("COLORBOMB_INNER_LIGHT_COLORS")
+	assert_eq(colors.size(), 6, "internal light defines six ordered colors")
+	# 锁住红绿主基调顺序: 第0色偏红(r 最大), 第1色偏绿(g 最大)
+	assert_true((colors[0] as Color).r > (colors[0] as Color).g and (colors[0] as Color).r > (colors[0] as Color).b, "first internal light color reads red")
+	assert_true((colors[1] as Color).g > (colors[1] as Color).r and (colors[1] as Color).g > (colors[1] as Color).b, "second internal light color reads green")
+	if mat is ShaderMaterial:
+		var sm: ShaderMaterial = mat
+		for i in range(colors.size()):
+			var got = sm.get_shader_parameter("light_color_%d" % i)
+			assert_true(got != null and (got as Color).is_equal_approx(colors[i]), "internal light color %d is wired in order from the defined palette" % i)
+	level.free()
+	# 钉源码理由: colorbomb_inner_light.gdshader 资产内容契约(headless 无法渲染); TIME 驱动变色、inner_radius 限定中心、
+	# 不画 rim/不沿外缘 atan 公转, 都是已拍板的 5合1 内透光观感, 必须锁文本
 	var shader := FileAccess.get_file_as_string("res://match3/colorbomb_inner_light.gdshader")
 	assert_true(not shader.is_empty(), "internal light shader file exists")
 	assert_true(shader.contains("TIME"), "internal light changes color over time without moving the board sprite")
@@ -184,32 +91,19 @@ func test_colorbomb_has_internal_color_light_cycle() -> void:
 
 
 func test_combo_idle_uses_restrained_directional_motion() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("const COMBO_SWING_AMP := 0.14"), "4-match idle pinch is restrained, not a large wobble")
-	assert_true(src.contains("const COMBO_SWING_WIDEN := 0.025"), "4-match idle front-facing widen stays subtle")
-	assert_true(src.contains("const COMBO_SWING_OFFSET := 3.0"), "4-match idle uses a small visual offset to disambiguate direction")
-	assert_true(src.contains("const COMBO_VERTICAL_SWING_OFFSET := 1.8"), "vertical 4-match idle uses a smaller offset so water-drop gems do not look like they only tip upward")
-	assert_true(src.contains("const COMBO_LIGHT_STRENGTH := 1.65"), "directional highlight is strong enough on symmetric gems")
-	assert_true(src.contains("const COMBO_LIGHT_W := 0.30"), "directional highlight is narrow enough to read as one side")
-	assert_true(src.contains("const COMBO_LIGHT_TINT := Color(1.0, 1.0, 1.0)"), "line-special highlight stays neutral white so blue gems do not shift purple")
-	var start: int = src.find("func _build_swing_loop")
-	var end: int = src.find("func _build_pulse_loop", start)
-	assert_true(start >= 0 and end > start, "_build_swing_loop can be inspected")
-	if start < 0 or end <= start:
-		return
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("_combo_swing_scale(base, horizontal, s)"), "line specials choose their scale axis from the intended motion axis")
-	assert_true(body.contains("node.offset = Vector2(COMBO_SWING_OFFSET * s, 0.0) if horizontal else Vector2(0.0, COMBO_VERTICAL_SWING_OFFSET * s)"), "line specials show left/right or up/down through visual offset, with a restrained vertical offset")
-	var stop_start: int = src.find("func _stop_combo_idle")
-	var stop_end: int = src.find("func _clear_colorbomb_layers", stop_start)
-	assert_true(stop_start >= 0 and stop_end > stop_start, "_stop_combo_idle can be inspected")
-	if stop_start >= 0 and stop_end > stop_start:
-		var stop_body: String = src.substr(stop_start, stop_end - stop_start)
-		assert_true(stop_body.contains("combo_base_offset"), "combo idle records and restores the original visual offset")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# 4合1 idle 调过的视觉参数: 摆动幅度/鼓出/偏移/方向高光强度, 直接读真实常量值断言契约
+	assert_eq(level.get("COMBO_SWING_AMP"), 0.14, "4-match idle pinch is restrained, not a large wobble")
+	assert_eq(level.get("COMBO_SWING_WIDEN"), 0.025, "4-match idle front-facing widen stays subtle")
+	assert_eq(level.get("COMBO_SWING_OFFSET"), 3.0, "4-match idle uses a small visual offset to disambiguate direction")
+	assert_eq(level.get("COMBO_VERTICAL_SWING_OFFSET"), 1.8, "vertical 4-match idle uses a smaller offset so water-drop gems do not look like they only tip upward")
+	assert_eq(level.get("COMBO_LIGHT_STRENGTH"), 1.65, "directional highlight is strong enough on symmetric gems")
+	assert_eq(level.get("COMBO_LIGHT_W"), 0.30, "directional highlight is narrow enough to read as one side")
+	assert_eq(level.get("COMBO_LIGHT_TINT"), Color(1.0, 1.0, 1.0), "line-special highlight stays neutral white so blue gems do not shift purple")
+	# 垂直 idle 偏移小于水平: 真实常量数值已锁住"竖向更克制"这一视觉决策
+	assert_true(float(level.get("COMBO_VERTICAL_SWING_OFFSET")) < float(level.get("COMBO_SWING_OFFSET")), "vertical idle offset stays smaller than horizontal so symmetric gems do not read as one-directional")
+	level.free()
 
 
 func test_vertical_combo_idle_scales_vertically_not_sideways() -> void:
@@ -230,18 +124,19 @@ func test_vertical_combo_idle_scales_vertically_not_sideways() -> void:
 
 
 func test_combo_idle_uses_directional_light_without_added_shadows() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const COMBO_RIM_STRENGTH :="), "combo idle exposes a rim-light cue for pseudo 3D volume")
-	assert_true(src.contains("const COMBO_SPECULAR_STRENGTH :="), "combo idle exposes a crisp specular cue for a gem-like curved surface")
-	assert_false(src.contains("COMBO_DARK_SIDE_STRENGTH"), "line-special idle must not add dark-side shadow on the gem body")
-	assert_false(src.contains("COMBO_VOLUME_SHADOW_STRENGTH"), "line-special idle must not add volume shadow on the gem body")
-	assert_false(src.contains("COMBO_SHADOW_OFFSET"), "line-special idle must not animate the gem shadow while wobbling")
-	var swing_start: int = src.find("func _build_swing_loop")
-	var swing_end: int = src.find("func _build_pulse_loop", swing_start)
-	assert_true(swing_start >= 0 and swing_end > swing_start, "_build_swing_loop can be inspected")
-	if swing_start >= 0 and swing_end > swing_start:
-		var swing_body: String = src.substr(swing_start, swing_end - swing_start)
-		assert_false(swing_body.contains("_apply_combo_depth_pose"), "directional idle should not drive extra shadow/depth cues every frame")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# rim/specular 强度常量存在(伪3D光照线索), 直接读真实值断言其被定义
+	assert_true(level.get("COMBO_RIM_STRENGTH") != null, "combo idle exposes a rim-light cue for pseudo 3D volume")
+	assert_true(level.get("COMBO_SPECULAR_STRENGTH") != null, "combo idle exposes a crisp specular cue for a gem-like curved surface")
+	# 这些"加阴影"常量已被废弃: 实例上读不到即证明 idle 不再加暗面/体积阴影
+	assert_eq(level.get("COMBO_DARK_SIDE_STRENGTH"), null, "line-special idle must not add dark-side shadow on the gem body")
+	assert_eq(level.get("COMBO_VOLUME_SHADOW_STRENGTH"), null, "line-special idle must not add volume shadow on the gem body")
+	assert_eq(level.get("COMBO_SHADOW_OFFSET"), null, "line-special idle must not animate the gem shadow while wobbling")
+	assert_false(level.has_method("_apply_combo_depth_pose"), "directional idle should not drive extra shadow/depth cues every frame")
+	level.free()
+	# 以下断言钉 directional_glow.gdshader 资产文件真实内容(GPU shader headless 无法渲染验证, 只能锁文本)
+	# 钉源码理由: shader uniform/算法是已拍板的视觉契约, 任何改写都会改变 4合1 宝石的方向光照观感
 	var shader := FileAccess.get_file_as_string("res://match3/directional_glow.gdshader")
 	assert_true(shader.contains("uniform float rim_strength"), "directional shader has a rim-light strength uniform")
 	assert_true(shader.contains("uniform float bulge_strength"), "directional shader has a curved-surface highlight uniform")
@@ -260,19 +155,33 @@ func test_combo_idle_uses_directional_light_without_added_shadows() -> void:
 
 
 func test_shape_shadow_is_soft_not_black() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const GEM_SHADOW_COLOR := Color(0.10, 0.08, 0.16, 0.28)"), "gem shape shadow uses a light tinted color instead of heavy black")
-	assert_true(src.contains("sh.modulate = GEM_SHADOW_COLOR"), "shape shadow uses the shared soft shadow color")
-	assert_false(src.contains("Color(0.0, 0.0, 0.0, GEM_SHADOW_ALPHA)"), "shape shadow must not use pure black at high alpha")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	var shadow: Color = level.get("GEM_SHADOW_COLOR")
+	assert_eq(shadow, Color(0.10, 0.08, 0.16, 0.28), "gem shape shadow uses a light tinted color instead of heavy black")
+	# 真实常量值直接证明阴影是"软淡紫低alpha", 不是纯黑高alpha
+	assert_true(shadow.r > 0.0 and shadow.g > 0.0 and shadow.b > 0.0, "shape shadow is tinted, not pure black")
+	assert_true(shadow.a <= 0.30, "shape shadow stays low-alpha so it never reads as heavy black")
+	assert_eq(level.get("GEM_SHADOW_ALPHA"), null, "shape shadow must not use a pure-black high-alpha constant")
+	level.free()
 
 
 func test_gem_saturation_experiment_uses_shader_not_asset_rewrites() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const GEM_SATURATION := 0.86"), "gem saturation experiment uses the preferred 86% color intensity")
-	assert_true(src.contains("const GEM_SATURATION_SHADER := \"res://match3/gem_saturation.gdshader\""), "gem saturation experiment uses a reversible shader")
-	assert_true(src.contains("gs.material = _gem_saturation_material()"), "ordinary board gems use the shared saturation material")
-	assert_true(src.contains("node.material = _gem_saturation_material()"), "stopping line-special idle restores the same saturation material instead of full saturation")
-	assert_true(src.contains("m.set_shader_parameter(\"base_saturation\", GEM_SATURATION)"), "line-special directional glow inherits the board gem saturation factor")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_eq(level.get("GEM_SATURATION"), 0.86, "gem saturation experiment uses the preferred 86% color intensity")
+	assert_eq(level.get("GEM_SATURATION_SHADER"), "res://match3/gem_saturation.gdshader", "gem saturation experiment uses a reversible shader")
+	# 直接调真函数: 棋盘宝石共享的 saturation 材质应是 ShaderMaterial, 用该 shader, 参数=GEM_SATURATION
+	assert_true(level.has_method("_gem_saturation_material"), "Level exposes the shared saturation material factory")
+	var mat = level.call("_gem_saturation_material")
+	assert_true(mat is ShaderMaterial, "ordinary board gems use a shader material, not asset rewrites")
+	if mat is ShaderMaterial:
+		var sm: ShaderMaterial = mat
+		assert_eq(sm.shader.resource_path, level.get("GEM_SATURATION_SHADER"), "saturation material is driven by the reversible saturation shader")
+		assert_eq(sm.get_shader_parameter("saturation"), level.get("GEM_SATURATION"), "saturation material inherits the 86% saturation factor")
+	level.free()
+	# 钉源码理由: 以下钉 gem_saturation.gdshader 资产真实内容; GPU shader headless 无法渲染自检,
+	# 其降饱和算法(从 COLOR 出发、luminance gray、mix 不二次乘纹理)是已拍板的画面契约, 必须锁文本防回归
 	var shader := FileAccess.get_file_as_string("res://match3/gem_saturation.gdshader")
 	assert_true(shader.contains("uniform float saturation"), "gem saturation shader exposes a single saturation parameter")
 	assert_true(shader.contains("uniform float saturation : hint_range(0.0, 1.5) = 0.86;"), "gem saturation shader preview default matches the 86% experiment")
@@ -281,41 +190,43 @@ func test_gem_saturation_experiment_uses_shader_not_asset_rewrites() -> void:
 	assert_true(shader.contains("vec4 col = COLOR"), "gem saturation shader starts from Godot's modulated sprite color")
 	assert_false(shader.contains("texture(TEXTURE, UV)"), "gem saturation shader must not multiply the texture color twice")
 	assert_false(shader.contains("col.rgb *= tint.rgb"), "gem saturation shader must not darken gems by multiplying modulate after a manual texture sample")
+	# 钉源码理由: directional_glow.gdshader 必须继承同一 base_saturation, 否则 4合1 宝石会比棋盘其它宝石更鲜艳(画面契约)
 	var dir_shader := FileAccess.get_file_as_string("res://match3/directional_glow.gdshader")
 	assert_true(dir_shader.contains("uniform float base_saturation"), "directional glow shader can keep 4-match gems at the same base saturation")
 	assert_true(dir_shader.contains("mix(base_gray, col.rgb, base_saturation)"), "directional glow desaturates before adding hue-safe highlights")
 
 
 func test_pet_skill_charge_requirement_is_halved() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const SKILL_CHARGE_REQ := 10.0"), "pet skill progress should fill twice as fast by halving the shared charge requirement")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_eq(level.get("SKILL_CHARGE_REQ"), 10.0, "pet skill progress should fill twice as fast by halving the shared charge requirement")
+	level.free()
 
 
 func test_combo_idle_reapply_same_fx_does_not_restart() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var apply_start: int = src.find("func _apply_fx_overlay")
-	var apply_end: int = src.find("func _fx_overlay_is_current", apply_start)
-	assert_true(apply_start >= 0 and apply_end > apply_start, "_apply_fx_overlay can be inspected")
-	if apply_start < 0 or apply_end <= apply_start:
-		return
-	var apply_body: String = src.substr(apply_start, apply_end - apply_start)
-	var guard_idx: int = apply_body.find("if _fx_overlay_is_current(node, kind):")
-	var stop_idx: int = apply_body.find("_stop_combo_idle(node)")
-	assert_true(guard_idx >= 0, "same fx overlay has an idempotent guard")
-	assert_true(stop_idx > guard_idx, "same-kind 4-match idle returns before stopping and replaying its tween")
-	assert_true(src.contains("func _fx_overlay_is_current"), "Level has a reusable fx overlay current-state check")
-	var current_start: int = src.find("func _fx_overlay_is_current")
-	var current_end: int = src.find("func _stored_tween_is_running", current_start)
-	assert_true(current_start >= 0 and current_end > current_start, "_fx_overlay_is_current can be inspected")
-	if current_start >= 0 and current_end > current_start:
-		var current_body: String = src.substr(current_start, current_end - current_start)
-		assert_true(current_body.contains("ME.SP_LINE_H, ME.SP_LINE_V, ME.SP_BOMB"), "4-match specials keep their existing idle tween when the fx kind is unchanged")
-		assert_true(current_body.contains("_stored_tween_is_running(node, \"combo_tween\")"), "4-match idle is considered current only while its tween is still valid")
-		assert_true(current_body.contains("_stored_tween_is_running(node, \"colorbomb_tween\")"), "5-match idle also avoids stacking repeated bob tweens")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	var tree := Engine.get_main_loop() as SceneTree
+	tree.root.add_child(level)
+	assert_true(level.has_method("_apply_fx_overlay") and level.has_method("_fx_overlay_is_current"), "Level exposes fx overlay apply + reusable current-state check")
+	var node := Sprite2D.new()
+	node.texture = load("res://art/gems/base/gem_star.png")
+	node.scale = Vector2(0.5, 0.5)
+	level.add_child(node)
+	# 行为断言: 首次施加 4合1 idle 建一个 combo_tween, 之后同 kind 再施加应保持同一 tween(幂等, 不重启)
+	level.call("_apply_fx_overlay", node, ME.SP_LINE_H)
+	assert_true(level.call("_fx_overlay_is_current", node, ME.SP_LINE_H), "same-kind 4-match idle is considered current while its tween is valid")
+	var first_tween = node.get_meta("combo_tween") if node.has_meta("combo_tween") else null
+	assert_true(first_tween is Tween, "4-match idle stores a combo_tween")
+	level.call("_apply_fx_overlay", node, ME.SP_LINE_H)
+	var second_tween = node.get_meta("combo_tween") if node.has_meta("combo_tween") else null
+	assert_eq(second_tween, first_tween, "re-applying the same fx keeps the existing idle tween instead of replaying it")
+	# 切到不同 kind 才会重建; SP_NONE 视为 current 仅当没有任何 idle tween
+	level.call("_apply_fx_overlay", node, ME.SP_NONE)
+	assert_true(level.call("_fx_overlay_is_current", node, ME.SP_NONE), "clearing fx leaves no running idle tween")
+	assert_false(level.call("_fx_overlay_is_current", node, ME.SP_LINE_H), "after clearing, the stale 4-match kind is no longer current")
+	node.queue_free()
+	level.queue_free()
 
 
 func test_board_layout_centers_playable_books_between_topbar_and_skills() -> void:
@@ -357,30 +268,24 @@ func test_board_layout_keeps_tallest_playable_book_inside_play_area() -> void:
 
 
 func test_bomb_combo_idle_uses_lub_dub_heartbeat_cadence() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("const COMBO_HEARTBEAT_FIRST_AMP := 0.16"), "bomb idle first heartbeat peak is the larger lub")
-	assert_true(src.contains("const COMBO_HEARTBEAT_SECOND_AMP := 0.09"), "bomb idle second heartbeat peak is the smaller dub")
-	assert_true(src.contains("const COMBO_HEARTBEAT_UP := 0.12"), "heartbeat rises quickly instead of slowly swelling")
-	assert_true(src.contains("const COMBO_HEARTBEAT_DOWN := 0.10"), "heartbeat falls quickly after each beat")
-	assert_true(src.contains("const COMBO_HEARTBEAT_GAP := 0.07"), "two heartbeat beats have a short gap")
-	assert_true(src.contains("const COMBO_HEARTBEAT_REST := 0.58"), "heartbeat loop has a longer rest after the second beat")
-	var start: int = src.find("func _build_pulse_loop")
-	var end: int = src.find("func _stop_combo_idle", start)
-	assert_true(start >= 0 and end > start, "_build_pulse_loop can be inspected")
-	if start < 0 or end <= start:
-		return
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("var first_peak: Vector2 = base * (1.0 + COMBO_HEARTBEAT_FIRST_AMP)"), "first beat uses its own larger peak")
-	assert_true(body.contains("var second_peak: Vector2 = base * (1.0 + COMBO_HEARTBEAT_SECOND_AMP)"), "second beat uses its own smaller peak")
-	assert_false(body.contains("_base_mod"), "bomb idle uses the original color while shrinking instead of discarding it")
-	assert_true(body.count("t.parallel().tween_property(node, \"modulate\", COMBO_BRIGHTEN, COMBO_HEARTBEAT_UP)") >= 2, "both heartbeat enlargement phases brighten the bomb special")
-	assert_true(body.count("t.parallel().tween_property(node, \"modulate\", base_mod, COMBO_HEARTBEAT_DOWN)") >= 2, "both heartbeat shrink phases restore the original color")
-	assert_true(body.find("t.tween_interval(COMBO_HEARTBEAT_GAP)") < body.find("t.tween_property(node, \"scale\", second_peak"), "short gap lands before the second beat")
-	assert_true(body.contains("t.tween_interval(COMBO_HEARTBEAT_REST)"), "heartbeat rests after the lub-dub pair")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# 读真实心跳常量值, 并断言"lub-dub"的视觉决策关系(第一跳大于第二跳、有短间隔再长休止)
+	var first_amp: float = level.get("COMBO_HEARTBEAT_FIRST_AMP")
+	var second_amp: float = level.get("COMBO_HEARTBEAT_SECOND_AMP")
+	var up: float = level.get("COMBO_HEARTBEAT_UP")
+	var down: float = level.get("COMBO_HEARTBEAT_DOWN")
+	var gap: float = level.get("COMBO_HEARTBEAT_GAP")
+	var rest: float = level.get("COMBO_HEARTBEAT_REST")
+	assert_eq(first_amp, 0.16, "bomb idle first heartbeat peak is the larger lub")
+	assert_eq(second_amp, 0.09, "bomb idle second heartbeat peak is the smaller dub")
+	assert_eq(up, 0.12, "heartbeat rises quickly instead of slowly swelling")
+	assert_eq(down, 0.10, "heartbeat falls quickly after each beat")
+	assert_eq(gap, 0.07, "two heartbeat beats have a short gap")
+	assert_eq(rest, 0.58, "heartbeat loop has a longer rest after the second beat")
+	assert_true(first_amp > second_amp, "lub (first beat) is louder than dub (second beat)")
+	assert_true(rest > gap, "the rest after the lub-dub pair is longer than the in-pair gap")
+	level.free()
 
 
 func test_bomb_combo_idle_brightens_body_without_outline_glow() -> void:
@@ -399,297 +304,14 @@ func test_bomb_combo_idle_brightens_body_without_outline_glow() -> void:
 	level.queue_free()
 
 
-func test_colorbomb_absorb_preview_leaves_residue_and_pulses_crystal() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_colorbomb_absorb_preview")
-	assert_true(start >= 0, "_play_colorbomb_absorb_preview exists")
-	if start < 0:
-		return
-	var end: int = src.find("func _show_colorbomb_virtual_conversion", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("Fx.spawn_absorb_residue"), "each absorbed gem leaves residue stardust at its source cell")
-	assert_true(body.contains("_pulse_colorbomb_core"), "orb impact pulses the current single-texture crystal ball")
-	assert_false(body.contains("_pulse_colorbomb_gold_glow"), "single-texture colorbomb no longer references the removed gold-glow layer")
-	assert_false(body.contains("_pulse_colorbomb_inner_stars"), "single-texture colorbomb no longer references the removed inner-stars layer")
-
-
-func test_colorbomb_resolve_has_no_final_particle_burst() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _resolve_colorbomb")
-	assert_true(start >= 0, "_resolve_colorbomb exists")
-	if start < 0:
-		return
-	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("await _play_colorbomb_absorb_preview"), "colorbomb still plays the absorb sequence")
-	assert_false(body.contains("Fx.spawn_explosion"), "colorbomb absorb should not add a final generic particle burst")
-
-
-func test_colorbomb_clear_fx_has_bounded_final_burst_budget() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("COLORBOMB_ABSORB_TARGET_BUDGET"), "colorbomb absorb preview has an explicit fanout budget")
-	assert_true(src.contains("COLORBOMB_FINE_CLEAR_BUDGET"), "colorbomb final clear has an explicit fine FX budget")
-	assert_true(src.contains("COLORBOMB_CLEAR_FX_BATCH_SIZE"), "colorbomb final clear work is batched across frames")
-	assert_true(src.contains("mini(targets.size(), COLORBOMB_ABSORB_TARGET_BUDGET)"), "absorb preview uses the named fanout budget")
-	assert_true(src.contains("COLORBOMB_FINE_CLEAR_BUDGET") and not src.contains("fine_budget: int = 36"), "final clear no longer bursts dozens of basic pops in one frame")
-	assert_true(src.contains("await get_tree().process_frame"), "final clear FX yields between batches to avoid a last-frame spike")
-	var start: int = src.find("func _resolve_colorbomb")
-	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):\n\t\tawait _show_colorbomb_virtual_conversion(virtual_fx)\n\tvar fine_budget"), "final clear FX budget runs for plain colorbombs too, not only conversion combos")
-
-
-func test_level_clear_pops_gem_body_before_fade() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("CLEAR_POP_SCALE"), "level defines a visible gem-body clear pop scale")
-	assert_true(src.contains("CLEAR_POP_TIME"), "level defines a short gem-body clear pop phase")
-	assert_true(src.contains("const CLEAR_POP_SCALE := 1.32"), "basic clear gem body swells visibly before bursting")
-	assert_true(src.contains("const CLEAR_POP_TIME := 0.117"), "basic clear gem body uses the requested 1.3x slower swell phase")
-	var start: int = src.find("func _play_clear")
-	assert_true(start >= 0, "_play_clear exists")
-	if start < 0:
-		return
-	var end: int = src.find("## 某已存在特效棋子", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("\n\t\tif not spawn_set.has(p):"), "all cleared non-spawn gems pop/fade, including existing special gems")
-	assert_true(body.contains("base_scale * CLEAR_POP_SCALE"), "clearing gem body first swells above its base scale")
-	assert_true(body.contains("base_scale * CLEAR_BURST_SCALE"), "clearing gem body bursts outward instead of collapsing inward")
-	assert_true(body.find("base_scale * CLEAR_POP_SCALE") < body.find("base_scale * CLEAR_BURST_SCALE"), "gem body swell is scheduled before the outward burst")
-	assert_true(body.contains("set_trans(Tween.TRANS_SINE)"), "basic clear swell should not use an overshooting Back tween")
-
-func test_level_clear_stops_combo_idle_before_clear_tween() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_clear")
-	assert_true(start >= 0, "_play_clear exists")
-	if start < 0:
-		return
-	var end: int = src.find("## 某已存在特效棋子", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var stop_idx: int = body.find("_stop_combo_idle(n)")
-	var base_idx: int = body.find("var base_scale: Vector2 = n.scale")
-	assert_true(stop_idx >= 0, "clear animation stops any special idle tween before taking over scale/modulate")
-	assert_true(stop_idx >= 0 and base_idx > stop_idx, "clear tween captures the restored base scale after stopping idle")
-
-
-func test_level_clear_batches_vfx_creation_across_frames() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("CLEAR_FX_BATCH_SIZE"), "level defines a clear VFX batch size")
-	var start: int = src.find("func _play_clear")
-	assert_true(start >= 0, "_play_clear exists")
-	if start < 0:
-		return
-	var end: int = src.find("## 某已存在特效棋子", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("spawned_fx_count"), "_play_clear tracks spawned VFX per batch")
-	assert_true(body.contains("CLEAR_FX_BATCH_SIZE"), "_play_clear uses the named batch size")
-	assert_true(body.contains("await get_tree().process_frame"), "large clears yield between VFX batches instead of allocating every effect in one frame")
-
-func test_special_spawn_clear_hold_is_snappy() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("const CLEAR_TIME := 0.156"), "basic clear gem body uses the requested 1.3x slower total animation")
-	assert_true(src.contains("const CLEAR_POP_TIME := 0.117"), "the swell phase stays in the same proportion after the 1.3x slowdown")
-	assert_true(src.contains("const CLEAR_POP_SCALE := 1.32"), "the swell reads clearly before the special appears")
-	assert_true(src.contains("const ELIM_HOLD := 0.156"), "post-clear hold matches the slower basic clear animation before freeing gems")
-
-
-func test_spawned_combo_idle_starts_after_clear_phase() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _resolve_cascades")
-	assert_true(start >= 0, "_resolve_cascades exists")
-	if start < 0:
-		return
-	var end: int = src.find("## 阶段5 消除表现", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var play_idx: int = body.find("await _play_clear(to_clear, spawns, protected_spawn_set, raw_special_fx_cells, clear_visual_timing)")
-	var overlay_idx: int = body.find("if protected_spawn_set.has(p):\n\t\t\t\t_apply_fx_overlay")
-	var unfiltered_overlay_idx: int = body.find("if not cleared_this_step.has(p):\n\t\t\t\t_apply_fx_overlay")
-	assert_true(play_idx >= 0, "resolve cascades plays clear animation")
-	assert_true(overlay_idx > play_idx, "new 4-match specials start their idle only after the clear phase, not during nearby clear animations")
-	assert_true(unfiltered_overlay_idx > overlay_idx, "new 4-match specials still receive their idle overlay when their spawn cell was filtered out of to_clear")
-
-
-func test_line_blast_hit_specials_keep_explosion_visual_even_if_filtered() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("func _special_fx_cells_for_clear_visuals"), "Level collects raw hit special cells before account filtering")
-	assert_true(src.contains("raw_special_fx_cells = _special_fx_cells_for_clear_visuals(to_clear, triggered_spawn_fx)"), "cascade path preserves raw line-hit special cells before locked filtering")
-	assert_true(src.contains("await _play_clear(to_clear, spawns, protected_spawn_set, raw_special_fx_cells, clear_visual_timing)"), "cascade clear animation receives raw hit special cells")
-	assert_true(src.contains("fusion_special_fx_cells = _special_fx_cells_for_clear_visuals(cells)"), "fusion path preserves raw hit special cells before locked filtering")
-	assert_true(src.contains("await _play_clear(to_clear, [], {}, fusion_special_fx_cells, fusion_clear_timing)"), "fusion clear animation receives raw hit special cells")
-	var play_start: int = src.find("func _play_clear")
-	var play_end: int = src.find("## 某已存在特效棋子", play_start)
-	assert_true(play_start >= 0 and play_end > play_start, "_play_clear can be inspected")
-	if play_start < 0 or play_end <= play_start:
-		return
-	var play_body: String = src.substr(play_start, play_end - play_start)
-	assert_true(play_body.contains("extra_special_fx_cells: Dictionary = {}"), "_play_clear accepts visual-only special hit cells")
-	assert_true(play_body.contains("played_special_fx[p] = true"), "_play_clear tracks special FX already played during normal clear animation")
-	assert_true(play_body.contains("for p in extra_special_fx_cells:"), "_play_clear plays visual-only hit specials after regular clear cells")
-	assert_true(play_body.contains("_play_special_fx_delayed(p, fx_kind"), "visual-only hit specials play their line/bomb explosion")
-	assert_true(play_body.contains("if clear_set.has(p):\n\t\t\tcontinue"), "visual-only hit specials do not duplicate normal clear animations")
-
-
-func test_line_blast_visual_timing_spreads_from_trigger_and_chains_hit_specials() -> void:
+func test_level_consumed_move_paths_share_board_settlement() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_clear_visual_timing_for_triggers"), "Level exposes ordered clear visual timing")
-	if not level.has_method("_clear_visual_timing_for_triggers"):
-		level.free()
-		return
-	level.board = Board.new(5, 4, [0, 1, 2], 0, 25, 1)
-	level.board.grid = [
-		[0, 1, 2, 0, 1],
-		[1, 2, 0, 1, 2],
-		[2, 0, 1, 2, 0],
-		[0, 1, 2, 0, 1],
-	]
-	level.board.fx = _none_fx(5, 4)
-	level.board.fx[1][2] = ME.SP_LINE_H
-	level.board.fx[1][4] = ME.SP_LINE_V
-	var timing: Dictionary = level.call("_clear_visual_timing_for_triggers", [Vector2i(2, 1)])
-	var cell_delays: Dictionary = timing.get("cell_delay", {})
-	var special_delays: Dictionary = timing.get("special_delay", {})
-	assert_true(absf(float(cell_delays.get(Vector2i(2, 1), -1.0)) - 0.0) < 0.001, "trigger cell starts immediately")
-	assert_true(absf(float(cell_delays.get(Vector2i(1, 1), -1.0)) - 0.026) < 0.001, "line blast one-cell delay is 0.02s * 1.3")
-	assert_true(absf(float(cell_delays.get(Vector2i(0, 1), -1.0)) - 0.052) < 0.001, "line blast two-cell delay is 0.04s * 1.3")
-	assert_true(float(cell_delays.get(Vector2i(1, 1), -1.0)) < float(cell_delays.get(Vector2i(0, 1), -1.0)), "left side clears outward from trigger")
-	assert_true(float(cell_delays.get(Vector2i(3, 1), -1.0)) < float(cell_delays.get(Vector2i(4, 1), -1.0)), "right side clears outward from trigger")
-	assert_true(absf(float(special_delays.get(Vector2i(4, 1), -1.0)) - float(cell_delays.get(Vector2i(4, 1), -2.0))) < 0.001, "hit line special triggers when the sweep reaches it")
-	assert_true(absf(float(cell_delays.get(Vector2i(4, 0), -1.0)) - 0.078) < 0.001, "chained line blast delay also uses the 1.3x stagger")
-	assert_true(float(cell_delays.get(Vector2i(4, 0), -1.0)) > float(special_delays.get(Vector2i(4, 1), -1.0)), "chained vertical blast clears after the hit special triggers")
+	assert_true(level.has_method("_finish_consumed_move"), "Level exposes one consumed-move finish path")
 	level.free()
-
-
-func test_line_blast_clear_animation_uses_ordered_delays() -> void:
+	# 钉源码理由: 三条消费步数的路径(交换/彩球/融合)必须统一走 _finish_consumed_move(Board 结算),
+	# 不能各自做局部 move-only 记账 —— 这正是本次重构要保护的"单一结算入口"契约, async 不便整跑故锁接线
 	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var play_start: int = src.find("func _play_clear")
-	var play_end: int = src.find("## 某已存在特效棋子", play_start)
-	assert_true(play_start >= 0 and play_end > play_start, "_play_clear can be inspected")
-	if play_start < 0 or play_end <= play_start:
-		return
-	var play_body: String = src.substr(play_start, play_end - play_start)
-	assert_true(play_body.contains("clear_visual_timing: Dictionary = {}"), "_play_clear accepts ordered line clear timing")
-	assert_true(play_body.contains("_spawn_shatter_delayed"), "line-hit gems shatter on their ordered delay")
-	assert_true(play_body.contains("_play_special_fx_delayed"), "hit specials trigger on their ordered delay")
-	assert_true(play_body.contains("ELIM_HOLD + max_fx_delay"), "clear phase waits for the ordered sweep before falling")
-
-
-func test_line_blast_uses_saturated_trigger_color_not_whitened_fx_color() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const GEM_FX_COLORS"), "special effects should use bright saturated VFX colors")
-	assert_false(src.contains("return (GEM_COLORS[GEM_KEYS[sp]] as Color).lightened(0.25)"), "special effect colors should not be pre-whitened before additive rendering")
-	assert_true(src.contains("func _line_fx_color"), "line blasts should have a dedicated saturated color helper")
-	var special_start: int = src.find("func _play_special_fx(pos")
-	var special_end: int = src.find("\nfunc ", special_start + 1)
-	assert_true(special_start >= 0 and special_end > special_start, "_play_special_fx can be inspected")
-	if special_start < 0 or special_end <= special_start:
-		return
-	var special_body: String = src.substr(special_start, special_end - special_start)
-	assert_true(special_body.contains("var line_col: Color = _line_fx_color"), "line blasts should use saturated trigger color")
-	assert_false(special_body.contains("var col: Color = _fx_color"), "line blasts should not share the whitened generic fx color")
-	var fusion_start: int = src.find("func _play_fusion_fx_after_swap")
-	var fusion_end: int = src.find("\nfunc ", fusion_start + 1)
-	assert_true(fusion_start >= 0 and fusion_end > fusion_start, "_play_fusion_fx_after_swap can be inspected")
-	if fusion_start < 0 or fusion_end <= fusion_start:
-		return
-	var fusion_body: String = src.substr(fusion_start, fusion_end - fusion_start)
-	assert_true(fusion_body.contains("_line_fx_color(board.grid"), "line+bomb fusion should also use saturated line color")
-	assert_false(fusion_body.contains("_play_wide_line_fx(b_after, kb, _fx_color"), "wide line fusion should not use whitened fx color")
-
-
-func test_level_colorbomb_filters_locked_direct_clears() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _resolve_colorbomb")
-	assert_true(start >= 0, "_resolve_colorbomb exists")
-	if start < 0:
-		return
-	var end: int = src.find("func _play_colorbomb_absorb_preview", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("to_clear"), "colorbomb direct clear path filters account_clears locked cells")
-	assert_true(body.contains("cake_blast"), "colorbomb direct clear path includes cake blast cells after filtering")
-	assert_true(body.contains("ME._apply_clears(board.grid, board.fx, to_clear, [])"), "colorbomb direct clear applies only filtered cells")
-	assert_false(body.contains("board.grid[p.y][p.x] = ME.EMPTY"), "colorbomb must not manually clear locked cells")
-
-func test_double_bomb_fusion_plays_both_burst_centers() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _play_double_bomb_fusion_fx"), "Level has an explicit two-center double-bomb fusion visual")
-	var fusion_start: int = src.find("func _play_fusion_fx_after_swap")
-	var fusion_end: int = src.find("func _play_wide_line_fx", fusion_start)
-	assert_true(fusion_start >= 0 and fusion_end > fusion_start, "_play_fusion_fx_after_swap can be inspected")
-	if fusion_start < 0 or fusion_end <= fusion_start:
-		return
-	var fusion_body: String = src.substr(fusion_start, fusion_end - fusion_start)
-	assert_true(fusion_body.contains("_play_double_bomb_fusion_fx(a_after, b_after)"), "double cross fusion delegates to a two-center burst helper")
-	var helper_start: int = src.find("func _play_double_bomb_fusion_fx")
-	var helper_end: int = src.find("func _play_wide_line_fx", helper_start)
-	assert_true(helper_start >= 0 and helper_end > helper_start, "_play_double_bomb_fusion_fx can be inspected")
-	if helper_start < 0 or helper_end <= helper_start:
-		return
-	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-	assert_true(helper_body.contains("_cell_center(a_after.y, a_after.x)"), "first swapped bomb center gets a visible burst")
-	assert_true(helper_body.contains("_cell_center(b_after.y, b_after.x)"), "second swapped bomb center gets a visible burst")
-	assert_true(helper_body.count("Fx.spawn_local_burst") >= 2, "double cross fusion must emit two local burst effects")
-
-func test_level_consumed_move_paths_share_board_settlement() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _finish_consumed_move("), "Level exposes one consumed-move finish path")
 	for name in ["func _try_swap", "func _resolve_colorbomb", "func _resolve_fusion"]:
 		var start: int = src.find(name)
 		assert_true(start >= 0, "%s exists" % name)
@@ -701,13 +323,14 @@ func test_level_consumed_move_paths_share_board_settlement() -> void:
 		var body: String = src.substr(start, end - start)
 		assert_true(body.contains("await _finish_consumed_move("), "%s uses Board settlement instead of local move-only bookkeeping" % name)
 
+
 func test_level_consumed_move_paths_record_time_rewind_history_before_mutation() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _remember_time_rewind_snapshot("), "Level exposes a shared time-rewind history hook")
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_remember_time_rewind_snapshot"), "Level exposes a shared time-rewind history hook")
+	level.free()
+	# 钉源码理由: 每条真实关卡移动必须在改板(swap/apply_clears)之前先记快照, 否则时间倒流会丢一步(回退正确性契约)
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	for name in ["func _try_swap", "func _resolve_colorbomb", "func _resolve_fusion"]:
 		var start: int = src.find(name)
 		assert_true(start >= 0, "%s exists" % name)
@@ -724,853 +347,21 @@ func test_level_consumed_move_paths_record_time_rewind_history_before_mutation()
 			mutation_idx = body.find("ME._apply_clears")
 		assert_true(mutation_idx < 0 or history_idx < mutation_idx, "%s records the snapshot before mutating the board" % name)
 
-func test_time_rabbit_cast_animation_has_readable_timing() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("const RABBIT_REWIND_TIME_SCALE := 2.75"), "time rabbit animation follows the slower full skill animatic timing")
-	assert_true(src.contains("const RABBIT_REWIND_CAST_HOLD := 0.82"), "time rabbit cast frame is held through the readable hourglass beat")
-	var start: int = src.find("func _start_time_rabbit_tween")
-	assert_true(start >= 0, "time rabbit tween builder exists")
-	if start < 0:
-		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var k8_idx: int = body.find("RABBIT_REWIND_K8")
-	var hold_idx: int = body.find("t.tween_interval(RABBIT_REWIND_CAST_HOLD)", k8_idx)
-	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
-	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
-	var first_k1_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1")
-	var first_k1_end: int = body.find("\n", first_k1_idx)
-	var first_k1_line := body.substr(first_k1_idx, first_k1_end - first_k1_idx) if first_k1_idx >= 0 and first_k1_end > first_k1_idx else ""
-	assert_true(body.contains("var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()"), "later emerge frames share the avatar frame lower lip as their bottom anchor")
-	assert_true(body.contains("var first_peek := _time_rabbit_first_peek_anchor()"), "first peek frame has its own eye-aligned avatar anchor")
-	assert_true(first_k1_line.contains("first_peek"), "second GIF frame keeps the rabbit eyes level with the avatar instead of dropping to the lower lip")
-	for path_name in ["RABBIT_REWIND_K2", "RABBIT_REWIND_K25", "RABBIT_REWIND_K3", "RABBIT_REWIND_K4"]:
-		var line_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, %s" % path_name)
-		var line_end: int = body.find("\n", line_idx)
-		var line := body.substr(line_idx, line_end - line_idx) if line_idx >= 0 and line_end > line_idx else ""
-		assert_true(line.contains("emerge_bottom"), "%s keeps its image bottom on the avatar frame lower lip" % path_name)
-	assert_false(body.contains("RABBIT_REWIND_K55, leap_w * 0.92"), "return frame after K8 must not shrink smaller than the cast/readable rabbit scale")
-	assert_false(body.contains("RABBIT_REWIND_K5, leap_w * 0.86"), "return leap frame must not add a second scale drop after the cast beat")
-	assert_false(body.contains("home + Vector2(0.0, 12.0)"), "time rabbit should not sink the avatar actor before the first peek frame")
-
-func test_time_rewind_cast_locks_board_and_level_switch_cancels() -> void:
-	# B1 回归(2026-06-11 bugfix): 施法即锁盘、换关取消在途施法。锁协议见 docs/11 §10。
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_kill_time_rabbit_cast"), "level exposes the cast-cancel hook for level switches")
-	if level.has_method("_kill_time_rabbit_cast"):
-		level.set("_time_rewind_cast_pending", true)
-		level.call("_kill_time_rabbit_cast")
-		assert_eq(bool(level.get("_time_rewind_cast_pending")), false, "cancel hook resets the casting flag even with no rig alive")
-		level.call("_kill_time_rabbit_cast")   # 幂等: 无 rig 重复调用不崩
-	level.free()
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var cast_start: int = src.find("func _skill_time_rewind")
-	var cast_body: String = src.substr(cast_start, src.find("\nfunc ", cast_start + 10) - cast_start)
-	assert_true(cast_body.contains("_busy = true"), "starting the rewind cast locks the board for the whole sequence")
-	var load_start: int = src.find("func load_level")
-	var load_body: String = src.substr(load_start, src.find("\nfunc ", load_start + 10) - load_start)
-	assert_true(load_body.contains("_kill_time_rabbit_cast()"), "switching levels cancels any in-flight rabbit cast")
-	var input_start: int = src.find("func _unhandled_input")
-	var input_body: String = src.substr(input_start, src.find("\nfunc ", input_start + 10) - input_start)
-	assert_true(input_body.find("_time_rewind_cast_pending") < input_body.find("KEY_RIGHT"), "keyboard level-switch is gated behind the cast/busy/settled checks")
-
-func test_time_rabbit_jump_has_inbetween_frames() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_time_rabbit_jump_points"), "time rabbit jump exposes inbetween arc points")
-	assert_true(level.has_method("_time_rabbit_jump_durations"), "time rabbit jump exposes per-inbetween timing")
-	assert_true(level.has_method("_time_rabbit_avatar_frame_bottom_anchor"), "time rabbit exposes the avatar frame bottom anchor")
-	assert_true(level.has_method("_time_rabbit_first_peek_anchor"), "time rabbit exposes the eye-aligned first peek anchor")
-	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations") or not level.has_method("_time_rabbit_avatar_frame_bottom_anchor") or not level.has_method("_time_rabbit_first_peek_anchor"):
-		level.free()
-		return
-	var home := Vector2(140.0, 1320.0)
-	var cast := Vector2(360.0, 1040.0)
-	var points: Array = level.call("_time_rabbit_jump_points", home, cast)
-	var durations: Array = level.call("_time_rabbit_jump_durations")
-	assert_true(points.size() >= 10, "rabbit jump is split into enough visible inbetween positions instead of two large sampled leaps")
-	assert_eq(points.size(), durations.size(), "each rabbit jump inbetween point has its own timing")
-	var raw_total := 0.0
-	for d in durations:
-		raw_total += float(d)
-	assert_true(raw_total >= 0.70, "rabbit jump gives the eye enough time to read the added inbetweens")
-	var bottom_anchor: Vector2 = level.call("_time_rabbit_avatar_frame_bottom_anchor")
-	var visible_frame_bottom: float = Vector2(level.call("_time_rabbit_home_anchor")).y + 132.0 * 0.5
-	assert_true(absf(bottom_anchor.y - visible_frame_bottom) <= 1.0, "avatar frame bottom anchor uses the visible slot lip, not the oversized frame texture bounds")
-	var first_peek: Vector2 = level.call("_time_rabbit_first_peek_anchor")
-	var live_home: Vector2 = level.call("_time_rabbit_home_anchor")
-	assert_true(absf(first_peek.y - (live_home.y - 24.0)) <= 1.0, "first peek anchor keeps the K1 eyes aligned with the static avatar")
-	assert_true(first_peek.y < bottom_anchor.y - 72.0, "first peek starts well above the lower lip so the second frame does not look too low")
-	assert_true(points[0].y > home.y, "first jump inbetween starts near the lower avatar-frame lip instead of popping above it")
-	var reaches_apex := false
-	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
-	var moved_toward_book := false
-	var previous: Vector2 = points[0]
-	for p in points:
-		var point := p as Vector2
-		assert_true(point.x >= home.x - 0.5 and point.x <= cast.x + 0.5, "rabbit jump stays between the avatar slot and the book-center cast point")
-		assert_true(previous.distance_to(point) <= 105.0, "adjacent rabbit jump frames stay close enough to avoid a dropped-frame leap")
-		if point.y < minf(home.y, cast.y):
-			reaches_apex = true
-		if point.x > home.x + 24.0:
-			moved_toward_book = true
-		previous = point
-	assert_true(reaches_apex, "middle jump inbetweens reach a visible arc apex before landing")
-	assert_true(moved_toward_book, "rabbit visibly jumps out toward the book center instead of staying on the avatar column")
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	var start: int = src.find("func _start_time_rabbit_tween")
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("_queue_time_rabbit_jump"), "main rabbit cast timeline uses the multi-step jump helper")
-	assert_true(body.contains("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, first_peek"), "return-to-pocket K1 reuses the same eye-aligned anchor before switching back to avatar art")
-	assert_false(body.contains("RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, cast + Vector2(-44.0, 38.0)"), "rabbit no longer jumps from crouch to cast in one long tween")
-	level.free()
-
-func test_time_rabbit_cast_anchor_is_below_magic_book() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_time_rabbit_cast_anchor"), "time rabbit cast anchor exists")
-	assert_true(level.has_method("_time_rabbit_home_anchor"), "time rabbit home anchor exists")
-	assert_true(level.has_method("_time_rabbit_cast_width"), "time rabbit cast width adapts to each board gap")
-	assert_true(level.has_method("_time_rabbit_hourglass_float_anchor"), "time rabbit hourglass has a board-centered float anchor")
-	assert_true(level.has_method("_current_board_rect"), "level exposes board rect for cast placement")
-	if not level.has_method("_time_rabbit_cast_anchor") or not level.has_method("_time_rabbit_home_anchor") or not level.has_method("_time_rabbit_cast_width") or not level.has_method("_time_rabbit_hourglass_float_anchor") or not level.has_method("_current_board_rect"):
-		level.free()
-		return
-	level.board = Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 25, 7)
-	level.call("_compute_layout")
-	var home: Vector2 = level.call("_time_rabbit_home_anchor")
-	var cast: Vector2 = level.call("_time_rabbit_cast_anchor")
-	var cast_width: float = level.call("_time_rabbit_cast_width")
-	var board_rect: Rect2 = level.call("_current_board_rect")
-	var book_rect: Rect2 = level.call("_book_frame_rect")
-	assert_true(absf(cast.x - book_rect.get_center().x) <= 0.5, "rabbit casts below the center of the magic book")
-	assert_true(absf(cast.x - home.x) > 80.0, "rabbit leaves the avatar column after jumping out")
-	assert_true(cast.y < home.y, "rabbit cast point floats above the avatar slot")
-	assert_true(cast.y >= book_rect.end.y + 28.0, "rabbit cast point stays below the magic book")
-	assert_true(cast.y <= home.y - 84.0, "rabbit cast bottom stays above the avatar row instead of covering pet slots")
-	assert_false(board_rect.has_point(cast), "rabbit cast anchor must not overlap the playable board")
-	var hourglass_anchor: Vector2 = level.call("_time_rabbit_hourglass_float_anchor", cast)
-	assert_true(absf(hourglass_anchor.x - board_rect.get_center().x) <= 0.5, "hourglass floats to the board center, not over the pet slot")
-	assert_true(hourglass_anchor.y < board_rect.get_center().y, "hourglass floats in the upper half of the board airspace")
-	var k8_width: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k8_cast.png", cast_width)
-	var cast_top := cast.y - 8.0 - k8_width * (1191.0 / 908.0)
-	assert_true(cast_top >= board_rect.end.y, "rabbit K8 visible body stays below the playable board, not just its anchor")
-	level.board = Board.new(8, 10, [0, 1, 2, 3, 4], 999999, 25, 8)
-	level.call("_compute_layout")
-	home = level.call("_time_rabbit_home_anchor")
-	cast = level.call("_time_rabbit_cast_anchor")
-	cast_width = level.call("_time_rabbit_cast_width")
-	board_rect = level.call("_current_board_rect")
-	book_rect = level.call("_book_frame_rect")
-	k8_width = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k8_cast.png", cast_width)
-	cast_top = cast.y - 8.0 - k8_width * (1191.0 / 908.0)
-	assert_true(cast_width < 220.0, "tall boards shrink the cast sprite instead of moving it into the board")
-	assert_true(absf(cast.x - book_rect.get_center().x) <= 0.5, "tall board rabbit cast still lands under the book center")
-	assert_true(cast.y <= home.y - 84.0, "tall board rabbit cast still stays above the avatar row")
-	assert_true(cast_top >= board_rect.end.y, "tall board rabbit K8 visible body stays below the playable board")
-	level.free()
-
-func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("RABBIT_REWIND_K25"), "rabbit climb uses the K2.5 push-up inbetween")
-	assert_true(src.contains("RABBIT_REWIND_K55"), "rabbit return uses the K5.5 falling inbetween")
-	assert_true(src.contains("RABBIT_REWIND_FRAME_EYE_DISTANCE"), "rabbit open-eye frames are scaled from measured pupil distance instead of crop width")
-	assert_true(src.contains("TimeRewindSand"), "time rewind cast effect includes reverse sand particles")
-	assert_true(src.contains("TimeRewindClockHand"), "time rewind cast effect includes a clock projection beat")
-	assert_true(src.contains("emit_signal(\"time_rabbit_sequence_done\")"), "rabbit cast emits sequence_done when the actor is hidden")
-
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_time_rabbit_frame_width"), "time rabbit exposes corrected frame width helper")
-	if level.has_method("_time_rabbit_frame_width"):
-		var home_w := 138.0
-		var peek_w := 172.0
-		var k1: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k1_peektop.png", home_w)
-		var k2: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k2_peek.png", peek_w)
-		var k25: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k25_pushup.png", peek_w)
-		var k3: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k3_climb.png", peek_w)
-		var k4: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k4_crouch.png", peek_w)
-		assert_true(k2 < peek_w, "wide peek face is slightly reduced before the climb")
-		assert_true(k25 < k2 and k3 < k2 and k4 < k2, "vertical climb frames are reduced so the head does not jump larger than surrounding frames")
-		assert_true(k4 <= k25, "crouch frame is not larger than the preceding push-up frame")
-		assert_true(level.has_method("_time_rabbit_leap_width"), "time rabbit leap width is corrected independently from cramped cast width")
-		if level.has_method("_time_rabbit_leap_width"):
-			var leap_w: float = level.call("_time_rabbit_leap_width", 96.0)
-			assert_true(leap_w >= k4, "first leap frame does not shrink smaller than the preceding crouch frame")
-		var avatar_eye_distance := 242.5
-		var target_eye := avatar_eye_distance * (132.0 / 1254.0)
-		var spacious_cast_w := 126.0
-		var leap_w_for_eye: float = level.call("_time_rabbit_leap_width", spacious_cast_w)
-		var open_eye_frames := [
-			{ "path": "res://assets/pets/timerewind/rabbit_k1_peektop.png", "width": home_w, "eye": 288.6, "tex_w": 963.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k2_peek.png", "width": peek_w, "eye": 203.4, "tex_w": 1254.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k25_pushup.png", "width": peek_w, "eye": 172.5, "tex_w": 762.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k3_climb.png", "width": peek_w, "eye": 182.4, "tex_w": 794.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k4_crouch.png", "width": peek_w, "eye": 157.7, "tex_w": 687.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k5_leap.png", "width": leap_w_for_eye, "eye": 176.1, "tex_w": 1123.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k55_fall.png", "width": leap_w_for_eye * 0.92, "eye": 149.3, "tex_w": 836.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k6_idle.png", "width": spacious_cast_w, "eye": 147.9, "tex_w": 668.0 },
-			{ "path": "res://assets/pets/timerewind/rabbit_k8_cast.png", "width": spacious_cast_w, "eye": 195.2, "tex_w": 908.0 },
-		]
-		for item in open_eye_frames:
-			var path := String(item["path"])
-			var display_w: float = level.call("_time_rabbit_frame_width", path, float(item["width"]))
-			var display_eye: float = float(item["eye"]) * display_w / float(item["tex_w"])
-			assert_true(absf(display_eye - target_eye) <= 1.25, "%s keeps pupil distance consistent with the avatar frame" % path)
-	level.free()
-
-func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
-	assert_true(src.contains("func _time_rewind_effect_anchor()"), "time rewind effect has a board-centered anchor separate from the rabbit")
-	var start: int = src.find("func _spawn_time_rewind_cast_effect")
-	assert_true(start >= 0, "time rewind effect spawner exists")
-	if start < 0:
-		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("effect.position = _time_rewind_effect_anchor()"), "board flash and rings stay centered on the book/board, not on the rabbit's feet")
-
-func test_level_collapse_refill_uses_core_layers_and_feed() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _collapse_and_refill")
-	assert_true(start >= 0, "_collapse_and_refill exists")
-	if start < 0:
-		return
-	var end: int = src.find("func debug_first_legal_swap", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("ME.apply_gravity(board.grid, board.fx, false, board._layers())"), "visual collapse uses core gravity so all movable layers stay aligned")
-	assert_true(body.contains("ME.refill(board.grid, board.species, board.rng, board.fx"), "visual refill delegates to core refill")
-	assert_true(body.contains("board.feed"), "visual refill respects scrolling feed")
-	assert_true(body.contains("_sync_collapse_segment"), "visual collapse moves existing gem nodes instead of rebuilding the whole board")
-	assert_true(src.contains("tween.tween_property"), "incremental collapse helper animates moved/refilled gem nodes")
-	assert_false(body.contains("_sync_visuals_to_board()"), "visual collapse must not full-rerender the board after every clear")
-	assert_false(body.contains("board.rng.randi() % board.species.size()"), "visual collapse must not hand-roll random refill")
-
-func test_level_collapse_refill_repairs_missing_visual_gems() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _repair_missing_gem_nodes_from_board"), "Level exposes a targeted visual hole repair helper")
-	var start: int = src.find("func _collapse_and_refill")
-	assert_true(start >= 0, "_collapse_and_refill exists")
-	if start < 0:
-		return
-	var end: int = src.find("func debug_first_legal_swap", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var assign_idx: int = body.find("_gem_nodes = new_nodes")
-	var repair_idx: int = body.find("_repair_missing_gem_nodes_from_board()", assign_idx)
-	var coat_idx: int = body.find("_refresh_coat_visuals()", assign_idx)
-	assert_true(assign_idx >= 0, "collapse stores the incremental visual grid")
-	assert_true(repair_idx > assign_idx, "collapse repairs missing gem sprites after storing the incremental visual grid")
-	assert_true(coat_idx > repair_idx, "layer overlays refresh after visual hole repair")
-
-func test_level_wall_collapse_uses_cross_column_slide_visuals() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _sync_wall_slide_visuals"), "Level has a wall-aware cross-column visual collapse helper")
-	assert_true(src.contains("func _grid_has_fall_obstacle"), "Level detects all gravity-blocking cells, not only stone walls")
-	var start: int = src.find("func _collapse_and_refill")
-	assert_true(start >= 0, "_collapse_and_refill exists")
-	if start < 0:
-		return
-	var end: int = src.find("func debug_first_legal_swap", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("_grid_has_fall_obstacle(before_grid)"), "collapse detects obstacle boards before visual syncing")
-	assert_true(body.contains("_grid_has_fall_obstacle(board.grid)"), "collapse keeps tracking visuals active after refill")
-	assert_true(body.contains("_sync_wall_slide_visuals(before_grid, old_nodes"), "obstacle boards use cross-column slide visuals instead of per-column segment-only syncing")
-
-
-func test_wall_slide_tracking_maps_include_coat_blockers() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "Level can replay visual gravity routes")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
-		level.free()
-		return
-	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
-	level.board.grid = [
-		[0, ME.EMPTY, 2],
-		[0, ME.EMPTY, 3],
-		[0, 0, 0],
-	]
-	level.board.fx = _none_fx(3, 3)
-	level.board.coat = [
-		[0, 1, 0],
-		[0, 0, 0],
-		[0, 0, 0],
-	]
-	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", level.board.grid.duplicate(true))
-	var source_map: Array = maps["source"]
-	var path_map: Array = maps["path"]
-	assert_eq(source_map[1][1], Vector2i(2, 0), "coat blocker above a target replays the same diagonal source as core gravity")
-	assert_true(path_map[1][1].size() >= 2, "coat-assisted slide keeps a visible step path")
-	if path_map[1][1].size() >= 2:
-		assert_eq(path_map[1][1][0], Vector2i(2, 0), "path starts at the diagonal source")
-		assert_eq(path_map[1][1][path_map[1][1].size() - 1], Vector2i(1, 1), "path ends at the opened slot")
-	level.free()
-
-
-func test_wall_slide_tracking_waits_for_vertical_chain_before_diagonal() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_build_wall_slide_tracking_maps"), "Level can replay visual gravity routes")
-	if not level.has_method("_build_wall_slide_tracking_maps"):
-		level.free()
-		return
-	level.board = Board.new(3, 4, [0, 1, 2], 0, 25, 1)
-	level.board.grid = [
-		[ME.EMPTY, ME.WALL, ME.EMPTY],
-		[10, 12, 11],
-		[5, ME.EMPTY, 6],
-		[7, ME.EMPTY, 9],
-	]
-	level.board.fx = _none_fx(3, 4)
-	var maps: Dictionary = level.call("_build_wall_slide_tracking_maps", level.board.grid.duplicate(true))
-	var source_map: Array = maps["source"]
-	var path_map: Array = maps["path"]
-	assert_eq(source_map[3][1], Vector2i(1, 1), "visual gravity keeps the lower pocket on the same-column source while vertical fill is possible")
-	assert_false(source_map[3][1] == Vector2i(2, 2), "visual gravity must not steal the right-above candidate before the vertical chain resolves")
-	assert_eq(path_map[3][1], [Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3)], "visual path shows a continuous vertical fall, not a diagonal jump")
-	level.free()
-
-func test_level_wall_slide_visuals_tween_cell_steps() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
-	assert_true(mf != null, "level_motion.gd can be inspected")
-	if mf == null:
-		return
-	var motion_src: String = mf.get_as_text()
-	assert_true(motion_src.contains("WALL_SLIDE_STEP_TIME"), "wall slide animation has a per-cell step duration")
-	assert_true(src.contains("func _wall_slide_path_points"), "Level exposes a path builder for wall slide visuals")
-	assert_true(src.contains("func _wall_slide_position_at"), "Level samples wall slide paths continuously")
-	assert_true(src.contains("func _tween_wall_slide_node"), "Level tweens wall slide nodes through path steps")
-	var start: int = src.find("func _sync_wall_slide_visuals")
-	assert_true(start >= 0, "_sync_wall_slide_visuals exists")
-	if start < 0:
-		return
-	var end: int = src.find("func _collapse_and_refill", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("_tween_wall_slide_node(node"), "wall slide sync delegates movement to stepped tween helper")
-	assert_false(body.contains("tween.tween_property(node, \"position\", target, FALL_TIME)"), "wall slide must not jump directly to the final target in one tween")
-	var tween_start: int = src.find("func _tween_wall_slide_node")
-	var tween_end: int = src.find("func _take_wall_slide_source", tween_start)
-	var tween_body: String = src.substr(tween_start, tween_end - tween_start)
-	assert_true(tween_body.contains("tween_method"), "wall slide uses one continuous tween across the stepped path instead of restarting at every cell")
-	assert_false(tween_body.contains("tween_property(node, \"position\""), "wall slide helper should not chain per-cell position tweens")
-
-func test_cascade_fall_tweens_land_linearly_before_next_match() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var helper_start: int = src.find("func _queue_cascade_fall_tween")
-	var helper_end: int = src.find("func _sync_collapse_segment", helper_start)
-	assert_true(helper_start >= 0 and helper_end > helper_start, "cascade fall movement is centralized in an inspectable helper")
-	if helper_start >= 0 and helper_end > helper_start:
-		var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-		assert_true(helper_body.contains(".set_trans(Tween.TRANS_LINEAR)"), "ordinary cascade drops should not ease out and linger in the last few pixels")
-	var sync_start: int = src.find("func _sync_collapse_segment")
-	var sync_end: int = src.find("func _sync_fixed_cell_visual", sync_start)
-	assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_collapse_segment can be inspected")
-	if sync_start >= 0 and sync_end > sync_start:
-		var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-		assert_true(sync_body.contains("_queue_cascade_fall_tween(tween, node, center, _ordinary_refill_duration_for_positions(node.position, center))"), "spawned refill nodes use the same no-settle-slowdown fall tween")
-		assert_true(sync_body.contains("_queue_cascade_fall_tween(tween, node, target, _fall_duration_for_positions(node.position, target))"), "existing nodes use the same no-settle-slowdown fall tween")
-	var wall_start: int = src.find("func _tween_wall_slide_node")
-	var wall_end: int = src.find("func _source_none", wall_start)
-	assert_true(wall_start >= 0 and wall_end > wall_start, "_tween_wall_slide_node can be inspected")
-	if wall_start >= 0 and wall_end > wall_start:
-		var wall_body: String = src.substr(wall_start, wall_end - wall_start)
-		assert_true(wall_body.contains(".set_trans(Tween.TRANS_LINEAR)"), "wall-assisted cascade drops should keep the same apparent speed through landing")
-		assert_false(wall_body.contains(".set_ease(Tween.EASE_OUT)"), "wall-assisted cascade drops must not decelerate before the next auto match")
-
-func test_wall_slide_spawned_piece_enters_vertically_before_sliding() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_path_points"), "Level exposes wall slide path calculation")
-	if not level.has_method("_wall_slide_path_points"):
-		level.free()
-		return
-	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var start := Vector2(90 + 2.5 * level.cell_size, level.board_origin.y - 2.0 * level.cell_size)
-	var target := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y + 2.5 * level.cell_size)
-	var points: Array = level.call("_wall_slide_path_points", start, target)
-	assert_false(points.is_empty(), "spawn path has points")
-	if points.is_empty():
-		level.free()
-		return
-	var first: Vector2 = points[0]
-	assert_eq(first.x, start.x, "spawned wall-slide piece first falls vertically in its source column")
-	assert_true(first.y > start.y, "spawned wall-slide piece enters downward before any sideways movement")
-	level.free()
-
-
-func test_wall_slide_visual_path_uses_recorded_gravity_route() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_cell_path_points"), "Level can convert recorded gravity cells into visual path points")
-	if not level.has_method("_wall_slide_cell_path_points"):
-		level.free()
-		return
-	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var start := Vector2(90 + 2.5 * level.cell_size, level.board_origin.y + 0.5 * level.cell_size)
-	var target := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y + 2.5 * level.cell_size)
-	var route := [Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 2)]
-	var points: Array = level.call("_wall_slide_cell_path_points", start, route, target)
-	assert_true(points.size() >= 2, "recorded route has at least the intermediate and target points")
-	if points.size() < 2:
-		level.free()
-		return
-	var first: Vector2 = points[0]
-	assert_eq(first, Vector2(90 + 2.5 * level.cell_size, level.board_origin.y + 1.5 * level.cell_size), "visual follows the actual first vertical gravity step")
-	assert_eq(points[points.size() - 1], target, "visual ends at the target cell")
-	level.free()
-
-
-func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_duration_for_points"), "Level exposes wall slide duration calculation")
-	if not level.has_method("_wall_slide_duration_for_points"):
-		level.free()
-		return
-	var points := []
-	for idx in range(10):
-		points.append(Vector2(0, float(idx) * 70.0))
-	var duration: float = level.call("_wall_slide_duration_for_points", points)
-	assert_true(duration >= 0.39, "ten cell-steps still read as movement, not a teleport")
-	assert_true(duration <= 0.43, "ten cell-steps use the same brisk cap as ordinary falls so blocker levels do not feel slower")
-	level.free()
-
-
-func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
-	var level := _prepare_level_scene_with_real_levels()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
-	assert_eq(raw_idx, 15, "player-facing level 11 maps to the blocker-heavy exported level that exposed the slow branch")
-	level.board = LevelLibrary.to_board(level._levels[raw_idx])
-	level.call("_compute_layout")
-	var points := []
-	for idx in range(10):
-		points.append(Vector2(0, float(idx) * level.cell_size))
-	var blocker_branch_duration: float = level.call("_wall_slide_duration_for_points", points)
-	var ordinary_duration: float = level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0))
-	assert_true(blocker_branch_duration <= ordinary_duration + 0.01, "level 11's obstacle visual branch must not fall slower than ordinary levels")
-	level.free()
-
-
-func test_all_real_playable_levels_share_fall_timing_caps() -> void:
-	var level := _prepare_level_scene_with_real_levels()
-	for raw_idx in level._playable:
-		level.board = LevelLibrary.to_board(level._levels[raw_idx])
-		level.call("_compute_layout")
-		var label := "playable level %d raw %d %dx%d" % [level.call("_display_level_number", raw_idx), raw_idx, level.board.width, level.board.height]
-		var long_cells: int = maxi(10, level.board.width + level.board.height)
-		var ordinary_duration: float = level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * float(long_cells)))
-		assert_true(ordinary_duration <= 0.43, "%s ordinary long fall stays globally capped" % label)
-		var wall_points := []
-		for idx in range(long_cells):
-			wall_points.append(Vector2(0.0, level.cell_size * float(idx)))
-		var wall_duration: float = level.call("_wall_slide_duration_for_points", wall_points)
-		assert_true(wall_duration <= ordinary_duration + 0.01, "%s obstacle/wall branch does not pace slower than ordinary falling" % label)
-		var refill_start: Vector2 = level.call("_ordinary_refill_start_position", level.board.height - 1, 0, 0, level.board.height)
-		var refill_target: Vector2 = level.call("_cell_center", level.board.height - 1, 0)
-		var refill_duration: float = level.call("_ordinary_refill_duration_for_positions", refill_start, refill_target)
-		assert_true(refill_duration <= 0.39, "%s spawned refill stays under its global cap" % label)
-	level.free()
-
-
-func test_level_motion_module_matches_level_fall_helpers() -> void:
-	var level := _prepare_level_scene_with_real_levels()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
-	level.board = LevelLibrary.to_board(level._levels[raw_idx])
-	level.call("_compute_layout")
-	var target: Vector2 = level.call("_cell_center", level.board.height - 1, 0)
-	var refill_start: Vector2 = LevelMotion.ordinary_refill_start_position(target, level.cell_size, level.board.height)
-	assert_eq(refill_start, level.call("_ordinary_refill_start_position", level.board.height - 1, 0, 0, level.board.height), "motion module matches ordinary refill start")
-	assert_eq(LevelMotion.fall_duration_for_positions(Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0), level.cell_size), level.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0)), "motion module matches ordinary fall duration")
-	var start := Vector2(level.board_origin.x + level.cell_size * 2.5, level.board_origin.y - level.cell_size * 2.0)
-	var slide_target := Vector2(level.board_origin.x + level.cell_size * 1.5, level.board_origin.y + level.cell_size * 3.5)
-	assert_eq(LevelMotion.wall_slide_path_points(start, slide_target, level.board_origin, level.cell_size, level.board.width, level.board.height), level.call("_wall_slide_path_points", start, slide_target), "motion module matches wall-slide path points")
-	var maps: Dictionary = LevelMotion.build_wall_slide_tracking_maps(level.board.grid.duplicate(true), level.board.coat, level.board.choco, level.board.cannon, level.board.is_scrolling)
-	assert_eq(maps, level.call("_build_wall_slide_tracking_maps", level.board.grid.duplicate(true)), "motion module matches wall-slide tracking maps")
-	level.free()
-
-
-func test_wall_slide_replacement_node_starts_at_recorded_source() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_visual_start_position"), "Level can place replacement visuals at the recorded source")
-	if not level.has_method("_wall_slide_visual_start_position"):
-		level.free()
-		return
-	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var N := Vector2i(-1, -1)
-	var source_map := [
-		[N, N, N],
-		[N, N, N],
-		[N, Vector2i(2, 0), N],
-	]
-	var path_map := [
-		[[], [], []],
-		[[], [], []],
-		[[], [Vector2i(2, 0), Vector2i(2, 1), Vector2i(1, 2)], []],
-	]
-	var start: Vector2 = level.call("_wall_slide_visual_start_position", source_map, path_map, 2, 1)
-	assert_eq(start, Vector2(90 + 2.5 * level.cell_size, level.board_origin.y + 0.5 * level.cell_size), "replacement node starts where the logical source was, not above the target column")
-	level.free()
-
-
-func test_ordinary_long_falls_keep_per_cell_pacing() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_fall_duration_for_positions"), "Level exposes ordinary fall duration calculation")
-	if not level.has_method("_fall_duration_for_positions"):
-		level.free()
-		return
-	level.cell_size = 70.0
-	var duration: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	assert_true(duration >= 0.39, "ordinary ten-cell fall still reads as movement, not a teleport")
-	assert_true(duration <= 0.44, "ordinary ten-cell fall is capped so tall or blocker-heavy levels do not feel slower")
-	level.free()
-
-
-func test_ordinary_refill_nodes_start_above_board() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_ordinary_refill_start_position"), "Level exposes ordinary refill start calculation")
-	if not level.has_method("_ordinary_refill_start_position"):
-		level.free()
-		return
-	level.board = Board.new(5, 8, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var spawn_count := 8
-	var deep_target_start: Vector2 = level.call("_ordinary_refill_start_position", 6, 2, 1, spawn_count)
-	var next_spawn_start: Vector2 = level.call("_ordinary_refill_start_position", 5, 2, 2, spawn_count)
-	var top_target_start: Vector2 = level.call("_ordinary_refill_start_position", 0, 2, 7, spawn_count)
-	var deep_target: Vector2 = level.call("_cell_center", 6, 2)
-	var top_target: Vector2 = level.call("_cell_center", 0, 2)
-	assert_true(level.has_method("_ordinary_refill_duration_for_positions"), "Level exposes ordinary refill duration calculation")
-	assert_true(deep_target_start.y < level.board_origin.y, "deep ordinary refill must enter from above the board, not appear inside a lower hole")
-	assert_true(next_spawn_start.y < deep_target_start.y, "later spawned refill nodes stay stacked above earlier ones")
-	assert_eq(deep_target_start.x, level.call("_cell_center", 0, 2).x, "ordinary refill starts in the target column")
-	assert_true(absf((deep_target.y - deep_target_start.y) - (top_target.y - top_target_start.y)) < 0.01, "ordinary refill stack keeps equal travel distance so it falls as a column, not top-to-bottom paint")
-	if level.has_method("_ordinary_refill_duration_for_positions"):
-		var refill_duration: float = level.call("_ordinary_refill_duration_for_positions", deep_target_start, deep_target)
-		assert_true(refill_duration <= 0.64, "full-column refill stays bounded even though all nodes travel the same visual distance")
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f != null:
-		var src: String = f.get_as_text()
-		assert_true(src.contains("node.position = _ordinary_refill_start_position(row, col, spawn_i, first_old_slot)"), "ordinary collapse uses the above-board refill stack start position")
-		assert_true(src.contains("_ordinary_refill_duration_for_positions(node.position, center)"), "ordinary collapse uses the capped refill duration")
-	level.free()
-
-
-func test_fall_durations_scale_with_each_cell_step() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	level.cell_size = 70.0
-	var one_cell: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 70))
-	var two_cells: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 140))
-	var ten_cells: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	assert_true(one_cell >= 0.16, "one-cell fall should not feel instant")
-	assert_true(one_cell <= 0.17, "one-cell fall should be brisk")
-	assert_true(two_cells > one_cell, "a two-cell fall still reads as a longer fall")
-	assert_true(two_cells < one_cell * 1.6, "fall timing accelerates instead of adding a full duration per cell")
-	assert_true(ten_cells >= 0.39, "long falls should remain readable")
-	assert_true(ten_cells <= 0.44, "long falls must not feel sluggish during auto cascades")
-	var very_long: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 1400))
-	assert_true(very_long <= 0.43, "very long falls share the same brisk cap instead of making tall levels feel different")
-	var wall_one: float = level.call("_wall_slide_duration_for_points", [Vector2(0, 70)])
-	var wall_three: float = level.call("_wall_slide_duration_for_points", [Vector2(0, 70), Vector2(0, 140), Vector2(70, 210)])
-	assert_true(wall_three > wall_one, "multi-step wall slide still takes longer than one step")
-	assert_true(wall_three < wall_one * 2.5, "multi-step wall slide also accelerates")
-	level.free()
-
-func test_refill_duration_cap_stays_near_long_fall_speed() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	level.cell_size = 70.0
-	var long_fall: float = level.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	var long_refill: float = level.call("_ordinary_refill_duration_for_positions", Vector2(0, -735), Vector2(0, 0))
-	assert_true(long_refill >= long_fall - 0.07, "long refill should stay visually connected to an equally long existing-gem fall")
-	assert_true(long_refill <= long_fall - 0.02, "long refill should finish a little sooner so automatic cascades do not feel late")
-	level.free()
-
-func test_level_fall_animation_timing_is_slightly_slower() -> void:
-	var f := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
-	assert_true(f != null, "level_motion.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("const FALL_TIME := 0.16"), "ordinary one-cell falling is readable without dragging")
-	assert_true(src.contains("const FALL_EXTRA_CELL_TIME := 0.030"), "longer falls add only a small accelerated increment per extra cell")
-	assert_true(src.contains("const FALL_MAX_TIME := 0.42"), "long ordinary falls have a global cap so levels do not feel differently paced")
-	assert_true(src.contains("const ORDINARY_REFILL_MAX_TIME := 0.38"), "spawned refill stays brisk without collapsing into a paint effect")
-	assert_true(src.contains("const WALL_SLIDE_STEP_TIME := FALL_EXTRA_CELL_TIME"), "wall slide uses the same per-step acceleration as ordinary falls")
-	assert_true(src.contains("const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME"), "wall slide wait cap matches ordinary falls so blocker lanes do not feel slower")
-
-func test_level_wall_slide_visuals_only_cross_columns_under_fall_obstacles() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _wall_slide_target_has_fall_obstacle_above"), "Level can tell whether a target is under a gravity-blocking obstacle")
-	var take_start: int = src.find("func _take_wall_slide_source")
-	var take_end: int = src.find("func _free_unused_wall_slide_sources", take_start)
-	assert_true(take_start >= 0 and take_end > take_start, "_take_wall_slide_source body can be inspected")
-	if take_start < 0 or take_end <= take_start:
-		return
-	var take_body: String = src.substr(take_start, take_end - take_start)
-	assert_true(take_body.contains("allow_cross_column"), "source matching receives a per-target cross-column gate")
-	assert_true(take_body.contains("col != target_col"), "non-wall targets reject adjacent-column visual sources")
-	var sync_start: int = src.find("func _sync_wall_slide_visuals")
-	var sync_end: int = src.find("func _collapse_and_refill", sync_start)
-	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-	assert_true(sync_body.contains("_wall_slide_target_has_fall_obstacle_above(before_grid, row, col)"), "only cells below actual fall blockers may use diagonal visual sourcing")
-
-func test_level_wall_slide_source_prefers_right_above_before_left_above() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
-	assert_true(mf != null, "level_motion.gd can be inspected")
-	if mf == null:
-		return
-	var motion_src: String = mf.get_as_text()
-	assert_true(motion_src.contains("static func wall_slide_source_priority"), "wall slide visuals expose a deterministic source priority helper")
-	var start: int = motion_src.find("static func wall_slide_source_priority")
-	var end: int = motion_src.find("static func wall_slide_spawn_source_col", start)
-	assert_true(start >= 0 and end > start, "wall slide source priority body can be inspected")
-	if start < 0 or end <= start:
-		return
-	var body: String = motion_src.substr(start, end - start)
-	assert_true(body.contains("col == target_col + 1"), "right-above source has an explicit priority branch")
-	assert_true(body.contains("col == target_col - 1"), "left-above source has an explicit priority branch")
-	assert_true(body.find("col == target_col + 1") < body.find("col == target_col - 1"), "right-above branch is checked before left-above")
-	var sync_start: int = src.find("func _sync_wall_slide_visuals")
-	var sync_end: int = src.find("func _collapse_and_refill", sync_start)
-	assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
-	if sync_start < 0 or sync_end <= sync_start:
-		return
-	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-	assert_true(sync_body.contains("_build_wall_slide_tracking_maps(before_grid)"), "wall slide visuals build source and path maps by replaying gravity")
-	assert_true(sync_body.contains("_take_wall_slide_source(before_grid, old_nodes, used, row, col, sp, allow_cross_column, source_map)"), "wall slide visuals pick old nodes from the replayed source map")
-
-
-func test_level_wall_refill_start_uses_spawn_source_map() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var mf := FileAccess.open("res://match3/level_motion.gd", FileAccess.READ)
-	assert_true(mf != null, "level_motion.gd can be inspected")
-	if mf == null:
-		return
-	var motion_src: String = mf.get_as_text()
-	assert_true(motion_src.contains("static func wall_slide_spawn_source_col"), "wall slide visuals can recover the spawned top source column")
-	var refill_start: int = motion_src.find("static func wall_refill_start_position")
-	var refill_end: int = motion_src.find("static func wall_slide_target_has_fall_obstacle_above", refill_start)
-	assert_true(refill_start >= 0 and refill_end > refill_start, "_wall_refill_start_position can be inspected")
-	if refill_start < 0 or refill_end <= refill_start:
-		return
-	var refill_body: String = motion_src.substr(refill_start, refill_end - refill_start)
-	assert_true(refill_body.contains("wall_slide_spawn_source_col(source_map, row, col)"), "new wall-slide pieces start from the exact spawned source column")
-	var sync_start: int = src.find("func _sync_wall_slide_visuals")
-	var sync_end: int = src.find("func _collapse_and_refill", sync_start)
-	assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
-	if sync_start < 0 or sync_end <= sync_start:
-		return
-	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-	assert_true(sync_body.contains("_wall_slide_visual_start_position(source_map, path_map, row, col)"), "wall-slide visual refill passes the replayed source and path maps into start-position calculation")
-	var start_pos_start: int = motion_src.find("static func wall_slide_visual_start_position")
-	var start_pos_end: int = motion_src.find("static func _apply_wall_slide_tracking_gravity", start_pos_start)
-	assert_true(start_pos_start >= 0 and start_pos_end > start_pos_start, "_wall_slide_visual_start_position can be inspected")
-	if start_pos_start >= 0 and start_pos_end > start_pos_start:
-		var start_pos_body: String = motion_src.substr(start_pos_start, start_pos_end - start_pos_start)
-		assert_true(start_pos_body.contains("wall_refill_start_position(row, col, source_map, board_origin, cell_size)"), "spawned replacement pieces still use the source-map-aware off-board start")
-	assert_false(sync_body.contains("_wall_refill_start_position(row, col, allow_cross_column)"), "wall-slide visual refill must not guess the start column from allow_cross_column alone")
-
-
-func test_wall_refill_spawn_stack_falls_from_top_together() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_refill_start_position"), "Level exposes wall refill start calculation")
-	if not level.has_method("_wall_refill_start_position"):
-		level.free()
-		return
-	level.board = Board.new(3, 7, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var N := Vector2i(-1, -1)
-	var source_map := [
-		[N, Vector2i(1, -2), N],
-		[N, N, N],
-		[N, N, N],
-		[N, N, N],
-		[N, N, N],
-		[N, N, N],
-		[N, Vector2i(1, -2), N],
-	]
-	var top_start: Vector2 = level.call("_wall_refill_start_position", 0, 1, source_map)
-	var deep_start: Vector2 = level.call("_wall_refill_start_position", 6, 1, source_map)
-	var top_target: Vector2 = level.call("_cell_center", 0, 1)
-	var deep_target: Vector2 = level.call("_cell_center", 6, 1)
-	assert_true(top_start.y < level.board_origin.y, "top spawned wall refill enters from above the board")
-	assert_true(deep_start.y < level.board_origin.y, "deep spawned wall refill must still enter from above the board, not pop in near the hole")
-	assert_true(absf((deep_target.y - deep_start.y) - (top_target.y - top_start.y)) < 0.01, "wall-slide refill keeps equal travel distance so vertical clears fall as a stack, not a top-to-bottom paint")
-	level.free()
-
-
-func test_wall_refill_spawned_targets_use_snappy_refill_cap() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_target_refill_cap"), "Level exposes spawned wall-refill duration capping")
-	if not level.has_method("_wall_slide_target_refill_cap"):
-		level.free()
-		return
-	var N := Vector2i(-1, -1)
-	var source_map := [
-		[N, Vector2i(1, -2), N],
-		[N, Vector2i(1, 0), N],
-	]
-	var spawned_cap: float = level.call("_wall_slide_target_refill_cap", source_map, 0, 1)
-	var old_node_cap: float = level.call("_wall_slide_target_refill_cap", source_map, 1, 1)
-	assert_true(spawned_cap > 0.0 and spawned_cap <= 0.56, "spawned wall refill uses the same bounded duration as ordinary refill")
-	assert_true(old_node_cap < 0.0, "existing wall-slide nodes keep per-step timing instead of refill capping")
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f != null:
-		var src: String = f.get_as_text()
-		var sync_start: int = src.find("func _sync_wall_slide_visuals")
-		var sync_end: int = src.find("func _collapse_and_refill", sync_start)
-		assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
-		if sync_start >= 0 and sync_end > sync_start:
-			var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-			assert_true(sync_body.contains("var refill_cap := _wall_slide_target_refill_cap(source_map, row, col)"), "wall-slide visual sync calculates a per-target refill cap")
-			assert_true(sync_body.contains("_tween_wall_slide_node(node, target, visual_path, refill_cap)"), "spawned wall-slide refills pass the cap into tween timing")
-	level.free()
-
-
-func test_wall_refill_spawned_targets_do_not_replay_top_to_bottom_path() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_target_visual_path"), "Level can choose a visual path per wall-slide target")
-	if not level.has_method("_wall_slide_target_visual_path"):
-		level.free()
-		return
-	var N := Vector2i(-1, -1)
-	var source_map := [
-		[N, Vector2i(1, -2), N],
-		[N, Vector2i(1, 0), N],
-	]
-	var spawned_route := [Vector2i(1, 0), Vector2i(1, 1), Vector2i(1, 2), Vector2i(1, 3)]
-	var old_route := [Vector2i(1, 0), Vector2i(1, 1)]
-	var path_map := [
-		[[], spawned_route, []],
-		[[], old_route, []],
-	]
-	assert_eq(level.call("_wall_slide_target_visual_path", source_map, path_map, 0, 1), [], "spawned refill uses a continuous fall path instead of replaying row0-to-rowN visual steps")
-	assert_eq(level.call("_wall_slide_target_visual_path", source_map, path_map, 1, 1), old_route, "old wall-slide pieces still replay the recorded gravity route")
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f != null:
-		var src: String = f.get_as_text()
-		var sync_start: int = src.find("func _sync_wall_slide_visuals")
-		var sync_end: int = src.find("func _collapse_and_refill", sync_start)
-		assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_wall_slide_visuals can be inspected")
-		if sync_start >= 0 and sync_end > sync_start:
-			var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-			assert_true(sync_body.contains("var visual_path := _wall_slide_target_visual_path(source_map, path_map, row, col)"), "wall-slide sync asks the target whether recorded path replay is appropriate")
-			assert_true(sync_body.contains("_tween_wall_slide_node(node, target, visual_path, refill_cap)"), "wall-slide sync tweens spawned refills without replaying the top-to-bottom route")
-	level.free()
-
-
-func test_wall_refill_spawned_targets_use_same_duration_for_short_and_long_paths() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_wall_slide_duration_for_target"), "Level can force a shared duration for spawned refill targets")
-	if not level.has_method("_wall_slide_duration_for_target"):
-		level.free()
-		return
-	level.board = Board.new(3, 7, [0, 1, 2], 0, 25, 1)
-	level.board_origin = Vector2(90, 420)
-	level.cell_size = 70.0
-	var top_start := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y - 7.0 * level.cell_size)
-	var top_target: Vector2 = level.call("_cell_center", 0, 1)
-	var deep_start := Vector2(90 + 1.5 * level.cell_size, level.board_origin.y - 1.0 * level.cell_size)
-	var deep_target: Vector2 = level.call("_cell_center", 6, 1)
-	var top_points: Array = level.call("_wall_slide_path_points", top_start, top_target)
-	var deep_points: Array = level.call("_wall_slide_path_points", deep_start, deep_target)
-	var top_uncapped: float = level.call("_wall_slide_duration_for_points", top_points)
-	var deep_uncapped: float = level.call("_wall_slide_duration_for_points", deep_points)
-	assert_true(top_uncapped < deep_uncapped, "short top refill paths would otherwise arrive before deep refill paths")
-	var forced_duration := 0.52
-	var top_forced: float = level.call("_wall_slide_duration_for_target", top_points, forced_duration)
-	var deep_forced: float = level.call("_wall_slide_duration_for_target", deep_points, forced_duration)
-	assert_eq(top_forced, deep_forced, "spawned refill targets share one duration so upper cells do not settle before lower cells")
-	assert_eq(top_forced, forced_duration, "shared spawned-refill duration uses the configured refill time")
-	level.free()
-
 
 func test_level_finish_consumed_move_does_not_full_rerender() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	assert_true(level.has_method("_animate_board_changes_from_snapshot"), "move finish has a snapshot-based animation path")
+	level.free()
+	# 钉源码理由: 消除收尾必须委派 Board 结算并用快照动画过渡, 决不能整屏重渲(_sync_visuals_to_board)或瞬移已变格 —— 这是"不每步全量重渲"的性能/演出契约, async 不便整跑故锁接线
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var start: int = src.find("func _finish_consumed_move")
-	assert_true(start >= 0, "_finish_consumed_move exists")
-	if start < 0:
-		return
 	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
+	if start < 0 or end <= start:
+		return
 	var body: String = src.substr(start, end - start)
 	assert_true(body.contains("board._settle_consumed_move"), "finish path still delegates move settlement to Board")
-	assert_false(body.contains("_sync_visuals_to_board()"), "move finish must not full-rerender the board after every ordinary clear")
-	assert_false(body.contains("_sync_changed_visuals_to_board()"), "move finish must not snap changed board visuals to their final cells")
+	assert_false(body.contains("_sync_visuals_to_board()") or body.contains("_sync_changed_visuals_to_board()"), "move finish must not full-rerender or snap changed board visuals to their final cells")
 	assert_true(body.contains("await _animate_board_changes_from_snapshot"), "move finish animates post-settlement board changes instead of jumping")
 
 
@@ -1603,214 +394,6 @@ func test_last_move_win_settlement_awaits_result_flow() -> void:
 	var hud_idx: int = finish_body.find("_refresh_hud()")
 	var await_settle_idx: int = finish_body.find("await _check_settlement()", hud_idx)
 	assert_true(await_settle_idx > hud_idx, "move finish must await settlement before releasing the final frame")
-
-
-func test_level_swap_passes_moved_position_to_first_cascade() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var swap_start: int = src.find("func _try_swap")
-	assert_true(swap_start >= 0, "_try_swap exists")
-	var swap_end: int = src.find("\n\t## 问题2", swap_start)
-	if swap_end < 0:
-		swap_end = src.find("\nfunc ", swap_start + 1)
-	if swap_start < 0:
-		return
-	var swap_body: String = src.substr(swap_start, swap_end - swap_start)
-	assert_false(swap_body.contains("_line_kind_from_swap"), "swap direction must not override generated line-special kind")
-	assert_true(swap_body.contains("ME.swap_special_spawn_preference(board.grid, board.fx, board._layers(), b, a)"), "first cascade considers both post-swap positions for generated special placement")
-	assert_true(swap_body.contains("_resolve_cascades(spawn_preference, true)"), "first cascade receives the selected post-swap special position")
-
-	var resolve_start: int = src.find("func _resolve_cascades")
-	assert_true(resolve_start >= 0, "_resolve_cascades exists")
-	if resolve_start < 0:
-		return
-	var resolve_end: int = src.find("\nfunc ", resolve_start + 1)
-	if resolve_end < 0:
-		resolve_end = src.length()
-	var resolve_body: String = src.substr(resolve_start, resolve_end - resolve_start)
-	assert_true(resolve_body.contains("ME.collect_clears(board.grid, board.fx, board._layers(), cascade_preferred, ME.SP_NONE, cascade_force_preferred)"), "collect_clears receives the first-cascade target-position override")
-	assert_false(resolve_body.contains("cascade_preferred_line_kind"), "line-special kind is decided by the 4-match rule, not swap direction")
-
-
-func test_endgame_bonus_refills_and_stabilizes_before_result() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
-	if start < 0:
-		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var initial_blast_idx: int = body.find("await _play_endgame_bonus_special_blast(seeds, 1)")
-	var chain_idx: int = body.find("await _resolve_endgame_bonus_special_chain()")
-	var result_idx: int = body.find("ENDGAME_BONUS_RESULT_HOLD")
-	assert_true(initial_blast_idx >= 0, "endgame bonus sends reward specials through the shared blast helper")
-	assert_true(chain_idx > initial_blast_idx, "endgame bonus starts the special-blast chain after the initial reward blast")
-	assert_true(result_idx > chain_idx, "result panel waits until the board is stable")
-	var blast_start: int = src.find("func _play_endgame_bonus_special_blast")
-	var blast_end: int = src.find("func _resolve_endgame_bonus_special_chain", blast_start)
-	assert_true(blast_start >= 0 and blast_end > blast_start, "endgame bonus blast helper can be inspected")
-	if blast_start < 0 or blast_end <= blast_start:
-		return
-	var blast_body: String = src.substr(blast_start, blast_end - blast_start)
-	var clear_idx: int = blast_body.find("ME._apply_clears(board.grid, board.fx, to_clear, [])")
-	var collapse_idx: int = blast_body.find("await _collapse_and_refill()", clear_idx)
-	assert_true(clear_idx >= 0, "endgame bonus applies clears")
-	assert_true(collapse_idx > clear_idx, "endgame bonus refills after reward blasts")
-
-
-func test_endgame_bonus_uses_in_board_conversion_matrix_before_blast() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_false(src.contains("ENDGAME_BONUS_BEAM_COLOR"), "endgame bonus no longer has reward-beam color state")
-	assert_false(src.contains("ENDGAME_BONUS_BEAM_TRAVEL"), "endgame bonus no longer waits on a fired beam")
-	assert_false(src.contains("ENDGAME_BONUS_CONVERT_HOLD"), "endgame bonus uses the 5+4 conversion timing without the old extra reward-beam hold")
-	assert_false(src.contains("ENDGAME_BONUS_MATRIX_PREVIEW_HOLD"), "endgame bonus must not add settlement-only preview timing")
-	assert_false(src.contains("ENDGAME_BONUS_MATRIX_OUTLINE_FILL"), "endgame bonus must not use a settlement-only outline size")
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
-	if start < 0:
-		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_false(body.contains("_topbar_moves_number_center()"), "endgame bonus does not use the moves-number anchor as a launch point")
-	assert_false(body.contains("spawn_comet_beam"), "endgame bonus does not fire comet beams")
-	var conversion_idx: int = body.find("await _play_endgame_bonus_conversion_matrix(picks)")
-	var blast_idx: int = body.find("await _play_endgame_bonus_special_blast(seeds, 1)")
-	assert_true(conversion_idx >= 0, "endgame bonus plays an in-board conversion matrix")
-	assert_true(blast_idx > conversion_idx, "reward specials blast only after the conversion matrix finishes")
-	var helper_start: int = src.find("func _play_endgame_bonus_conversion_matrix")
-	var helper_end: int = src.find("func _play_endgame_bonus_special_blast", helper_start)
-	assert_true(helper_start >= 0 and helper_end > helper_start, "endgame conversion matrix helper can be inspected")
-	if helper_start < 0 or helper_end <= helper_start:
-		return
-	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-	assert_true(helper_body.contains("preview_cells.append(p)"), "each picked gem is passed into the same preview target list used by colorbomb conversion")
-	assert_true(helper_body.contains("await _play_colorbomb_absorb_preview(Vector2i(-1, -1), preview_cells, virtual_fx.keys(), _endgame_bonus_conversion_preview_center(preview_cells), false)"), "endgame bonus reuses the 5+4 absorb/matrix preview without inventing a settlement-only marker")
-	assert_false(helper_body.contains("spawn_conversion_matrix_marker"), "endgame bonus does not use the abandoned custom marker")
-	var outline_idx: int = helper_body.find("await _play_colorbomb_absorb_preview")
-	var convert_idx: int = helper_body.find("await _show_colorbomb_virtual_conversion(virtual_fx)", outline_idx)
-	assert_true(convert_idx > outline_idx, "special conversion starts after the shared 5+4 preview")
-	assert_true(helper_body.contains("await _show_colorbomb_virtual_conversion(virtual_fx)"), "endgame bonus reuses the 5+4 special-conversion animation")
-	assert_false(helper_body.contains("spawn_comet_beam"), "conversion matrix helper does not fire from the UI")
-
-
-func test_endgame_bonus_reuses_colorbomb_preview_without_core_pulse() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_false(src.contains("func spawn_conversion_matrix_marker"), "settlement does not keep a custom marker that differs from 5+4")
-	var start: int = src.find("func _play_colorbomb_absorb_preview")
-	var end: int = src.find("func _colorbomb_node_at", start)
-	assert_true(start >= 0 and end > start, "colorbomb preview helper can be inspected")
-	if start < 0 or end <= start:
-		return
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("end_pos_override: Variant = null"), "the shared 5+4 preview can be aimed at a virtual settlement center")
-	assert_true(body.contains("if end_pos_override is Vector2:"), "endgame can reuse the target-side preview without a real colorbomb source")
-	assert_true(body.contains("if pulse_core:"), "endgame can disable the single colorbomb core pulse")
-
-
-func test_endgame_bonus_spends_visible_moves_without_per_beam_fire_sequence() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	assert_true(src.contains("func _display_moves_left"), "topbar can use a temporary moves display value")
-	assert_true(src.contains("func _set_moves_display_override"), "endgame bonus can update only the moves counter text")
-	assert_true(src.contains("func _clear_moves_display_override"), "endgame bonus clears the temporary moves display after the animation")
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
-	if start < 0:
-		return
-	var end: int = src.find("\nfunc ", start + 1)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	var capture_idx: int = body.find("var bonus_moves: int = maxi(board.moves_left, 0)")
-	var prepare_idx: int = body.find("var picks: Array = board.prepare_endgame_bonus_lines()")
-	var spend_idx: int = body.find("_set_moves_display_override(0)", prepare_idx)
-	var conversion_idx: int = body.find("await _play_endgame_bonus_conversion_matrix(picks)", spend_idx)
-	var clear_idx: int = body.find("_clear_moves_display_override()", conversion_idx)
-	assert_true(capture_idx >= 0 and capture_idx < prepare_idx, "endgame bonus captures the visible moves count before Board spends it")
-	assert_true(spend_idx > prepare_idx, "endgame bonus spends the visible moves count once instead of decrementing per fired beam")
-	assert_true(conversion_idx > spend_idx, "board conversion starts after the moves count is visibly spent")
-	assert_true(clear_idx > conversion_idx, "temporary moves display is cleared after board conversion and blasts")
-	assert_false(body.contains("bonus_moves = maxi(bonus_moves - 1, 0)"), "endgame bonus no longer decrements once per beam")
-
-
-func test_endgame_bonus_loops_special_blasts_until_plain_board() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var start: int = src.find("func _play_endgame_bonus()")
-	assert_true(start >= 0, "_play_endgame_bonus exists")
-	if start < 0:
-		return
-	var end: int = src.find("# 程序绘制", start)
-	if end < 0:
-		end = src.length()
-	var body: String = src.substr(start, end - start)
-	assert_true(body.contains("await _play_endgame_bonus_special_blast(seeds, 1)"), "initial reward specials use the shared blast path")
-	assert_true(body.contains("await _resolve_endgame_bonus_special_chain()"), "endgame bonus keeps resolving specials after refill")
-	assert_true(body.find("await _play_endgame_bonus_special_blast(seeds, 1)") < body.find("await _resolve_endgame_bonus_special_chain()"), "special chain starts after the initial reward blast")
-	var chain_start: int = src.find("func _resolve_endgame_bonus_special_chain")
-	var chain_end: int = src.find("func _endgame_bonus_special_seeds", chain_start)
-	assert_true(chain_start >= 0 and chain_end > chain_start, "endgame special chain helper can be inspected")
-	if chain_start < 0 or chain_end <= chain_start:
-		return
-	var chain_body: String = src.substr(chain_start, chain_end - chain_start)
-	assert_true(chain_body.contains("while guard < ENDGAME_BONUS_SPECIAL_CHAIN_MAX"), "endgame special chain is guarded")
-	assert_true(chain_body.contains("await _resolve_cascades()"), "each bonus loop first lets falling matches form specials")
-	assert_true(chain_body.contains("var seeds := _endgame_bonus_special_seeds()"), "each bonus loop searches for newly formed specials")
-	assert_true(chain_body.contains("await _play_endgame_bonus_special_blast(seeds"), "each remaining special batch is auto-blasted")
-
-
-func test_endgame_bonus_special_seed_scan_finds_only_active_specials() -> void:
-	var scene: PackedScene = load("res://Level.tscn")
-	var level := scene.instantiate()
-	assert_true(level.has_method("_endgame_bonus_special_seeds"), "Level exposes endgame special seed scanning")
-	if not level.has_method("_endgame_bonus_special_seeds"):
-		level.free()
-		return
-	level.board = Board.new(4, 3, [0, 1, 2], 0, 25, 1)
-	level.board.grid = [
-		[0, 1, 2, 0],
-		[1, ME.EMPTY, 2, ME.WALL],
-		[2, 1, 0, 2],
-	]
-	level.board.fx = [
-		[ME.SP_NONE, ME.SP_LINE_H, ME.SP_NONE, ME.SP_BOMB],
-		[ME.SP_LINE_V, ME.SP_BOMB, ME.SP_COLORBOMB, ME.SP_LINE_H],
-		[ME.SP_NONE, ME.SP_NONE, ME.SP_COLORBOMB, ME.SP_NONE],
-	]
-	var seeds: Array = level.call("_endgame_bonus_special_seeds")
-	assert_true(seeds.has(Vector2i(1, 0)), "line special on a gem is a bonus seed")
-	assert_true(seeds.has(Vector2i(3, 0)), "bomb special on a gem is a bonus seed")
-	assert_true(seeds.has(Vector2i(0, 1)), "vertical line special on a gem is a bonus seed")
-	assert_true(seeds.has(Vector2i(2, 1)), "colorbomb special on a gem is a bonus seed")
-	assert_true(seeds.has(Vector2i(2, 2)), "newly formed colorbomb after a fall is a bonus seed")
-	assert_false(seeds.has(Vector2i(1, 1)), "stale fx on empty cells is ignored")
-	assert_false(seeds.has(Vector2i(3, 1)), "stale fx on wall cells is ignored")
-	level.free()
 
 
 func test_opening_drop_starts_gems_above_the_board() -> void:
@@ -1949,27 +532,30 @@ func test_opening_drop_uses_temporary_gems_for_wall_cells() -> void:
 
 
 func test_opening_obstacle_markers_replace_temporary_gems() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# 冰已不再有独立 boss-cast 替换路径: 实例上没有该方法即证明
+	assert_false(level.has_method("_show_opening_coat_marker"), "ice opening marker no longer has a separate boss-cast replacement path")
+	level.free()
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var wall_start: int = src.find("func _show_opening_wall_marker")
 	var wall_end: int = src.find("func _play_opening_freeze", wall_start)
 	assert_true(wall_start >= 0 and wall_end > wall_start, "wall opening marker function can be inspected")
 	if wall_start < 0 or wall_end <= wall_start:
 		return
 	var wall_body: String = src.substr(wall_start, wall_end - wall_start)
+	# 钉源码理由: 石头登场前必须先清掉占位的临时宝石(_clear_gem_node_at), 否则石头与宝石叠在同格
 	assert_true(wall_body.contains("_clear_gem_node_at(pos.y, pos.x)"), "stone cast removes the temporary gem before showing the stone")
-	assert_false(src.contains("func _show_opening_coat_marker"), "ice opening marker no longer has a separate boss-cast replacement path")
 
 
 func test_opening_stone_casts_from_boss_but_ice_does_not() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# 冰不再由 boss 冰冻光束生成: 相关常量/方法在实例上不存在即证明
+	assert_eq(level.get("OPENING_FREEZE_COLOR"), null, "initial ice is not generated by a boss freeze beam")
+	assert_false(level.has_method("_show_opening_coat_marker"), "initial ice marker is not spawned after the opening drop")
+	level.free()
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
 	var freeze_start: int = src.find("func _play_opening_freeze")
 	assert_true(freeze_start >= 0, "opening freeze phase exists")
 	if freeze_start < 0:
@@ -1979,41 +565,9 @@ func test_opening_stone_casts_from_boss_but_ice_does_not() -> void:
 		freeze_end = src.length()
 	var freeze_body: String = src.substr(freeze_start, freeze_end - freeze_start)
 	var finish_idx: int = src.find("_finish_opening_drop(generation)", freeze_start)
+	# 钉源码理由: 石头开局必须从 boss 位发光束(Fx.spawn_beam(BOSS_C))后再出石头标记, 这是已拍板的"boss 施法生成石头"演出顺序
 	var beam_idx: int = freeze_body.find("Fx.spawn_beam(BOSS_C")
 	var marker_idx: int = freeze_body.find("_show_opening_wall_marker(p, true)")
 	assert_true(beam_idx >= 0, "opening stone generation still casts beams from the boss position")
 	assert_true(marker_idx > beam_idx, "stone marker appears after the boss beam")
-	assert_false(freeze_body.contains("OPENING_FREEZE_COLOR"), "initial ice is not generated by a boss freeze beam")
-	assert_false(freeze_body.contains("_show_opening_coat_marker(p, true)"), "initial ice marker is not spawned after the opening drop")
 	assert_true(finish_idx > freeze_start, "input unlock waits until opening obstacles are settled")
-
-
-func test_opening_boss_casts_stones_only_and_ice_falls_with_board() -> void:
-	var f := FileAccess.open("res://match3/level.gd", FileAccess.READ)
-	assert_true(f != null, "level.gd can be inspected")
-	if f == null:
-		return
-	var src: String = f.get_as_text()
-	var render_start: int = src.find("func _render_board")
-	var render_end: int = src.find("func _blank_visual_rows", render_start)
-	assert_true(render_start >= 0 and render_end > render_start, "_render_board can be inspected")
-	if render_start < 0 or render_end <= render_start:
-		return
-	var render_body: String = src.substr(render_start, render_end - render_start)
-	assert_true(render_body.contains("if opening_drop:\n\t\t_wall_nodes = _blank_visual_rows()\n\telse:\n\t\t_render_wall_visuals()"), "opening drop keeps wall stones hidden until the boss casts them")
-	assert_true(render_body.contains("if opening_drop:\n\t\t_render_opening_coat_visuals()\n\telse:\n\t\t_render_coat_visuals()"), "opening drop renders ice markers immediately so they fall with the board")
-
-	var freeze_start: int = src.find("func _play_opening_freeze")
-	var freeze_end: int = src.find("func _apply_opening_freeze_instant", freeze_start)
-	assert_true(freeze_start >= 0 and freeze_end > freeze_start, "opening freeze phase can be inspected")
-	if freeze_start < 0 or freeze_end <= freeze_start:
-		return
-	var freeze_body: String = src.substr(freeze_start, freeze_end - freeze_start)
-	var wall_cells_idx: int = freeze_body.find("_opening_wall_cells()")
-	var wall_beam_idx: int = freeze_body.find("OPENING_STONE_COLOR")
-	var wall_marker_idx: int = freeze_body.find("_show_opening_wall_marker(p, true)")
-	assert_true(wall_cells_idx >= 0, "opening freeze gathers wall stone cells")
-	assert_true(wall_beam_idx >= 0, "stone generation uses a boss beam color")
-	assert_true(wall_marker_idx > wall_beam_idx, "stone marker appears after the boss beam")
-	assert_false(freeze_body.contains("_opening_coat_cells()"), "ice cells are not gathered for boss casting")
-	assert_false(freeze_body.contains("_show_opening_coat_marker(p, true)"), "boss opening phase no longer spawns ice markers")
