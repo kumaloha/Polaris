@@ -49,19 +49,18 @@ func test_gem_shatter_profile_follows_the_handoff_spec() -> void:
 	var profile: Dictionary = fx.call("gem_shatter_profile")
 	fx.free()
 	var frames: Array = profile.get("frames", [])
-	assert_eq(frames.size(), 5, "shatter sequence ships exactly five frames")
+	assert_eq(frames.size(), 6, "v3 firework sequence ships exactly six frames")
 	for f in frames:
 		assert_true(String(f).begins_with("res://art/vfx/gem_shatter/shatter_0"), "frames come from the gem_shatter art pack")
 		assert_true(ResourceLoader.exists(String(f)) or FileAccess.file_exists(String(f)), "shatter frame asset exists: %s" % f)
-	assert_eq(float(profile.get("crack_at", -1.0)), 0.08, "crack frame overlays the still-visible gem at 0.08s")
-	assert_eq(float(profile.get("break_at", -1.0)), 0.15, "the break beat lands at 0.15s")
-	assert_eq(float(profile.get("fps", 0.0)), 15.0, "shatter_02-05 play at the spec'd 15fps")
+	assert_eq(float(profile.get("break_at", -1.0)), 0.08, "the break beat lands at the spec'd 0.08s (shatter_01 carries its own flash)")
+	assert_eq(float(profile.get("fps", 0.0)), 15.0, "shatter frames play at the spec'd 15fps")
 	assert_true(float(profile.get("span_ratio", 0.0)) > 1.0, "shatter spread reaches beyond the cell so debris flies outward")
-	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup within a window instead of stacking")
-	# 染色契约: 碎块/裂纹普通混合保宝石实色(米色亮底上 ADD 数学上必然冲白, 绿宝石碎片读不出绿);
-	# 白闪保留 ADD(闪光就是要亮白)。
-	assert_false(bool(profile.get("debris_add_blend", true)), "debris frames use normal alpha so the gem tint stays readable on the light board")
-	assert_true(bool(profile.get("flash_add_blend", false)), "the break-beat flash stays additive for the bright pop")
+	assert_true(float(profile.get("expand_ratio", 0.0)) >= 1.2, "playback-long expand ramp pushes debris outward for the firework read")
+	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup by skipping the flash frame within the window")
+	# 染色契约(v3): 全序列 NORMAL 混合保宝石实色(米色亮底上 ADD 数学上必然冲白)。
+	# 闪光不再是程序绘制——shatter_01 自带大闪光, 同样走染色后的 NORMAL 混合。
+	assert_false(bool(profile.get("debris_add_blend", true)), "shatter frames use normal alpha so the gem tint stays readable on the light board")
 
 
 func test_magic_clear_light_keeps_species_color_instead_of_whitewashing() -> void:

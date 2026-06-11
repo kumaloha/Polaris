@@ -204,7 +204,9 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 	assert_eq(level.board_view.get("CLEAR_SWELL_SCALE"), 1.25, "gem body swells to the spec'd 1.25 before the break beat")
 	assert_eq(level.board_view.get("CLEAR_SWELL_TIME"), 0.08, "swell phase runs the spec'd 0.08s")
 	assert_true(float(level.board_view.get("CLEAR_WHITE_PUSH")) > 1.0, "swell pushes self_modulate past white for the charge-up read")
-	assert_true(float(level.board_view.get("CLEAR_SWELL_TIME")) < float(level.board_view.get("CLEAR_BREAK_AT")), "swell finishes before the break beat hides the body")
+	# v3: 膨胀到位即崩(同拍), 本体在崩拍后一渲染帧才隐——切换藏在 shatter_01 大闪光底下
+	assert_true(float(level.board_view.get("CLEAR_SWELL_TIME")) <= float(level.board_view.get("CLEAR_BREAK_AT")), "swell completes by the break beat")
+	assert_true(float(level.board_view.get("CLEAR_BODY_HIDE_DELAY")) > 0.0, "body hides one render frame after the break so the flash covers the swap")
 	level.free()
 	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var start: int = src.find("func _play_clear")
@@ -256,17 +258,17 @@ func test_level_clear_batches_vfx_creation_across_frames() -> void:
 func test_special_spawn_clear_hold_is_snappy() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	# 跟手感契约(gem_shatter 规格): 下落在崩拍 0.15 放行, 不等碎块(~0.42s)播完。
-	assert_eq(level.board_view.get("CLEAR_BREAK_AT"), 0.15, "the break beat lands at the spec'd 0.15s")
-	assert_eq(level.board_view.get("ELIM_HOLD"), 0.15, "collapse is released at the break beat so falling runs parallel to the shatter frames")
+	# 跟手感契约(gem_shatter v3): 下落在崩拍 0.08 放行, 不等碎块烟花(~0.4s)播完。
+	assert_eq(level.board_view.get("CLEAR_BREAK_AT"), 0.08, "the break beat lands at the spec'd 0.08s")
+	assert_eq(level.board_view.get("ELIM_HOLD"), 0.08, "collapse is released at the break beat so falling runs parallel to the shatter frames")
 	level.free()
-	# Fx 侧拍点必须与 board_view 对表(同一 0.15 崩拍)
+	# Fx 侧拍点必须与 board_view 对表(同一 0.08 崩拍), 且外扩 ramp 生效(烟花持续向外推)
 	var FxScript := preload("res://match3/effect_manager.gd")
 	var fx = FxScript.new()
 	var profile: Dictionary = fx.call("gem_shatter_profile")
 	fx.free()
-	assert_eq(float(profile.get("break_at", -1.0)), 0.15, "Fx break beat matches the board_view hold release")
-	assert_true(float(profile.get("crack_at", -1.0)) < float(profile.get("break_at", 0.0)), "crack frame lands while the gem body is still visible")
+	assert_eq(float(profile.get("break_at", -1.0)), 0.08, "Fx break beat matches the board_view hold release")
+	assert_true(float(profile.get("expand_ratio", 0.0)) >= 1.2, "shatter node expands through playback for the firework push")
 
 
 func test_spawned_combo_idle_starts_after_clear_phase() -> void:

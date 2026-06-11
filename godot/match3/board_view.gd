@@ -118,14 +118,15 @@ const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
 const OPENING_DROP_ROW_STAGGER := 0.045  # 开局掉落起始位用(节拍/序在 level)
 
-# ── 消除演出节拍常量（_play_clear 用，gem_shatter_white_v2 规格，与 Fx.SHATTER_* 对表）──
+# ── 消除演出节拍常量（_play_clear 用，gem_shatter_white_v3 烟花式规格，与 Fx.SHATTER_* 对表）──
 const CLEAR_SWELL_TIME := 0.08   # 本体膨胀(撑爆前奏, TRANS_BACK 弹性)
 const CLEAR_SWELL_SCALE := 1.25
 const CLEAR_WHITE_PUSH := 2.4    # 膨胀期 self_modulate 过曝倍率(向白推, 读作"内部蓄能")
-const CLEAR_BREAK_AT := 0.15     # 崩拍: 本体隐藏, 白闪+碎块在 Fx 同帧起跑
+const CLEAR_BREAK_AT := 0.08     # 崩拍: 膨胀到位即崩, shatter_01 大闪光在 Fx 同拍起播
+const CLEAR_BODY_HIDE_DELAY := 0.02  # 本体在崩拍后一渲染帧隐藏——切换藏在闪光底下(v3 规格)
 const CLEAR_FX_BATCH_SIZE := 8
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
-const ELIM_HOLD := 0.15  # 崩拍即放行下落——碎块飞散与棋子下落并行(跟手感契约, 不等碎块播完)
+const ELIM_HOLD := 0.08  # 崩拍即放行下落(v3)——碎块烟花与棋子下落并行(跟手感契约, 不等碎块播完)
 const SWAP_TIME := 0.14
 
 # ── 注入上下文 ──
@@ -997,10 +998,11 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 				var pop := create_tween()
 				if clear_delay > 0.0:
 					pop.tween_interval(clear_delay)
-				# 规格序列(gem_shatter): 膨胀1.25(0.08s BACK)+白推 → 0.15崩拍本体隐藏(裂纹/白闪/碎块归 Fx)
+				# 规格序列(gem_shatter v3): 膨胀1.25(0.08s BACK)+白推 → 0.08崩拍(闪光在 Fx 起播)
+				# → 下一渲染帧本体隐藏, 切换藏在 shatter_01 大闪光底下
 				pop.tween_property(n, "scale", base_scale * CLEAR_SWELL_SCALE, CLEAR_SWELL_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 				pop.parallel().tween_property(n, "self_modulate", Color(CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, 1.0), CLEAR_SWELL_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-				pop.tween_interval(CLEAR_BREAK_AT - CLEAR_SWELL_TIME)
+				pop.tween_interval(CLEAR_BREAK_AT - CLEAR_SWELL_TIME + CLEAR_BODY_HIDE_DELAY)
 				pop.tween_callback(func() -> void:
 					if is_instance_valid(n):
 						n.visible = false)
