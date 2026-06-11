@@ -156,6 +156,7 @@ const RABBIT_REWIND_AVATAR_FRAME := "res://assets/level/pet_avatar_frame.png"
 const RABBIT_REWIND_AVATAR_FRAME_NODE := "TimeRabbitAvatarFrame"
 const RABBIT_REWIND_AVATAR_FRAME_BG_NODE := "TimeRabbitAvatarFrameBg"
 const RABBIT_REWIND_AVATAR_FRAME_BG_COLOR := Color(0.96, 0.84, 0.62, 0.48)
+const RABBIT_REWIND_AVATAR_FRAME_Z := 240
 const RABBIT_REWIND_AVATAR := "res://assets/pets/timerewind/rabbit_avatar.png"
 const RABBIT_REWIND_K1 := "res://assets/pets/timerewind/rabbit_k1_peektop.png"
 const RABBIT_REWIND_K2 := "res://assets/pets/timerewind/rabbit_k2_peek.png"
@@ -172,10 +173,11 @@ const RABBIT_REWIND_HOURGLASS := "res://assets/pets/timerewind/rabbit_prop_hourg
 const RABBIT_REWIND_CAST_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K5, RABBIT_REWIND_K55, RABBIT_REWIND_K6, RABBIT_REWIND_K7, RABBIT_REWIND_K75, RABBIT_REWIND_K8]
 const RABBIT_REWIND_PEEK_SEQUENCE := [RABBIT_REWIND_K1, RABBIT_REWIND_K2, RABBIT_REWIND_K25, RABBIT_REWIND_K3, RABBIT_REWIND_K4, RABBIT_REWIND_K6]
 const RABBIT_REWIND_FRAME_WIDTH_SCALE := {
-	RABBIT_REWIND_K2: 0.90,
-	RABBIT_REWIND_K25: 0.74,
-	RABBIT_REWIND_K3: 0.72,
-	RABBIT_REWIND_K4: 0.76,
+	RABBIT_REWIND_K1: 0.82,
+	RABBIT_REWIND_K2: 0.84,
+	RABBIT_REWIND_K25: 0.68,
+	RABBIT_REWIND_K3: 0.64,
+	RABBIT_REWIND_K4: 0.66,
 }
 const RABBIT_REWIND_HOME_W := 138.0
 const RABBIT_REWIND_PEEK_W := 172.0
@@ -1457,7 +1459,7 @@ func _skill_avatar_frame(center: Vector2, width: float) -> void:
 	frame.texture = frame_tex
 	frame.position = center
 	frame.scale = _fit_scale(frame_tex, width * 1.12)
-	frame.z_index = 4
+	frame.z_index = RABBIT_REWIND_AVATAR_FRAME_Z
 	skill_bar.add_child(frame)
 
 ## 冷却条(圆角胶囊): 与 _rounded_bar 同款外观, 但持有填充 Panel 引用(存 _skill_bar_fills),
@@ -1737,6 +1739,10 @@ func _time_rabbit_cast_width() -> float:
 	var safe_w: float = available_h / RABBIT_REWIND_CAST_VISIBLE_ASPECT
 	return clampf(safe_w, RABBIT_REWIND_CAST_MIN_W, RABBIT_REWIND_CAST_W)
 
+func _time_rabbit_leap_width(cast_w: float) -> float:
+	var crouch_w := _time_rabbit_frame_width(RABBIT_REWIND_K4, RABBIT_REWIND_PEEK_W)
+	return minf(RABBIT_REWIND_LEAP_W, maxf(crouch_w, cast_w * 1.18))
+
 func _time_rewind_effect_anchor() -> Vector2:
 	return _current_board_rect().get_center()
 
@@ -1765,10 +1771,10 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	var home := _time_rabbit_home_anchor()
 	var cast := _time_rabbit_cast_anchor()
 	var cast_w := _time_rabbit_cast_width()
-	var leap_w := minf(RABBIT_REWIND_LEAP_W, cast_w * 1.06)
+	var leap_w := _time_rabbit_leap_width(cast_w)
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
-	t.tween_property(rig, "position", home + Vector2(0.0, 12.0), _rabbit_rewind_time(0.08)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_interval(_rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 8.0), _rabbit_rewind_time(0.06))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home, _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -18.0), _rabbit_rewind_time(0.08))

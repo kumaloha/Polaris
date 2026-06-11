@@ -740,6 +740,7 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var hold_idx: int = body.find("t.tween_interval(RABBIT_REWIND_CAST_HOLD)", k8_idx)
 	var commit_idx: int = body.find("_commit_time_rewind_cast", k8_idx)
 	assert_true(k8_idx >= 0 and hold_idx > k8_idx and commit_idx > hold_idx, "K8 cast frame holds briefly before committing the board rewind")
+	assert_false(body.contains("home + Vector2(0.0, 12.0)"), "time rabbit should not sink the avatar actor before the first peek frame")
 
 func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
@@ -835,13 +836,22 @@ func test_time_rabbit_cast_uses_full_brief_frames_and_feedback() -> void:
 	var level := scene.instantiate()
 	assert_true(level.has_method("_time_rabbit_frame_width"), "time rabbit exposes corrected frame width helper")
 	if level.has_method("_time_rabbit_frame_width"):
+		var home_w := 138.0
 		var peek_w := 172.0
+		var k1: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k1_peektop.png", home_w)
 		var k2: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k2_peek.png", peek_w)
 		var k25: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k25_pushup.png", peek_w)
 		var k3: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k3_climb.png", peek_w)
 		var k4: float = level.call("_time_rabbit_frame_width", "res://assets/pets/timerewind/rabbit_k4_crouch.png", peek_w)
+		assert_true(k1 <= 122.0, "first peek frame is reduced so it does not pop larger than the avatar frame")
+		assert_true(k2 <= 146.0, "wide peek face is reduced before the climb")
 		assert_true(k2 < peek_w, "wide peek face is slightly reduced before the climb")
 		assert_true(k25 < k2 and k3 < k2 and k4 < k2, "vertical climb frames are reduced so the head does not jump larger than surrounding frames")
+		assert_true(k4 <= k25, "crouch frame is not larger than the preceding push-up frame")
+		assert_true(level.has_method("_time_rabbit_leap_width"), "time rabbit leap width is corrected independently from cramped cast width")
+		if level.has_method("_time_rabbit_leap_width"):
+			var leap_w: float = level.call("_time_rabbit_leap_width", 96.0)
+			assert_true(leap_w >= k4, "first leap frame does not shrink smaller than the preceding crouch frame")
 	level.free()
 
 func test_time_rewind_board_effect_keeps_board_center_anchor() -> void:
