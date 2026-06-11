@@ -6,9 +6,11 @@ extends RefCounted
 ## level.gd 的 _on_skill_pressed 经 cast_for() 查类, 零 match 字符串分支硬编码。
 
 const TimeRabbitCast := preload("res://match3/pets/time_rabbit.gd")
+const RaccoonMinerCast := preload("res://match3/pets/raccoon_miner.gd")
 
 const PETS := {
 	"时间回退": TimeRabbitCast,
+	"破障": RaccoonMinerCast,
 }
 
 ## 按 SKILLS[idx].skill 字符串查对应宠物施法类。无映射返回 null。
