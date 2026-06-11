@@ -774,7 +774,8 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 		raw_total += float(d)
 	assert_true(raw_total >= 0.70, "rabbit jump gives the eye enough time to read the added inbetweens")
 	var bottom_anchor: Vector2 = level.call("_time_rabbit_avatar_frame_bottom_anchor")
-	assert_true(bottom_anchor.y > level.call("_time_rabbit_home_anchor").y + 70.0, "avatar frame bottom anchor is below the slot center")
+	var visible_frame_bottom: float = Vector2(level.call("_time_rabbit_home_anchor")).y + 132.0 * 0.5
+	assert_true(absf(bottom_anchor.y - visible_frame_bottom) <= 1.0, "avatar frame bottom anchor uses the visible slot lip, not the oversized frame texture bounds")
 	assert_true(points[0].y > home.y, "first jump inbetween starts near the lower avatar-frame lip instead of popping above it")
 	var reaches_apex := false
 	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")

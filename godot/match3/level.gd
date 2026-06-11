@@ -1745,13 +1745,7 @@ func _time_rabbit_home_anchor() -> Vector2:
 	return Vector2(DESIGN_W * 0.5 / float(count), SKILL_AV_Y)
 
 func _time_rabbit_avatar_frame_bottom_offset() -> float:
-	var frame_w := SKILL_AV_W * 1.12
-	var tex := _load_texture(RABBIT_REWIND_AVATAR_FRAME)
-	if tex != null:
-		var sz := tex.get_size()
-		if sz.x > 0.0:
-			return frame_w * (sz.y / sz.x) * 0.5
-	return frame_w * 0.5
+	return SKILL_AV_W * 0.5
 
 func _time_rabbit_avatar_frame_bottom_anchor() -> Vector2:
 	return _time_rabbit_home_anchor() + Vector2(0.0, _time_rabbit_avatar_frame_bottom_offset())
