@@ -5,6 +5,8 @@ const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const LevelLayout := preload("res://match3/level_layout.gd")
 const ME := preload("res://core/match_engine.gd")
+# P3(契约 C): 时兔施法控制器(PetCast 子类)。施法演出/落地从 level.gd 抽到此处。
+const TimeRabbitCast := preload("res://match3/pets/time_rabbit.gd")
 const BARRIER_ICE_SOURCE := "resources/barrier/ob_ice.png"
 const BARRIER_ICE_SYNCED := "res://assets/obstacles/ob_ice.png"
 const BARRIER_MARKER_NAME := "CoatBarrierSprite"
@@ -190,6 +192,23 @@ func _prepare_level_scene() -> Node:
 	return level
 
 
+# 造一个挂在 level 之上、注入 level 上下文的时兔施法控制器(契约 C)。
+# 不入树→施法走 headless 路径(立即落地+收尾); 测试可直接调 _build_visuals/_apply_effect/_finish 钩子检查演出。
+func _make_rabbit_cast(level, cast_effect: bool = true) -> TimeRabbitCast:
+	var cast := TimeRabbitCast.new()
+	cast.setup({
+		"skill_bar": level.skill_bar,
+		"board": level.board,
+		"cell_size": level.cell_size,
+		"board_origin": level.board_origin,
+		"cast_effect": cast_effect,
+		"load_texture": Callable(level, "_load_texture"),
+		"set_avatar_casting": Callable(level, "_set_time_rabbit_avatar_casting"),
+		"refresh_skill_ui": Callable(level, "_update_skill_cd_visual"),
+	})
+	return cast
+
+
 func test_character_manifest_loads_available_png_characters() -> void:
 	var characters := CharacterData.load_characters()
 	var image_paths := CharacterData.discover_character_images()
@@ -271,9 +290,11 @@ func test_level_first_pet_slot_uses_time_rewind_rabbit_avatar() -> void:
 
 
 func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
+	# P3: 时间回退技能经 _cast_pet → TimeRabbitCast 接管。headless 下立即落地(commit)并由
+	# level._on_pet_cast_committed 重渲染棋盘。语义不变: 恢复历史盘面/步数 + 重渲染。
 	var level := _prepare_level_scene()
-	assert_true(level.has_method("_skill_time_rewind"), "Level exposes the first-slot time rewind skill")
-	if not level.has_method("_skill_time_rewind"):
+	assert_true(level.has_method("_cast_pet"), "Level exposes the pet-cast entry point")
+	if not level.has_method("_cast_pet"):
 		level.free()
 		return
 	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
@@ -287,7 +308,7 @@ func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
 	level.board = b
 	level._cur_cfg = {"id": 1}
 	level.call("_compute_layout")
-	var did: bool = level.call("_skill_time_rewind")
+	var did: bool = level.call("_cast_pet", 0, true)
 	assert_true(did, "time rewind skill succeeds when the board has history")
 	assert_eq(b.grid, start_grid, "time rewind restores the saved board grid")
 	assert_eq(b.moves_left, start_moves, "time rewind restores moves from the saved board state")
@@ -296,6 +317,7 @@ func test_level_first_pet_time_rewind_skill_restores_board_history() -> void:
 
 
 func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
+	# P3: 施法演出节点由 TimeRabbitCast._build_visuals() 在 skill_bar 上搭(原 _play_time_rewind_pet_animation)。
 	var level := _prepare_level_scene()
 	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
 	b.skill = "timerewind"
@@ -304,8 +326,8 @@ func test_level_time_rewind_skill_spawns_rabbit_cast_animation() -> void:
 	level.board = b
 	level._cur_cfg = {"id": 1}
 	level.call("_compute_layout")
-	var did: bool = level.call("_skill_time_rewind")
-	assert_true(did, "time rewind succeeds before checking its cast animation")
+	var cast := _make_rabbit_cast(level, true)
+	cast.call("_build_visuals")
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
 	assert_true(rig != null, "time rewind should spawn the documented rabbit cast animation on the top skill layer")
 	if rig != null:
@@ -331,7 +353,9 @@ func test_time_rabbit_cast_hides_bottom_avatar_until_retired() -> void:
 		level.free()
 		return
 	assert_true(btn.visible, "time rabbit avatar starts visible in the bottom skill slot")
-	level.call("_play_time_rewind_pet_animation", false)
+	# P3: 演出 = TimeRabbitCast._build_visuals(); 收尾 = _finish()(复原头像 + 回收 rig)。
+	var cast := _make_rabbit_cast(level, false)
+	cast.call("_build_visuals")
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE)
 	assert_true(rig != null, "time rabbit cast rig is created")
 	assert_true(btn.visible, "bottom avatar slot stays present while the rabbit jumps out")
@@ -342,11 +366,12 @@ func test_time_rabbit_cast_hides_bottom_avatar_until_retired() -> void:
 		assert_true(frame_bg.color.r >= 0.85 and frame_bg.color.g >= 0.72 and frame_bg.color.b >= 0.50, "avatar frame background is warm beige")
 		assert_true(frame_bg.color.a >= 0.32 and frame_bg.color.a <= 0.72, "avatar frame background is translucent, not opaque")
 	if rig != null:
-		level.call("_retire_time_rabbit_rig", rig)
+		cast.call("_finish")
 		assert_true(not is_instance_valid(rig) or not rig.visible, "retired rabbit actor is hidden or freed immediately")
 		assert_true(btn.visible, "bottom avatar returns after the cast rig is retired")
 		assert_eq(btn.modulate.a, 1.0, "bottom avatar returns to full opacity after the rabbit is collected")
 		assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == RABBIT_TIMEREWIND_SYNCED, "bottom avatar texture returns after the rabbit is collected")
+	cast.free()
 	level.free()
 
 
@@ -355,10 +380,12 @@ func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> 
 	level.load_level(1)
 	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
 	assert_true(btn != null, "time rabbit button exists")
-	level.call("_play_time_rewind_pet_animation", true)
+	var cast := _make_rabbit_cast(level, true)
+	cast.call("_build_visuals")
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
 	assert_true(rig != null, "time rabbit cast rig is created")
 	if rig == null:
+		cast.free()
 		level.free()
 		return
 	assert_true(ResourceLoader.exists(RABBIT_AVATAR_FRAME_SYNCED) or FileAccess.file_exists(RABBIT_AVATAR_FRAME_SYNCED), "time rabbit slot has a real avatar frame asset")
@@ -383,52 +410,57 @@ func test_time_rabbit_cast_uses_empty_avatar_frame_and_top_layer_hourglass() -> 
 		assert_eq(hourglass.get_parent(), level.skill_bar, "hourglass is independent of the rabbit rig so it cannot be hidden behind the book or rabbit")
 		assert_true(hourglass.z_index > rig.z_index, "hourglass draws above the rabbit cast rig")
 		assert_true(hourglass.scale.x >= 0.07 and hourglass.scale.x <= 0.09, "hourglass starts as a readable prop without becoming a screen-tall tower")
+	cast.free()
 	level.free()
 
 
 func test_time_rabbit_peek_frames_crop_source_bottom_edge() -> void:
+	# P3: 逐帧贴图/锚点由 TimeRabbitCast._set_frame / _set_avatar_frame 处理(原 level._set_time_rabbit_frame)。
 	var level := _prepare_level_scene()
+	var cast := _make_rabbit_cast(level, true)
 	var sprite := Sprite2D.new()
-	level.call("_set_time_rabbit_frame", sprite, RABBIT_TIMEREWIND_K2, 172.0, false)
+	cast.call("_set_frame", sprite, RABBIT_TIMEREWIND_K2, 172.0, false)
 	assert_true(sprite.texture != null, "peek frame texture loads")
 	assert_true(sprite.region_enabled, "peek frame crops away the source image bottom edge instead of showing a horizontal cut line")
 	if sprite.texture != null:
 		assert_true(sprite.region_rect.size.y <= sprite.texture.get_size().y - 16.0, "peek frame crop removes enough bottom pixels to hide the hard source edge")
 	var display_h := sprite.region_rect.size.y * sprite.scale.y
 	assert_true(absf(sprite.position.y + display_h * 0.5) <= 0.25, "cropped peek frame still uses the visible bottom as its anchor")
-	level.call("_set_time_rabbit_avatar_frame", sprite, 132.0)
+	cast.call("_set_avatar_frame", sprite, 132.0)
 	assert_false(sprite.region_enabled, "switching back to the avatar frame clears the peek-frame crop")
 	sprite.free()
+	cast.free()
 	level.free()
 
 
 func test_time_rabbit_retire_clears_actor_hourglass_and_restores_avatar() -> void:
+	# P3: 收尾信号从 level.time_rabbit_sequence_done 变为 TimeRabbitCast.cast_finished(契约 C)。
 	var level := _prepare_level_scene()
 	level.load_level(1)
 	var btn := _find_texture_button_texture(level.skill_bar, RABBIT_TIMEREWIND_SYNCED)
 	assert_true(btn != null, "time rabbit button exists")
-	level.set_meta("rabbit_done", false)
-	level.time_rabbit_sequence_done.connect(func(): level.set_meta("rabbit_done", true))
-	level.call("_play_time_rewind_pet_animation", true)
+	var cast := _make_rabbit_cast(level, true)
+	cast.set_meta("rabbit_done", false)
+	cast.cast_finished.connect(func(): cast.set_meta("rabbit_done", true))
+	cast.call("_build_visuals")
 	var rig := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) as Node2D
 	assert_true(rig != null, "time rabbit cast rig is created")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) != null, "hourglass exists before retire")
-	if rig != null:
-		level.call("_retire_time_rabbit_rig", rig)
-	assert_true(bool(level.get_meta("rabbit_done", false)), "retiring the actor emits sequence_done")
+	cast.call("_finish")
+	assert_true(bool(cast.get_meta("rabbit_done", false)), "retiring the actor emits the finished signal")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) == null, "rabbit actor is removed from the skill layer")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_HOURGLASS_NODE) == null, "hourglass is removed with the rabbit sequence")
 	if btn != null:
 		assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == RABBIT_TIMEREWIND_SYNCED, "avatar texture is restored into the frame after retire")
+	cast.free()
 	level.free()
 
 
 func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> void:
+	# P3: 显式提交点 = TimeRabbitCast._apply_effect()(board.skill_rewind + 倒流棋盘特效)。
 	var level := _prepare_level_scene()
-	assert_true(level.has_method("_commit_time_rewind_cast"), "time rabbit cast has an explicit commit point")
-	if not level.has_method("_commit_time_rewind_cast"):
-		level.free()
-		return
+	var cast := _make_rabbit_cast(level, true)
+	assert_true(cast.has_method("_apply_effect"), "time rabbit cast has an explicit commit point")
 	var b := Board.new(8, 8, [0, 1, 2, 3, 4], 999999, 30, 7)
 	b.skill = "timerewind"
 	var start_grid: Array = b.grid.duplicate(true)
@@ -439,7 +471,17 @@ func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> voi
 	level.board = b
 	level._cur_cfg = {"id": 1}
 	level.call("_compute_layout")
-	level.call("_commit_time_rewind_cast")
+	# 让控制器对准 level 当前的 board/layout, 再调提交点。
+	cast.setup({
+		"skill_bar": level.skill_bar, "board": level.board,
+		"cell_size": level.cell_size, "board_origin": level.board_origin,
+		"cast_effect": true,
+		"load_texture": Callable(level, "_load_texture"),
+		"set_avatar_casting": Callable(level, "_set_time_rabbit_avatar_casting"),
+		"refresh_skill_ui": Callable(level, "_update_skill_cd_visual"),
+	})
+	var did: bool = cast.call("_apply_effect")
+	assert_true(did, "applying the rewind effect succeeds when the board has history")
 	assert_eq(b.grid, start_grid, "cast commit restores the saved board grid")
 	assert_eq(b.moves_left, start_moves, "cast commit restores the saved move count")
 	var effect := _find_named_node(level.skill_bar, RABBIT_REWIND_CAST_EFFECT_NODE)
@@ -452,20 +494,22 @@ func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> voi
 			if String(child.name).begins_with("TimeRewindSand"):
 				sand_count += 1
 		assert_true(sand_count >= 18, "time rewind release has enough reverse sand particles to register in sampled frames")
+	cast.free()
 	level.free()
 
 
 func test_level_time_rabbit_frames_use_bottom_anchor() -> void:
+	# P3: 逐帧贴图脚/底锚由 TimeRabbitCast._set_frame 设(原 level._make_time_rabbit_sprite)。
 	var level := _prepare_level_scene()
-	var frame := level.call("_make_time_rabbit_sprite", RABBIT_REWIND_FRAME_NODE, RABBIT_TIMEREWIND_K8, 150.0) as Sprite2D
-	assert_true(frame != null, "time rabbit frame helper returns a sprite")
-	if frame != null:
-		assert_eq(String(frame.get_meta("anchor", "")), "bottom", "time rabbit keyframes are foot/bottom anchored so cropped frame sizes do not shift the landing point")
-		if frame.texture != null:
-			var display_h: float = frame.texture.get_size().y * frame.scale.y
-			assert_true(absf(frame.position.y + display_h * 0.5) <= 1.0, "rabbit sprite bottom sits on the rig origin")
-	if frame != null:
-		frame.free()
+	var cast := _make_rabbit_cast(level, true)
+	var frame := Sprite2D.new()
+	cast.call("_set_frame", frame, RABBIT_TIMEREWIND_K8, 150.0, false)
+	assert_eq(String(frame.get_meta("anchor", "")), "bottom", "time rabbit keyframes are foot/bottom anchored so cropped frame sizes do not shift the landing point")
+	if frame.texture != null:
+		var display_h: float = frame.texture.get_size().y * frame.scale.y
+		assert_true(absf(frame.position.y + display_h * 0.5) <= 1.0, "rabbit sprite bottom sits on the rig origin")
+	frame.free()
+	cast.free()
 	level.free()
 
 
@@ -495,8 +539,13 @@ func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
 		return
 	assert_false(btn.disabled, "time rabbit remains clickable before rewind history exists so taps can give feedback")
 	assert_true(btn.modulate.a < 1.0, "time rabbit still looks not-ready before there is history to rewind")
-	level.call("_on_skill_pressed", 0)
+	# P3: 未充满(无历史)但可点 → _on_skill_pressed 走 _cast_pet(0, false) 的 peek 反馈, 而非只缩放按钮。
+	# 该状态门控 + peek 演出节点由 TimeRabbitCast._build_visuals 搭建(headless 下立即收尾, 故直接观察 build)。
+	assert_true(level.call("_skill_clickable", 0) and not level.call("_skill_ready", 0), "rabbit is in the clickable-but-not-ready state that taps give feedback for")
+	var cast := _make_rabbit_cast(level, false)
+	cast.call("_build_visuals")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) != null, "time rabbit tap feedback uses the documented rabbit animation instead of only button scaling")
+	cast.free()
 	level.free()
 
 
