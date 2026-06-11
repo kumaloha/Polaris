@@ -268,7 +268,7 @@ func test_special_spawn_clear_hold_is_snappy() -> void:
 	var profile: Dictionary = fx.call("gem_shatter_profile")
 	fx.free()
 	assert_eq(float(profile.get("break_at", -1.0)), 0.08, "Fx break beat matches the board_view hold release")
-	assert_true(float(profile.get("expand_ratio", 0.0)) >= 1.2, "shatter node expands through playback for the firework push")
+	assert_false(profile.has("expand_ratio"), "v5 debris motion lives in the frames; no ramp stacks on top")
 
 
 func test_spawned_combo_idle_starts_after_clear_phase() -> void:

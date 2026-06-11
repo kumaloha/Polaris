@@ -54,9 +54,10 @@ func test_gem_shatter_profile_follows_the_handoff_spec() -> void:
 		assert_true(String(f).begins_with("res://art/vfx/gem_shatter/shatter_0"), "frames come from the gem_shatter art pack")
 		assert_true(ResourceLoader.exists(String(f)) or FileAccess.file_exists(String(f)), "shatter frame asset exists: %s" % f)
 	assert_eq(float(profile.get("break_at", -1.0)), 0.08, "the break beat lands at the spec'd 0.08s (shatter_01 carries its own flash)")
-	assert_eq(float(profile.get("fps", 0.0)), 15.0, "shatter frames play at the spec'd 15fps")
+	assert_eq(float(profile.get("fps", 0.0)), 13.0, "shatter frames play at the spec'd ~13fps so the gravity fall reads")
 	assert_true(float(profile.get("span_ratio", 0.0)) > 1.0, "shatter spread reaches beyond the cell so debris flies outward")
-	assert_true(float(profile.get("expand_ratio", 0.0)) >= 1.2, "playback-long expand ramp pushes debris outward for the firework read")
+	# v5: 下坠位移画进帧里(爆心逐帧对齐), 禁止叠加外扩/位移 ramp——profile 不得再出现 expand_ratio
+	assert_false(profile.has("expand_ratio"), "v5 frames carry their own motion; no scale ramp may stack on top (double motion)")
 	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup by skipping the flash frame within the window")
 	# 染色契约(v3): 全序列 NORMAL 混合保宝石实色(米色亮底上 ADD 数学上必然冲白)。
 	# 闪光不再是程序绘制——shatter_01 自带大闪光, 同样走染色后的 NORMAL 混合。
