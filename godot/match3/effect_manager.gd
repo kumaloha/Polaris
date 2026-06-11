@@ -100,6 +100,17 @@ const SHATTER_FRAMES := [
 	"res://art/vfx/gem_shatter/shatter_05.png",
 	"res://art/vfx/gem_shatter/shatter_06.png",
 ]
+# 碎裂专用染色: 直接采样自六张宝石贴图的亮部主色(alpha>200 且亮度 top40% 均色),
+# 比通用 _color_key_to_magic_color 的特效荧光色更贴宝石本体。帧 RGB 已烘焙 0.55~1.0 明暗梯度,
+# 染色后碎片自带亮心暗缘的切面深浅。仅碎裂用此表, 光束/爆炸等仍走通用色。
+const SHATTER_TINTS := {
+	"red": Color(0.99, 0.23, 0.23, 1.0),
+	"blue": Color(0.55, 0.93, 1.00, 1.0),
+	"green": Color(0.66, 0.77, 0.06, 1.0),
+	"gold": Color(1.00, 0.92, 0.40, 1.0),
+	"purple": Color(0.86, 0.57, 1.00, 1.0),
+	"pink": Color(0.99, 0.54, 0.87, 1.0),
+}
 const SHATTER_BREAK_AT := 0.08            # 崩拍: 闪光帧起播 + 本体随后隐藏
 const SHATTER_FPS := 15.0                 # 6 帧 ≈ 0.4s, 总长 ~0.48s
 const SHATTER_SPAN_RATIO := 1.55          # 贴图铺设直径(格倍率): 碎块要飞出格才有炸开感
@@ -335,7 +346,7 @@ func spawn_shatter(pos: Vector2, color: Color) -> void:
 ## 此处接管碎裂物——0.08 崩拍起播 shatter_01(自带大闪光+裂纹), 02-06 烟花飞散 + 节点外扩 ramp。
 ## 染色: 白贴图 × modulate(宝石亮部饱和色, _color_key_to_magic_color), NORMAL 混合保实色。
 func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
-	var gem_color := _color_key_to_magic_color(color)
+	var gem_color: Color = SHATTER_TINTS.get(color, _color_key_to_magic_color(color))
 	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
 		_spawn_single_flash(pos, gem_color, target_px, BASIC_POP_FALLBACK_DURATION)
 		return
