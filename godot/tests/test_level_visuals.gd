@@ -743,8 +743,9 @@ func test_time_rabbit_cast_animation_has_readable_timing() -> void:
 	var first_k1_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1")
 	var first_k1_end: int = body.find("\n", first_k1_idx)
 	var first_k1_line := body.substr(first_k1_idx, first_k1_end - first_k1_idx) if first_k1_idx >= 0 and first_k1_end > first_k1_idx else ""
-	assert_true(body.contains("var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()"), "emerge frames share the avatar frame lower lip as their bottom anchor")
-	assert_true(first_k1_line.contains("emerge_bottom"), "third GIF frame starts lower, as if the rabbit is pushing up from the avatar frame bottom edge")
+	assert_true(body.contains("var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()"), "later emerge frames share the avatar frame lower lip as their bottom anchor")
+	assert_true(body.contains("var first_peek := _time_rabbit_first_peek_anchor()"), "first peek frame has its own eye-aligned avatar anchor")
+	assert_true(first_k1_line.contains("first_peek"), "second GIF frame keeps the rabbit eyes level with the avatar instead of dropping to the lower lip")
 	for path_name in ["RABBIT_REWIND_K2", "RABBIT_REWIND_K25", "RABBIT_REWIND_K3", "RABBIT_REWIND_K4"]:
 		var line_idx: int = body.find("_queue_time_rabbit_frame(t, rig, rabbit, %s" % path_name)
 		var line_end: int = body.find("\n", line_idx)
@@ -760,7 +761,8 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	assert_true(level.has_method("_time_rabbit_jump_points"), "time rabbit jump exposes inbetween arc points")
 	assert_true(level.has_method("_time_rabbit_jump_durations"), "time rabbit jump exposes per-inbetween timing")
 	assert_true(level.has_method("_time_rabbit_avatar_frame_bottom_anchor"), "time rabbit exposes the avatar frame bottom anchor")
-	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations") or not level.has_method("_time_rabbit_avatar_frame_bottom_anchor"):
+	assert_true(level.has_method("_time_rabbit_first_peek_anchor"), "time rabbit exposes the eye-aligned first peek anchor")
+	if not level.has_method("_time_rabbit_jump_points") or not level.has_method("_time_rabbit_jump_durations") or not level.has_method("_time_rabbit_avatar_frame_bottom_anchor") or not level.has_method("_time_rabbit_first_peek_anchor"):
 		level.free()
 		return
 	var home := Vector2(140.0, 1320.0)
@@ -776,6 +778,10 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 	var bottom_anchor: Vector2 = level.call("_time_rabbit_avatar_frame_bottom_anchor")
 	var visible_frame_bottom: float = Vector2(level.call("_time_rabbit_home_anchor")).y + 132.0 * 0.5
 	assert_true(absf(bottom_anchor.y - visible_frame_bottom) <= 1.0, "avatar frame bottom anchor uses the visible slot lip, not the oversized frame texture bounds")
+	var first_peek: Vector2 = level.call("_time_rabbit_first_peek_anchor")
+	var live_home: Vector2 = level.call("_time_rabbit_home_anchor")
+	assert_true(absf(first_peek.y - (live_home.y - 24.0)) <= 1.0, "first peek anchor keeps the K1 eyes aligned with the static avatar")
+	assert_true(first_peek.y < bottom_anchor.y - 72.0, "first peek starts well above the lower lip so the second frame does not look too low")
 	assert_true(points[0].y > home.y, "first jump inbetween starts near the lower avatar-frame lip instead of popping above it")
 	var reaches_apex := false
 	assert_true(points[points.size() - 1].distance_to(cast) <= 0.5, "last jump inbetween lands at the documented cast anchor")
@@ -799,6 +805,7 @@ func test_time_rabbit_jump_has_inbetween_frames() -> void:
 		end = src.length()
 	var body: String = src.substr(start, end - start)
 	assert_true(body.contains("_queue_time_rabbit_jump"), "main rabbit cast timeline uses the multi-step jump helper")
+	assert_true(body.contains("_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, first_peek"), "return-to-pocket K1 reuses the same eye-aligned anchor before switching back to avatar art")
 	assert_false(body.contains("RABBIT_REWIND_K5, RABBIT_REWIND_LEAP_W, cast + Vector2(-44.0, 38.0)"), "rabbit no longer jumps from crouch to cast in one long tween")
 	level.free()
 

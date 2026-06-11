@@ -202,6 +202,7 @@ const RABBIT_REWIND_FRAME_BOTTOM_CROP := {
 	RABBIT_REWIND_K2: 24.0,
 	RABBIT_REWIND_K25: 18.0,
 }
+const RABBIT_REWIND_FIRST_PEEK_Y_OFFSET := -24.0
 const RABBIT_REWIND_CAST_TOP_GAP := 8.0
 const RABBIT_REWIND_CAST_AVATAR_GAP := 18.0
 const RABBIT_REWIND_CAST_GAP_BIAS := 36.0
@@ -1766,6 +1767,9 @@ func _time_rabbit_avatar_frame_bottom_offset() -> float:
 func _time_rabbit_avatar_frame_bottom_anchor() -> Vector2:
 	return _time_rabbit_home_anchor() + Vector2(0.0, _time_rabbit_avatar_frame_bottom_offset())
 
+func _time_rabbit_first_peek_anchor() -> Vector2:
+	return _time_rabbit_home_anchor() + Vector2(0.0, RABBIT_REWIND_FIRST_PEEK_Y_OFFSET)
+
 func _time_rabbit_cast_anchor() -> Vector2:
 	var home := _time_rabbit_home_anchor()
 	if board != null:
@@ -1828,10 +1832,11 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	var cast_w := _time_rabbit_cast_width()
 	var leap_w := _time_rabbit_leap_width(cast_w)
 	var emerge_bottom := _time_rabbit_avatar_frame_bottom_anchor()
+	var first_peek := _time_rabbit_first_peek_anchor()
 	var t := create_tween()
 	rig.set_meta("cast_tween", t)
 	t.tween_interval(_rabbit_rewind_time(0.08))
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, emerge_bottom, _rabbit_rewind_time(0.06))
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, first_peek, _rabbit_rewind_time(0.06))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, emerge_bottom, _rabbit_rewind_time(0.08))
@@ -1860,7 +1865,7 @@ func _start_time_rabbit_tween(rig: Node2D, rabbit: Sprite2D, hourglass: Sprite2D
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K3, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -22.0), _rabbit_rewind_time(0.07), true)
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K25, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, -12.0), _rabbit_rewind_time(0.07), true)
 	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K2, RABBIT_REWIND_PEEK_W, home + Vector2(0.0, 4.0), _rabbit_rewind_time(0.07), true)
-	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, home + Vector2(0.0, 16.0), _rabbit_rewind_time(0.07), true)
+	_queue_time_rabbit_frame(t, rig, rabbit, RABBIT_REWIND_K1, RABBIT_REWIND_HOME_W, first_peek, _rabbit_rewind_time(0.07), true)
 	_queue_time_rabbit_avatar_frame(t, rig, rabbit, home, _rabbit_rewind_time(0.08))
 	t.tween_callback(Callable(self, "_retire_time_rabbit_rig").bind(rig))
 
