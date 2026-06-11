@@ -199,7 +199,7 @@ func test_gem_saturation_experiment_uses_shader_not_asset_rewrites() -> void:
 func test_pet_skill_charge_requirement_is_halved() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_eq(level.get("SKILL_CHARGE_REQ"), 10.0, "pet skill progress should fill twice as fast by halving the shared charge requirement")
+	assert_eq(level.skills.get("SKILL_CHARGE_REQ"), 10.0, "pet skill progress should fill twice as fast by halving the shared charge requirement")
 	level.free()
 
 
@@ -241,7 +241,7 @@ func test_board_layout_centers_playable_books_between_topbar_and_skills() -> voi
 		level.call("_compute_layout")
 		var board_h: float = float(level.board.height) * level.cell_size
 		var visual_center_y: float = level.board_origin.y + board_h * 0.5
-		var topbar_bottom: float = -48.0 + float(level.call("_topbar_height"))
+		var topbar_bottom: float = -48.0 + float(level.hud.call("_topbar_height"))
 		var skill_top: float = 1374.0 - 132.0 * 0.5
 		var book_top: float = level.board_origin.y - 21.0
 		var ribbons_bottom: float = level.board_origin.y + board_h + 56.0 + 726.0 * 77.0 / 982.0
@@ -257,7 +257,7 @@ func test_board_layout_keeps_tallest_playable_book_inside_play_area() -> void:
 	var level := scene.instantiate()
 	level.board = Board.new(9, 11, [0, 1, 2, 3, 4, 5], 0, 25, 1)
 	level.call("_compute_layout")
-	var topbar_bottom: float = -48.0 + float(level.call("_topbar_height"))
+	var topbar_bottom: float = -48.0 + float(level.hud.call("_topbar_height"))
 	var skill_top: float = 1374.0 - 132.0 * 0.5
 	var book_y: float = level.board_origin.y - 21.0
 	var book_bottom: float = level.board_origin.y + float(level.board.height) * level.cell_size + 56.0

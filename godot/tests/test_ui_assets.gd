@@ -203,8 +203,8 @@ func _make_rabbit_cast(level, cast_effect: bool = true) -> TimeRabbitCast:
 		"board_origin": level.board_origin,
 		"cast_effect": cast_effect,
 		"load_texture": Callable(level, "_load_texture"),
-		"set_avatar_casting": Callable(level, "_set_time_rabbit_avatar_casting"),
-		"refresh_skill_ui": Callable(level, "_update_skill_cd_visual"),
+		"set_avatar_casting": Callable(level.skills, "_set_time_rabbit_avatar_casting"),
+		"refresh_skill_ui": Callable(level.skills, "refresh_visual"),
 	})
 	return cast
 
@@ -477,8 +477,8 @@ func test_level_time_rewind_cast_commit_restores_board_and_shows_effect() -> voi
 		"cell_size": level.cell_size, "board_origin": level.board_origin,
 		"cast_effect": true,
 		"load_texture": Callable(level, "_load_texture"),
-		"set_avatar_casting": Callable(level, "_set_time_rabbit_avatar_casting"),
-		"refresh_skill_ui": Callable(level, "_update_skill_cd_visual"),
+		"set_avatar_casting": Callable(level.skills, "_set_time_rabbit_avatar_casting"),
+		"refresh_skill_ui": Callable(level.skills, "refresh_visual"),
 	})
 	var did: bool = cast.call("_apply_effect")
 	assert_true(did, "applying the rewind effect succeeds when the board has history")
@@ -521,9 +521,9 @@ func test_level_time_rewind_button_enables_from_history_not_charge() -> void:
 	if btn == null:
 		level.free()
 		return
-	level._skill_charge[0] = 0.0
+	level.skills._skill_charge[0] = 0.0
 	level.board._push_history()
-	level.call("_update_skill_cd_visual")
+	level.skills.call("refresh_visual")
 	assert_false(btn.disabled, "time rewind becomes clickable from board history even with zero gem charge")
 	assert_eq(btn.modulate.a, 1.0, "time rewind button looks ready when history is available")
 	level.free()
@@ -541,7 +541,7 @@ func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
 	assert_true(btn.modulate.a < 1.0, "time rabbit still looks not-ready before there is history to rewind")
 	# P3: 未充满(无历史)但可点 → _on_skill_pressed 走 _cast_pet(0, false) 的 peek 反馈, 而非只缩放按钮。
 	# 该状态门控 + peek 演出节点由 TimeRabbitCast._build_visuals 搭建(headless 下立即收尾, 故直接观察 build)。
-	assert_true(level.call("_skill_clickable", 0) and not level.call("_skill_ready", 0), "rabbit is in the clickable-but-not-ready state that taps give feedback for")
+	assert_true(level.skills.call("_skill_clickable", 0) and not level.skills.call("_skill_ready", 0), "rabbit is in the clickable-but-not-ready state that taps give feedback for")
 	var cast := _make_rabbit_cast(level, false)
 	cast.call("_build_visuals")
 	assert_true(_find_named_node(level.skill_bar, RABBIT_REWIND_CAST_NODE) != null, "time rabbit tap feedback uses the documented rabbit animation instead of only button scaling")
@@ -552,14 +552,14 @@ func test_level_time_rewind_button_accepts_clicks_before_history() -> void:
 func test_level_time_rewind_progress_bar_still_uses_purple_charge() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	assert_true(level._skill_bar_fills.size() > 0, "time rabbit charge bar exists")
-	if level._skill_bar_fills.is_empty():
+	assert_true(level.skills._skill_bar_fills.size() > 0, "time rabbit charge bar exists")
+	if level.skills._skill_bar_fills.is_empty():
 		level.free()
 		return
-	var fill: Panel = level._skill_bar_fills[0]
+	var fill: Panel = level.skills._skill_bar_fills[0]
 	var initial_w: float = fill.size.x
-	level.call("_charge_skills", {4: 5})
-	assert_eq(level._skill_charge[0], 5.0, "purple clears still charge the time rabbit slot")
+	level.skills.call("charge", {4: 5})
+	assert_eq(level.skills._skill_charge[0], 5.0, "purple clears still charge the time rabbit slot")
 	assert_true(fill.size.x > initial_w, "time rabbit progress bar grows from purple clears even before rewind history exists")
 	level.free()
 
@@ -755,12 +755,12 @@ func test_topbar_art_background_fill_is_transparent() -> void:
 
 func test_topbar_uses_transparent_source_region_without_squashing() -> void:
 	var level := _prepare_level_scene()
-	assert_true(level.has_method("_topbar_texture"), "Level exposes the topbar texture region")
-	assert_true(level.has_method("_topbar_height"), "Level exposes topbar display height")
-	if not level.has_method("_topbar_texture") or not level.has_method("_topbar_height"):
+	assert_true(level.hud.has_method("_topbar_texture"), "Level exposes the topbar texture region")
+	assert_true(level.hud.has_method("_topbar_height"), "Level exposes topbar display height")
+	if not level.hud.has_method("_topbar_texture") or not level.hud.has_method("_topbar_height"):
 		level.free()
 		return
-	var tex: Variant = level.call("_topbar_texture")
+	var tex: Variant = level.hud.call("_topbar_texture")
 	assert_true(tex is AtlasTexture, "topbar renders a cropped region from the tall transparent art")
 	if tex is AtlasTexture:
 		var atlas := tex as AtlasTexture
@@ -768,7 +768,7 @@ func test_topbar_uses_transparent_source_region_without_squashing() -> void:
 		assert_eq(int(atlas.region.position.y), 340, "topbar source crop skips the tall transparent/empty lead-in")
 		assert_eq(int(atlas.region.size.x), 1024, "topbar source crop keeps full art width")
 		assert_eq(int(atlas.region.size.y), 507, "topbar source crop excludes the transparent lower canvas")
-		var th: float = level.call("_topbar_height")
+		var th: float = level.hud.call("_topbar_height")
 		assert_true(absf(th - 720.0 * atlas.region.size.y / atlas.region.size.x) <= 0.01, "topbar display height follows the cropped source region")
 		assert_true(absf(th - 356.5) <= 0.5, "frame and round ornaments stay at the old topbar height instead of shrinking with the 9:16 canvas")
 	level.free()
@@ -839,7 +839,7 @@ func test_level_objective_view_names_clear_jelly() -> void:
 	var level := scene.instantiate()
 	var objs := [{"type": "CLEAR_JELLY", "species": -1, "target": 65}]
 	level.board = Board.new(8, 9, [0, 1, 2, 3, 4, 5], 0, 25, 1, [], objs, _filled_layer(8, 9, 1))
-	var view: Array = level.call("_objectives_view")
+	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "one objective card")
 	assert_eq(view[0].get("label", ""), "清果冻", "jelly objective says what action clears the level")
 	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "jelly objective uses a readable jelly/bubble icon instead of a placeholder")
@@ -851,14 +851,14 @@ func test_level_objective_view_names_clear_jelly() -> void:
 func test_topbar_objective_counter_shows_remaining_amount() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_objective_counter_text"), "Level exposes topbar objective counter formatting")
-	if not level.has_method("_objective_counter_text"):
+	assert_true(level.hud.has_method("_objective_counter_text"), "Level exposes topbar objective counter formatting")
+	if not level.hud.has_method("_objective_counter_text"):
 		level.free()
 		return
-	assert_eq(level.call("_objective_counter_text", {"progress": 0, "target": 42}), "42", "fresh objective shows full remaining count")
-	assert_eq(level.call("_objective_counter_text", {"progress": 5, "target": 42}), "37", "objective counter decreases as progress increases")
-	assert_eq(level.call("_objective_counter_text", {"progress": 99, "target": 42}), "0", "completed objective never shows a negative remaining count")
-	assert_eq(level.call("_objective_counter_text", {"n": "16"}), "16", "demo fallback keeps its literal number")
+	assert_eq(level.hud.call("_objective_counter_text", {"progress": 0, "target": 42}), "42", "fresh objective shows full remaining count")
+	assert_eq(level.hud.call("_objective_counter_text", {"progress": 5, "target": 42}), "37", "objective counter decreases as progress increases")
+	assert_eq(level.hud.call("_objective_counter_text", {"progress": 99, "target": 42}), "0", "completed objective never shows a negative remaining count")
+	assert_eq(level.hud.call("_objective_counter_text", {"n": "16"}), "16", "demo fallback keeps its literal number")
 	level.free()
 
 
@@ -870,7 +870,7 @@ func test_topbar_objective_render_uses_remaining_count_from_progress() -> void:
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.ui_layer = layer
-	level.call("_render_topbar_v2", level._cur_cfg)
+	level.hud.call("_render_topbar_v2", level._cur_cfg)
 	assert_true(_count_label_text(layer, "37") > 0, "topbar renders remaining objective count after progress")
 	assert_eq(_count_label_text(layer, "42"), 0, "topbar no longer renders the total target after progress exists")
 	level.free()
@@ -879,21 +879,21 @@ func test_topbar_objective_render_uses_remaining_count_from_progress() -> void:
 func test_topbar_objective_slots_keep_number_near_icon() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_topbar_objective_slot"), "Level exposes topbar objective slot layout")
-	if not level.has_method("_topbar_objective_slot"):
+	assert_true(level.hud.has_method("_topbar_objective_slot"), "Level exposes topbar objective slot layout")
+	if not level.hud.has_method("_topbar_objective_slot"):
 		level.free()
 		return
-	var first: Dictionary = level.call("_topbar_objective_slot", 0, 2, 720.0, 356.0)
-	var second: Dictionary = level.call("_topbar_objective_slot", 1, 2, 720.0, 356.0)
+	var first: Dictionary = level.hud.call("_topbar_objective_slot", 0, 2, 720.0, 356.0)
+	var second: Dictionary = level.hud.call("_topbar_objective_slot", 1, 2, 720.0, 356.0)
 	var icon_text_gap: float = absf((first["text"] as Vector2).x - (first["icon"] as Vector2).x)
 	var objective_gap: float = absf((second["icon"] as Vector2).x - (first["text"] as Vector2).x)
 	assert_true(icon_text_gap <= 58.0, "number sits close to its own objective icon")
 	assert_true(objective_gap > icon_text_gap, "space between two objectives is larger than icon-to-number spacing")
 	assert_eq(int(roundf((first["icon"] as Vector2).y)), 233, "objective icon moves up with the shortened-chain topbar")
 	assert_eq(int(roundf((first["text"] as Vector2).y)), 233, "objective number moves up with the shortened-chain topbar")
-	var third: Dictionary = level.call("_topbar_objective_slot", 2, 3, 720.0, 356.0)
+	var third: Dictionary = level.hud.call("_topbar_objective_slot", 2, 3, 720.0, 356.0)
 	assert_true((third["text"] as Vector2).x <= 640.0, "three objectives still fit inside the topbar target area")
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/hud.gd")
 	assert_true(src.contains("const TB_OBJ_ICON_MAX := 80.0"), "topbar objective icons are large enough to read")
 	assert_true(src.contains("const TB_OBJ_ICON_TEXT_GAP := 58.0"), "topbar objective number leaves room for larger icons")
 	level.free()
@@ -902,11 +902,11 @@ func test_topbar_objective_slots_keep_number_near_icon() -> void:
 func test_topbar_moves_number_center_matches_transparent_art() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_topbar_moves_number_center"), "Level exposes the moves-number text anchor")
-	if not level.has_method("_topbar_moves_number_center"):
+	assert_true(level.hud.has_method("_topbar_moves_number_center"), "Level exposes the moves-number text anchor")
+	if not level.hud.has_method("_topbar_moves_number_center"):
 		level.free()
 		return
-	var center: Vector2 = level.call("_topbar_moves_number_center")
+	var center: Vector2 = level.hud.call("_topbar_moves_number_center")
 	assert_eq(int(roundf(center.x)), 140, "moves-number anchor is nudged slightly left after following the label")
 	assert_eq(int(roundf(center.y)), 234, "moves-number anchor moves up with the shortened-chain topbar")
 	level.free()
@@ -915,13 +915,13 @@ func test_topbar_moves_number_center_matches_transparent_art() -> void:
 func test_topbar_text_anchors_align_with_transparent_art() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_topbar_level_label_center"), "Level exposes the level label anchor")
-	assert_true(level.has_method("_topbar_moves_label_center"), "Level exposes the moves label anchor")
-	if not level.has_method("_topbar_level_label_center") or not level.has_method("_topbar_moves_label_center"):
+	assert_true(level.hud.has_method("_topbar_level_label_center"), "Level exposes the level label anchor")
+	assert_true(level.hud.has_method("_topbar_moves_label_center"), "Level exposes the moves label anchor")
+	if not level.hud.has_method("_topbar_level_label_center") or not level.hud.has_method("_topbar_moves_label_center"):
 		level.free()
 		return
-	var level_center: Vector2 = level.call("_topbar_level_label_center")
-	var moves_label: Vector2 = level.call("_topbar_moves_label_center")
+	var level_center: Vector2 = level.hud.call("_topbar_level_label_center")
+	var moves_label: Vector2 = level.hud.call("_topbar_moves_label_center")
 	assert_eq(int(roundf(level_center.x)), 142, "level title sits slightly right on the new red ribbon")
 	assert_eq(int(roundf(level_center.y)), 128, "level title moves up with the shortened-chain topbar")
 	assert_eq(int(roundf(moves_label.x)), 146, "moves label shifts farther right in the transparent-art left counter panel")
@@ -932,11 +932,11 @@ func test_topbar_text_anchors_align_with_transparent_art() -> void:
 func test_topbar_star_icons_align_with_transparent_art_slots() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_true(level.has_method("_topbar_star_center"), "Level exposes topbar star slot anchors")
-	if not level.has_method("_topbar_star_center"):
+	assert_true(level.hud.has_method("_topbar_star_center"), "Level exposes topbar star slot anchors")
+	if not level.hud.has_method("_topbar_star_center"):
 		level.free()
 		return
-	var first: Vector2 = level.call("_topbar_star_center", 0, 720.0, 356.0)
+	var first: Vector2 = level.hud.call("_topbar_star_center", 0, 720.0, 356.0)
 	assert_eq(int(roundf(first.x)), 360, "first star stays centered over the first topbar slot")
 	assert_eq(int(roundf(first.y)), 151, "stars move up with the shortened-chain topbar")
 	level.free()
@@ -949,7 +949,7 @@ func test_topbar_renders_only_first_star_overlay() -> void:
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.ui_layer = layer
-	level.call("_render_topbar_v2", level._cur_cfg)
+	level.hud.call("_render_topbar_v2", level._cur_cfg)
 	var topbar_rect: TextureRect = null
 	for child in layer.get_children():
 		if child is TextureRect:
@@ -991,7 +991,7 @@ func test_twelfth_playable_level_shows_jelly_goal_and_board_markers() -> void:
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "12"], level._levels.size())
 	assert_eq(raw_idx, 17, "player level 12 maps to raw exported lvl_17 after score-only gaps are skipped")
 	level.load_level(raw_idx)
-	var view: Array = level.call("_objectives_view")
+	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "twelfth playable level has one objective card")
 	assert_eq(view[0].get("label", ""), "清果冻", "twelfth playable level explicitly asks the player to clear jelly tiles")
 	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "twelfth playable level uses the jelly goal icon")
@@ -1018,7 +1018,7 @@ func test_sixth_playable_level_objective_view_shows_collect_goal() -> void:
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
 	assert_eq(raw_idx, 7, "player level 6 maps to raw exported lvl_7 after score-only gaps are skipped")
 	level.load_level(raw_idx)
-	var view: Array = level.call("_objectives_view")
+	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "sixth playable level has one objective card")
 	assert_eq(view[0].get("label", ""), "收集", "sixth playable level is a collect goal")
 	assert_eq(view[0].get("icon", ""), PINK_GEM_SYNCED, "sixth playable level collects the heart jelly 3 pink gem")
@@ -1030,7 +1030,7 @@ func test_score_fallback_level_objective_view_shows_score_target() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	level.board = Board.new(3, 3, [0, 1, 2], 5119, 25, 1)
-	var view: Array = level.call("_objectives_view")
+	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "score-only levels still show one real objective card")
 	if view.is_empty():
 		level.free()
@@ -1048,7 +1048,7 @@ func test_level_blocker_objective_uses_resources_barrier_ice_icon() -> void:
 	var level := scene.instantiate()
 	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 9}]
 	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1, [], objs, [], _filled_layer(3, 3, 1))
-	var view: Array = level.call("_objectives_view")
+	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "one objective card")
 	assert_eq(view[0].get("icon", ""), BARRIER_ICE_SYNCED, "blocker objective uses resources/barrier synced art")
 	level.free()
