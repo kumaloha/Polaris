@@ -131,38 +131,40 @@ func test_cancel_is_idempotent() -> void:
 	assert_true(true, "cancel called multiple times should not crash")
 	cast.free()
 
+# 信号计数用 Array 捕获——GDScript lambda 按值捕获 int/bool, 闭包内自增写不回外层局部变量。
+
 func test_cancel_after_start_cast_emits_finished_once() -> void:
 	var cast := _make_raccoon(true)
-	var finished_count := 0
-	cast.cast_finished.connect(func(): finished_count += 1)
+	var finished: Array = []
+	cast.cast_finished.connect(func(): finished.append(1))
 	cast.start_cast()   # headless 路径：直接 _commit + _finish，已发 finished
 	# 再次 cancel 不应再发 finished（_finished_emitted 守卫）
 	cast.cancel()
-	assert_eq(finished_count, 1, "cast_finished should be emitted exactly once")
+	assert_eq(finished.size(), 1, "cast_finished should be emitted exactly once")
 	cast.free()
 
 # ───────── 测试：signals 语义（headless 路径）─────────
 
 func test_start_cast_emits_cast_started_signal() -> void:
 	var cast := _make_raccoon(true)
-	var started := false
-	cast.cast_started.connect(func(): started = true)
+	var started: Array = []
+	cast.cast_started.connect(func(): started.append(1))
 	cast.start_cast()
-	assert_true(started, "cast_started signal must be emitted on start_cast")
+	assert_true(not started.is_empty(), "cast_started signal must be emitted on start_cast")
 	cast.free()
 
 func test_start_cast_emits_cast_committed_when_coat_present() -> void:
 	var cast := _make_raccoon(true)
-	var committed := false
-	cast.cast_committed.connect(func(): committed = true)
+	var committed: Array = []
+	cast.cast_committed.connect(func(): committed.append(1))
 	cast.start_cast()
-	assert_true(committed, "cast_committed must be emitted when coat board and skill_break succeeds")
+	assert_true(not committed.is_empty(), "cast_committed must be emitted when coat board and skill_break succeeds")
 	cast.free()
 
 func test_start_cast_does_not_emit_committed_when_no_coat() -> void:
 	var cast := _make_raccoon(false)
-	var committed := false
-	cast.cast_committed.connect(func(): committed = true)
+	var committed: Array = []
+	cast.cast_committed.connect(func(): committed.append(1))
 	cast.start_cast()   # 返回 false，流程未进入
-	assert_false(committed, "cast_committed must NOT be emitted when start_cast is rejected")
+	assert_false(not committed.is_empty(), "cast_committed must NOT be emitted when start_cast is rejected")
 	cast.free()

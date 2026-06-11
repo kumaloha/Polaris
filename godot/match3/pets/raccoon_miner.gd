@@ -112,7 +112,7 @@ func _run_cast(t: Tween) -> void:
 func _apply_effect() -> bool:
 	if board == null:
 		return false
-	var ok := board.skill_break()
+	var ok: bool = board.skill_break()
 	if ok:
 		_spawn_break_fx()
 	return ok

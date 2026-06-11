@@ -1165,9 +1165,8 @@ func _on_skill_pressed(idx: int) -> void:
 	if PetRegistry.has_pet(skill_name):
 		did = _cast_pet(idx, true)   # 宠物施法经控制器接管: 锁/落地/解锁走信号(契约 C)
 	else:
+		# 仅剩未宠物化的技能走旧分支; 宠物化一个迁出一个(破障已由 RaccoonMinerCast 接管)。
 		match skill_name:
-			"破障":
-				did = await _skill_break()
 			"龙息大招":
 				did = await _skill_dragon()
 			"幸运祝福":
@@ -1248,38 +1247,6 @@ func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> Packe
 		var a: float = TAU * float(i) / float(n)
 		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
-
-# ── idx1 矿工程/破障: 占位——随机清 N 个普通格 + 连锁收尾。(关接 coat 层后改 ME.break_blockers) ──
-func _skill_break() -> bool:
-	# TODO(关卡): 当前关多无障碍 coat → 占位随机破普通格。接 coat 层后改调 ME.break_blockers 真破障。
-	# ⚠️ 占位旁路: 直接 ME._apply_clears 绕过 board 账本(目标不计数/炸弹不算拆), 勿用于有障碍/收集目标的关。
-	# 正式实现必须走 board.skill_*(核心算账), 视图只播特效——范式见 _resolve_colorbomb。_skill_dragon 同此问题。
-	var cands: Array = []
-	for r in range(board.height):
-		for c in range(board.width):
-			if board.grid[r][c] >= 0 and board.fx[r][c] == ME.SP_NONE:
-				cands.append(Vector2i(c, r))
-	if cands.is_empty():
-		return false
-	for i in range(cands.size() - 1, 0, -1):   # Fisher-Yates(用 board.rng 保确定性)
-		var j: int = board.rng.randi() % (i + 1)
-		var tmp = cands[i]; cands[i] = cands[j]; cands[j] = tmp
-	var n: int = mini(3, cands.size())
-	var cells: Array = cands.slice(0, n)
-	_busy = true
-	for p in cells:
-		Fx.spawn_explosion(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]), 1.2)
-	Fx.shake(7.0)
-	ME._apply_clears(board.grid, board.fx, cells, [])
-	for p in cells:
-		var node: Sprite2D = _gem_nodes[p.y][p.x]
-		if node != null and is_instance_valid(node):
-			node.queue_free()
-		_gem_nodes[p.y][p.x] = null
-	await _collapse_and_refill()
-	await _resolve_cascades()   # 收尾连锁 + 计数
-	_busy = false
-	return true
 
 # ── idx2 龙宝宝/龙息大招: 清盘上最多色的全部 + 中间一整行非空格 + beam/爆炸/强震。 ──
 func _skill_dragon() -> bool:

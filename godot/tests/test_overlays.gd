@@ -111,21 +111,21 @@ func test_registry_layer_keys_match_dict_keys() -> void:
 
 func test_jelly_setup_reads_initial_value() -> void:
 	var b := _make_board_jelly(2)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(j._last_value, 2, "setup 应读取初始层值 2")
 	j.free()
 
 func test_jelly_current_value_reads_board() -> void:
 	var b := _make_board_jelly(2)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(j.current_value(), 2, "current_value 应读取 board.jelly[0][0]=2")
 	j.free()
 
 func test_jelly_on_step_updates_last_value_when_cleared() -> void:
 	var b := _make_board_jelly(2)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	# 模拟消除: 降为 1
 	b.jelly[0][0] = 1
@@ -136,7 +136,7 @@ func test_jelly_on_step_updates_last_value_when_cleared() -> void:
 
 func test_jelly_on_step_no_change_when_not_cleared() -> void:
 	var b := _make_board_jelly(2)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	# 本步无果冻消除
 	var report := _make_step_report(0, 0)
@@ -146,7 +146,7 @@ func test_jelly_on_step_no_change_when_not_cleared() -> void:
 
 func test_jelly_z_index_set_on_setup() -> void:
 	var b := _make_board_jelly(2)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(j.z_index, 2, "setup 后 z_index 应等于 z_band()=2")
 	j.free()
@@ -155,21 +155,21 @@ func test_jelly_z_index_set_on_setup() -> void:
 
 func test_bomb_setup_reads_initial_value() -> void:
 	var b := _make_board_bomb(5)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(bov._last_value, 5, "setup 应读取初始层值 5")
 	bov.free()
 
 func test_bomb_current_value_reads_board() -> void:
 	var b := _make_board_bomb(5)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(bov.current_value(), 5, "current_value 应读取 board.bomb[0][0]=5")
 	bov.free()
 
 func test_bomb_refresh_updates_last_value() -> void:
 	var b := _make_board_bomb(5)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	# 模拟 tick: board 值降为 4
 	b.bomb[0][0] = 4
@@ -179,14 +179,14 @@ func test_bomb_refresh_updates_last_value() -> void:
 
 func test_bomb_label_shows_current_value() -> void:
 	var b := _make_board_bomb(5)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(bov._label.text, "5", "Label 应显示初始倒计时 5")
 	bov.free()
 
 func test_bomb_label_updates_after_refresh() -> void:
 	var b := _make_board_bomb(5)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	b.bomb[0][0] = 3
 	bov.refresh()
@@ -195,7 +195,7 @@ func test_bomb_label_updates_after_refresh() -> void:
 
 func test_bomb_z_index_set_on_setup() -> void:
 	var b := _make_board_bomb(3)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	assert_eq(bov.z_index, 6, "setup 后 z_index 应等于 z_band()=6")
 	bov.free()
@@ -205,7 +205,7 @@ func test_bomb_z_index_set_on_setup() -> void:
 func test_jelly_on_cleared_queues_free() -> void:
 	# headless 路径: on_cleared 不在树内时直接 queue_free（不崩）
 	var b := _make_board_jelly(1)
-	var j := JellyOverlay.new()
+	var j: OverlayBase = JellyOverlay.new()
 	j.setup(Vector2i(0, 0), b, 64.0)
 	b.jelly[0][0] = 0
 	# 调用不崩即通过（headless 无树, 走 queue_free 分支）
@@ -215,7 +215,7 @@ func test_jelly_on_cleared_queues_free() -> void:
 
 func test_bomb_on_step_calls_on_cleared_when_defused() -> void:
 	var b := _make_board_bomb(1)
-	var bov := BombOverlay.new()
+	var bov: OverlayBase = BombOverlay.new()
 	bov.setup(Vector2i(0, 0), b, 64.0)
 	# 模拟拆弹: board 值归 0
 	b.bomb[0][0] = 0
