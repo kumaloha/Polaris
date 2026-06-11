@@ -13,14 +13,6 @@ const MAGIC_BASIC_FLASH_STAR := "res://art/vfx/basic_pop/vfx_basic_flash_star.pn
 const MAGIC_BASIC_RING_SOFT := "res://art/vfx/basic_pop/vfx_basic_ring_soft.png"
 const MAGIC_DUST_DOT := "res://art/vfx/basic_pop/vfx_dust_dot.png"
 const MAGIC_DUST_STAR := "res://art/vfx/basic_pop/vfx_dust_star.png"
-const MAGIC_GEM_SHARDS := [
-	"res://art/vfx/basic_pop/vfx_gem_shard_01.png",
-	"res://art/vfx/basic_pop/vfx_gem_shard_02.png",
-	"res://art/vfx/basic_pop/vfx_gem_shard_03.png",
-	"res://art/vfx/basic_pop/vfx_gem_shard_04.png",
-	"res://art/vfx/basic_pop/vfx_gem_shard_05.png",
-	"res://art/vfx/basic_pop/vfx_gem_shard_06.png",
-]
 const MAGIC_LINE_BEAM_CORE := "res://art/vfx/line_blast/vfx_beam_core.png"
 const MAGIC_LINE_BEAM_GLOW := "res://art/vfx/line_blast/vfx_beam_glow.png"
 const MAGIC_LINE_BEAM_CAP := "res://art/vfx/line_blast/vfx_beam_cap.png"
@@ -95,22 +87,24 @@ const BASIC_POP_FALLBACK_DURATION := 0.208
 const BASIC_POP_DUST_DURATION := 0.442
 const HEAVY_FX_FRAME_BUDGET := 18
 const BASIC_POP_HEAVY_COST := 3
-# 宝石炸裂(普通消除): 本体在 level.gd 鼓胀 0.117s(CLEAR_POP_TIME) 后炸开瞬灭,
-# 特效统一从爆点时刻 GEM_BURST_POP_AT 起跑——前奏留给本体表演, 爆点后碎片接管。
-const GEM_BURST_POP_AT := 0.10            # 爆点时刻(略早于本体瞬灭, 火花先冒头更有撑爆感)
-const GEM_BURST_FLASH_START_RATIO := 0.46
-const GEM_BURST_FLASH_END_RATIO := 0.95   # 爆点白闪收敛为小型(碎片才是主角)
-const GEM_BURST_FLASH_DURATION := 0.15
-const GEM_BURST_RING_START_RATIO := 0.5
-const GEM_BURST_RING_END_RATIO := 1.28
-const GEM_BURST_RING_DURATION := 0.22
-const GEM_BURST_SHARD_COUNT := 12
-const GEM_BURST_SHARD_SPEED_RATIO := 1.7  # 碎片初速(格倍率/s)
-const GEM_BURST_SHARD_LIFT_RATIO := 1.05  # 向上偏置初速(炸起再落)
-const GEM_BURST_SHARD_GRAVITY_RATIO := 7.2 # 重力加速度(格倍率/s²)
-const GEM_BURST_SHARD_DURATION := 0.5
-const GEM_BURST_DUST_COUNT := 5
-const GEM_BURST_DUST_DELAY := 0.16
+# 宝石碎裂(普通消除, gem_shatter_white_v2 五帧白图): 白贴图 × modulate 染色, 六色通用, ADD 混合。
+# 时序契约(与 board_view 本体动画对表): 0~0.08 本体膨胀+白推 → 0.08 裂纹帧叠于本体之上(本体仍可见)
+# → 0.15 崩拍(本体隐藏/中心白闪/碎块序列起跑) → 碎块 15fps 播完(~0.27s)。
+# 下落在崩拍 0.15 放行(board_view.ELIM_HOLD), 碎块飞散与棋子下落并行——跟手感全在这半拍。
+const SHATTER_FRAMES := [
+	"res://art/vfx/gem_shatter/shatter_01.png",
+	"res://art/vfx/gem_shatter/shatter_02.png",
+	"res://art/vfx/gem_shatter/shatter_03.png",
+	"res://art/vfx/gem_shatter/shatter_04.png",
+	"res://art/vfx/gem_shatter/shatter_05.png",
+]
+const SHATTER_CRACK_AT := 0.08            # 裂纹帧时刻(裂在宝石上)
+const SHATTER_BREAK_AT := 0.15            # 崩拍: 白闪 + shatter_02-05 起跑
+const SHATTER_FPS := 15.0                 # 碎块序列播速(4 帧 ≈ 0.27s)
+const SHATTER_SPAN_RATIO := 1.55          # 贴图铺设直径(格倍率): 碎块要飞出格才有炸开感
+const SHATTER_FLASH_RADIUS_RATIO := 0.6   # 崩拍中心白闪半径(≈宝石 60%)
+const SHATTER_FLASH_FADE := 0.1
+const SHATTER_FLASH_DEDUP_MS := 100       # 连消白闪去重窗口: 同窗口只闪一次, 防连消糊屏
 const AREA_BURST_HEAVY_COST := 7
 const LINE_BLAST_HEAVY_COST := 6
 const EXPLOSION_HEAVY_COST := 5
@@ -119,6 +113,8 @@ var _target: Node = null      # 特效挂载层(FXLayer)
 var _shake_node: CanvasLayer = null  # 震动目标(棋子层)
 var _budget_frame := -1
 var _heavy_fx_this_frame := 0
+var _last_shatter_flash_ms := -1000
+static var _shatter_sprite_frames: SpriteFrames = null
 
 # 路径全为编译期常量, 运行期不写磁盘, 无失效风险。
 static var _exists_cache: Dictionary = {}
@@ -185,23 +181,18 @@ static func magic_vfx_paths() -> Dictionary:
 	}
 
 ## 宝石炸裂参数表(供测试断言"碎片主角"语义, 防回归到白闪主角的旧方案)。
-func gem_burst_profile() -> Dictionary:
+## 宝石碎裂参数表(供测试钉住交付契约: 五帧序列/时序拍点/白闪去重, 防回归到程序碎片旧方案)。
+func gem_shatter_profile() -> Dictionary:
 	return {
-		"pop_at": GEM_BURST_POP_AT,
-		"flash_start_ratio": GEM_BURST_FLASH_START_RATIO,
-		"flash_end_ratio": GEM_BURST_FLASH_END_RATIO,
-		"flash_duration": GEM_BURST_FLASH_DURATION,
-		"ring_start_ratio": GEM_BURST_RING_START_RATIO,
-		"ring_end_ratio": GEM_BURST_RING_END_RATIO,
-		"ring_duration": GEM_BURST_RING_DURATION,
-		"shard_count": GEM_BURST_SHARD_COUNT,
-		"shard_speed_ratio": GEM_BURST_SHARD_SPEED_RATIO,
-		"shard_lift_ratio": GEM_BURST_SHARD_LIFT_RATIO,
-		"shard_gravity_ratio": GEM_BURST_SHARD_GRAVITY_RATIO,
-		"shard_duration": GEM_BURST_SHARD_DURATION,
-		"dust_count": GEM_BURST_DUST_COUNT,
-		"dust_duration": BASIC_POP_DUST_DURATION,
-		"dust_delay": GEM_BURST_DUST_DELAY,
+		"frames": SHATTER_FRAMES,
+		"crack_at": SHATTER_CRACK_AT,
+		"break_at": SHATTER_BREAK_AT,
+		"fps": SHATTER_FPS,
+		"span_ratio": SHATTER_SPAN_RATIO,
+		"flash_radius_ratio": SHATTER_FLASH_RADIUS_RATIO,
+		"flash_fade": SHATTER_FLASH_FADE,
+		"flash_dedup_ms": SHATTER_FLASH_DEDUP_MS,
+		"add_blend": true,
 		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
 	}
 
@@ -343,16 +334,15 @@ func spawn_shatter(pos: Vector2, color: Color) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.55)
 
-## 普通消除「宝石炸裂」: 宝石本体(level.gd)先鼓胀再炸开瞬灭, 此处接管炸裂物——
-## 爆点短闪 + 宝石色冲击环 + 主角碎片(上抛初速+重力下坠+自转) + 余尘。
-## 时序契约: 本体鼓胀 0~CLEAR_POP_TIME(0.117s) 是"撑爆"前奏, 特效统一在爆点时刻
-## GEM_BURST_POP_AT 起跑(略早于本体瞬灭, 火花先冒头), 前奏期间不抢戏。
+## 普通消除「宝石碎裂」(gem_shatter_white_v2): 本体动画归 board_view(膨胀+白推+0.15 隐藏),
+## 此处接管碎裂物——0.08 裂纹帧叠于本体之上 → 0.15 崩拍: 中心白闪(连消去重) + 碎块序列(15fps)。
+## 染色: 白贴图 × modulate(取宝石主色饱和款, _color_key_to_magic_color), ADD 混合防发灰。
 func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
-	var magic_color := _color_key_to_magic_color(color)
+	var gem_color := _color_key_to_magic_color(color)
 	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
-		_spawn_single_flash(pos, magic_color, target_px, BASIC_POP_FALLBACK_DURATION)
+		_spawn_single_flash(pos, gem_color, target_px, BASIC_POP_FALLBACK_DURATION)
 		return
-	_spawn_gem_burst(pos, magic_color, target_px)
+	_spawn_gem_shatter(pos, gem_color, target_px)
 
 ## 爆炸(炸弹/彩球): 中心亮闪 + 冲击波环 + 火花扩散。Additive。
 func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
@@ -568,58 +558,72 @@ func _color_key_to_magic_color(color_key: String) -> Color:
 func _quad_bezier(a: Vector2, b: Vector2, c: Vector2, t: float) -> Vector2:
 	return a.lerp(b, t).lerp(b.lerp(c, t), t)
 
-## 宝石炸裂(普通消除主特效): 碎片是主角, 闪光只做爆点提示。全部从爆点时刻起跑。
-func _spawn_gem_burst(pos: Vector2, color: Color, target_px: float) -> void:
-	var hot := color.lerp(Color(1, 1, 1, 1), 0.30)
-	# 爆点短闪: 旧 blob 1.37x 是主角, 现在收敛为小型火花点
-	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * GEM_BURST_FLASH_START_RATIO, target_px * GEM_BURST_FLASH_END_RATIO, GEM_BURST_FLASH_DURATION, GEM_BURST_POP_AT)
-	# 冲击环: 宝石色快速扩散一圈, 给"炸开"的范围感
-	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * GEM_BURST_RING_START_RATIO, target_px * GEM_BURST_RING_END_RATIO, GEM_BURST_RING_DURATION, GEM_BURST_POP_AT + 0.01)
-	# 主角: 纯宝石色实色碎片, 上抛初速 + 重力下坠 + 自转
-	_gem_shard_scatter(MAGIC_GEM_SHARDS, pos, color.lerp(Color(1, 1, 1, 1), 0.10), GEM_BURST_SHARD_COUNT, target_px, GEM_BURST_SHARD_DURATION, GEM_BURST_POP_AT)
-	# 余尘: 少量光点缓散
-	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.22), GEM_BURST_DUST_COUNT, target_px * 0.42, BASIC_POP_DUST_DURATION, GEM_BURST_DUST_DELAY)
+## 宝石碎裂主实现: 裂纹帧(0.08, 叠于本体上) → 崩拍(0.15): 白闪 + shatter_02-05 序列(15fps)。
+## 节点 tween 全绑特效节点自身, 换关随层销毁。
+func _spawn_gem_shatter(pos: Vector2, gem_color: Color, target_px: float) -> void:
+	var span := target_px * SHATTER_SPAN_RATIO
+	# t=0.08~0.15 裂纹: shatter_01 单帧, 裂在宝石上(本体此时仍可见且在白推中)
+	var crack_tex := _load_texture(SHATTER_FRAMES[0])
+	if crack_tex != null:
+		var crack := Sprite2D.new()
+		crack.texture = crack_tex
+		crack.position = pos
+		crack.modulate = gem_color
+		crack.material = _add_mat()
+		var cs := span / maxf(float(crack_tex.get_width()), 1.0)
+		crack.scale = Vector2(cs, cs)
+		crack.visible = false
+		_layer().add_child(crack)
+		var ct := crack.create_tween()
+		ct.tween_interval(SHATTER_CRACK_AT)
+		ct.tween_callback(func() -> void: crack.visible = true)
+		ct.tween_interval(SHATTER_BREAK_AT - SHATTER_CRACK_AT)
+		ct.tween_callback(crack.queue_free)
+	# t=0.15 崩拍: 白闪(去重) + 碎块序列起跑
+	var anim := AnimatedSprite2D.new()
+	anim.sprite_frames = _shatter_frames_resource()
+	anim.animation = &"shatter"
+	anim.position = pos
+	anim.modulate = gem_color
+	anim.material = _add_mat()
+	var first := _load_texture(SHATTER_FRAMES[1])
+	if first != null:
+		var sc := span / maxf(float(first.get_width()), 1.0)
+		anim.scale = Vector2(sc, sc)
+	anim.visible = false
+	_layer().add_child(anim)
+	var t := anim.create_tween()
+	t.tween_interval(SHATTER_BREAK_AT)
+	t.tween_callback(func() -> void:
+		if not is_instance_valid(anim):
+			return
+		anim.visible = true
+		anim.play(&"shatter")
+		_spawn_shatter_flash(pos, target_px))
+	_auto_free(anim, SHATTER_BREAK_AT + (float(SHATTER_FRAMES.size() - 1) / SHATTER_FPS) + 0.12)
 
-## 宝石碎片飞溅: 上半圆偏置初速 + 重力抛物线 + 自转, 非 additive 保实色质感(素材近白靠染色)。
-## 与 _magic_shard_burst(直线放射光屑)的区别: 这里模拟实体碎片的物理弧线。
-func _gem_shard_scatter(tex_paths: Array, pos: Vector2, color: Color, count: int, cell_px: float, dur: float, delay: float = 0.0) -> void:
-	if tex_paths.is_empty() or count <= 0:
+## shatter_02-05 共享 SpriteFrames(15fps 不循环), 全部消除复用同一资源。
+func _shatter_frames_resource() -> SpriteFrames:
+	if _shatter_sprite_frames != null:
+		return _shatter_sprite_frames
+	var sf := SpriteFrames.new()
+	sf.add_animation(&"shatter")
+	sf.set_animation_speed(&"shatter", SHATTER_FPS)
+	sf.set_animation_loop(&"shatter", false)
+	for i in range(1, SHATTER_FRAMES.size()):
+		var tex := _load_texture(SHATTER_FRAMES[i])
+		if tex != null:
+			sf.add_frame(&"shatter", tex)
+	_shatter_sprite_frames = sf
+	return sf
+
+## 崩拍中心白闪(半径≈宝石60%, 0.1s fade, ADD)。连消同窗口只闪一次, 防糊屏。
+func _spawn_shatter_flash(pos: Vector2, target_px: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_shatter_flash_ms < SHATTER_FLASH_DEDUP_MS:
 		return
-	for i in range(count):
-		var path: String = String(tex_paths[i % tex_paths.size()])
-		if not _asset_exists(path):
-			continue
-		var tex := _load_texture(path)
-		if tex == null:
-			continue
-		var s := Sprite2D.new()
-		s.texture = tex
-		s.position = pos
-		s.modulate = color
-		var ang := TAU * float(i) / float(count) + 0.21 * float(i % 5)
-		var base_scale := (0.085 + 0.03 * float(i % 3)) * cell_px / 77.0   # 按格大小等比(素材512px, 77=设计格基准)
-		s.scale = Vector2(base_scale, base_scale)
-		s.rotation = ang
-		_layer().add_child(s)
-		var speed := cell_px * (GEM_BURST_SHARD_SPEED_RATIO + 0.45 * float(i % 4) / 3.0)
-		var vel := Vector2.RIGHT.rotated(ang) * speed + Vector2(0, -cell_px * GEM_BURST_SHARD_LIFT_RATIO)
-		var gravity := cell_px * GEM_BURST_SHARD_GRAVITY_RATIO
-		var spin := (1.0 if i % 2 == 0 else -1.0) * (2.4 + 0.9 * float(i % 3))
-		var t := create_tween()
-		if delay > 0.0:
-			t.tween_interval(delay + 0.006 * float(i % 4))
-		t.set_parallel(true)
-		t.tween_method(func(f: float) -> void:
-			if not is_instance_valid(s):
-				return
-			var et := f * dur
-			s.position = pos + vel * et + Vector2(0.0, 0.5 * gravity * et * et)
-			s.rotation = ang + spin * et
-		, 0.0, 1.0, dur)
-		t.tween_property(s, "modulate:a", 0.0, dur * 0.45).set_delay(dur * 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-		t.tween_property(s, "scale", Vector2(base_scale * 0.55, base_scale * 0.55), dur * 0.6).set_delay(dur * 0.4)
-		_auto_free(s, delay + dur + 0.2)
-
+	_last_shatter_flash_ms = now
+	_flash(pos, Color(1.0, 1.0, 1.0, 0.95), target_px * SHATTER_FLASH_RADIUS_RATIO * 2.0, SHATTER_FLASH_FADE)
 func _spawn_magic_area_blast(pos: Vector2, color: Color, radius_px: float, clear_cells: int) -> void:
 	var cells_per_side := 3.0 if clear_cells <= LOCAL_BURST_CLEAR_CELLS else 5.0
 	var cell_size := radius_px / (cells_per_side * 0.5)

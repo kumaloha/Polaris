@@ -38,23 +38,27 @@ func test_magic_vfx_profiles_use_the_new_art_pack() -> void:
 	assert_eq(paths["absorb_orb"], "res://art/vfx/color_absorb/vfx_absorb_orb.png", "colorbomb absorbs use the new orb")
 
 
-func test_gem_burst_profile_shards_lead_the_show() -> void:
-	# 宝石炸裂语义(防回归到"白闪主角"旧方案): 本体鼓胀→爆点→实色碎片重力飞溅为主视觉。
+func test_gem_shatter_profile_follows_the_handoff_spec() -> void:
+	# 宝石碎裂语义(gem_shatter_white_v2 交付规格): 五帧白图序列、0.08 裂纹/0.15 崩拍、
+	# 白闪连消去重、ADD 染色——防回归到程序碎片旧方案。
 	var fx := FxScript.new()
-	assert_true(fx.has_method("gem_burst_profile"), "Fx exposes gem burst tuning profile")
-	if not fx.has_method("gem_burst_profile"):
+	assert_true(fx.has_method("gem_shatter_profile"), "Fx exposes gem shatter tuning profile")
+	if not fx.has_method("gem_shatter_profile"):
 		fx.free()
 		return
-	var profile: Dictionary = fx.call("gem_burst_profile")
+	var profile: Dictionary = fx.call("gem_shatter_profile")
 	fx.free()
-	var pop_at := float(profile.get("pop_at", -1.0))
-	assert_true(pop_at >= 0.08 and pop_at <= 0.117, "burst fx waits out the gem-body swell and fires at the pop moment")
-	assert_true(float(profile["flash_end_ratio"]) <= 1.0, "pop flash stays a small spark instead of the old screen-grabbing blob")
-	assert_true(int(profile["shard_count"]) >= 10, "shards are the lead actor with a dense burst")
-	assert_true(float(profile["shard_lift_ratio"]) > 0.0, "shards launch upward before falling")
-	assert_true(float(profile["shard_gravity_ratio"]) > 0.0, "shards fall under gravity for a physical scatter")
-	assert_true(float(profile["shard_duration"]) > float(profile["flash_duration"]), "shards outlive the pop flash as the lingering read")
-	assert_true(float(profile["ring_end_ratio"]) >= 1.1, "a quick gem-colored shockwave ring sells the burst radius")
+	var frames: Array = profile.get("frames", [])
+	assert_eq(frames.size(), 5, "shatter sequence ships exactly five frames")
+	for f in frames:
+		assert_true(String(f).begins_with("res://art/vfx/gem_shatter/shatter_0"), "frames come from the gem_shatter art pack")
+		assert_true(ResourceLoader.exists(String(f)) or FileAccess.file_exists(String(f)), "shatter frame asset exists: %s" % f)
+	assert_eq(float(profile.get("crack_at", -1.0)), 0.08, "crack frame overlays the still-visible gem at 0.08s")
+	assert_eq(float(profile.get("break_at", -1.0)), 0.15, "the break beat lands at 0.15s")
+	assert_eq(float(profile.get("fps", 0.0)), 15.0, "shatter_02-05 play at the spec'd 15fps")
+	assert_true(float(profile.get("span_ratio", 0.0)) > 1.0, "shatter spread reaches beyond the cell so debris flies outward")
+	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup within a window instead of stacking")
+	assert_true(bool(profile.get("add_blend", false)), "white frames are ADD-blended so modulate tinting never reads gray")
 
 
 func test_magic_clear_light_keeps_species_color_instead_of_whitewashing() -> void:

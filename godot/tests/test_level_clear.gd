@@ -200,20 +200,21 @@ func test_colorbomb_clear_fx_has_bounded_final_burst_budget() -> void:
 func test_level_clear_pops_gem_body_before_fade() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	# 读真实常量并锁住"先膨胀再炸开"的数值决策: 膨胀倍率(1.32) < 炸裂倍率(1.52)
-	assert_eq(level.board_view.get("CLEAR_POP_SCALE"), 1.32, "basic clear gem body swells visibly before bursting")
-	assert_eq(level.board_view.get("CLEAR_POP_TIME"), 0.117, "basic clear gem body uses the requested 1.3x slower swell phase")
-	assert_true(float(level.board_view.get("CLEAR_POP_SCALE")) < float(level.board_view.get("CLEAR_BURST_SCALE")), "swell scale stays below the outward burst scale so the body pops then bursts, not collapses")
+	# gem_shatter 规格: 膨胀 1.25(0.08s) → 0.15 崩拍隐藏。读真实常量锁住交付数值。
+	assert_eq(level.board_view.get("CLEAR_SWELL_SCALE"), 1.25, "gem body swells to the spec'd 1.25 before the break beat")
+	assert_eq(level.board_view.get("CLEAR_SWELL_TIME"), 0.08, "swell phase runs the spec'd 0.08s")
+	assert_true(float(level.board_view.get("CLEAR_WHITE_PUSH")) > 1.0, "swell pushes self_modulate past white for the charge-up read")
+	assert_true(float(level.board_view.get("CLEAR_SWELL_TIME")) < float(level.board_view.get("CLEAR_BREAK_AT")), "swell finishes before the break beat hides the body")
 	level.free()
-	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var start: int = src.find("func _play_clear")
 	var end: int = src.find("## 某已存在特效棋子", start)
 	if start < 0 or end <= start:
 		return
 	var body: String = src.substr(start, end - start)
-	# 钉源码理由: 膨胀(POP)必须排在炸裂(BURST)之前, 且用 SINE 不用会回弹的 Back —— 这是"消除是向外炸开"的演出顺序契约
-	assert_true(body.find("base_scale * CLEAR_POP_SCALE") < body.find("base_scale * CLEAR_BURST_SCALE"), "gem body swell is scheduled before the outward burst")
-	assert_true(body.contains("set_trans(Tween.TRANS_SINE)"), "basic clear swell should not use an overshooting Back tween")
+	# 钉源码理由: 规格要求膨胀用 TRANS_BACK(EASE_OUT 带弹性蓄爆), 且本体在崩拍隐藏(visible=false)而非缩放消失
+	assert_true(body.contains("set_trans(Tween.TRANS_BACK)"), "spec'd swell uses TRANS_BACK for the elastic charge-up")
+	assert_true(body.find("base_scale * CLEAR_SWELL_SCALE") < body.find("n.visible = false"), "gem body swell is scheduled before the break-beat hide")
 
 
 func test_level_clear_stops_combo_idle_before_clear_tween() -> void:
@@ -255,11 +256,17 @@ func test_level_clear_batches_vfx_creation_across_frames() -> void:
 func test_special_spawn_clear_hold_is_snappy() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	assert_eq(level.board_view.get("CLEAR_TIME"), 0.156, "basic clear gem body uses the requested 1.3x slower total animation")
-	assert_eq(level.board_view.get("CLEAR_POP_TIME"), 0.117, "the swell phase stays in the same proportion after the 1.3x slowdown")
-	assert_eq(level.board_view.get("CLEAR_POP_SCALE"), 1.32, "the swell reads clearly before the special appears")
-	assert_eq(level.board_view.get("ELIM_HOLD"), 0.156, "post-clear hold matches the slower basic clear animation before freeing gems")
+	# 跟手感契约(gem_shatter 规格): 下落在崩拍 0.15 放行, 不等碎块(~0.42s)播完。
+	assert_eq(level.board_view.get("CLEAR_BREAK_AT"), 0.15, "the break beat lands at the spec'd 0.15s")
+	assert_eq(level.board_view.get("ELIM_HOLD"), 0.15, "collapse is released at the break beat so falling runs parallel to the shatter frames")
 	level.free()
+	# Fx 侧拍点必须与 board_view 对表(同一 0.15 崩拍)
+	var FxScript := preload("res://match3/effect_manager.gd")
+	var fx = FxScript.new()
+	var profile: Dictionary = fx.call("gem_shatter_profile")
+	fx.free()
+	assert_eq(float(profile.get("break_at", -1.0)), 0.15, "Fx break beat matches the board_view hold release")
+	assert_true(float(profile.get("crack_at", -1.0)) < float(profile.get("break_at", 0.0)), "crack frame lands while the gem body is still visible")
 
 
 func test_spawned_combo_idle_starts_after_clear_phase() -> void:
