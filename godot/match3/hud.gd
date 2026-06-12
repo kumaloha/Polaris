@@ -34,6 +34,7 @@ const TB_OBJ_ICON_TEXT_GAP := 58.0
 const TB_OBJ_Y_UV := 281.0 / 356.0
 const TB_OBJ_ICON_MAX := 80.0
 const TB_OBJ_TEXT_W := 56.0
+const RESULT_OVERLAY_NAME := "ResultOverlay"
 
 const OBJECTIVES_DEMO := [
 	{"icon": "res://assets/gems/gem_water.png", "n": "16"},
@@ -107,15 +108,22 @@ func on_step(_report: Dictionary) -> void:
 func show_result(win: bool, on_button: Callable) -> void:
 	if _level == null:
 		return
+	hide_result()
 	var ui_layer: CanvasLayer = _level.ui_layer
 	var board = _level.board
+	var overlay := Control.new()
+	overlay.name = RESULT_OVERLAY_NAME
+	overlay.size = Vector2(DESIGN_W, DESIGN_H)
+	overlay.position = Vector2.ZERO
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(overlay)
 	# 半透明遮罩(吃满屏点击, 防穿透到棋盘)
 	var veil := ColorRect.new()
 	veil.color = Color(0.02, 0.01, 0.05, 0.72)
 	veil.size = Vector2(DESIGN_W, DESIGN_H)
 	veil.position = Vector2.ZERO
 	veil.mouse_filter = Control.MOUSE_FILTER_STOP
-	ui_layer.add_child(veil)
+	overlay.add_child(veil)
 	# 居中面板(深紫底+金边, 复用 StyleBoxFlat 风格)
 	var pw := 480.0
 	var ph := 320.0
@@ -129,12 +137,12 @@ func show_result(win: bool, on_button: Callable) -> void:
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.size = Vector2(pw, ph)
 	panel.position = pc - Vector2(pw, ph) * 0.5
-	ui_layer.add_child(panel)
+	overlay.add_child(panel)
 	# 标题(金色)
-	_label(ui_layer, "通关!" if win else "失败", pc + Vector2(0, -86), 56, COLOR_GOLD, pw)
+	_result_label(overlay, "通关!" if win else "失败", pc + Vector2(0, -86), 56, COLOR_GOLD, pw)
 	# 副信息: 分数 / 剩余步数
-	_label(ui_layer, "得分 %d" % board.score, pc + Vector2(0, -20), 26, Color(1, 0.95, 0.82), pw)
-	_label(ui_layer, "剩余步数 %d" % maxi(board.moves_left, 0), pc + Vector2(0, 18), 22, Color(0.85, 0.8, 0.95), pw)
+	_result_label(overlay, "得分 %d" % board.score, pc + Vector2(0, -20), 26, Color(1, 0.95, 0.82), pw)
+	_result_label(overlay, "剩余步数 %d" % maxi(board.moves_left, 0), pc + Vector2(0, 18), 22, Color(0.85, 0.8, 0.95), pw)
 	# 按钮(金底深字, 可点 Button): 通关→下一关 / 失败→重试本关
 	var btn := Button.new()
 	btn.text = "下一关" if win else "重试"
@@ -152,8 +160,34 @@ func show_result(win: bool, on_button: Callable) -> void:
 	var bh := 70.0
 	btn.size = Vector2(bw, bh)
 	btn.position = pc + Vector2(-bw * 0.5, 70.0)
-	btn.pressed.connect(on_button.bind(win))
-	ui_layer.add_child(btn)
+	btn.pressed.connect(func() -> void:
+		hide_result()
+		on_button.call(win)
+	)
+	overlay.add_child(btn)
+
+func hide_result() -> void:
+	if _level == null or _level.ui_layer == null:
+		return
+	var overlay: Node = _level.ui_layer.get_node_or_null(RESULT_OVERLAY_NAME)
+	if overlay == null:
+		return
+	_level.ui_layer.remove_child(overlay)
+	overlay.queue_free()
+
+func _result_label(parent: Node, text: String, center: Vector2, font_size: int, color: Color, box_w: float, outline_size: int = 5, outline_color: Color = Color(0, 0, 0, 0.7)) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", font_size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", outline_color)
+	l.add_theme_constant_override("outline_size", outline_size)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size = Vector2(box_w, float(font_size) + 16.0)
+	l.position = center - l.size * 0.5
+	parent.add_child(l)
+	return l
 
 # ───────── 步数显示 override(结算奖励演出期间 level 调) ─────────
 

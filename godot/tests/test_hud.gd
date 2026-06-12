@@ -123,6 +123,8 @@ func test_show_result_renders_panel_and_button_invokes_callback() -> void:
 	if btn != null:
 		btn.pressed.emit()
 		assert_eq(hit["win"], true, "pressing the result button invokes the injected callback with the win flag")
+		assert_eq(_count_label_text(level.ui_layer, "通关!"), 0, "pressing the result button removes the HUD result overlay immediately")
+		assert_true(_find_button(level.ui_layer) == null, "pressing the result button removes the overlay button so it cannot keep eating clicks")
 	level.free()
 
 
