@@ -38,30 +38,46 @@ func test_magic_vfx_profiles_use_the_new_art_pack() -> void:
 	assert_eq(paths["absorb_orb"], "res://art/vfx/color_absorb/vfx_absorb_orb.png", "colorbomb absorbs use the new orb")
 
 
-func test_gem_shatter_profile_follows_the_handoff_spec() -> void:
-	# 宝石碎裂语义(gem_shatter_white_v2 交付规格): 五帧白图序列、0.08 裂纹/0.15 崩拍、
-	# 白闪连消去重、ADD 染色——防回归到程序碎片旧方案。
+func test_basic_clear_restores_june_10_magic_basic_pop_without_touching_specials() -> void:
+	# 只回退普通消除: 回到 2026-06-10 的 magic basic pop, 不把 line/area 特殊爆炸拉回旧版。
 	var fx := FxScript.new()
-	assert_true(fx.has_method("gem_shatter_profile"), "Fx exposes gem shatter tuning profile")
-	if not fx.has_method("gem_shatter_profile"):
+	assert_true(fx.has_method("basic_pop_profile"), "Fx exposes the June 10 magic basic-pop tuning profile")
+	if not fx.has_method("basic_pop_profile"):
 		fx.free()
 		return
-	var profile: Dictionary = fx.call("gem_shatter_profile")
+	var profile: Dictionary = fx.call("basic_pop_profile")
 	fx.free()
-	var frames: Array = profile.get("frames", [])
-	assert_eq(frames.size(), 6, "v3 firework sequence ships exactly six frames")
-	for f in frames:
-		assert_true(String(f).begins_with("res://art/vfx/gem_shatter/shatter_0"), "frames come from the gem_shatter art pack")
-		assert_true(ResourceLoader.exists(String(f)) or FileAccess.file_exists(String(f)), "shatter frame asset exists: %s" % f)
-	assert_eq(float(profile.get("break_at", -1.0)), 0.08, "the break beat lands at the spec'd 0.08s (shatter_01 carries its own flash)")
-	assert_eq(float(profile.get("fps", 0.0)), 13.0, "shatter frames play at the spec'd ~13fps so the gravity fall reads")
-	assert_true(float(profile.get("span_ratio", 0.0)) > 1.0, "shatter spread reaches beyond the cell so debris flies outward")
-	# v5: 下坠位移画进帧里(爆心逐帧对齐), 禁止叠加外扩/位移 ramp——profile 不得再出现 expand_ratio
-	assert_false(profile.has("expand_ratio"), "v5 frames carry their own motion; no scale ramp may stack on top (double motion)")
-	assert_true(int(profile.get("flash_dedup_ms", 0)) >= 80, "multi-clear flashes dedup by skipping the flash frame within the window")
-	# 染色契约(v3): 全序列 NORMAL 混合保宝石实色(米色亮底上 ADD 数学上必然冲白)。
-	# 闪光不再是程序绘制——shatter_01 自带大闪光, 同样走染色后的 NORMAL 混合。
-	assert_false(bool(profile.get("debris_add_blend", true)), "shatter frames use normal alpha so the gem tint stays readable on the light board")
+	assert_true(absf(float(profile.get("duration_scale", 0.0)) - 1.3) < 0.001, "June 10 basic pop uses the 1.3x readable timing scale")
+	assert_eq(float(profile["blob_start_ratio"]), 0.84, "basic pop blob starts broad enough to read")
+	assert_eq(float(profile["blob_end_ratio"]), 1.37, "basic pop blob expands beyond the gem")
+	assert_eq(float(profile["star_end_ratio"]), 1.34, "basic pop star layer expands with the blob")
+	assert_eq(float(profile["ring_end_ratio"]), 1.39, "basic pop ring is the largest readable layer")
+	assert_eq(float(profile["shard_duration"]), 0.364, "basic pop light shards use the June 10 duration")
+	assert_eq(float(profile["dust_duration"]), 0.442, "basic pop dust lingers after the light pop")
+	assert_false(profile.has("shard_gravity_ratio"), "June 10 basic pop is not the later physical gem-burst scatter")
+	assert_false(profile.has("frames"), "ordinary clears should not use the later packed shatter-frame sequence")
+
+
+func test_spawn_elimination_uses_magic_basic_pop_runtime_not_shatter_sequence() -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	var root := tree.root
+	var fx := FxScript.new()
+	var layer := Node2D.new()
+	root.add_child(fx)
+	root.add_child(layer)
+	fx.attach(layer)
+	fx.spawn_elimination("blue", Vector2(40, 40), 88.0)
+	var blob := _find_sprite_with_texture(layer, "res://art/vfx/basic_pop/vfx_basic_flash_blob.png")
+	var star := _find_sprite_with_texture(layer, "res://art/vfx/basic_pop/vfx_basic_flash_star.png")
+	var ring := _find_sprite_with_texture(layer, "res://art/vfx/basic_pop/vfx_basic_ring_soft.png")
+	var shard_count := _count_sprites_with_texture_prefix(layer, "res://art/vfx/basic_pop/vfx_gem_shard_")
+	assert_true(blob != null, "basic clear should spawn the June 10 blob layer")
+	assert_true(star != null, "basic clear should spawn the June 10 star layer")
+	assert_true(ring != null, "basic clear should spawn the June 10 ring layer")
+	assert_true(shard_count >= 8, "basic clear should spawn the June 10 light shard burst")
+	assert_false(_has_child_of_type(layer, "AnimatedSprite2D"), "basic clear should not use the later shatter-frame animation")
+	layer.queue_free()
+	fx.queue_free()
 
 
 func test_magic_clear_light_keeps_species_color_instead_of_whitewashing() -> void:
@@ -425,6 +441,23 @@ func _find_child_index_with_texture(parent: Node, texture_path: String) -> int:
 			if sprite.texture != null and sprite.texture.resource_path == texture_path:
 				return i
 	return -1
+
+
+func _count_sprites_with_texture_prefix(parent: Node, texture_prefix: String) -> int:
+	var count := 0
+	for child in parent.get_children():
+		if child is Sprite2D:
+			var sprite := child as Sprite2D
+			if sprite.texture != null and sprite.texture.resource_path.begins_with(texture_prefix):
+				count += 1
+	return count
+
+
+func _has_child_of_type(parent: Node, type_name: String) -> bool:
+	for child in parent.get_children():
+		if child.get_class() == type_name:
+			return true
+	return false
 
 
 func _sprite_uses_alpha_blend(sprite: Sprite2D) -> bool:

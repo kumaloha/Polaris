@@ -13,6 +13,14 @@ const MAGIC_BASIC_FLASH_STAR := "res://art/vfx/basic_pop/vfx_basic_flash_star.pn
 const MAGIC_BASIC_RING_SOFT := "res://art/vfx/basic_pop/vfx_basic_ring_soft.png"
 const MAGIC_DUST_DOT := "res://art/vfx/basic_pop/vfx_dust_dot.png"
 const MAGIC_DUST_STAR := "res://art/vfx/basic_pop/vfx_dust_star.png"
+const MAGIC_GEM_SHARDS := [
+	"res://art/vfx/basic_pop/vfx_gem_shard_01.png",
+	"res://art/vfx/basic_pop/vfx_gem_shard_02.png",
+	"res://art/vfx/basic_pop/vfx_gem_shard_03.png",
+	"res://art/vfx/basic_pop/vfx_gem_shard_04.png",
+	"res://art/vfx/basic_pop/vfx_gem_shard_05.png",
+	"res://art/vfx/basic_pop/vfx_gem_shard_06.png",
+]
 const MAGIC_LINE_BEAM_CORE := "res://art/vfx/line_blast/vfx_beam_core.png"
 const MAGIC_LINE_BEAM_GLOW := "res://art/vfx/line_blast/vfx_beam_glow.png"
 const MAGIC_LINE_BEAM_CAP := "res://art/vfx/line_blast/vfx_beam_cap.png"
@@ -83,8 +91,24 @@ const LINE_BLAST_LEGACY_COMET_FADE_DELAY := 0.169
 const LINE_BLAST_LEGACY_FLASH_DELAY_MAX := 0.26
 const LINE_BLAST_LEGACY_FLASH_DURATION := 0.312
 const LINE_BLAST_FALLBACK_DURATION := 0.26
+const BASIC_POP_BLOB_START_RATIO := 0.84
+const BASIC_POP_BLOB_END_RATIO := 1.37
+const BASIC_POP_STAR_START_RATIO := 0.52
+const BASIC_POP_STAR_END_RATIO := 1.34
+const BASIC_POP_RING_START_RATIO := 0.64
+const BASIC_POP_RING_END_RATIO := 1.39
+const BASIC_POP_TIMING_SCALE := 1.3
 const BASIC_POP_FALLBACK_DURATION := 0.208
+const BASIC_POP_BLOB_DURATION := 0.234
+const BASIC_POP_STAR_DURATION := 0.234
+const BASIC_POP_RING_DURATION := 0.312
+const BASIC_POP_SHARD_DURATION := 0.364
 const BASIC_POP_DUST_DURATION := 0.442
+const BASIC_POP_BLOB_DELAY := 0.0
+const BASIC_POP_STAR_DELAY := 0.0455
+const BASIC_POP_RING_DELAY := 0.0585
+const BASIC_POP_SHARD_DELAY := 0.104
+const BASIC_POP_DUST_DELAY := 0.169
 const HEAVY_FX_FRAME_BUDGET := 18
 const BASIC_POP_HEAVY_COST := 3
 # 宝石碎裂(普通消除, gem_shatter_white_v5 重力下坠版): 白贴图 × modulate 染色, 六色通用。
@@ -191,7 +215,29 @@ static func magic_vfx_paths() -> Dictionary:
 		"absorb_residue_flash_star": MAGIC_BASIC_FLASH_STAR,
 	}
 
-## 宝石炸裂参数表(供测试断言"碎片主角"语义, 防回归到白闪主角的旧方案)。
+## 6/10 普通消除参数表: magic basic pop; 特殊爆炸仍走 line/area profile。
+func basic_pop_profile() -> Dictionary:
+	return {
+		"blob_start_ratio": BASIC_POP_BLOB_START_RATIO,
+		"blob_end_ratio": BASIC_POP_BLOB_END_RATIO,
+		"star_start_ratio": BASIC_POP_STAR_START_RATIO,
+		"star_end_ratio": BASIC_POP_STAR_END_RATIO,
+		"ring_start_ratio": BASIC_POP_RING_START_RATIO,
+		"ring_end_ratio": BASIC_POP_RING_END_RATIO,
+		"duration_scale": BASIC_POP_TIMING_SCALE,
+		"fallback_duration": BASIC_POP_FALLBACK_DURATION,
+		"blob_duration": BASIC_POP_BLOB_DURATION,
+		"star_duration": BASIC_POP_STAR_DURATION,
+		"ring_duration": BASIC_POP_RING_DURATION,
+		"blob_delay": BASIC_POP_BLOB_DELAY,
+		"star_delay": BASIC_POP_STAR_DELAY,
+		"ring_delay": BASIC_POP_RING_DELAY,
+		"shard_duration": BASIC_POP_SHARD_DURATION,
+		"shard_delay": BASIC_POP_SHARD_DELAY,
+		"dust_duration": BASIC_POP_DUST_DURATION,
+		"dust_delay": BASIC_POP_DUST_DELAY,
+	}
+
 ## 宝石碎裂参数表(供测试钉住 v5 交付契约: 六帧/0.08 崩拍/13fps 下坠/闪光去重/NORMAL 混合/无叠加位移)。
 func gem_shatter_profile() -> Dictionary:
 	return {
@@ -341,15 +387,13 @@ func spawn_shatter(pos: Vector2, color: Color) -> void:
 	_layer().add_child(p)
 	_auto_free(p, 0.55)
 
-## 普通消除「宝石碎裂」(gem_shatter_white_v3 烟花式): 本体动画归 board_view(膨胀+白推+崩拍隐藏),
-## 此处接管碎裂物——0.08 崩拍起播 shatter_01(自带大闪光+裂纹), 02-06 烟花飞散 + 节点外扩 ramp。
-## 染色: 白贴图 × modulate(宝石亮部饱和色, _color_key_to_magic_color), NORMAL 混合保实色。
+## 普通消除「基础爆炸」: 只回退基础爆炸到 6/10 magic basic pop; 特殊爆炸不走这里。
 func spawn_elimination(color: String, pos: Vector2, target_px: float) -> void:
-	var gem_color: Color = SHATTER_TINTS.get(color, _color_key_to_magic_color(color))
+	var gem_color := _color_key_to_magic_color(color)
 	if not _claim_heavy_fx(BASIC_POP_HEAVY_COST):
-		_spawn_single_flash(pos, gem_color, target_px, BASIC_POP_FALLBACK_DURATION)
+		_spawn_single_flash(pos, gem_color, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_FALLBACK_DURATION)
 		return
-	_spawn_gem_shatter(pos, gem_color, target_px)
+	_spawn_magic_basic_pop(pos, gem_color, target_px)
 
 ## 爆炸(炸弹/彩球): 中心亮闪 + 冲击波环 + 火花扩散。Additive。
 func spawn_explosion(pos: Vector2, color: Color, power: float = 1.0) -> void:
@@ -612,6 +656,16 @@ func _shatter_frames_resource() -> SpriteFrames:
 			sf.add_frame(&"shatter", tex)
 	_shatter_sprite_frames = sf
 	return sf
+
+## 6/10 普通消除主特效: blob + star + ring + 轻光屑, 不走后来的实体碎片重力散射。
+func _spawn_magic_basic_pop(pos: Vector2, color: Color, target_px: float) -> void:
+	var hot := color.lerp(Color(1, 1, 1, 1), 0.28)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_BLOB, pos, hot, target_px * BASIC_POP_BLOB_START_RATIO, target_px * BASIC_POP_BLOB_END_RATIO, BASIC_POP_BLOB_DURATION, BASIC_POP_BLOB_DELAY)
+	_magic_flash_sprite(MAGIC_BASIC_FLASH_STAR, pos, color.lerp(Color(1, 1, 1, 1), 0.18), target_px * BASIC_POP_STAR_START_RATIO, target_px * BASIC_POP_STAR_END_RATIO, BASIC_POP_STAR_DURATION, BASIC_POP_STAR_DELAY)
+	_magic_flash_sprite(MAGIC_BASIC_RING_SOFT, pos, color, target_px * BASIC_POP_RING_START_RATIO, target_px * BASIC_POP_RING_END_RATIO, BASIC_POP_RING_DURATION, BASIC_POP_RING_DELAY)
+	_magic_shard_burst(MAGIC_GEM_SHARDS, pos, hot, 8, target_px * 0.58, BASIC_POP_SHARD_DURATION, BASIC_POP_SHARD_DELAY)
+	_magic_shard_burst([MAGIC_DUST_DOT, MAGIC_DUST_STAR], pos, color.lerp(Color(1, 1, 1, 1), 0.22), 7, target_px * 0.42, BASIC_POP_DUST_DURATION, BASIC_POP_DUST_DELAY)
+
 func _spawn_magic_area_blast(pos: Vector2, color: Color, radius_px: float, clear_cells: int) -> void:
 	var cells_per_side := 3.0 if clear_cells <= LOCAL_BURST_CLEAR_CELLS else 5.0
 	var cell_size := radius_px / (cells_per_side * 0.5)

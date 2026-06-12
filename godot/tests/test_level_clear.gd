@@ -200,13 +200,11 @@ func test_colorbomb_clear_fx_has_bounded_final_burst_budget() -> void:
 func test_level_clear_pops_gem_body_before_fade() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	# gem_shatter 规格: 膨胀 1.25(0.08s) → 0.15 崩拍隐藏。读真实常量锁住交付数值。
-	assert_eq(level.board_view.get("CLEAR_SWELL_SCALE"), 1.25, "gem body swells to the spec'd 1.25 before the break beat")
-	assert_eq(level.board_view.get("CLEAR_SWELL_TIME"), 0.08, "swell phase runs the spec'd 0.08s")
-	assert_true(float(level.board_view.get("CLEAR_WHITE_PUSH")) > 1.0, "swell pushes self_modulate past white for the charge-up read")
-	# v3: 膨胀到位即崩(同拍), 本体在崩拍后一渲染帧才隐——切换藏在 shatter_01 大闪光底下
-	assert_true(float(level.board_view.get("CLEAR_SWELL_TIME")) <= float(level.board_view.get("CLEAR_BREAK_AT")), "swell completes by the break beat")
-	assert_true(float(level.board_view.get("CLEAR_BODY_HIDE_DELAY")) > 0.0, "body hides one render frame after the break so the flash covers the swap")
+	# 普通三消基础爆炸回到 2026-06-10: 本体撑到 1.25 后缩小淡出到 0.156s。
+	assert_eq(level.board_view.get("BASIC_CLEAR_POP_SCALE"), 1.25, "ordinary gem body uses the June 10 pop swell")
+	assert_eq(level.board_view.get("BASIC_CLEAR_POP_TIME"), 0.117, "ordinary gem body waits until the June 10 pop beat")
+	assert_eq(level.board_view.get("BASIC_CLEAR_SHRINK_SCALE"), 0.1, "ordinary gem body shrinks away instead of doing the later burst expansion")
+	assert_eq(level.board_view.get("BASIC_CLEAR_TIME"), 0.156, "ordinary clear keeps the June 10 full body read time")
 	level.free()
 	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var start: int = src.find("func _play_clear")
@@ -214,9 +212,32 @@ func test_level_clear_pops_gem_body_before_fade() -> void:
 	if start < 0 or end <= start:
 		return
 	var body: String = src.substr(start, end - start)
-	# 钉源码理由: 规格要求膨胀用 TRANS_BACK(EASE_OUT 带弹性蓄爆), 且本体在崩拍隐藏(visible=false)而非缩放消失
-	assert_true(body.contains("set_trans(Tween.TRANS_BACK)"), "spec'd swell uses TRANS_BACK for the elastic charge-up")
-	assert_true(body.find("base_scale * CLEAR_SWELL_SCALE") < body.find("n.visible = false"), "gem body swell is scheduled before the break-beat hide")
+	assert_true(body.contains("basic_clear_body := fx_kind == ME.SP_NONE and not visual_species.has(p)"), "ordinary gem clears are separated from special-hit visual clears")
+	assert_true(body.contains("base_scale * BASIC_CLEAR_POP_SCALE"), "ordinary gem body uses the old pop swell")
+	assert_true(body.contains("base_scale * BASIC_CLEAR_SHRINK_SCALE"), "ordinary gem body shrinks away like the June 10 clear")
+	assert_false(body.contains("base_scale * BASIC_CLEAR_BURST_SCALE"), "ordinary gem body should not use the later gem-burst expansion")
+	assert_true(body.contains("basic_clear_hold = maxf(basic_clear_hold, clear_delay + BASIC_CLEAR_TIME)"), "ordinary clear waits long enough for the old body burst to read")
+	assert_true(body.contains("maxf(ELIM_HOLD + max_fx_delay, basic_clear_hold)"), "special clear hold stays separate from the longer ordinary clear hold")
+
+
+func test_special_clear_body_keeps_current_shatter_timing() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	# 特殊命中/横扫路径仍保留当前 v5 shatter 节拍, 不被普通基础爆炸回退带走。
+	assert_eq(level.board_view.get("CLEAR_SWELL_SCALE"), 1.25, "special-hit gem body still uses the current swell")
+	assert_eq(level.board_view.get("CLEAR_SWELL_TIME"), 0.08, "special-hit swell phase remains 0.08s")
+	assert_true(float(level.board_view.get("CLEAR_WHITE_PUSH")) > 1.0, "special-hit swell still pushes self_modulate for the charge-up read")
+	assert_true(float(level.board_view.get("CLEAR_SWELL_TIME")) <= float(level.board_view.get("CLEAR_BREAK_AT")), "special-hit swell completes by the break beat")
+	assert_true(float(level.board_view.get("CLEAR_BODY_HIDE_DELAY")) > 0.0, "special-hit body still hides after the break")
+	level.free()
+	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
+	var start: int = src.find("func _play_clear")
+	var end: int = src.find("## 某已存在特效棋子", start)
+	if start < 0 or end <= start:
+		return
+	var body: String = src.substr(start, end - start)
+	assert_true(body.contains("base_scale * CLEAR_SWELL_SCALE"), "special-hit clear still uses current shatter swell")
+	assert_true(body.find("base_scale * CLEAR_SWELL_SCALE") < body.find("n.visible = false"), "special-hit body still hides after the swell")
 
 
 func test_level_clear_stops_combo_idle_before_clear_tween() -> void:

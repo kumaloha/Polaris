@@ -118,6 +118,12 @@ const GEM_FILL := 0.84
 const COLORBOMB_FILL := 0.74  # v0.02 彩球略小一点, 避免 5 合 1 压住相邻格
 const OPENING_DROP_ROW_STAGGER := 0.045  # 开局掉落起始位用(节拍/序在 level)
 
+# ── 普通三消基础爆炸节拍（2026-06-10 magic basic pop）──
+const BASIC_CLEAR_TIME := 0.156
+const BASIC_CLEAR_POP_TIME := 0.117
+const BASIC_CLEAR_POP_SCALE := 1.25
+const BASIC_CLEAR_SHRINK_SCALE := 0.1
+
 # ── 消除演出节拍常量（_play_clear 用，gem_shatter_white_v3 烟花式规格，与 Fx.SHATTER_* 对表）──
 const CLEAR_SWELL_TIME := 0.08   # 本体膨胀(撑爆前奏, TRANS_BACK 弹性)
 const CLEAR_SWELL_SCALE := 1.25
@@ -957,6 +963,7 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 	var any := false
 	var spawned_fx_count := 0
 	var max_fx_delay := 0.0
+	var basic_clear_hold := 0.0
 	var clear_set := {}
 	var played_special_fx := {}
 	for p in to_clear:
@@ -965,6 +972,7 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 		var clear_delay: float = float(line_clear_delays.get(p, 0.0))
 		max_fx_delay = maxf(max_fx_delay, clear_delay)
 		var fx_kind: int = board.fx[p.y][p.x]
+		var basic_clear_body := fx_kind == ME.SP_NONE and not visual_species.has(p)
 		var spawned_fx := false
 		# 被卷入消除的【已存在】特效棋子(它不在本级 spawn_set): 放对应 Fx 表现
 		if fx_kind != ME.SP_NONE and not spawn_set.has(p):
@@ -998,14 +1006,19 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 				var pop := create_tween()
 				if clear_delay > 0.0:
 					pop.tween_interval(clear_delay)
-				# 规格序列(gem_shatter v3): 膨胀1.25(0.08s BACK)+白推 → 0.08崩拍(闪光在 Fx 起播)
-				# → 下一渲染帧本体隐藏, 切换藏在 shatter_01 大闪光底下
-				pop.tween_property(n, "scale", base_scale * CLEAR_SWELL_SCALE, CLEAR_SWELL_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-				pop.parallel().tween_property(n, "self_modulate", Color(CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, 1.0), CLEAR_SWELL_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-				pop.tween_interval(CLEAR_BREAK_AT - CLEAR_SWELL_TIME + CLEAR_BODY_HIDE_DELAY)
-				pop.tween_callback(func() -> void:
-					if is_instance_valid(n):
-						n.visible = false)
+				if basic_clear_body:
+					pop.tween_property(n, "scale", base_scale * BASIC_CLEAR_POP_SCALE, BASIC_CLEAR_POP_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+					pop.tween_property(n, "scale", base_scale * BASIC_CLEAR_SHRINK_SCALE, BASIC_CLEAR_TIME - BASIC_CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+					pop.parallel().tween_property(n, "modulate:a", 0.0, BASIC_CLEAR_TIME - BASIC_CLEAR_POP_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+					basic_clear_hold = maxf(basic_clear_hold, clear_delay + BASIC_CLEAR_TIME)
+				else:
+					# 特殊命中/横扫路径仍走当前 shatter 节拍, 不随普通基础爆炸回退。
+					pop.tween_property(n, "scale", base_scale * CLEAR_SWELL_SCALE, CLEAR_SWELL_TIME).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+					pop.parallel().tween_property(n, "self_modulate", Color(CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, CLEAR_WHITE_PUSH, 1.0), CLEAR_SWELL_TIME).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+					pop.tween_interval(CLEAR_BREAK_AT - CLEAR_SWELL_TIME + CLEAR_BODY_HIDE_DELAY)
+					pop.tween_callback(func() -> void:
+						if is_instance_valid(n):
+							n.visible = false)
 				any = true
 	for p in extra_special_fx_cells:
 		if clear_set.has(p):
@@ -1027,7 +1040,7 @@ func _play_clear(to_clear: Array, spawns: Array, spawn_set: Dictionary, extra_sp
 	# (按需移除消除震动)
 	if any:
 		# 等消除特效炸裂完再返回(下落发生在消除之后); 棋子淡出 tween 在此期间并行跑完
-		await get_tree().create_timer(ELIM_HOLD + max_fx_delay).timeout
+		await get_tree().create_timer(maxf(ELIM_HOLD + max_fx_delay, basic_clear_hold)).timeout
 
 ## 某已存在特效棋子被触发时的几何表现: 行/列用 beam, 3x3/彩球用 explosion。
 func _play_special_fx(pos: Vector2i, kind: int) -> void:
