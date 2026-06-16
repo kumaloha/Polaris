@@ -90,5 +90,25 @@
     },
     "errors": [],
     "warnings": []
+  },
+  "obstacle_composition_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "archetype_known": true,
+      "archetype_matches_purpose": true,
+      "primary_blocker_present": true,
+      "negative_space_declared": true,
+      "negative_space_ratio": 1.0,
+      "negative_space_ok": true,
+      "no_uniform_wall": true,
+      "read_order_declared": true,
+      "read_order_spatially_plausible": true,
+      "beauty_rules_declared": true,
+      "delete_test_declared": true
+    },
+    "errors": [],
+    "warnings": []
   }
 }

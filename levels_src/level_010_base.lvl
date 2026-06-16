@@ -207,6 +207,34 @@
       "role": "pressure"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_open_route_gate_then_transport_cub",
+    "archetype": "lane",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "center_route_gate",
+    "action_vector": "transport_down",
+    "read_order": [
+      "actor",
+      "blocker",
+      "exit"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.48
+    },
+    "density": "medium",
+    "delete_test": "removing_route_gate_removes_finale_priority",
+    "theme_shape": "crystal_route_gate",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "pressure",
+    "linked_eye": "drop_bottleneck"
+  },
   "level_design": {
     "id": "level_010",
     "thesis": {

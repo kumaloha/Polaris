@@ -154,6 +154,31 @@
       "role": "teaching_breather"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_target_path_reading",
+    "archetype": "key_path",
+    "primary_blocker": "none",
+    "focus_area": "trail_marks",
+    "action_vector": "path",
+    "read_order": [
+      "goal_path",
+      "solution_sequence"
+    ],
+    "negative_space": {
+      "kind": "open_path_play_area",
+      "min_ratio": 0.65
+    },
+    "density": "none",
+    "delete_test": "removing_trail_removes_path_reading_lesson",
+    "theme_shape": "paw_stardust_trail",
+    "beauty_rules": [
+      "single_core_question",
+      "goal_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching_breather",
+    "linked_eye": "cleanse_trail"
+  },
   "level_design": {
     "id": "level_003",
     "thesis": {

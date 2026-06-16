@@ -15,6 +15,7 @@
   → Compile Validator
   → Semantic Design Language Gate
   → Progression Rhythm Gate
+  → Obstacle Composition Gate
   → Structural Validator
   → Taste Director Gate
   → Player Simulator Validator
@@ -30,6 +31,7 @@
 | `revise_minor` | 小改后可重跑 |
 | `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
 | `revise_progression` | 长期节奏契约不成立；机制生命周期/奖励资源/烦躁预算/难度带需要重写 |
+| `revise_obstacle_composition` | 障碍构图不成立；母题/主障碍/动作方向/负空间/读序需要重写 |
 | `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
 | `revise_major` | 配方或布局错配，需要重做候选 |
 | `reject` | 不应继续投入 |
@@ -62,6 +64,7 @@ input:
   "compile": {},
   "semantic": {},
   "progression": {},
+  "obstacle_composition_gate": {},
   "structural": {},
   "taste": {},
   "player_simulator": {},
@@ -90,6 +93,7 @@ input:
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
 | level_design 根字段存在 | `E_MISSING_FIELD` |
 | progression 根字段存在 | `E_MISSING_FIELD` |
+| obstacle_composition 根字段存在 | `E_MISSING_FIELD` |
 | director 根字段存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
@@ -461,11 +465,53 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 9. Taste Director / Design Checklist Validator
+## 9. Obstacle Composition Gate
+
+`obstacle_composition` 把“障碍摆得美不美”收敛成可运行检查。它不判断截图审美，而是验证障碍是否服务设计目的：目标、障碍、解法能否形成清晰读序。
+
+### 9.1 机器必检 obstacle gate
+
+| check | pass 条件 |
+|---|---|
+| `required_fields_present` | `purpose/archetype/primary_blocker/focus_area/action_vector/read_order/negative_space/density/delete_test/theme_shape/beauty_rules` 全存在 |
+| `archetype_known` | archetype 属于 v0 构图母题：`no_blocker_focus/gate/ring/lane/key_path/cage/funnel/split_lock/bridge` |
+| `archetype_matches_purpose` | action_vector 与 archetype 匹配，例如 `gate + vertical`、`ring + burst`、`lane + transport_down` |
+| `primary_blocker_present` | 需要主障碍的母题必须在 overlays 中真实放置 `primary_blocker` |
+| `negative_space_ok` | playable 区减去主障碍后的比例不低于 `negative_space.min_ratio` |
+| `no_uniform_wall` | 主障碍不能形成过宽/整行/整列封死的墙；gate 必须是短门而不是满屏墙 |
+| `read_order_spatially_plausible` | `goal/blocker/solution` 或 `actor/blocker/exit` 的空间关系大致成立 |
+| `beauty_rules_declared` | beauty_rules 非空，且阻挡型母题显式声明 `no_uniform_wall` |
+| `delete_test_declared` | delete_test 说明删除障碍后为什么题眼消失 |
+
+`obstacle_composition_gate.valid=false` 时，候选只能得到 `revise_obstacle_composition`。
+
+### 9.2 Obstacle 输出示例
+
+```json
+{
+  "valid": false,
+  "score": 75,
+  "checks": {
+    "archetype_known": true,
+    "primary_blocker_present": true,
+    "negative_space_ok": true,
+    "no_uniform_wall": false,
+    "read_order_spatially_plausible": true
+  },
+  "errors": [
+    {"code": "E_OBSTACLE_UNIFORM_WALL", "path": "overlays", "message": "primary blocker forms an over-wide or fully sealing wall"}
+  ],
+  "warnings": []
+}
+```
+
+---
+
+## 10. Taste Director / Design Checklist Validator
 
 `director` 是机器可读的品味契约，用来拦住“流程背熟但没有主角/记忆点/留白”的关卡。AI/人仍可执行 checklist，但 v0 的 `validate` 已经会输出 `taste` gate。
 
-### 9.1 机器必检 taste gate
+### 10.1 机器必检 taste gate
 
 | check | pass 条件 |
 |---|---|
@@ -482,7 +528,7 @@ seed_policy: deterministic_sequence
 
 `taste.valid=false` 时，结构再正确也只能得到 `revise_taste`。
 
-### 9.2 人/AI checklist
+### 10.2 人/AI checklist
 
 | check | pass 条件 |
 |---|---|
@@ -512,11 +558,11 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 10. Telemetry / Feedback Spec
+## 11. Telemetry / Feedback Spec
 
 上线后反馈系统最小事件。
 
-### 10.1 Level attempt event
+### 11.1 Level attempt event
 
 ```json
 {
@@ -546,7 +592,7 @@ seed_policy: deterministic_sequence
 }
 ```
 
-### 10.2 Feedback diagnosis
+### 11.2 Feedback diagnosis
 
 | signal | diagnosis | action |
 |---|---|---|
@@ -559,7 +605,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 11. Validation thresholds v0
+## 12. Validation thresholds v0
 
 默认阈值；20 关验证后再校准。
 
@@ -577,7 +623,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 12. 需要实现的工具
+## 13. 需要实现的工具
 
 | tool | 输入 | 输出 |
 |---|---|---|
@@ -593,7 +639,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 13. 当前需你确认
+## 14. 当前需你确认
 
 无强制阻塞。默认采用：
 

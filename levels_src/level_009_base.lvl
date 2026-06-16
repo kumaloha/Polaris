@@ -141,6 +141,32 @@
       "role": "teaching"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_lost_cub_column_drop",
+    "archetype": "lane",
+    "primary_blocker": "none",
+    "focus_area": "center_lane",
+    "action_vector": "transport_down",
+    "read_order": [
+      "actor",
+      "lane",
+      "exit"
+    ],
+    "negative_space": {
+      "kind": "lane_play_area",
+      "min_ratio": 0.7
+    },
+    "density": "none",
+    "delete_test": "removing_cub_and_exit_removes_transport_lesson",
+    "theme_shape": "cub_path_to_nest",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching",
+    "linked_eye": "drop_direct"
+  },
   "level_design": {
     "id": "level_009",
     "thesis": {

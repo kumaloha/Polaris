@@ -164,6 +164,32 @@
       "role": "variation"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_split_area_control",
+    "archetype": "split_lock",
+    "primary_blocker": "none",
+    "focus_area": "left_right_pages",
+    "action_vector": "dual_area",
+    "read_order": [
+      "left_goal",
+      "divider",
+      "right_goal"
+    ],
+    "negative_space": {
+      "kind": "paired_play_areas",
+      "min_ratio": 0.55
+    },
+    "density": "low",
+    "delete_test": "removing_split_columns_removes_dual_page_lesson",
+    "theme_shape": "split_spellbook_pages",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "split_supply_duet"
+  },
   "level_design": {
     "id": "level_007",
     "thesis": {

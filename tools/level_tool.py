@@ -9,6 +9,7 @@ Godot side can keep consuming ordinary level JSON records.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import math
 import random
@@ -335,6 +336,140 @@ EARLY_LEVEL_PROGRESSION: dict[int, dict[str, Any]] = {
 }
 
 
+EARLY_LEVEL_OBSTACLE_COMPOSITION: dict[int, dict[str, Any]] = {
+    1: {
+        "purpose": "teach_target_mark_clear",
+        "archetype": "no_blocker_focus",
+        "primary_blocker": "none",
+        "focus_area": "center_marks",
+        "action_vector": "local_match",
+        "read_order": ["goal", "solution"],
+        "negative_space": {"kind": "whole_board_operation_space", "min_ratio": 0.70},
+        "density": "none",
+        "delete_test": "removing_target_marks_removes_level_thesis",
+        "theme_shape": "stardust_cluster",
+        "beauty_rules": ["single_core_question", "goal_solution_readable", "theme_shape_serves_play_shape"],
+    },
+    2: {
+        "purpose": "teach_horizontal_line_reaches_edges",
+        "archetype": "no_blocker_focus",
+        "primary_blocker": "none",
+        "focus_area": "edge_marks",
+        "action_vector": "horizontal",
+        "read_order": ["edge_goal", "horizontal_solution"],
+        "negative_space": {"kind": "center_play_area", "min_ratio": 0.68},
+        "density": "none",
+        "delete_test": "removing_edge_targets_removes_sweep_lesson",
+        "theme_shape": "edge_stardust",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "theme_shape_serves_play_shape"],
+    },
+    3: {
+        "purpose": "teach_target_path_reading",
+        "archetype": "key_path",
+        "primary_blocker": "none",
+        "focus_area": "trail_marks",
+        "action_vector": "path",
+        "read_order": ["goal_path", "solution_sequence"],
+        "negative_space": {"kind": "open_path_play_area", "min_ratio": 0.65},
+        "density": "none",
+        "delete_test": "removing_trail_removes_path_reading_lesson",
+        "theme_shape": "paw_stardust_trail",
+        "beauty_rules": ["single_core_question", "goal_solution_readable", "theme_shape_serves_play_shape"],
+    },
+    4: {
+        "purpose": "teach_downstream_funnel_reading",
+        "archetype": "funnel",
+        "primary_blocker": "none",
+        "focus_area": "downstream_pool",
+        "action_vector": "vertical",
+        "read_order": ["upper_supply", "funnel_throat", "goal_basin"],
+        "negative_space": {"kind": "upper_play_area", "min_ratio": 0.55},
+        "density": "low",
+        "delete_test": "removing_bottleneck_removes_downstream_lesson",
+        "theme_shape": "book_page_funnel",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "goal_blocker_solution_readable"],
+    },
+    5: {
+        "purpose": "teach_vertical_line_opens_gate",
+        "archetype": "gate",
+        "primary_blocker": "crystal_shell",
+        "focus_area": "center_column",
+        "action_vector": "vertical",
+        "read_order": ["goal", "blocker", "solution"],
+        "negative_space": {"kind": "upper_play_area", "min_ratio": 0.50},
+        "density": "low",
+        "delete_test": "removing_crystal_gate_removes_level_thesis",
+        "theme_shape": "crystal_door",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "no_uniform_wall", "goal_blocker_solution_readable", "theme_shape_serves_play_shape"],
+    },
+    6: {
+        "purpose": "teach_shell_cleanup_expands_space",
+        "archetype": "cage",
+        "primary_blocker": "crystal_shell",
+        "focus_area": "soft_shell_clusters",
+        "action_vector": "adjacent_clear",
+        "read_order": ["blocker", "solution", "space_payoff"],
+        "negative_space": {"kind": "open_board_around_clusters", "min_ratio": 0.72},
+        "density": "low",
+        "delete_test": "removing_shell_clusters_removes_cleanup_lesson",
+        "theme_shape": "loose_crystal_knots",
+        "beauty_rules": ["single_core_question", "no_uniform_wall", "theme_shape_serves_play_shape"],
+    },
+    7: {
+        "purpose": "teach_split_area_control",
+        "archetype": "split_lock",
+        "primary_blocker": "none",
+        "focus_area": "left_right_pages",
+        "action_vector": "dual_area",
+        "read_order": ["left_goal", "divider", "right_goal"],
+        "negative_space": {"kind": "paired_play_areas", "min_ratio": 0.55},
+        "density": "low",
+        "delete_test": "removing_split_columns_removes_dual_page_lesson",
+        "theme_shape": "split_spellbook_pages",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "theme_shape_serves_play_shape"],
+    },
+    8: {
+        "purpose": "teach_burst_cracks_crystal_ring",
+        "archetype": "ring",
+        "primary_blocker": "crystal_shell",
+        "focus_area": "vault_center",
+        "action_vector": "burst",
+        "read_order": ["center_goal", "blocker_ring", "burst_solution"],
+        "negative_space": {"kind": "outer_play_area", "min_ratio": 0.55},
+        "density": "medium",
+        "delete_test": "removing_shell_ring_removes_vault_lesson",
+        "theme_shape": "crystal_vault_ring",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "no_uniform_wall", "goal_blocker_solution_readable", "theme_shape_serves_play_shape"],
+    },
+    9: {
+        "purpose": "teach_lost_cub_column_drop",
+        "archetype": "lane",
+        "primary_blocker": "none",
+        "focus_area": "center_lane",
+        "action_vector": "transport_down",
+        "read_order": ["actor", "lane", "exit"],
+        "negative_space": {"kind": "lane_play_area", "min_ratio": 0.70},
+        "density": "none",
+        "delete_test": "removing_cub_and_exit_removes_transport_lesson",
+        "theme_shape": "cub_path_to_nest",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "theme_shape_serves_play_shape"],
+    },
+    10: {
+        "purpose": "teach_open_route_gate_then_transport_cub",
+        "archetype": "lane",
+        "primary_blocker": "crystal_shell",
+        "focus_area": "center_route_gate",
+        "action_vector": "transport_down",
+        "read_order": ["actor", "blocker", "exit"],
+        "negative_space": {"kind": "upper_play_area", "min_ratio": 0.48},
+        "density": "medium",
+        "delete_test": "removing_route_gate_removes_finale_priority",
+        "theme_shape": "crystal_route_gate",
+        "beauty_rules": ["shape_implies_action_direction", "single_core_question", "no_uniform_wall", "goal_blocker_solution_readable", "theme_shape_serves_play_shape"],
+    },
+}
+
+
 ANNOYANCE_BUDGET_BY_ROLE: dict[str, dict[str, float]] = {
     "teaching": {"max_reshuffle_rate": 0.02, "max_dead_board_rate": 0.02, "max_no_progress_turn_rate": 0.28, "max_luck_dependency_proxy": 0.32},
     "teaching_breather": {"max_reshuffle_rate": 0.03, "max_dead_board_rate": 0.03, "max_no_progress_turn_rate": 0.30, "max_luck_dependency_proxy": 0.35},
@@ -541,6 +676,16 @@ def generated_progression(level: int, coord: dict[str, Any]) -> dict[str, Any]:
             "role": role,
         },
     }
+
+
+def generated_obstacle_composition(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    spec = EARLY_LEVEL_OBSTACLE_COMPOSITION.get(level)
+    if not spec:
+        raise ValueError(f"no obstacle composition grammar for level {level}")
+    out = copy.deepcopy(spec)
+    out["level_role"] = coord["role"]
+    out["linked_eye"] = coord["eye"]
+    return out
 
 
 def objective_with_variant(objective: dict[str, Any], target_multiplier: float) -> dict[str, Any]:
@@ -1329,6 +1474,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     level_id = f"level_{level:03d}_{variant}" if candidate is None else f"level_{level:03d}_{variant}_c{candidate:02d}"
     level_design = generated_level_design(level, coord)
     progression = generated_progression(level, coord)
+    obstacle_composition = generated_obstacle_composition(level, coord)
     placements = list(coord["placements"]) + list(coord.get("reward_placements", []))
 
     return {
@@ -1377,6 +1523,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
         "overlays": build_overlays(placements, shell_hp_delta),
         "mechanisms": [],
         "progression": progression,
+        "obstacle_composition": obstacle_composition,
         "level_design": level_design,
         "design_claim": design_claim_from_level_design(level_design),
         "director": director_from_level_design(level_design),
@@ -1872,6 +2019,36 @@ def reward_layer_set(lvl: dict[str, Any]) -> set[str]:
     return out
 
 
+def cells_for_layer(lvl: dict[str, Any], layer_name: str) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for entry in lvl.get("overlays", []) or []:
+        if layer_name not in layer_names(entry.get("layers", [])):
+            continue
+        for r, c in overlay_cells(entry):
+            cells.add((r, c))
+    return cells
+
+
+def objective_cells(lvl: dict[str, Any]) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for layer in objective_layer_set(lvl):
+        cells.update(cells_for_layer(lvl, layer))
+    return cells
+
+
+def playable_cell_set(rows: list[str]) -> set[tuple[int, int]]:
+    return {(r, c) for r, row in enumerate(rows) for c, ch in enumerate(row) if ch != "."}
+
+
+def centroid(cells: set[tuple[int, int]]) -> tuple[float, float] | None:
+    if not cells:
+        return None
+    return (
+        sum(r for r, _ in cells) / len(cells),
+        sum(c for _, c in cells) / len(cells),
+    )
+
+
 def meaningful_director_text(value: Any, min_len: int = 8) -> bool:
     if not isinstance(value, str):
         return False
@@ -2228,6 +2405,178 @@ def progression_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | Non
     return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
 
 
+def obstacle_composition_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate whether blocker geometry serves the declared design purpose."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    composition = lvl.get("obstacle_composition")
+    if not isinstance(composition, dict):
+        fail("E_OBSTACLE_COMPOSITION_MISSING", "obstacle_composition", "obstacle composition contract is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    required = {
+        "purpose",
+        "archetype",
+        "primary_blocker",
+        "focus_area",
+        "action_vector",
+        "read_order",
+        "negative_space",
+        "density",
+        "delete_test",
+        "theme_shape",
+        "beauty_rules",
+    }
+    missing = sorted(required - set(composition))
+    checks["required_fields_present"] = not missing
+    if missing:
+        fail("E_OBSTACLE_FIELDS", "obstacle_composition", f"missing obstacle composition fields: {missing}", 25)
+
+    purpose = str(composition.get("purpose", ""))
+    archetype = str(composition.get("archetype", ""))
+    primary = str(composition.get("primary_blocker", "none"))
+    action = str(composition.get("action_vector", ""))
+    read_order = composition.get("read_order", [])
+    beauty_rules = composition.get("beauty_rules", [])
+    negative_space = composition.get("negative_space", {}) if isinstance(composition.get("negative_space"), dict) else {}
+
+    known_archetypes = {
+        "no_blocker_focus",
+        "gate",
+        "ring",
+        "lane",
+        "key_path",
+        "cage",
+        "funnel",
+        "split_lock",
+        "bridge",
+    }
+    archetype_ok = archetype in known_archetypes
+    checks["archetype_known"] = archetype_ok
+    if not archetype_ok:
+        fail("E_OBSTACLE_ARCHETYPE", "obstacle_composition.archetype", f"unknown obstacle archetype {archetype!r}", 15)
+
+    allowed_actions = {
+        "no_blocker_focus": {"local_match", "horizontal", "path"},
+        "gate": {"vertical", "horizontal"},
+        "ring": {"burst"},
+        "lane": {"transport_down", "vertical"},
+        "key_path": {"path", "connect"},
+        "cage": {"adjacent_clear", "burst"},
+        "funnel": {"vertical", "transport_down"},
+        "split_lock": {"dual_area"},
+        "bridge": {"connect"},
+    }
+    alignment_ok = action in allowed_actions.get(archetype, set())
+    checks["archetype_matches_purpose"] = bool(purpose) and alignment_ok
+    if not purpose:
+        fail("E_OBSTACLE_PURPOSE", "obstacle_composition.purpose", "purpose must be a concrete design intent", 10)
+    if not alignment_ok:
+        fail("E_OBSTACLE_ACTION_ALIGNMENT", "obstacle_composition.action_vector", f"action {action!r} does not match archetype {archetype!r}", 15)
+
+    primary_cells = set() if primary == "none" else cells_for_layer(lvl, primary)
+    primary_needed = archetype in {"gate", "ring", "cage", "bridge"} or (archetype == "lane" and primary != "none")
+    primary_ok = bool(primary_cells) if primary_needed else True
+    checks["primary_blocker_present"] = primary_ok
+    if primary_needed and not primary_ok:
+        fail("E_OBSTACLE_PRIMARY_ABSENT", "obstacle_composition.primary_blocker", f"primary blocker {primary!r} is not present on the board", 25)
+
+    rows = board_rows(lvl, Diagnostics())
+    playable = playable_cell_set(rows)
+    min_ratio = negative_space.get("min_ratio")
+    ratio_ok = isinstance(min_ratio, (int, float)) and 0.0 <= float(min_ratio) <= 1.0
+    checks["negative_space_declared"] = ratio_ok
+    if not ratio_ok:
+        fail("E_OBSTACLE_NEGATIVE_SPACE", "obstacle_composition.negative_space.min_ratio", "negative-space min_ratio must be a 0..1 number", 10)
+    else:
+        open_ratio = 1.0
+        if playable:
+            open_ratio = (len(playable - primary_cells) / len(playable))
+        checks["negative_space_ratio"] = round(open_ratio, 3)
+        checks["negative_space_ok"] = open_ratio >= float(min_ratio)
+        if open_ratio < float(min_ratio):
+            fail("E_OBSTACLE_NEGATIVE_SPACE_LOW", "overlays", f"negative space ratio {open_ratio:.2f} below required {float(min_ratio):.2f}", 20)
+
+    no_uniform_wall = True
+    if primary_cells and rows:
+        row_counts: dict[int, int] = {}
+        col_counts: dict[int, int] = {}
+        for r, c in primary_cells:
+            row_counts[r] = row_counts.get(r, 0) + 1
+            col_counts[c] = col_counts.get(c, 0) + 1
+        for r, count in row_counts.items():
+            playable_in_row = sum(1 for c, ch in enumerate(rows[r]) if ch != ".")
+            if playable_in_row and count >= playable_in_row:
+                no_uniform_wall = False
+        for c, count in col_counts.items():
+            playable_in_col = sum(1 for row in rows if c < len(row) and row[c] != ".")
+            if playable_in_col and count >= playable_in_col:
+                no_uniform_wall = False
+        if archetype == "gate" and max(row_counts.values() or [0]) > 4:
+            no_uniform_wall = False
+        if archetype == "ring" and (max(row_counts.values() or [0]) > 5 or max(col_counts.values() or [0]) > 5):
+            no_uniform_wall = False
+    checks["no_uniform_wall"] = no_uniform_wall
+    if not no_uniform_wall:
+        fail("E_OBSTACLE_UNIFORM_WALL", "overlays", "primary blocker forms an over-wide or fully sealing wall", 25)
+
+    read_order_ok = isinstance(read_order, list) and len(read_order) >= 2 and all(isinstance(x, str) and x for x in read_order)
+    checks["read_order_declared"] = read_order_ok
+    if not read_order_ok:
+        fail("E_OBSTACLE_READ_ORDER", "obstacle_composition.read_order", "read_order must contain at least two readable stages", 10)
+
+    objective = objective_cells(lvl)
+    exit_cells = cells_for_layer(lvl, "drop_exit")
+    read_spatial_ok = read_order_ok
+    if primary != "none" and "blocker" in read_order:
+        read_spatial_ok = read_spatial_ok and bool(primary_cells)
+    if any(token in read_order for token in ("goal", "center_goal", "edge_goal", "actor")):
+        read_spatial_ok = read_spatial_ok and bool(objective)
+    if "exit" in read_order:
+        read_spatial_ok = read_spatial_ok and bool(exit_cells)
+
+    primary_center = centroid(primary_cells)
+    objective_center = centroid(objective)
+    exit_center = centroid(exit_cells)
+    if archetype == "gate" and action == "vertical" and primary_center and objective_center and "goal" in read_order:
+        read_spatial_ok = read_spatial_ok and objective_center[0] > primary_center[0]
+    if archetype == "lane" and action == "transport_down" and objective_center and exit_center:
+        read_spatial_ok = read_spatial_ok and objective_center[0] < exit_center[0]
+        if primary_center:
+            read_spatial_ok = read_spatial_ok and objective_center[0] < primary_center[0] < exit_center[0]
+
+    checks["read_order_spatially_plausible"] = bool(read_spatial_ok)
+    if not read_spatial_ok:
+        fail("E_OBSTACLE_READ_ORDER_SPATIAL", "obstacle_composition.read_order", "goal/blocker/solution read order is not spatially plausible", 20)
+
+    rules_ok = isinstance(beauty_rules, list) and bool(beauty_rules) and all(isinstance(x, str) and x for x in beauty_rules)
+    checks["beauty_rules_declared"] = rules_ok
+    if not rules_ok:
+        fail("E_OBSTACLE_BEAUTY_RULES", "obstacle_composition.beauty_rules", "beauty_rules must be a non-empty list", 10)
+    if primary != "none" and "no_uniform_wall" not in beauty_rules:
+        warn("W_OBSTACLE_NO_UNIFORM_RULE_MISSING", "obstacle_composition.beauty_rules", "blocker compositions should explicitly guard against uniform walls", 5)
+
+    delete_test_ok = meaningful_semantic_text(composition.get("delete_test"), 8)
+    checks["delete_test_declared"] = delete_test_ok
+    if not delete_test_ok:
+        fail("E_OBSTACLE_DELETE_TEST", "obstacle_composition.delete_test", "delete_test must explain why removing the obstacle destroys the thesis", 10)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     compiled, diag = compile_lvl(lvl)
     out: dict[str, Any] = {
@@ -2265,6 +2614,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
     progression = progression_validate_lvl(lvl, compiled)
+    obstacle_composition = obstacle_composition_validate_lvl(lvl, compiled)
     out["structural"] = {
         "valid": structural_valid,
         "playable_cell_count": playable,
@@ -2276,7 +2626,8 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     out["semantic"] = semantic
     out["taste"] = taste
     out["progression"] = progression
-    if structural_valid and semantic.get("valid") and taste.get("valid") and progression.get("valid"):
+    out["obstacle_composition_gate"] = obstacle_composition
+    if structural_valid and semantic.get("valid") and taste.get("valid") and progression.get("valid") and obstacle_composition.get("valid"):
         out["verdict"] = "approved"
     elif not structural_valid:
         out["verdict"] = "revise_major"
@@ -2284,6 +2635,8 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["verdict"] = "revise_semantic"
     elif not progression.get("valid"):
         out["verdict"] = "revise_progression"
+    elif not obstacle_composition.get("valid"):
+        out["verdict"] = "revise_obstacle_composition"
     else:
         out["verdict"] = "revise_taste"
     if initial_matches:
@@ -2304,6 +2657,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"progression gate: {err.get('message')}")
     for warn_item in progression.get("warnings", []):
         out["recommendations"].append(f"progression warning: {warn_item.get('message')}")
+    for err in obstacle_composition.get("errors", []):
+        out["recommendations"].append(f"obstacle composition gate: {err.get('message')}")
+    for warn_item in obstacle_composition.get("warnings", []):
+        out["recommendations"].append(f"obstacle composition warning: {warn_item.get('message')}")
     return out
 
 

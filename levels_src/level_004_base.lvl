@@ -180,6 +180,32 @@
       "role": "variation"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_downstream_funnel_reading",
+    "archetype": "funnel",
+    "primary_blocker": "none",
+    "focus_area": "downstream_pool",
+    "action_vector": "vertical",
+    "read_order": [
+      "upper_supply",
+      "funnel_throat",
+      "goal_basin"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.55
+    },
+    "density": "low",
+    "delete_test": "removing_bottleneck_removes_downstream_lesson",
+    "theme_shape": "book_page_funnel",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "goal_blocker_solution_readable"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_expedition_weak"
+  },
   "level_design": {
     "id": "level_004",
     "thesis": {

@@ -142,6 +142,32 @@
       "role": "breather"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_shell_cleanup_expands_space",
+    "archetype": "cage",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "soft_shell_clusters",
+    "action_vector": "adjacent_clear",
+    "read_order": [
+      "blocker",
+      "solution",
+      "space_payoff"
+    ],
+    "negative_space": {
+      "kind": "open_board_around_clusters",
+      "min_ratio": 0.72
+    },
+    "density": "low",
+    "delete_test": "removing_shell_clusters_removes_cleanup_lesson",
+    "theme_shape": "loose_crystal_knots",
+    "beauty_rules": [
+      "single_core_question",
+      "no_uniform_wall",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "breather",
+    "linked_eye": "shell_cleanup_breather"
+  },
   "level_design": {
     "id": "level_006",
     "thesis": {

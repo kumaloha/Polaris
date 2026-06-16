@@ -218,6 +218,34 @@
       "role": "pressure_lite"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_vertical_line_opens_gate",
+    "archetype": "gate",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "center_column",
+    "action_vector": "vertical",
+    "read_order": [
+      "goal",
+      "blocker",
+      "solution"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.5
+    },
+    "density": "low",
+    "delete_test": "removing_crystal_gate_removes_level_thesis",
+    "theme_shape": "crystal_door",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "pressure_lite",
+    "linked_eye": "crystal_shell_gate_practice"
+  },
   "level_design": {
     "id": "level_005",
     "thesis": {

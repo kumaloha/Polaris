@@ -223,6 +223,34 @@
       "role": "variation"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_burst_cracks_crystal_ring",
+    "archetype": "ring",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "vault_center",
+    "action_vector": "burst",
+    "read_order": [
+      "center_goal",
+      "blocker_ring",
+      "burst_solution"
+    ],
+    "negative_space": {
+      "kind": "outer_play_area",
+      "min_ratio": 0.55
+    },
+    "density": "medium",
+    "delete_test": "removing_shell_ring_removes_vault_lesson",
+    "theme_shape": "crystal_vault_ring",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_siege"
+  },
   "level_design": {
     "id": "level_008",
     "thesis": {

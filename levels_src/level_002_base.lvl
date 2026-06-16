@@ -168,6 +168,31 @@
       "role": "variation"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_horizontal_line_reaches_edges",
+    "archetype": "no_blocker_focus",
+    "primary_blocker": "none",
+    "focus_area": "edge_marks",
+    "action_vector": "horizontal",
+    "read_order": [
+      "edge_goal",
+      "horizontal_solution"
+    ],
+    "negative_space": {
+      "kind": "center_play_area",
+      "min_ratio": 0.68
+    },
+    "density": "none",
+    "delete_test": "removing_edge_targets_removes_sweep_lesson",
+    "theme_shape": "edge_stardust",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_edge"
+  },
   "level_design": {
     "id": "level_002",
     "thesis": {

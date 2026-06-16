@@ -146,6 +146,31 @@
       "role": "teaching"
     }
   },
+  "obstacle_composition": {
+    "purpose": "teach_target_mark_clear",
+    "archetype": "no_blocker_focus",
+    "primary_blocker": "none",
+    "focus_area": "center_marks",
+    "action_vector": "local_match",
+    "read_order": [
+      "goal",
+      "solution"
+    ],
+    "negative_space": {
+      "kind": "whole_board_operation_space",
+      "min_ratio": 0.7
+    },
+    "density": "none",
+    "delete_test": "removing_target_marks_removes_level_thesis",
+    "theme_shape": "stardust_cluster",
+    "beauty_rules": [
+      "single_core_question",
+      "goal_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching",
+    "linked_eye": "cleanse_direct"
+  },
   "level_design": {
     "id": "level_001",
     "thesis": {
