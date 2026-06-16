@@ -66,8 +66,13 @@ func test_rebuild_hides_gem_under_ingredient_overlay() -> void:
 	b.grid[1][1] = 0
 	var level := _prepare_level(4, 4, b)
 	level.board_view.rebuild(level.board)
+	var overlay = level.board_view._overlay_nodes.get(["ing", Vector2i(1, 1)])
 	assert_true(level.board_view.node_at(Vector2i(1, 1)) == null, "ingredient/lost-cub cells do not also render a normal gem")
-	assert_true(level.board_view._overlay_nodes.has(["ing", Vector2i(1, 1)]), "ingredient overlay remains visible as the actual objective actor")
+	assert_true(overlay != null, "ingredient overlay remains visible as the actual objective actor")
+	if overlay != null:
+		assert_eq(overlay.get_parent(), level.gem_layer, "ingredient overlay renders in GemLayer instead of the plain BoardView node, so it is not hidden behind CanvasLayers")
+		var sprite := (overlay as Node).get_node_or_null("Sprite2D") as Sprite2D
+		assert_true(sprite != null and sprite.texture != null, "ingredient overlay has a non-blank generated texture")
 	level.free()
 
 

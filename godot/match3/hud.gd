@@ -16,6 +16,7 @@ extends Node
 
 const LevelLayout := preload("res://match3/level_layout.gd")
 const ME := preload("res://core/match_engine.gd")
+const ObjectiveIcons := preload("res://match3/objective_icons.gd")
 
 # ── 顶栏布局常量（迁自 level.gd 顶栏簇）──
 const COLOR_GOLD := Color(1.0, 0.92, 0.5)  # 统一金色文字(金币数/第N关/步数)
@@ -45,7 +46,6 @@ const OBJECTIVES_DEMO := [
 # 目标卡图标资源(迁自 level.gd)。
 const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
-const DROP_RELIC_GOAL_ICON := "res://art/reference_ui/portal_exit.png"  # 迷路幼兽回巢/出口目标；不要复用宠物头像
 # COLLECT 用该色宝石图标；其它类型必须优先给机制专属图标，避免看起来像宠物技能头像。
 const OBJ_PLACEHOLDER_ICON := STAR_GOLD
 
@@ -249,8 +249,12 @@ func _render_topbar_v2(cfg: Dictionary) -> void:
 		var slot: Dictionary = _topbar_objective_slot(i, n, tw, th)
 		var icon_center: Vector2 = slot["icon"]
 		var text_center: Vector2 = slot["text"]
-		var icon_path: String = String(item.get("icon", ""))
-		_sprite_fit(ui_layer, icon_path, icon_center, TB_OBJ_ICON_MAX, icon_path == BARRIER_ICE_ICON)
+		var icon_texture = item.get("icon_texture", null)
+		if icon_texture is Texture2D:
+			_sprite_texture_fit(ui_layer, icon_texture, icon_center, TB_OBJ_ICON_MAX)
+		else:
+			var icon_path: String = String(item.get("icon", ""))
+			_sprite_fit(ui_layer, icon_path, icon_center, TB_OBJ_ICON_MAX, icon_path == BARRIER_ICE_ICON)
 		var lbl := _label(ui_layer, _objective_counter_text(item), text_center, 30, Color(1, 1, 1), TB_OBJ_TEXT_W, 4, Color(0, 0, 0, 0.9))
 		_objective_progress_labels.append(lbl)
 
@@ -339,6 +343,8 @@ func _objectives_view() -> Array:
 		var sp: int = int(o.get("species", -1))
 		var target: int = int(o.get("target", 0))
 		var icon: String = OBJ_PLACEHOLDER_ICON
+		var icon_texture: Texture2D = null
+		var icon_asset_key: String = ""
 		var progress: int = 0
 		match t:
 			"COLLECT":
@@ -356,8 +362,9 @@ func _objectives_view() -> Array:
 			"CLEAR_CHOCO":
 				progress = board.choco_cleared
 			"COLLECT_INGREDIENT":
-				if ResourceLoader.exists(DROP_RELIC_GOAL_ICON):
-					icon = DROP_RELIC_GOAL_ICON
+				icon = ""
+				icon_texture = ObjectiveIcons.drop_relic_texture(int(TB_OBJ_ICON_MAX))
+				icon_asset_key = ObjectiveIcons.DROP_RELIC_ASSET_KEY
 				progress = board.ingredient_collected
 			"DEFUSE_BOMB":
 				progress = board.bomb_defused
@@ -372,7 +379,12 @@ func _objectives_view() -> Array:
 			_:
 				progress = 0
 		# 进度封顶到 target(已达成不显示溢出, 如 25/21 → 21/21)。
-		out.append({"icon": icon, "label": _objective_label(t), "progress": mini(progress, target), "target": target})
+		var item := {"icon": icon, "label": _objective_label(t), "progress": mini(progress, target), "target": target}
+		if icon_texture != null:
+			item["icon_texture"] = icon_texture
+		if icon_asset_key != "":
+			item["icon_asset_key"] = icon_asset_key
+		out.append(item)
 	return out
 
 # ───────── 共享渲染 helper 转发(实现留 level.gd, board_view 二期也复用) ─────────
@@ -388,6 +400,16 @@ func _sprite_w(layer: CanvasLayer, path: String, center: Vector2, width: float, 
 
 func _sprite_fit(layer: CanvasLayer, path: String, center: Vector2, max_size: float, use_key: bool) -> Sprite2D:
 	return _level._sprite_fit(layer, path, center, max_size, use_key)
+
+func _sprite_texture_fit(layer: CanvasLayer, texture: Texture2D, center: Vector2, max_size: float) -> Sprite2D:
+	if texture == null:
+		return null
+	var s := Sprite2D.new()
+	s.texture = texture
+	s.position = center
+	s.scale = _level._fit_scale(texture, max_size)
+	layer.add_child(s)
+	return s
 
 func _load_texture(path: String) -> Texture2D:
 	return _level._load_texture(path)

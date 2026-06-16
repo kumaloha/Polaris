@@ -8,6 +8,7 @@ const LevelLibrary := preload("res://core/level_library.gd")
 
 const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const DROP_RELIC_GOAL_ICON := "res://art/reference_ui/portal_exit.png"
+const DROP_RELIC_GENERATED_ICON_KEY := "generated:drop_relic_lost_cub"
 const RACCOON_AVATAR_ICON := "res://assets/avatars/av_raccoon_miner.png"
 
 
@@ -153,13 +154,15 @@ func test_objectives_view_collect_reads_board_state() -> void:
 	level.free()
 
 
-func test_drop_relic_objective_uses_exit_goal_icon_not_pet_avatar() -> void:
+func test_drop_relic_objective_uses_generated_lost_cub_icon_not_pet_avatar_or_portal() -> void:
 	var level := _prepare_level_scene()
 	var objs := [{"type": "COLLECT_INGREDIENT", "species": -1, "target": 1}]
 	level.board = Board.new(9, 9, [0, 1, 2, 3, 4], 0, 36, 1, [], objs)
 	var view: Array = level.hud.call("_objectives_view")
 	assert_eq(view.size(), 1, "one drop-relic objective card")
 	assert_eq(view[0].get("label", ""), "回巢", "drop-relic objective communicates escorting home, not generic ingredient collection")
-	assert_eq(view[0].get("icon", ""), DROP_RELIC_GOAL_ICON, "drop-relic objective uses the portal/exit icon")
+	assert_true(view[0].get("icon_texture", null) is Texture2D, "drop-relic objective uses a generated lost-cub texture when no final art exists")
+	assert_eq(view[0].get("icon_asset_key", ""), DROP_RELIC_GENERATED_ICON_KEY, "HUD and board can identify the same generated lost-cub asset")
+	assert_true(view[0].get("icon", "") != DROP_RELIC_GOAL_ICON, "drop-relic objective must not use an unrelated portal icon")
 	assert_true(view[0].get("icon", "") != RACCOON_AVATAR_ICON, "drop-relic objective must not look like a pet skill avatar")
 	level.free()

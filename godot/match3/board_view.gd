@@ -734,16 +734,21 @@ func _clear_overlay_nodes() -> void:
 			node.queue_free()
 	_overlay_nodes.clear()
 
+
+func _overlay_parent() -> Node:
+	var layer := _gem_layer()
+	return layer if layer != null else self
+
 func _rebuild_overlay_nodes() -> void:
 	if board == null:
 		return
-	OverlayRegistry.rebuild_all(board, self, _overlay_nodes, cell_size, func(c: Vector2i) -> Vector2:
+	OverlayRegistry.rebuild_all(board, _overlay_parent(), _overlay_nodes, cell_size, func(c: Vector2i) -> Vector2:
 		return _cell_center(c.y, c.x))
 
 func _sync_overlays_at(cell: Vector2i) -> void:
 	if board == null:
 		return
-	OverlayRegistry.ensure_overlays_at(cell, board, self, _overlay_nodes, cell_size, _cell_center(cell.y, cell.x))
+	OverlayRegistry.ensure_overlays_at(cell, board, _overlay_parent(), _overlay_nodes, cell_size, _cell_center(cell.y, cell.x))
 
 # ───────── 站立特效(fx overlay + combo idle + colorbomb)──────────
 
