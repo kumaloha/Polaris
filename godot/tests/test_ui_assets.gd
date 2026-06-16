@@ -1079,6 +1079,12 @@ func test_score_fallback_level_objective_view_shows_score_target() -> void:
 func test_level_blocker_objective_uses_resources_barrier_ice_icon() -> void:
 	assert_true(FileAccess.file_exists(_repo_path(BARRIER_ICE_SOURCE)), "source barrier image exists")
 	assert_true(FileAccess.file_exists(BARRIER_ICE_SYNCED), "synced Godot barrier image exists")
+	var src := Image.load_from_file(_repo_path(BARRIER_ICE_SOURCE))
+	var dst := Image.load_from_file(ProjectSettings.globalize_path(BARRIER_ICE_SYNCED))
+	assert_true(src != null and not src.is_empty(), "source barrier image loads")
+	assert_true(dst != null and not dst.is_empty(), "synced barrier image loads")
+	if src != null and dst != null:
+		assert_eq(dst.get_size(), src.get_size(), "synced barrier ice must remain the single-cell source art, not a 1024px board-covering image")
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	var objs := [{"type": "CLEAR_BLOCKER", "species": -1, "target": 9}]
