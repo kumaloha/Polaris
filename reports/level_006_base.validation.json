@@ -39,6 +39,22 @@
     "errors": [],
     "warnings": []
   },
+  "level_intent_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "objective_verb_known": true,
+      "objective_verb_matches_objective": true,
+      "skill_lesson_has_proof_signal": true,
+      "board_scale_declared": true,
+      "board_scale_matches_map": true,
+      "new_mechanic_reveal": false,
+      "objective_verb_matches_archetype": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "taste": {
     "valid": true,
     "score": 100,

@@ -131,6 +131,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_horizontal_line_for_edge_targets",
+      "proof_signal": "line_reward_hits_edge_target"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "edge_sweep_lesson"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_edge"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",

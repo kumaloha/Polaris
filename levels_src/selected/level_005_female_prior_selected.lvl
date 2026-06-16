@@ -1,24 +1,24 @@
 {
-  "id": "level_005_female_prior_c05",
+  "id": "level_005_female_prior_c07",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
     "level_coordinate": 5,
     "variant": "female_prior",
-    "role": "pressure_lite",
-    "complexity_tier": 2,
+    "role": "teaching",
+    "complexity_tier": 1,
     "theme": "crystal_workshop",
     "target_pass_band": [
-      0.58,
-      0.8
+      0.9,
+      1.0
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 5,
+    "candidate_index": 7,
     "candidate_tuning": {
-      "moves_delta": -5,
-      "target_multiplier": 1.2,
-      "shell_hp_delta": 2,
-      "colors_delta": 1
+      "moves_delta": 2,
+      "target_multiplier": 0.9,
+      "shell_hp_delta": -1,
+      "colors_delta": 0
     }
   },
   "personalization": {
@@ -26,12 +26,12 @@
     "cold_start_prior": "female",
     "prior_weight": 0.2,
     "target_pass_band": [
-      0.58,
-      0.8
+      0.9,
+      1.0
     ],
     "target_attempts_to_first_win": [
-      1.5,
-      3.0
+      1.0,
+      2.0
     ],
     "pet_skill_context": "ignored_v0"
   },
@@ -40,17 +40,17 @@
     "target": "all"
   },
   "rules": {
-    "moves": 21,
-    "colors": 6,
+    "moves": 26,
+    "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 6073
+    "seed": 8067
   },
   "map": {
-    "width": 9,
-    "height": 9,
+    "width": 7,
+    "height": 7,
     "terrain": {
-      "sample": "bottleneck"
+      "sample": "open"
     },
     "supply_topology": {
       "type": "vertical_down"
@@ -60,7 +60,7 @@
     "eye": "crystal_shell_gate_practice",
     "obstacle_lane": {
       "focus": "crystal_shell",
-      "stage": "pressure_lite",
+      "stage": "teaching",
       "active": [
         "crystal_shell",
         "target_mark"
@@ -79,55 +79,41 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
-    "ooooooooo",
-    "ooooooooo",
-    ".ooooooo.",
-    ".ooooooo.",
-    "..ooooo..",
-    "..ooooo..",
-    "...ooo...",
-    "...ooo...",
-    "...ooo..."
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
   ],
   "overlays": [
     {
       "region": "downstream_marks",
       "cells": [
         [
+          5,
+          2
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          6,
+          2
+        ],
+        [
           6,
           3
         ],
         [
           6,
           4
-        ],
-        [
-          6,
-          5
-        ],
-        [
-          7,
-          3
-        ],
-        [
-          7,
-          4
-        ],
-        [
-          7,
-          5
-        ],
-        [
-          8,
-          3
-        ],
-        [
-          8,
-          4
-        ],
-        [
-          8,
-          5
         ]
       ],
       "layers": [
@@ -139,35 +125,19 @@
       "cells": [
         [
           4,
+          2
+        ],
+        [
+          4,
           3
         ],
         [
           4,
           4
-        ],
-        [
-          4,
-          5
-        ],
-        [
-          5,
-          3
-        ],
-        [
-          5,
-          4
-        ],
-        [
-          5,
-          5
         ]
       ],
       "layers": [
-        {
-          "crystal_shell": {
-            "hp": 3
-          }
-        }
+        "crystal_shell"
       ]
     },
     {
@@ -175,7 +145,7 @@
       "cells": [
         [
           3,
-          4
+          3
         ]
       ],
       "layers": [
@@ -184,6 +154,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_vertical_line_to_open_gate",
+      "proof_signal": "crystal_gate_damaged_before_downstream_targets_finish"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "new_blocker_reveal_small_problem_space"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "crystal_shell_gate_practice"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",
@@ -213,18 +201,18 @@
       "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
     },
     "annoyance_budget": {
-      "max_reshuffle_rate": 0.06,
-      "max_dead_board_rate": 0.06,
-      "max_no_progress_turn_rate": 0.4,
-      "max_luck_dependency_proxy": 0.45
+      "max_reshuffle_rate": 0.02,
+      "max_dead_board_rate": 0.02,
+      "max_no_progress_turn_rate": 0.28,
+      "max_luck_dependency_proxy": 0.32
     },
     "difficulty_rhythm": {
       "shape": "new_mechanic_safe_test",
       "target_pass_band": [
-        0.58,
-        0.8
+        0.9,
+        1.0
       ],
-      "role": "pressure_lite"
+      "role": "teaching"
     }
   },
   "obstacle_composition": {
@@ -252,7 +240,7 @@
       "goal_blocker_solution_readable",
       "theme_shape_serves_play_shape"
     ],
-    "level_role": "pressure_lite",
+    "level_role": "teaching",
     "linked_eye": "crystal_shell_gate_practice"
   },
   "level_design": {

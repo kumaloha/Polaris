@@ -14,6 +14,7 @@
   → Lint Validator
   → Compile Validator
   → Semantic Design Language Gate
+  → Level Intent Gate
   → Progression Rhythm Gate
   → Obstacle Composition Gate
   → Structural Validator
@@ -23,13 +24,14 @@
   → Validation Report
 ```
 
-六类 verdict：
+七类 verdict：
 
 | verdict | 含义 |
 |---|---|
 | `approved` | 可以进入人工手感评审 |
 | `revise_minor` | 小改后可重跑 |
 | `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
+| `revise_level_intent` | 外部原则契约不成立；目标动词/技能课题/棋盘尺度需要重写 |
 | `revise_progression` | 长期节奏契约不成立；机制生命周期/奖励资源/烦躁预算/难度带需要重写 |
 | `revise_obstacle_composition` | 障碍构图不成立；母题/主障碍/动作方向/负空间/读序需要重写 |
 | `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
@@ -63,6 +65,7 @@ input:
   "lint": {},
   "compile": {},
   "semantic": {},
+  "level_intent_gate": {},
   "progression": {},
   "obstacle_composition_gate": {},
   "structural": {},
@@ -92,6 +95,7 @@ input:
 | objective/objectives 不冲突 | `E_OBJECTIVE_CONFLICT` |
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
 | level_design 根字段存在 | `E_MISSING_FIELD` |
+| level_intent 根字段存在 | `E_MISSING_FIELD` |
 | progression 根字段存在 | `E_MISSING_FIELD` |
 | obstacle_composition 根字段存在 | `E_MISSING_FIELD` |
 | director 根字段存在 | `E_MISSING_FIELD` |
@@ -423,11 +427,60 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 8. Progression Rhythm Gate
+## 8. Level Intent Gate
+
+`level_intent` 是外部原则进入生成器的第一层语言。它回答三个问题：
+
+```text
+这关是什么目标动词？
+玩家学会什么具体技能？
+棋盘尺度是否匹配这个学习任务？
+```
+
+### 8.1 机器必检 intent gate
+
+| check | pass 条件 |
+|---|---|
+| `required_fields_present` | `objective_verb/skill_lesson/board_scale` 全存在 |
+| `objective_verb_known` | objective_verb 属于 `cleanse/transport/craft/connect/rescue/mixed` |
+| `objective_verb_matches_objective` | `.lvl objective.type` 与目标动词一致，例如 `drop_relic -> transport` |
+| `skill_lesson_has_proof_signal` | skill_lesson 同时声明 `skill` 与 `proof_signal` |
+| `board_scale_declared` | board_scale 声明 `size/effective_problem_space/reason` |
+| `board_scale_matches_map` | board_scale.size 与 map.width/height 一致 |
+| `new_reveal_small_problem_space` | 新机制 `reveal_safe` 时问题空间必须是 small |
+| `new_reveal_board_cells` | 新机制首见默认 `width * height <= 49`，即 7x7 或更小问题空间 |
+| `new_reveal_colors` | 新机制首见 `rules.colors <= 4` |
+| `new_reveal_target_band_low` | 新机制首见目标首局通过率带下限 `>= 0.90` |
+| `objective_verb_matches_archetype` | 目标动词与 obstacle_composition 母题不冲突 |
+
+`level_intent_gate.valid=false` 时，候选只能得到 `revise_level_intent`。
+
+### 8.2 Intent 输出示例
+
+```json
+{
+  "valid": false,
+  "score": 55,
+  "checks": {
+    "objective_verb_known": true,
+    "skill_lesson_has_proof_signal": true,
+    "new_mechanic_reveal": true,
+    "new_reveal_board_cells": 81
+  },
+  "errors": [
+    {"code": "E_BOARD_SCALE_NEW_REVEAL_TOO_LARGE", "path": "map", "message": "new mechanism reveal board has 81 cells; expected <= 49"}
+  ],
+  "warnings": []
+}
+```
+
+---
+
+## 9. Progression Rhythm Gate
 
 `progression` 是“这关在长线运营里为什么存在”的机器契约。它不替代 `level_design`，而是检查：机制有没有生命周期位置、玩家有没有真实奖励资源、通过率之外是否控制烦躁、难度带是否服务前后节奏。
 
-### 8.1 机器必检 progression gate
+### 9.1 机器必检 progression gate
 
 | check | pass 条件 |
 |---|---|
@@ -444,7 +497,7 @@ seed_policy: deterministic_sequence
 
 `progression.valid=false` 时，候选只能得到 `revise_progression`，不进入候选选择。
 
-### 8.2 Progression 输出示例
+### 9.2 Progression 输出示例
 
 ```json
 {
@@ -465,11 +518,11 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 9. Obstacle Composition Gate
+## 10. Obstacle Composition Gate
 
 `obstacle_composition` 把“障碍摆得美不美”收敛成可运行检查。它不判断截图审美，而是验证障碍是否服务设计目的：目标、障碍、解法能否形成清晰读序。
 
-### 9.1 机器必检 obstacle gate
+### 10.1 机器必检 obstacle gate
 
 | check | pass 条件 |
 |---|---|
@@ -485,7 +538,7 @@ seed_policy: deterministic_sequence
 
 `obstacle_composition_gate.valid=false` 时，候选只能得到 `revise_obstacle_composition`。
 
-### 9.2 Obstacle 输出示例
+### 10.2 Obstacle 输出示例
 
 ```json
 {
@@ -507,11 +560,11 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 10. Taste Director / Design Checklist Validator
+## 11. Taste Director / Design Checklist Validator
 
 `director` 是机器可读的品味契约，用来拦住“流程背熟但没有主角/记忆点/留白”的关卡。AI/人仍可执行 checklist，但 v0 的 `validate` 已经会输出 `taste` gate。
 
-### 10.1 机器必检 taste gate
+### 11.1 机器必检 taste gate
 
 | check | pass 条件 |
 |---|---|
@@ -528,7 +581,7 @@ seed_policy: deterministic_sequence
 
 `taste.valid=false` 时，结构再正确也只能得到 `revise_taste`。
 
-### 10.2 人/AI checklist
+### 11.2 人/AI checklist
 
 | check | pass 条件 |
 |---|---|
@@ -558,11 +611,11 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 11. Telemetry / Feedback Spec
+## 12. Telemetry / Feedback Spec
 
 上线后反馈系统最小事件。
 
-### 11.1 Level attempt event
+### 12.1 Level attempt event
 
 ```json
 {
@@ -592,7 +645,7 @@ seed_policy: deterministic_sequence
 }
 ```
 
-### 11.2 Feedback diagnosis
+### 12.2 Feedback diagnosis
 
 | signal | diagnosis | action |
 |---|---|---|
@@ -605,7 +658,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 12. Validation thresholds v0
+## 13. Validation thresholds v0
 
 默认阈值；20 关验证后再校准。
 
@@ -623,7 +676,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 13. 需要实现的工具
+## 14. 需要实现的工具
 
 | tool | 输入 | 输出 |
 |---|---|---|
@@ -639,7 +692,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 14. 当前需你确认
+## 15. 当前需你确认
 
 无强制阻塞。默认采用：
 

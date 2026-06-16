@@ -1,5 +1,5 @@
 {
-  "level_id": "level_005_male_prior_c01",
+  "level_id": "level_005_male_prior_c02",
   "lint": {
     "valid": true,
     "errors": [],
@@ -12,7 +12,7 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 51,
+    "playable_cell_count": 49,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,
@@ -35,6 +35,26 @@
       "validation_claims_complete": true,
       "director_compiled_from_semantics": true,
       "payoff_visible": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "level_intent_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "objective_verb_known": true,
+      "objective_verb_matches_objective": true,
+      "skill_lesson_has_proof_signal": true,
+      "board_scale_declared": true,
+      "board_scale_matches_map": true,
+      "new_mechanic_reveal": true,
+      "new_reveal_small_problem_space": true,
+      "new_reveal_board_cells": 49,
+      "new_reveal_colors": 4,
+      "new_reveal_target_band_low": 0.9,
+      "objective_verb_matches_archetype": true
     },
     "errors": [],
     "warnings": []
@@ -65,8 +85,8 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 22,
-        "objective_target_total": 9
+        "move_limit": 19,
+        "objective_target_total": 6
       }
     },
     "errors": [],
@@ -102,7 +122,7 @@
       "archetype_matches_purpose": true,
       "primary_blocker_present": true,
       "negative_space_declared": true,
-      "negative_space_ratio": 0.882,
+      "negative_space_ratio": 0.939,
       "negative_space_ok": true,
       "no_uniform_wall": true,
       "read_order_declared": true,

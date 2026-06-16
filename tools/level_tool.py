@@ -180,16 +180,17 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "control": "vertical_line_gem",
     },
     5: {
-        "role": "pressure_lite",
-        "complexity_tier": 2,
+        "role": "teaching",
+        "complexity_tier": 1,
         "theme": "crystal_workshop",
-        "terrain": "bottleneck_9x9",
-        "target_pass_band": [0.58, 0.80],
+        "terrain": "open_7x7",
+        "moves": 22,
+        "target_pass_band": [0.90, 1.00],
         "eye": "crystal_shell_gate_practice",
         "objective": {"type": "cleanse_marks", "target": "all"},
-        "placements": ["downstream_marks_9x9", "crystal_gate_9x9"],
-        "reward_placements": ["gate_line_reward_9x9"],
-        "intent": "晶壳门首次正式改变水文：先开门再净化。",
+        "placements": ["downstream_marks_7x7", "crystal_gate_7x7"],
+        "reward_placements": ["gate_line_reward_7x7"],
+        "intent": "晶壳门首次出现：小棋盘里用竖线打开门，再净化门后的星尘。",
         "control": "vertical_line_gem",
         "forbidden": ["creep_growth", "spawner", "timed_core", "drop_relic"],
     },
@@ -237,13 +238,13 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "role": "teaching",
         "complexity_tier": 1,
         "theme": "forest_ruins",
-        "terrain": "open_9x9",
-        "moves": 36,
-        "target_pass_band": [0.90, 1.00],
+        "terrain": "open_7x7",
+        "moves": 24,
+        "target_pass_band": [0.92, 1.00],
         "eye": "drop_direct",
         "objective": {"type": "drop_relic", "target": 1},
-        "placements": ["relic_direct_9x9"],
-        "intent": "迷路幼兽回巢教学：让玩家看懂幼兽和巢门。",
+        "placements": ["relic_direct_7x7"],
+        "intent": "迷路幼兽首见：小棋盘中让玩家看懂消幼兽下方会让它回巢。",
         "control": "clear_below_relic",
     },
     10: {
@@ -470,6 +471,60 @@ EARLY_LEVEL_OBSTACLE_COMPOSITION: dict[int, dict[str, Any]] = {
 }
 
 
+EARLY_LEVEL_INTENT: dict[int, dict[str, Any]] = {
+    1: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "match_on_target_cells", "proof_signal": "target_mark_progress_after_local_match"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "first_target_reveal"},
+    },
+    2: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "use_horizontal_line_for_edge_targets", "proof_signal": "line_reward_hits_edge_target"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "edge_sweep_lesson"},
+    },
+    3: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "read_target_path", "proof_signal": "multiple_target_regions_cleared_in_sequence"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "path_reading_without_new_blocker"},
+    },
+    4: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "read_downstream_goal_basin", "proof_signal": "lower_targets_cleared_after_upper_moves"},
+        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "terrain_variation_needs_upper_middle_lower_read"},
+    },
+    5: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "use_vertical_line_to_open_gate", "proof_signal": "crystal_gate_damaged_before_downstream_targets_finish"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "new_blocker_reveal_small_problem_space"},
+    },
+    6: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "adjacent_clear_blocker_clusters", "proof_signal": "crystal_shell_count_decreases"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "post_reveal_cleanup_breather"},
+    },
+    7: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "solve_split_areas_independently", "proof_signal": "left_and_right_target_progress"},
+        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "split_regions_need_width"},
+    },
+    8: {
+        "objective_verb": "cleanse",
+        "skill_lesson": {"skill": "use_burst_to_crack_ring", "proof_signal": "shell_ring_damage_before_center_targets_finish"},
+        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "ring_pressure_needs_outer_play_area"},
+    },
+    9: {
+        "objective_verb": "transport",
+        "skill_lesson": {"skill": "clear_below_actor_to_move_down", "proof_signal": "lost_cub_moves_down_at_least_three_rows"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "new_transport_mechanic_reveal_small_problem_space"},
+    },
+    10: {
+        "objective_verb": "transport",
+        "skill_lesson": {"skill": "open_route_gate_then_transport_actor", "proof_signal": "crystal_gate_damaged_before_lost_cub_exits"},
+        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "post_reveal_transport_mix"},
+    },
+}
+
+
 ANNOYANCE_BUDGET_BY_ROLE: dict[str, dict[str, float]] = {
     "teaching": {"max_reshuffle_rate": 0.02, "max_dead_board_rate": 0.02, "max_no_progress_turn_rate": 0.28, "max_luck_dependency_proxy": 0.32},
     "teaching_breather": {"max_reshuffle_rate": 0.03, "max_dead_board_rate": 0.03, "max_no_progress_turn_rate": 0.30, "max_luck_dependency_proxy": 0.35},
@@ -603,6 +658,15 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "soft_shell_clusters_7x7": [
             overlay("soft_shell_clusters", [[2, 2], [2, 4], [3, 3], [4, 2], [4, 4]], [shell_layer])
         ],
+        "downstream_marks_7x7": [
+            overlay("downstream_marks", [[5, 2], [5, 3], [5, 4], [6, 2], [6, 3], [6, 4]], ["target_mark"])
+        ],
+        "crystal_gate_7x7": [
+            overlay("crystal_gate", [[4, 2], [4, 3], [4, 4]], [shell_layer])
+        ],
+        "gate_line_reward_7x7": [
+            overlay("gate_line_reward", [[3, 3]], ["line_v_gem"])
+        ],
         "downstream_marks_9x9": [
             overlay("downstream_marks", [[6, 3], [6, 4], [6, 5], [7, 3], [7, 4], [7, 5], [8, 3], [8, 4], [8, 5]], ["target_mark"])
         ],
@@ -628,6 +692,10 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "relic_direct_9x9": [
             overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
             overlay("nest_exit", [[8, 4]], ["drop_exit"]),
+        ],
+        "relic_direct_7x7": [
+            overlay("lost_cub_start", [[1, 3]], ["drop_relic"]),
+            overlay("nest_exit", [[6, 3]], ["drop_exit"]),
         ],
         "relic_bottleneck_9x9": [
             overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
@@ -684,6 +752,20 @@ def generated_obstacle_composition(level: int, coord: dict[str, Any]) -> dict[st
         raise ValueError(f"no obstacle composition grammar for level {level}")
     out = copy.deepcopy(spec)
     out["level_role"] = coord["role"]
+    out["linked_eye"] = coord["eye"]
+    return out
+
+
+def generated_level_intent(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    spec = EARLY_LEVEL_INTENT.get(level)
+    if not spec:
+        raise ValueError(f"no level intent grammar for level {level}")
+    out = copy.deepcopy(spec)
+    out["source_principles"] = [
+        "new_mechanic_reveal_small_problem_space",
+        "objective_verb_drives_layout",
+        "skill_lesson_must_have_proof_signal",
+    ]
     out["linked_eye"] = coord["eye"]
     return out
 
@@ -1475,6 +1557,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     level_design = generated_level_design(level, coord)
     progression = generated_progression(level, coord)
     obstacle_composition = generated_obstacle_composition(level, coord)
+    level_intent = generated_level_intent(level, coord)
     placements = list(coord["placements"]) + list(coord.get("reward_placements", []))
 
     return {
@@ -1522,6 +1605,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
         "board": rows,
         "overlays": build_overlays(placements, shell_hp_delta),
         "mechanisms": [],
+        "level_intent": level_intent,
         "progression": progression,
         "obstacle_composition": obstacle_composition,
         "level_design": level_design,
@@ -2405,6 +2489,121 @@ def progression_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | Non
     return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
 
 
+def level_intent_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate benchmark-derived objective verb, skill lesson, and board scale laws."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    intent = lvl.get("level_intent")
+    if not isinstance(intent, dict):
+        fail("E_LEVEL_INTENT_MISSING", "level_intent", "level_intent contract is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    required = {"objective_verb", "skill_lesson", "board_scale"}
+    missing = sorted(required - set(intent))
+    checks["required_fields_present"] = not missing
+    if missing:
+        fail("E_LEVEL_INTENT_FIELDS", "level_intent", f"missing level intent fields: {missing}", 25)
+
+    objective_verb = str(intent.get("objective_verb", ""))
+    objective_type = str(first_objective(lvl).get("type", ""))
+    objective_to_verb = {
+        "cleanse_marks": "cleanse",
+        "clear_shells": "cleanse",
+        "clear_creep": "cleanse",
+        "defuse_cores": "cleanse",
+        "drop_relic": "transport",
+        "collect": "craft",
+        "order_color": "craft",
+    }
+    expected_verb = objective_to_verb.get(objective_type)
+    verb_ok = objective_verb in {"cleanse", "transport", "craft", "connect", "rescue", "mixed"}
+    checks["objective_verb_known"] = verb_ok
+    if not verb_ok:
+        fail("E_OBJECTIVE_VERB_UNKNOWN", "level_intent.objective_verb", f"unknown objective verb {objective_verb!r}", 15)
+    checks["objective_verb_matches_objective"] = expected_verb is None or objective_verb == expected_verb
+    if expected_verb is not None and objective_verb != expected_verb:
+        fail("E_OBJECTIVE_VERB_MISMATCH", "level_intent.objective_verb", f"{objective_type} should use objective verb {expected_verb}", 20)
+
+    skill = intent.get("skill_lesson") if isinstance(intent.get("skill_lesson"), dict) else {}
+    skill_ok = meaningful_semantic_text(skill.get("skill"), 4) and meaningful_semantic_text(skill.get("proof_signal"), 6)
+    checks["skill_lesson_has_proof_signal"] = skill_ok
+    if not skill_ok:
+        fail("E_SKILL_LESSON_INCOMPLETE", "level_intent.skill_lesson", "skill_lesson must declare skill and proof_signal", 15)
+
+    board_scale = intent.get("board_scale") if isinstance(intent.get("board_scale"), dict) else {}
+    scale_size = str(board_scale.get("size", ""))
+    problem_space = str(board_scale.get("effective_problem_space", ""))
+    reason_ok = meaningful_semantic_text(board_scale.get("reason"), 6)
+    checks["board_scale_declared"] = scale_size in {"7x7", "9x9"} and problem_space in {"small", "medium", "large"} and reason_ok
+    if not checks["board_scale_declared"]:
+        fail("E_BOARD_SCALE_INCOMPLETE", "level_intent.board_scale", "board_scale must declare size, effective_problem_space, and reason", 15)
+
+    width = int(lvl.get("map", {}).get("width", 0) or 0)
+    height = int(lvl.get("map", {}).get("height", 0) or 0)
+    actual_size = f"{width}x{height}" if width and height else ""
+    checks["board_scale_matches_map"] = not scale_size or scale_size == actual_size
+    if scale_size and scale_size != actual_size:
+        fail("E_BOARD_SCALE_SIZE_MISMATCH", "level_intent.board_scale.size", f"declared board scale {scale_size} != map size {actual_size}", 15)
+
+    progression = lvl.get("progression") if isinstance(lvl.get("progression"), dict) else {}
+    lifecycle = progression.get("mechanic_lifecycle") if isinstance(progression.get("mechanic_lifecycle"), list) else []
+    new_reveal = any(
+        isinstance(item, dict) and bool(item.get("is_new")) and item.get("phase") == "reveal_safe"
+        for item in lifecycle
+    )
+    checks["new_mechanic_reveal"] = new_reveal
+    if new_reveal:
+        area = width * height
+        colors = int(lvl.get("rules", {}).get("colors", 0) or 0)
+        band = lvl.get("meta", {}).get("target_pass_band", [])
+        band_low = float(band[0]) if isinstance(band, list) and band else 0.0
+        objective_count = len(normalize_objectives(lvl))
+        checks["new_reveal_small_problem_space"] = problem_space == "small"
+        checks["new_reveal_board_cells"] = area
+        checks["new_reveal_colors"] = colors
+        checks["new_reveal_target_band_low"] = band_low
+        if problem_space != "small":
+            fail("E_BOARD_SCALE_NEW_REVEAL_NOT_SMALL", "level_intent.board_scale.effective_problem_space", "new mechanism reveal must use small problem space", 20)
+        if area > 49:
+            fail("E_BOARD_SCALE_NEW_REVEAL_TOO_LARGE", "map", f"new mechanism reveal board has {area} cells; expected <= 49", 25)
+        if colors > 4:
+            fail("E_BOARD_SCALE_NEW_REVEAL_TOO_MANY_COLORS", "rules.colors", "new mechanism reveal should use at most 4 colors", 20)
+        if band_low < 0.90:
+            fail("E_BOARD_SCALE_NEW_REVEAL_TOO_HARD", "meta.target_pass_band", "new mechanism reveal target pass band should start at >= 0.90", 20)
+        if objective_count > 1:
+            fail("E_LEVEL_INTENT_NEW_REVEAL_MIXED_OBJECTIVE", "objectives", "new mechanism reveal should not mix objectives", 20)
+
+    composition = lvl.get("obstacle_composition") if isinstance(lvl.get("obstacle_composition"), dict) else {}
+    archetype = str(composition.get("archetype", ""))
+    compatible_archetypes = {
+        "cleanse": {"no_blocker_focus", "gate", "ring", "key_path", "cage", "funnel", "split_lock"},
+        "transport": {"lane", "gate", "funnel"},
+        "craft": {"no_blocker_focus", "gate", "ring", "key_path"},
+        "connect": {"bridge", "key_path"},
+        "rescue": {"cage", "ring"},
+        "mixed": {"gate", "lane", "ring", "split_lock", "bridge"},
+    }
+    archetype_ok = not archetype or archetype in compatible_archetypes.get(objective_verb, set())
+    checks["objective_verb_matches_archetype"] = archetype_ok
+    if not archetype_ok:
+        warn("W_OBJECTIVE_VERB_ARCHETYPE_MISMATCH", "obstacle_composition.archetype", f"{objective_verb} rarely pairs with archetype {archetype}", 5)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def obstacle_composition_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate whether blocker geometry serves the declared design purpose."""
     errors: list[dict[str, Any]] = []
@@ -2613,6 +2812,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     structural_valid = playable >= 20 and legal and objective_ok and drop_path_ok
     semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
+    level_intent = level_intent_validate_lvl(lvl, compiled)
     progression = progression_validate_lvl(lvl, compiled)
     obstacle_composition = obstacle_composition_validate_lvl(lvl, compiled)
     out["structural"] = {
@@ -2624,15 +2824,18 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         "drop_path_ok": drop_path_ok,
     }
     out["semantic"] = semantic
+    out["level_intent_gate"] = level_intent
     out["taste"] = taste
     out["progression"] = progression
     out["obstacle_composition_gate"] = obstacle_composition
-    if structural_valid and semantic.get("valid") and taste.get("valid") and progression.get("valid") and obstacle_composition.get("valid"):
+    if structural_valid and semantic.get("valid") and level_intent.get("valid") and taste.get("valid") and progression.get("valid") and obstacle_composition.get("valid"):
         out["verdict"] = "approved"
     elif not structural_valid:
         out["verdict"] = "revise_major"
     elif not semantic.get("valid"):
         out["verdict"] = "revise_semantic"
+    elif not level_intent.get("valid"):
+        out["verdict"] = "revise_level_intent"
     elif not progression.get("valid"):
         out["verdict"] = "revise_progression"
     elif not obstacle_composition.get("valid"):
@@ -2649,6 +2852,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"semantic gate: {err.get('message')}")
     for warn_item in semantic.get("warnings", []):
         out["recommendations"].append(f"semantic warning: {warn_item.get('message')}")
+    for err in level_intent.get("errors", []):
+        out["recommendations"].append(f"level intent gate: {err.get('message')}")
+    for warn_item in level_intent.get("warnings", []):
+        out["recommendations"].append(f"level intent warning: {warn_item.get('message')}")
     for err in taste.get("errors", []):
         out["recommendations"].append(f"taste gate: {err.get('message')}")
     for warn_item in taste.get("warnings", []):

@@ -107,6 +107,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "adjacent_clear_blocker_clusters",
+      "proof_signal": "crystal_shell_count_decreases"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "post_reveal_cleanup_breather"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "shell_cleanup_breather"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",

@@ -168,6 +168,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "transport",
+    "skill_lesson": {
+      "skill": "open_route_gate_then_transport_actor",
+      "proof_signal": "crystal_gate_damaged_before_lost_cub_exits"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "post_reveal_transport_mix"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "drop_bottleneck"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",

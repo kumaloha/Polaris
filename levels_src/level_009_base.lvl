@@ -9,7 +9,7 @@
     "complexity_tier": 1,
     "theme": "forest_ruins",
     "target_pass_band": [
-      0.9,
+      0.92,
       1.0
     ],
     "generated_by": "tools/level_tool.py generate",
@@ -21,7 +21,7 @@
     "cold_start_prior": "unknown",
     "prior_weight": 0.0,
     "target_pass_band": [
-      0.9,
+      0.92,
       1.0
     ],
     "target_attempts_to_first_win": [
@@ -35,15 +35,15 @@
     "target": 1
   },
   "rules": {
-    "moves": 36,
+    "moves": 24,
     "colors": 4,
     "refill": "random",
     "gravity": "down",
     "seed": 1153
   },
   "map": {
-    "width": 9,
-    "height": 9,
+    "width": 7,
+    "height": 7,
     "terrain": {
       "sample": "open"
     },
@@ -69,15 +69,13 @@
     "intended_control": "clear_below_relic"
   },
   "board": [
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo",
-    "ooooooooo"
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
   ],
   "overlays": [
     {
@@ -85,7 +83,7 @@
       "cells": [
         [
           1,
-          4
+          3
         ]
       ],
       "layers": [
@@ -96,8 +94,8 @@
       "region": "nest_exit",
       "cells": [
         [
-          8,
-          4
+          6,
+          3
         ]
       ],
       "layers": [
@@ -106,6 +104,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "transport",
+    "skill_lesson": {
+      "skill": "clear_below_actor_to_move_down",
+      "proof_signal": "lost_cub_moves_down_at_least_three_rows"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "new_transport_mechanic_reveal_small_problem_space"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "drop_direct"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",
@@ -135,7 +151,7 @@
     "difficulty_rhythm": {
       "shape": "tutorial_floor",
       "target_pass_band": [
-        0.9,
+        0.92,
         1.0
       ],
       "role": "teaching"

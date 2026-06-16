@@ -39,6 +39,26 @@
     "errors": [],
     "warnings": []
   },
+  "level_intent_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "objective_verb_known": true,
+      "objective_verb_matches_objective": true,
+      "skill_lesson_has_proof_signal": true,
+      "board_scale_declared": true,
+      "board_scale_matches_map": true,
+      "new_mechanic_reveal": true,
+      "new_reveal_small_problem_space": true,
+      "new_reveal_board_cells": 49,
+      "new_reveal_colors": 4,
+      "new_reveal_target_band_low": 0.92,
+      "objective_verb_matches_archetype": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "taste": {
     "valid": true,
     "score": 100,

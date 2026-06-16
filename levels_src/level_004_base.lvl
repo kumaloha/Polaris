@@ -145,6 +145,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "read_downstream_goal_basin",
+      "proof_signal": "lower_targets_cleared_after_upper_moves"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "terrain_variation_needs_upper_middle_lower_read"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_expedition_weak"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",

@@ -182,6 +182,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_burst_to_crack_ring",
+      "proof_signal": "shell_ring_damage_before_center_targets_finish"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "ring_pressure_needs_outer_play_area"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_siege"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",

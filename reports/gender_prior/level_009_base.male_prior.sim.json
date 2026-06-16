@@ -15,102 +15,108 @@
   "runs_per_persona": 5,
   "personas": {
     "visual_casual": {
-      "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 14.4,
+      "simulated_pass_rate_at_1": 0.8,
+      "avg_remaining_moves": 16.0,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 19.067,
+      "avg_cascade_score": 8.533,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.948,
-      "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.285,
-      "fail_reason_distribution": {}
+      "no_progress_turn_rate": 0.915,
+      "luck_dependency_proxy": 0.64,
+      "annoyance_score": 0.37,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.2
+      }
     },
     "goal_focused": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 20.6,
+      "avg_remaining_moves": 10.6,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 13.6,
+      "avg_cascade_score": 9.867,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.93,
+      "no_progress_turn_rate": 0.764,
       "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.279,
+      "annoyance_score": 0.229,
       "fail_reason_distribution": {}
     },
     "bottom_cascade": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 18.0,
+      "avg_remaining_moves": 11.4,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 16.933,
+      "avg_cascade_score": 10.2,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.942,
+      "no_progress_turn_rate": 0.878,
       "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.283,
+      "annoyance_score": 0.263,
       "fail_reason_distribution": {}
     },
     "special_builder": {
-      "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 19.2,
+      "simulated_pass_rate_at_1": 0.8,
+      "avg_remaining_moves": 11.5,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 15.6,
+      "avg_cascade_score": 11.8,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.93,
-      "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.279,
-      "fail_reason_distribution": {}
+      "no_progress_turn_rate": 0.916,
+      "luck_dependency_proxy": 0.64,
+      "annoyance_score": 0.371,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.2
+      }
     },
     "mechanism_aware": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 13.6,
+      "avg_remaining_moves": 12.8,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 20.133,
+      "avg_cascade_score": 9.733,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.936,
+      "no_progress_turn_rate": 0.871,
       "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.281,
+      "annoyance_score": 0.261,
       "fail_reason_distribution": {}
     },
     "frustrated_retry": {
-      "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 20.8,
+      "simulated_pass_rate_at_1": 0.8,
+      "avg_remaining_moves": 12.25,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 12.733,
+      "avg_cascade_score": 11.867,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.906,
-      "luck_dependency_proxy": 0.0,
-      "annoyance_score": 0.272,
-      "fail_reason_distribution": {}
+      "no_progress_turn_rate": 0.956,
+      "luck_dependency_proxy": 0.64,
+      "annoyance_score": 0.383,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.2
+      }
     },
     "random_baseline": {
       "simulated_pass_rate_at_1": 0.4,
-      "avg_remaining_moves": 12.5,
+      "avg_remaining_moves": 8.0,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 20.867,
+      "avg_cascade_score": 10.867,
       "reshuffle_rate": 0.0,
       "dead_board_rate": 0.0,
-      "no_progress_turn_rate": 0.98,
+      "no_progress_turn_rate": 0.969,
       "luck_dependency_proxy": 0.96,
-      "annoyance_score": 0.438,
+      "annoyance_score": 0.435,
       "fail_reason_distribution": {
         "too_many_leftovers": 0.6
       }
     }
   },
-  "aggregate_pass_rate_at_1": 0.97,
-  "aggregate_avg_remaining_moves": 17.12,
+  "aggregate_pass_rate_at_1": 0.89,
+  "aggregate_avg_remaining_moves": 12.08,
   "aggregate_mechanism_activation_rate": 0.0,
-  "aggregate_cascade_score": 16.983,
+  "aggregate_cascade_score": 10.31,
   "aggregate_reshuffle_rate": 0.0,
   "aggregate_dead_board_rate": 0.0,
-  "aggregate_no_progress_turn_rate": 0.936,
-  "aggregate_luck_dependency_proxy": 0.048,
-  "aggregate_annoyance_score": 0.288,
+  "aggregate_no_progress_turn_rate": 0.878,
+  "aggregate_luck_dependency_proxy": 0.304,
+  "aggregate_annoyance_score": 0.309,
   "aggregate_fail_reason_distribution": {
-    "too_many_leftovers": 0.03
+    "too_many_leftovers": 0.11
   }
 }

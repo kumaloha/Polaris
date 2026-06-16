@@ -12,7 +12,7 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 80,
+    "playable_cell_count": 48,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,
@@ -35,6 +35,26 @@
       "validation_claims_complete": true,
       "director_compiled_from_semantics": true,
       "payoff_visible": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "level_intent_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "objective_verb_known": true,
+      "objective_verb_matches_objective": true,
+      "skill_lesson_has_proof_signal": true,
+      "board_scale_declared": true,
+      "board_scale_matches_map": true,
+      "new_mechanic_reveal": true,
+      "new_reveal_small_problem_space": true,
+      "new_reveal_board_cells": 49,
+      "new_reveal_colors": 4,
+      "new_reveal_target_band_low": 0.92,
+      "objective_verb_matches_archetype": true
     },
     "errors": [],
     "warnings": []
@@ -64,7 +84,7 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 36,
+        "move_limit": 24,
         "objective_target_total": 1
       }
     },

@@ -111,6 +111,24 @@
     }
   ],
   "mechanisms": [],
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "match_on_target_cells",
+      "proof_signal": "target_mark_progress_after_local_match"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "first_target_reveal"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_direct"
+  },
   "progression": {
     "episode": {
       "id": "first_spellbook_arc",
