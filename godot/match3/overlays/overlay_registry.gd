@@ -32,8 +32,15 @@ static func ensure_overlays_at(
 		parent: Node,
 		tracker: Dictionary,
 		cell_px: float,
-		cell_world: Vector2) -> void:
+		cell_world: Vector2,
+		excluded_keys: Dictionary = {}) -> void:
 	for key: String in RENDERERS:
+		if excluded_keys.has(key):
+			var excluded_existing = tracker.get([key, cell])
+			if excluded_existing != null:
+				excluded_existing.on_cleared()
+				tracker.erase([key, cell])
+			continue
 		var value: int = _layer_value(key, cell, board)
 		var existing = tracker.get([key, cell])
 		if value > 0 and existing == null:
@@ -53,7 +60,8 @@ static func rebuild_all(
 		parent: Node,
 		tracker: Dictionary,
 		cell_px: float,
-		cell_world_fn: Callable) -> void:
+		cell_world_fn: Callable,
+		excluded_keys: Dictionary = {}) -> void:
 	# 先清理旧节点
 	for node in tracker.values():
 		if is_instance_valid(node):
@@ -63,7 +71,7 @@ static func rebuild_all(
 	for y in board.height:
 		for x in board.width:
 			var c := Vector2i(x, y)
-			ensure_overlays_at(c, board, parent, tracker, cell_px, cell_world_fn.call(c))
+			ensure_overlays_at(c, board, parent, tracker, cell_px, cell_world_fn.call(c), excluded_keys)
 
 ## 向 tracker 内所有 overlay 广播 on_step。
 static func broadcast_step(tracker: Dictionary, report: Dictionary) -> void:

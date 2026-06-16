@@ -212,3 +212,24 @@ func test_rebuild_after_layer_cleared_removes_overlay() -> void:
 			break
 	assert_false(still_has, "clearing the jelly layer and rebuilding removes the jelly overlay")
 	level.free()
+
+
+func test_rebuild_uses_native_coat_marker_without_generic_overlay_duplicate() -> void:
+	var coat := [
+		[3, 0, 0],
+		[0, 0, 0],
+		[0, 0, 0],
+	]
+	var board := Board.new(3, 3, [0, 1, 2], 999999, 30, 7, [], [], [], coat)
+	var level := _prepare_level(3, 3, board)
+	level.board_view.rebuild(board)
+	var cell := Vector2i(0, 0)
+	assert_false(level.board_view._overlay_nodes.has(["coat", cell]),
+		"coat/晶壳由 BoardView 原生 marker 渲染，不能再创建通用 CoatOverlay 叠层")
+	var marker: Sprite2D = level.board_view._coat_nodes[0][0]
+	assert_true(marker != null, "native coat marker remains visible")
+	if marker != null and marker.texture != null:
+		var drawn_size: Vector2 = marker.texture.get_size() * marker.scale
+		assert_true(maxf(drawn_size.x, drawn_size.y) <= level.board_view.cell_size,
+			"native coat marker must stay within one board cell, actual=%s cell=%.2f" % [str(drawn_size), level.board_view.cell_size])
+	level.free()

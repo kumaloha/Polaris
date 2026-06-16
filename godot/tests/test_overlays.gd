@@ -330,6 +330,18 @@ func test_coat_setup_reads_initial_value() -> void:
 	assert_eq(c._last_value, 3, "CoatOverlay setup 应读取初始层值 3")
 	c.free()
 
+func test_coat_asset_sprite_is_scaled_to_cell() -> void:
+	var b := _make_board_with_layer("coat", 3)
+	var c: CoatOverlay = CoatOverlay.new()
+	c.setup(Vector2i(0, 0), b, 64.0)
+	var sprite: Sprite2D = c._sprite
+	assert_true(sprite != null and sprite.texture != null, "CoatOverlay 应创建冰块 sprite")
+	if sprite != null and sprite.texture != null:
+		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
+		assert_true(maxf(drawn_size.x, drawn_size.y) <= 64.0,
+			"3层冰素材必须缩到单格内，不能用 206px 原图压住邻格棋子，actual=%s" % str(drawn_size))
+	c.free()
+
 func test_coat_on_step_updates_last_value() -> void:
 	var b := _make_board_with_layer("coat", 2)
 	var c: CoatOverlay = CoatOverlay.new()

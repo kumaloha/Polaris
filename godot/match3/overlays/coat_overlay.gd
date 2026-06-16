@@ -21,6 +21,7 @@ const COLOR_COAT_2  := Color(0.68, 0.90, 1.00, 0.62)   # 中冰蓝
 const COLOR_COAT_1  := Color(0.80, 0.95, 1.00, 0.42)   # 浅冰蓝
 const COLOR_CRACK   := Color(0.95, 0.98, 1.00, 0.90)   # 裂纹白
 
+const COAT_FILL := 0.88
 const FADE_DURATION := 0.22
 const SHAKE_DURATION := 0.10
 
@@ -70,6 +71,7 @@ func _apply_grade(value: int) -> void:
 	var path: String = TEXTURE_PATHS.get(value, "")
 	if path != "" and ResourceLoader.exists(path):
 		_sprite.texture = load(path)
+		_fit_sprite_to_cell()
 		return
 	match value:
 		3:
@@ -80,6 +82,18 @@ func _apply_grade(value: int) -> void:
 			_sprite.texture = _make_coat_texture(COLOR_COAT_1, 2)
 		_:
 			pass
+	_fit_sprite_to_cell()
+
+func _fit_sprite_to_cell() -> void:
+	if _sprite == null or _sprite.texture == null:
+		return
+	var size: Vector2 = _sprite.texture.get_size()
+	var longest: float = maxf(size.x, size.y)
+	if longest <= 0.0 or _cell_px <= 0.0:
+		_sprite.scale = Vector2.ONE
+		return
+	var scale_value: float = (_cell_px * COAT_FILL) / longest
+	_sprite.scale = Vector2(scale_value, scale_value)
 
 func _make_coat_texture(base_color: Color, crack_level: int) -> ImageTexture:
 	var size: int = int(_cell_px)

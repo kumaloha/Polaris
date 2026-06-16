@@ -24,6 +24,10 @@ const LevelMotion := preload("res://match3/level_motion.gd")
 const OverlayRegistry := preload("res://match3/overlays/overlay_registry.gd")
 const ObjectiveIcons := preload("res://match3/objective_icons.gd")
 
+# coat/晶壳已有 BoardView 原生节点负责开局掉落、刷新和尺寸控制；
+# 通用 OverlayRegistry 若再创建一层，会把 3 层冰素材叠成巨型冰块压住邻格棋子。
+const NATIVE_LAYER_VISUAL_OVERLAYS := {"coat": true}
+
 # ── 棋子/障碍渲染常量（迁自 level.gd 棋盘渲染簇）──
 const GEM_COLORS := {
 	# 从宝石贴图实采的主体色(高饱和中亮像素均值), 与宝石一致
@@ -797,8 +801,9 @@ func _overlay_parent() -> Node:
 func _rebuild_overlay_nodes() -> void:
 	if board == null:
 		return
-	OverlayRegistry.rebuild_all(board, _overlay_parent(), _overlay_nodes, cell_size, func(c: Vector2i) -> Vector2:
-		return _cell_center(c.y, c.x))
+	var cell_world_fn := func(c: Vector2i) -> Vector2:
+		return _cell_center(c.y, c.x)
+	OverlayRegistry.rebuild_all(board, _overlay_parent(), _overlay_nodes, cell_size, cell_world_fn, NATIVE_LAYER_VISUAL_OVERLAYS)
 
 func _ingredient_rows_by_col(layer: Array) -> Dictionary:
 	var by_col := {}
@@ -858,7 +863,7 @@ func _sync_ingredient_overlay_motion(before_ing: Array, after_ing: Array, fallba
 func _sync_overlays_at(cell: Vector2i) -> void:
 	if board == null:
 		return
-	OverlayRegistry.ensure_overlays_at(cell, board, _overlay_parent(), _overlay_nodes, cell_size, _cell_center(cell.y, cell.x))
+	OverlayRegistry.ensure_overlays_at(cell, board, _overlay_parent(), _overlay_nodes, cell_size, _cell_center(cell.y, cell.x), NATIVE_LAYER_VISUAL_OVERLAYS)
 
 # ───────── 站立特效(fx overlay + combo idle + colorbomb)──────────
 
