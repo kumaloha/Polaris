@@ -119,51 +119,154 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_002",
+    "thesis": {
+      "key": "reach_the_glowing_border",
+      "sentence": "边框星尘也需要主动够到。"
+    },
+    "fantasy": "沿魔法书页边框拾起散落的星尘碎片。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "edge_stardust"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "line_clear",
+          "as": "border_sweep"
+        }
+      ]
+    },
+    "stage": {
+      "function": "edge_reach",
+      "shape": "open_7x7_border",
+      "dramatic_axis": "center_to_edge",
+      "focus": "edge_marks",
+      "friction_zone": "board_edges",
+      "payoff_zone": "edge_marks",
+      "operation_space": "center_open_space",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "border_stardust_cleansed",
+      "player_readable_goal": "把机会送到四周边框，净化边缘星尘。"
+    },
+    "arc": {
+      "opening": "中心很宽松，但星尘都在四周发光。",
+      "friction": "边缘交换方向少，普通乱消容易停在中心。",
+      "turn": "玩家把一次横向或纵向消除送到边缘。",
+      "payoff": "一侧边框被扫亮，玩家理解边缘可达性。"
+    },
+    "payoff": {
+      "signature": "整条边缘星尘被一次线性机会带走。"
+    },
+    "negative_space": {
+      "statement": "中央保持干净，不放中心目标抢走视线。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "center_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "同一星尘目标改成位置挑战。",
+      "visual": "发光边框像书页边饰。",
+      "readability": "HUD 星尘、边框星尘、玩法优先级三点一致。",
+      "theme": "修复魔法书页破损边框。"
+    },
+    "solution": {
+      "intended_solution": [
+        "从中心制造边缘可达机会",
+        "优先清四角和边缘",
+        "用横竖消除扫边"
+      ],
+      "crack_path": [
+        "read_edge_stardust",
+        "access_edge_from_center",
+        "convert_edge_matches_to_progress",
+        "finish_corner_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "同目标换到边缘，训练目标位置变化。",
-    "visual_focus": "四周边缘星尘印记。",
+    "eye": "边框星尘也需要主动够到。",
+    "visual_focus": "edge_marks",
     "intended_solution": [
-      "优先找边缘附近的消除",
-      "用横竖线消补掉边角"
+      "从中心制造边缘可达机会",
+      "优先清四角和边缘",
+      "用横竖消除扫边"
     ],
     "crack_path": [
-      "read_edge_targets",
-      "access_edge",
-      "convert_matches_to_mark_progress",
-      "finish_remaining_marks"
+      "read_edge_stardust",
+      "access_edge_from_center",
+      "convert_edge_matches_to_progress",
+      "finish_corner_marks"
     ],
-    "climax": "边缘连续被清掉后盘面打开。"
+    "climax": "整条边缘星尘被一次线性机会带走。"
   },
   "director": {
-    "intent": "把同一种星尘目标推到边缘，让玩家学会边角不是装饰，而是需要主动够到的边界。",
-    "player_fantasy": "沿书页边框拾起散落的星尘碎片。",
+    "intent": "边框星尘也需要主动够到。",
+    "player_fantasy": "沿魔法书页边框拾起散落的星尘碎片。",
     "protagonist": "target_mark",
     "supporting_roles": [],
     "emotional_arc": {
-      "opening": "棋盘中间很宽松，但目标在四周发光。",
-      "friction": "边缘可交换方向少，玩家要把机会送到边上。",
-      "turn": "一条横线或竖线擦过边缘，几个边角同时被救回来。",
-      "payoff": "四周星尘逐圈消失，画面从边框开始变干净。"
+      "opening": "中心很宽松，但星尘都在四周发光。",
+      "friction": "边缘交换方向少，普通乱消容易停在中心。",
+      "turn": "玩家把一次横向或纵向消除送到边缘。",
+      "payoff": "一侧边框被扫亮，玩家理解边缘可达性。"
     },
-    "signature_moment": "一侧边缘被整排净化，玩家第一次感到线消的价值。",
-    "negative_space": "中央保持开阔，避免玩家误以为中心才是题眼。",
+    "signature_moment": "整条边缘星尘被一次线性机会带走。",
+    "negative_space": "中央保持干净，不放中心目标抢走视线。",
     "four_in_one": {
-      "play": "目标位置变化带来执行难度，不新增规则。",
-      "visual": "边缘花环构图，留出中庭作操作区。",
-      "readability": "发光边框直接告诉玩家要向外侧发力。",
-      "theme": "像修复一本魔法书破损的边框。"
+      "play": "同一星尘目标改成位置挑战。",
+      "visual": "发光边框像书页边饰。",
+      "readability": "HUD 星尘、边框星尘、玩法优先级三点一致。",
+      "theme": "修复魔法书页破损边框。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

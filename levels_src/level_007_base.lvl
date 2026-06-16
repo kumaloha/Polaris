@@ -5,12 +5,12 @@
   "meta": {
     "level_coordinate": 7,
     "variant": "base",
-    "role": "pressure",
+    "role": "variation",
     "complexity_tier": 2,
     "theme": "hourglass_ruins",
     "target_pass_band": [
-      0.55,
-      0.75
+      0.58,
+      0.82
     ],
     "generated_by": "tools/level_tool.py generate",
     "candidate_index": null,
@@ -21,8 +21,8 @@
     "cold_start_prior": "unknown",
     "prior_weight": 0.0,
     "target_pass_band": [
-      0.55,
-      0.75
+      0.58,
+      0.82
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -35,7 +35,7 @@
     "target": "all"
   },
   "rules": {
-    "moves": 42,
+    "moves": 20,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
@@ -45,17 +45,17 @@
     "width": 9,
     "height": 9,
     "terrain": {
-      "sample": "bottleneck"
+      "sample": "split_columns"
     },
     "supply_topology": {
-      "type": "vertical_down"
+      "type": "split_columns"
     }
   },
   "recipe": {
-    "eye": "cleanse_expedition",
+    "eye": "split_supply_duet",
     "obstacle_lane": {
       "focus": "target_mark",
-      "stage": "pressure",
+      "stage": "variation",
       "active": [
         "target_mark"
       ],
@@ -65,58 +65,38 @@
       "focus": "none",
       "stage": "none"
     },
-    "intended_control": "vertical_line_gem"
+    "intended_control": "split_area_targeting"
   },
   "board": [
-    "ooooooooo",
-    "ooooooooo",
-    ".ooooooo.",
-    ".ooooooo.",
-    "..ooooo..",
-    "..ooooo..",
-    "...ooo...",
-    "...ooo...",
-    "...ooo..."
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo"
   ],
   "overlays": [
     {
-      "region": "downstream_marks",
+      "region": "left_page_marks",
       "cells": [
         [
-          6,
-          3
+          2,
+          1
         ],
         [
-          6,
-          4
+          3,
+          2
         ],
         [
-          6,
-          5
+          4,
+          1
         ],
         [
-          7,
-          3
-        ],
-        [
-          7,
-          4
-        ],
-        [
-          7,
-          5
-        ],
-        [
-          8,
-          3
-        ],
-        [
-          8,
-          4
-        ],
-        [
-          8,
-          5
+          5,
+          2
         ]
       ],
       "layers": [
@@ -124,19 +104,23 @@
       ]
     },
     {
-      "region": "gate_hint_marks",
+      "region": "right_page_marks",
       "cells": [
         [
-          4,
-          3
+          2,
+          7
+        ],
+        [
+          3,
+          6
         ],
         [
           4,
-          4
+          7
         ],
         [
-          4,
-          5
+          5,
+          6
         ]
       ],
       "layers": [
@@ -145,53 +129,162 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_007",
+    "thesis": {
+      "key": "two_pages_need_two_plans",
+      "sentence": "裂开的两页各自补给，左右星尘要分别照顾。"
+    },
+    "fantasy": "修复被裂缝分成左右两页的魔法书。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "split_page_stardust"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "side_by_side_cascade",
+          "as": "both_pages_light"
+        }
+      ]
+    },
+    "stage": {
+      "function": "split_supply_duet",
+      "shape": "split_columns",
+      "dramatic_axis": "left_right_duet",
+      "focus": "left_and_right_page_marks",
+      "friction_zone": "center_crack",
+      "payoff_zone": "two_page_marks",
+      "operation_space": "left_area_and_right_area",
+      "supply_logic": "two_independent_vertical_refill_areas"
+    },
+    "objective": {
+      "world_state_change": "both_pages_stardust_cleansed",
+      "player_readable_goal": "分别在左右两页净化星尘，不能指望中间裂缝互相帮忙。"
+    },
+    "arc": {
+      "opening": "中间裂缝把棋盘切成左右两页，星尘在两侧对称发光。",
+      "friction": "左右不互通，一边的好运不会自动救另一边。",
+      "turn": "玩家开始分别经营左右两边，而不是只盯一个区域。",
+      "payoff": "左右两页先后被点亮，像合上一本修好的魔法书。"
+    },
+    "payoff": {
+      "signature": "左页连锁后转到右页收尾，两边星尘依次亮灭。"
+    },
+    "negative_space": {
+      "statement": "不加入晶壳或幼兽，让双区补给本身成为题眼。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "left_area_operation_space",
+        "right_area_operation_space",
+        "center_crack_readability"
+      ]
+    },
+    "four_in_one": {
+      "play": "地图舞台第一次成为主角级问题：左右补给独立。",
+      "visual": "中间裂缝把书页切开，星尘在两侧呼应。",
+      "readability": "HUD 星尘与两侧目标一致，中缝明确告诉玩家不能跨区。",
+      "theme": "魔法书被裂缝分成两页，需要分别修复。"
+    },
+    "solution": {
+      "intended_solution": [
+        "先读出左右两区独立",
+        "在左区处理左页星尘",
+        "切换到右区处理右页星尘",
+        "避免只在一侧空转"
+      ],
+      "crack_path": [
+        "read_split_pages",
+        "access_left_area",
+        "convert_left_matches",
+        "access_right_area",
+        "convert_right_matches",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "沙漏主公式：上游控制力转化为下游净化。",
-    "visual_focus": "中央窄口和下方星尘池。",
+    "eye": "裂开的两页各自补给，左右星尘要分别照顾。",
+    "visual_focus": "left_and_right_page_marks",
     "intended_solution": [
-      "在上游制造纵向清除",
-      "通过窄口让下游产生连锁",
-      "收尾净化下游印记"
+      "先读出左右两区独立",
+      "在左区处理左页星尘",
+      "切换到右区处理右页星尘",
+      "避免只在一侧空转"
     ],
     "crack_path": [
-      "read_downstream_pool",
-      "access_bottleneck",
-      "payoff_downstream_cascade",
-      "convert_to_target_mark_progress",
+      "read_split_pages",
+      "access_left_area",
+      "convert_left_matches",
+      "access_right_area",
+      "convert_right_matches",
       "finish_remaining_marks"
     ],
-    "climax": "窄口被打通后下游连续净化。"
+    "climax": "左页连锁后转到右页收尾，两边星尘依次亮灭。"
   },
   "director": {
-    "intent": "把第 4 关的弱水文升级为正式远征：玩家要主动把控制力送进下游死水区。",
-    "player_fantasy": "从遗迹上游引导星光，穿过窄腰照亮下层星池。",
+    "intent": "裂开的两页各自补给，左右星尘要分别照顾。",
+    "player_fantasy": "修复被裂缝分成左右两页的魔法书。",
     "protagonist": "target_mark",
     "supporting_roles": [],
     "emotional_arc": {
-      "opening": "上游机会多，下游目标集中，距离感明确。",
-      "friction": "窄腰让自然连锁不稳定，乱消很难碰到下游。",
-      "turn": "玩家制造纵向清除或连锁穿过窄腰，下游开始松动。",
-      "payoff": "下游星尘池连续净化，像水被终于引到低处。"
+      "opening": "中间裂缝把棋盘切成左右两页，星尘在两侧对称发光。",
+      "friction": "左右不互通，一边的好运不会自动救另一边。",
+      "turn": "玩家开始分别经营左右两边，而不是只盯一个区域。",
+      "payoff": "左右两页先后被点亮，像合上一本修好的魔法书。"
     },
-    "signature_moment": "一束纵向控制穿过窄腰，底部星尘连锁亮灭。",
-    "negative_space": "不加新障碍，把压力留给地形和目标距离。",
+    "signature_moment": "左页连锁后转到右页收尾，两边星尘依次亮灭。",
+    "negative_space": "不加入晶壳或幼兽，让双区补给本身成为题眼。",
     "four_in_one": {
-      "play": "同机制做压力版，考控制力传递。",
-      "visual": "更明确的沙漏形，焦点在窄腰与下游池。",
-      "readability": "窄腰与目标池同线，暗示向下打通。",
-      "theme": "时间沙漏里的星尘流向底部。"
+      "play": "地图舞台第一次成为主角级问题：左右补给独立。",
+      "visual": "中间裂缝把书页切开，星尘在两侧呼应。",
+      "readability": "HUD 星尘与两侧目标一致，中缝明确告诉玩家不能跨区。",
+      "theme": "魔法书被裂缝分成两页，需要分别修复。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

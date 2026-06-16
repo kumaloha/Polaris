@@ -13,6 +13,7 @@
 .lvl
   → Lint Validator
   → Compile Validator
+  → Semantic Design Language Gate
   → Structural Validator
   → Taste Director Gate
   → Player Simulator Validator
@@ -26,6 +27,7 @@
 |---|---|
 | `approved` | 可以进入人工手感评审 |
 | `revise_minor` | 小改后可重跑 |
+| `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
 | `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
 | `revise_major` | 配方或布局错配，需要重做候选 |
 | `reject` | 不应继续投入 |
@@ -81,6 +83,7 @@ input:
 | overlay 不落在 hole 上 | `E_LAYER_ON_HOLE` |
 | objective/objectives 不冲突 | `E_OBJECTIVE_CONFLICT` |
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
+| level_design 根字段存在 | `E_MISSING_FIELD` |
 | director 根字段存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
@@ -383,11 +386,32 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 7. Taste Director / Design Checklist Validator
+## 7. Semantic Design Language Gate
+
+`level_design` 是 `.lvl` 的上游原则语言源，先检查“这关是否成立”，再检查棋盘结构和求解指标。
+
+| check | pass 条件 |
+|---|---|
+| `thesis_sentence_specific` | 单关命题是一句具体设计句，不是“目标完成/更难一点” |
+| `one_protagonist_present` | 唯一主角机制存在于目标或棋盘层 |
+| `mechanisms_have_roles` | 每个活跃机制都被声明为主角或配角 |
+| `objective_has_semantic_role` | 通关目标对应机制进入主角/配角因果链 |
+| `stage_function_complete` | 地图声明舞台功能、戏剧轴、焦点、阻力区、收益区、操作空间和补给逻辑 |
+| `arc_turn_state_change` | 情绪弧有明确 turn，且 turn 是状态变化 |
+| `readable_world_state_goal` | 目标是玩家可读的世界状态变化 |
+| `negative_space_enforced` | 禁止项没有出现在实际目标/机制里 |
+| `director_compiled_from_semantics` | `director` 主角与 `level_design` 主角一致 |
+| `payoff_visible` | 爽点是可见的 signature moment |
+
+`semantic.valid=false` 时，候选只能得到 `revise_semantic`，不进入玩家模拟选择。
+
+---
+
+## 8. Taste Director / Design Checklist Validator
 
 `director` 是机器可读的品味契约，用来拦住“流程背熟但没有主角/记忆点/留白”的关卡。AI/人仍可执行 checklist，但 v0 的 `validate` 已经会输出 `taste` gate。
 
-### 7.1 机器必检 taste gate
+### 8.1 机器必检 taste gate
 
 | check | pass 条件 |
 |---|---|
@@ -404,7 +428,7 @@ seed_policy: deterministic_sequence
 
 `taste.valid=false` 时，结构再正确也只能得到 `revise_taste`。
 
-### 7.2 人/AI checklist
+### 8.2 人/AI checklist
 
 | check | pass 条件 |
 |---|---|
@@ -434,7 +458,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 8. Telemetry / Feedback Spec
+## 9. Telemetry / Feedback Spec
 
 上线后反馈系统最小事件。
 
@@ -481,7 +505,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 9. Validation thresholds v0
+## 10. Validation thresholds v0
 
 默认阈值；20 关验证后再校准。
 
@@ -498,7 +522,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 10. 需要实现的工具
+## 11. 需要实现的工具
 
 | tool | 输入 | 输出 |
 |---|---|---|
@@ -514,7 +538,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 11. 当前需你确认
+## 12. 当前需你确认
 
 无强制阻塞。默认采用：
 

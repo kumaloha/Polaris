@@ -107,9 +107,104 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_006",
+    "thesis": {
+      "key": "clean_up_loose_crystals",
+      "sentence": "晶壳也可以是轻爽清理，而不总是硬门。"
+    },
+    "fantasy": "帮宠物清理散落在工坊里的小晶壳。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "crystal_shell",
+        "as": "loose_shells"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "shell_pop_chain",
+          "as": "clean_workshop"
+        }
+      ]
+    },
+    "stage": {
+      "function": "breather_cleanup",
+      "shape": "open_7x7_scatter",
+      "dramatic_axis": "scatter_to_clear",
+      "focus": "soft_shell_clusters",
+      "friction_zone": "shell_neighbors",
+      "payoff_zone": "whole_board",
+      "operation_space": "whole_board",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "all_loose_crystals_cleared",
+      "player_readable_goal": "敲碎散落晶壳，清空工坊。"
+    },
+    "arc": {
+      "opening": "少量晶壳散在开阔棋盘，压力低。",
+      "friction": "晶壳分散，需要在各处找相邻消除。",
+      "turn": "一次连锁敲掉两三块晶壳。",
+      "payoff": "最后一块晶壳碎掉，棋盘完全打开。"
+    },
+    "payoff": {
+      "signature": "散落晶壳叮叮敲碎，像打扫完工坊。"
+    },
+    "negative_space": {
+      "statement": "不放星尘目标，不让喘息关变成双目标清单。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "preserve": [
+        "whole_board_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "复习晶壳处理，降低认知负荷。",
+      "visual": "五点散落像待清理小石子。",
+      "readability": "每个晶壳都是直接目标。",
+      "theme": "晶能工坊碎壳清扫。"
+    },
+    "solution": {
+      "intended_solution": [
+        "找晶壳旁边的普通消除",
+        "利用开阔盘面制造连锁",
+        "清完剩余晶壳"
+      ],
+      "crack_path": [
+        "read_shell_targets",
+        "access_adjacent_matches",
+        "convert_matches_to_shell_breaks",
+        "finish_remaining_shells"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "晶壳后喘息爽关：在开阔盘面清掉少量散落晶壳。",
-    "visual_focus": "开阔棋盘中少量散落晶壳。",
+    "eye": "晶壳也可以是轻爽清理，而不总是硬门。",
+    "visual_focus": "soft_shell_clusters",
     "intended_solution": [
       "找晶壳旁边的普通消除",
       "利用开阔盘面制造连锁",
@@ -121,38 +216,45 @@
       "convert_matches_to_shell_breaks",
       "finish_remaining_shells"
     ],
-    "climax": "一次连锁连续敲碎多块晶壳。"
+    "climax": "散落晶壳叮叮敲碎，像打扫完工坊。"
   },
   "director": {
-    "intent": "晶壳教学后给一关清脆喘息：不考水文，只让玩家享受敲壳反馈。",
+    "intent": "晶壳也可以是轻爽清理，而不总是硬门。",
     "player_fantasy": "帮宠物清理散落在工坊里的小晶壳。",
     "protagonist": "crystal_shell",
     "supporting_roles": [],
     "emotional_arc": {
       "opening": "少量晶壳散在开阔棋盘，压力低。",
-      "friction": "晶壳分散，玩家要在各处找相邻消除。",
-      "turn": "一次连锁敲掉两三块晶壳，节奏变轻。",
+      "friction": "晶壳分散，需要在各处找相邻消除。",
+      "turn": "一次连锁敲掉两三块晶壳。",
       "payoff": "最后一块晶壳碎掉，棋盘完全打开。"
     },
-    "signature_moment": "散落晶壳被连锁叮叮敲碎，像打扫完工坊。",
+    "signature_moment": "散落晶壳叮叮敲碎，像打扫完工坊。",
     "negative_space": "不放星尘目标，不让喘息关变成双目标清单。",
     "four_in_one": {
-      "play": "单机制复习，降低认知负荷。",
-      "visual": "五点散落构图，像待清理的小石子。",
-      "readability": "每个晶壳都是直接目标，没有隐藏优先级。",
-      "theme": "晶能工坊的碎壳清扫。"
+      "play": "复习晶壳处理，降低认知负荷。",
+      "visual": "五点散落像待清理小石子。",
+      "readability": "每个晶壳都是直接目标。",
+      "theme": "晶能工坊碎壳清扫。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

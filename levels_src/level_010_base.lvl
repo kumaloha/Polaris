@@ -139,27 +139,130 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_010",
+    "thesis": {
+      "key": "open_gate_then_rescue_cub",
+      "sentence": "先开门，再护送幼兽回家。"
+    },
+    "fantasy": "打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "drop_relic",
+        "as": "lost_cub"
+      },
+      "support": [
+        {
+          "mechanism": "crystal_shell",
+          "as": "route_gate"
+        }
+      ],
+      "reward": [
+        {
+          "kind": "arrival",
+          "as": "cub_falls_through_gate"
+        }
+      ]
+    },
+    "stage": {
+      "function": "rescue_route_with_gate",
+      "shape": "bottleneck_gate_route",
+      "dramatic_axis": "top_to_bottom_rescue",
+      "focus": "cub_gate_nest_axis",
+      "friction_zone": "crystal_gate_on_route",
+      "payoff_zone": "bottom_nest",
+      "operation_space": "upper_and_side_board",
+      "supply_logic": "route_gate_blocks_actor_path_without_full_supply_seal"
+    },
+    "objective": {
+      "world_state_change": "lost_cub_reaches_nest_after_gate_opens",
+      "player_readable_goal": "先打开挡路晶壳门，再清路让幼兽回巢。"
+    },
+    "arc": {
+      "opening": "幼兽、晶壳门、巢门在同一视觉轴上。",
+      "friction": "幼兽下方路线被晶壳门卡住。",
+      "turn": "门被打开后，幼兽路线连通。",
+      "payoff": "幼兽穿过门洞落入巢门。"
+    },
+    "payoff": {
+      "signature": "晶壳门裂开后，幼兽连续下落穿过门洞回家。"
+    },
+    "negative_space": {
+      "statement": "只保留晶壳作为配角，不叠星尘目标。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "preserve": [
+        "cub_gate_nest_readability",
+        "side_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "运输目标是主角，晶壳只服务幼兽路线。",
+      "visual": "竖向救援轴穿过中央门，像一条升降井。",
+      "readability": "阻挡幼兽的门就是玩家必须先处理的点。",
+      "theme": "晶能工坊里的小兽救援。"
+    },
+    "solution": {
+      "intended_solution": [
+        "看清幼兽-门-巢门轴线",
+        "先破挡路晶壳",
+        "清幼兽下方路径",
+        "让幼兽穿过门洞回家"
+      ],
+      "crack_path": [
+        "read_cub_gate_nest_axis",
+        "access_gate",
+        "activate_gate_break",
+        "access_drop_path",
+        "payoff_cub_falls",
+        "finish_drop_objective"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 2
+    }
+  },
   "design_claim": {
-    "eye": "幼兽路径与晶壳门：先开路，再护送幼兽回巢。",
-    "visual_focus": "迷路幼兽起点、下方路径和底部巢门。",
+    "eye": "先开门，再护送幼兽回家。",
+    "visual_focus": "cub_gate_nest_axis",
     "intended_solution": [
-      "看清幼兽所在列和巢门",
-      "优先清掉幼兽下方路径",
-      "必要时先打开晶壳门",
-      "让幼兽落到底部巢门"
+      "看清幼兽-门-巢门轴线",
+      "先破挡路晶壳",
+      "清幼兽下方路径",
+      "让幼兽穿过门洞回家"
     ],
     "crack_path": [
-      "read_lost_cub_and_exit",
+      "read_cub_gate_nest_axis",
+      "access_gate",
+      "activate_gate_break",
       "access_drop_path",
-      "activate_path_opening",
       "payoff_cub_falls",
-      "convert_to_drop_relic_progress",
-      "finish_remaining_objectives"
+      "finish_drop_objective"
     ],
-    "climax": "迷路幼兽落入巢门回家。"
+    "climax": "晶壳门裂开后，幼兽连续下落穿过门洞回家。"
   },
   "director": {
-    "intent": "把幼兽护送和晶壳门配对：不是多塞机制，而是先开门再护送的两段式小戏剧。",
+    "intent": "先开门，再护送幼兽回家。",
     "player_fantasy": "打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
     "protagonist": "drop_relic",
     "supporting_roles": [
@@ -167,15 +270,15 @@
     ],
     "emotional_arc": {
       "opening": "幼兽、晶壳门、巢门在同一视觉轴上。",
-      "friction": "幼兽下方路线被晶壳门卡住，不能只在幼兽周围乱消。",
-      "turn": "门被打开后，幼兽的下降路线突然连通。",
-      "payoff": "幼兽穿过门洞落入巢门，形成明确救援结局。"
+      "friction": "幼兽下方路线被晶壳门卡住。",
+      "turn": "门被打开后，幼兽路线连通。",
+      "payoff": "幼兽穿过门洞落入巢门。"
     },
     "signature_moment": "晶壳门裂开后，幼兽连续下落穿过门洞回家。",
     "negative_space": "只保留晶壳作为配角，不叠星尘目标。",
     "four_in_one": {
-      "play": "运输目标 + 门控水文，二者共用同一条竖向路径。",
-      "visual": "竖向救援轴穿过中央门，构图像一条升降井。",
+      "play": "运输目标是主角，晶壳只服务幼兽路线。",
+      "visual": "竖向救援轴穿过中央门，像一条升降井。",
       "readability": "阻挡幼兽的门就是玩家必须先处理的点。",
       "theme": "晶能工坊里的小兽救援。"
     },
@@ -183,13 +286,19 @@
       "max_primary_mechanisms": 2,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

@@ -145,39 +145,136 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_004",
+    "thesis": {
+      "key": "send_magic_downstream",
+      "sentence": "上游的控制力要穿过窄口，才能照亮下游星尘池。"
+    },
+    "fantasy": "把上游魔力送过遗迹窄口，唤醒下游星尘池。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "downstream_pool"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "downstream_cascade",
+          "as": "pool_lights_up"
+        }
+      ]
+    },
+    "stage": {
+      "function": "downstream_expedition_intro",
+      "shape": "safe_bottleneck",
+      "dramatic_axis": "top_to_bottom",
+      "focus": "downstream_marks",
+      "friction_zone": "narrow_waist",
+      "payoff_zone": "downstream_pool",
+      "operation_space": "upper_board",
+      "supply_logic": "narrow_vertical_flow_without_full_seal"
+    },
+    "objective": {
+      "world_state_change": "downstream_stardust_pool_cleansed",
+      "player_readable_goal": "从上游把消除机会送到下游星尘池。"
+    },
+    "arc": {
+      "opening": "上方空间宽，下方星尘池明显更远。",
+      "friction": "窄口让下游补给慢，乱消会在上游空转。",
+      "turn": "一次纵向机会穿过窄口，下游开始活起来。",
+      "payoff": "下游星尘池被连锁洗亮。"
+    },
+    "payoff": {
+      "signature": "魔力穿过窄腰后，底部三枚星尘连续净化。"
+    },
+    "negative_space": {
+      "statement": "不用晶壳封门，避免第一次水文关出现空白断供。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "upper_operation_space",
+        "readable_supply_path"
+      ]
+    },
+    "four_in_one": {
+      "play": "地形距离本身成为题眼。",
+      "visual": "上宽下收的安全瓶颈，焦点落在下游池。",
+      "readability": "窄腰自然提示力量要往下送。",
+      "theme": "遗迹河道把星尘带往低处。"
+    },
+    "solution": {
+      "intended_solution": [
+        "在上游制造纵向机会",
+        "让消除穿过窄口",
+        "收尾净化下游池"
+      ],
+      "crack_path": [
+        "read_downstream_pool",
+        "access_bottleneck",
+        "send_control_downstream",
+        "payoff_downstream_cascade",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "下游目标池，弱瓶颈，无晶壳。",
-    "visual_focus": "中央窄口和下方星尘池。",
+    "eye": "上游的控制力要穿过窄口，才能照亮下游星尘池。",
+    "visual_focus": "downstream_marks",
     "intended_solution": [
-      "在上游制造纵向清除",
-      "通过窄口让下游产生连锁",
-      "收尾净化下游印记"
+      "在上游制造纵向机会",
+      "让消除穿过窄口",
+      "收尾净化下游池"
     ],
     "crack_path": [
       "read_downstream_pool",
       "access_bottleneck",
+      "send_control_downstream",
       "payoff_downstream_cascade",
-      "convert_to_target_mark_progress",
       "finish_remaining_marks"
     ],
-    "climax": "窄口被打通后下游连续净化。"
+    "climax": "魔力穿过窄腰后，底部三枚星尘连续净化。"
   },
   "director": {
-    "intent": "第 4 关只展示上游到下游的水文距离，不再用硬障碍把棋子堵空。",
-    "player_fantasy": "把上游魔力送过窄口，唤醒下游星尘池。",
+    "intent": "上游的控制力要穿过窄口，才能照亮下游星尘池。",
+    "player_fantasy": "把上游魔力送过遗迹窄口，唤醒下游星尘池。",
     "protagonist": "target_mark",
     "supporting_roles": [],
     "emotional_arc": {
-      "opening": "上半区好下手，下方星尘池明显更远。",
+      "opening": "上方空间宽，下方星尘池明显更远。",
       "friction": "窄口让下游补给慢，乱消会在上游空转。",
-      "turn": "一次纵向控制穿过窄口，下游开始自己连锁。",
+      "turn": "一次纵向机会穿过窄口，下游开始活起来。",
       "payoff": "下游星尘池被连锁洗亮。"
     },
-    "signature_moment": "魔力穿过窄腰落到下游，连续净化三枚星尘。",
-    "negative_space": "不用晶壳封门，避免玩家看到空白断供区。",
+    "signature_moment": "魔力穿过窄腰后，底部三枚星尘连续净化。",
+    "negative_space": "不用晶壳封门，避免第一次水文关出现空白断供。",
     "four_in_one": {
-      "play": "地形距离本身成为题眼，障碍不抢戏。",
-      "visual": "弱沙漏构图，上宽下聚。",
+      "play": "地形距离本身成为题眼。",
+      "visual": "上宽下收的安全瓶颈，焦点落在下游池。",
       "readability": "窄腰自然提示力量要往下送。",
       "theme": "遗迹河道把星尘带往低处。"
     },
@@ -185,13 +282,20 @@
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

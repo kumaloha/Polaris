@@ -119,52 +119,154 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_003",
+    "thesis": {
+      "key": "follow_the_stardust_tracks",
+      "sentence": "星尘不是清单，而是一条能追踪的脚印路线。"
+    },
+    "fantasy": "跟着迷路小兽留下的星尘脚印穿过林地。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "stardust_trail"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "trail_cascade",
+          "as": "footprints_fade"
+        }
+      ]
+    },
+    "stage": {
+      "function": "trail_reading",
+      "shape": "open_7x7_diagonal_trail",
+      "dramatic_axis": "upper_left_to_lower_center",
+      "focus": "trail_marks",
+      "friction_zone": "trail_turns",
+      "payoff_zone": "trail_marks",
+      "operation_space": "both_sides_of_trail",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "stardust_trail_cleansed",
+      "player_readable_goal": "沿脚印路线逐段净化星尘。"
+    },
+    "arc": {
+      "opening": "星尘排成路径而不是一坨目标。",
+      "friction": "路线拐点分散，玩家需要切换清理段落。",
+      "turn": "中段脚印被连锁净化，整条路线方向变清楚。",
+      "payoff": "最后几枚脚印熄灭，像把路线追到终点。"
+    },
+    "payoff": {
+      "signature": "拐弯处星尘一段段熄灭。"
+    },
+    "negative_space": {
+      "statement": "路径外不放第二机制，保留追踪感。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "trail_side_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "训练玩家读形状而非读数量。",
+      "visual": "斜向脚印构图让棋盘有方向。",
+      "readability": "玩家顺着星尘排列自然知道下一处。",
+      "theme": "森林里迷路小兽留下的星尘脚印。"
+    },
+    "solution": {
+      "intended_solution": [
+        "沿路径附近找消除",
+        "优先处理拐点",
+        "用自然连锁收掉末端"
+      ],
+      "crack_path": [
+        "read_mark_trail",
+        "access_trail_segments",
+        "convert_matches_to_mark_progress",
+        "finish_path_tail"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "换一种星尘印记分布，不再用指定颜色收集当目标。",
-    "visual_focus": "开阔棋盘里的星尘路径。",
+    "eye": "星尘不是清单，而是一条能追踪的脚印路线。",
+    "visual_focus": "trail_marks",
     "intended_solution": [
-      "沿星尘路径附近找消除",
-      "用自然连锁净化中段",
-      "收掉路径末端印记"
+      "沿路径附近找消除",
+      "优先处理拐点",
+      "用自然连锁收掉末端"
     ],
     "crack_path": [
       "read_mark_trail",
-      "access_open_board",
+      "access_trail_segments",
       "convert_matches_to_mark_progress",
-      "finish_remaining_marks"
+      "finish_path_tail"
     ],
-    "climax": "星尘路径被连续净化。"
+    "climax": "拐弯处星尘一段段熄灭。"
   },
   "director": {
-    "intent": "把星尘做成一条路径，让玩家沿着形状追踪，而不是扫清一堆无序点。",
-    "player_fantasy": "跟着小兽留下的星尘脚印穿过林地。",
+    "intent": "星尘不是清单，而是一条能追踪的脚印路线。",
+    "player_fantasy": "跟着迷路小兽留下的星尘脚印穿过林地。",
     "protagonist": "target_mark",
     "supporting_roles": [],
     "emotional_arc": {
-      "opening": "星尘不是一团，而是一条能读出来的路。",
-      "friction": "路径拐点分散，玩家要在不同小段之间切换注意力。",
-      "turn": "中段被连锁净化后，整条路径的方向突然清楚。",
-      "payoff": "最后几枚脚印被抹去，像把路线追到了终点。"
+      "opening": "星尘排成路径而不是一坨目标。",
+      "friction": "路线拐点分散，玩家需要切换清理段落。",
+      "turn": "中段脚印被连锁净化，整条路线方向变清楚。",
+      "payoff": "最后几枚脚印熄灭，像把路线追到终点。"
     },
-    "signature_moment": "拐弯处连续净化，星尘脚印一段段熄灭。",
-    "negative_space": "路径外不塞第二机制，保留追踪感。",
+    "signature_moment": "拐弯处星尘一段段熄灭。",
+    "negative_space": "路径外不放第二机制，保留追踪感。",
     "four_in_one": {
-      "play": "同一目标改成阅读路线，训练目标分布理解。",
-      "visual": "斜向步道构图，比方块堆更有方向。",
-      "readability": "玩家顺着星尘排列自然知道下一处该清哪里。",
-      "theme": "森林里迷路脚印的轻叙事。"
+      "play": "训练玩家读形状而非读数量。",
+      "visual": "斜向脚印构图让棋盘有方向。",
+      "readability": "玩家顺着星尘排列自然知道下一处。",
+      "theme": "森林里迷路小兽留下的星尘脚印。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

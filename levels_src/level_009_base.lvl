@@ -106,55 +106,156 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_009",
+    "thesis": {
+      "key": "clear_path_rescues_lost_cub",
+      "sentence": "清开脚下道路，就是护送迷路幼兽回家。"
+    },
+    "fantasy": "清开脚下道路，把迷路幼兽送回底部巢门。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "drop_relic",
+        "as": "lost_cub"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "arrival",
+          "as": "cub_reaches_nest"
+        }
+      ]
+    },
+    "stage": {
+      "function": "rescue_route",
+      "shape": "open_9x9_vertical_axis",
+      "dramatic_axis": "top_to_bottom_rescue",
+      "focus": "lost_cub_start_to_nest_exit",
+      "friction_zone": "cells_below_cub",
+      "payoff_zone": "bottom_nest",
+      "operation_space": "around_cub_column",
+      "supply_logic": "actor_falls_with_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "lost_cub_reaches_nest",
+      "player_readable_goal": "清掉幼兽脚下路线，让它落到底部巢门。"
+    },
+    "arc": {
+      "opening": "幼兽在上、巢门在下，同列关系清楚。",
+      "friction": "幼兽占格，玩家要清它下方而不是消它。",
+      "turn": "幼兽第一次下落一格，护送规则成立。",
+      "payoff": "幼兽落入巢门，目标立刻完成。"
+    },
+    "payoff": {
+      "signature": "幼兽沿直线掉进巢门，顶部目标同步完成。"
+    },
+    "negative_space": {
+      "statement": "不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "preserve": [
+        "straight_route_readability"
+      ]
+    },
+    "four_in_one": {
+      "play": "运输目标教学，只考清下方路径。",
+      "visual": "幼兽与巢门垂直对齐，像救援绳。",
+      "readability": "上幼兽、下巢门，一眼说明通关条件。",
+      "theme": "森林小兽迷路回家。"
+    },
+    "solution": {
+      "intended_solution": [
+        "看清幼兽所在列和巢门",
+        "优先清幼兽下方路径",
+        "让幼兽落到底部巢门"
+      ],
+      "crack_path": [
+        "read_lost_cub_and_exit",
+        "access_drop_path",
+        "clear_below_cub",
+        "payoff_cub_falls",
+        "finish_drop_objective"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
   "design_claim": {
-    "eye": "迷路幼兽回巢教学：让玩家看懂幼兽和巢门。",
-    "visual_focus": "迷路幼兽起点、下方路径和底部巢门。",
+    "eye": "清开脚下道路，就是护送迷路幼兽回家。",
+    "visual_focus": "lost_cub_start_to_nest_exit",
     "intended_solution": [
       "看清幼兽所在列和巢门",
-      "优先清掉幼兽下方路径",
-      "必要时先打开晶壳门",
+      "优先清幼兽下方路径",
       "让幼兽落到底部巢门"
     ],
     "crack_path": [
       "read_lost_cub_and_exit",
       "access_drop_path",
-      "activate_path_opening",
+      "clear_below_cub",
       "payoff_cub_falls",
-      "convert_to_drop_relic_progress",
-      "finish_remaining_objectives"
+      "finish_drop_objective"
     ],
-    "climax": "迷路幼兽落入巢门回家。"
+    "climax": "幼兽沿直线掉进巢门，顶部目标同步完成。"
   },
   "director": {
-    "intent": "迷路幼兽第一次出现必须像一个会移动的角色，而不是一个看不懂的目标头像。",
+    "intent": "清开脚下道路，就是护送迷路幼兽回家。",
     "player_fantasy": "清开脚下道路，把迷路幼兽送回底部巢门。",
     "protagonist": "drop_relic",
     "supporting_roles": [],
     "emotional_arc": {
-      "opening": "幼兽在同一列上方，巢门在正下方，救援路线直观。",
-      "friction": "幼兽自己占格，玩家要清它下方而不是把它当普通宝石消掉。",
-      "turn": "幼兽第一次下落一格，玩家理解‘清路=护送’。",
-      "payoff": "幼兽落入底部巢门，目标数字立刻完成。"
+      "opening": "幼兽在上、巢门在下，同列关系清楚。",
+      "friction": "幼兽占格，玩家要清它下方而不是消它。",
+      "turn": "幼兽第一次下落一格，护送规则成立。",
+      "payoff": "幼兽落入巢门，目标立刻完成。"
     },
-    "signature_moment": "幼兽沿直线掉进巢门，顶部目标图标同步消失。",
+    "signature_moment": "幼兽沿直线掉进巢门，顶部目标同步完成。",
     "negative_space": "不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
     "four_in_one": {
       "play": "运输目标教学，只考清下方路径。",
-      "visual": "幼兽与巢门垂直对齐，像一条救援绳。",
-      "readability": "上幼兽、下巢门，同列关系一眼说明通关条件。",
+      "visual": "幼兽与巢门垂直对齐，像救援绳。",
+      "readability": "上幼兽、下巢门，一眼说明通关条件。",
       "theme": "森林小兽迷路回家。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 1,
       "forbidden": [
         "collect",
-        "order_color"
+        "creep_growth",
+        "crystal_shell",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

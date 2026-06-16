@@ -20,6 +20,25 @@
   },
   "verdict": "approved",
   "recommendations": [],
+  "semantic": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "thesis_sentence_specific": true,
+      "one_protagonist_present": true,
+      "mechanisms_have_roles": true,
+      "objective_has_semantic_role": true,
+      "stage_function_complete": true,
+      "arc_turn_state_change": true,
+      "readable_world_state_goal": true,
+      "negative_space_enforced": true,
+      "validation_claims_complete": true,
+      "director_compiled_from_semantics": true,
+      "payoff_visible": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "taste": {
     "valid": true,
     "score": 100,

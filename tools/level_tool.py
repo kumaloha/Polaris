@@ -94,6 +94,17 @@ TERRAIN_TEMPLATES: dict[str, list[str]] = {
         "ooooooooo",
         "ooooooooo",
     ],
+    "split_columns_9x9": [
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "oooo.oooo",
+    ],
 }
 
 
@@ -185,17 +196,18 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "control": "adjacent_shell_cleanup",
     },
     7: {
-        "role": "pressure",
+        "role": "variation",
         "complexity_tier": 2,
         "theme": "hourglass_ruins",
-        "terrain": "bottleneck_9x9",
-        "moves": 42,
-        "target_pass_band": [0.55, 0.75],
-        "eye": "cleanse_expedition",
+        "terrain": "split_columns_9x9",
+        "topology": "split_columns",
+        "moves": 20,
+        "target_pass_band": [0.58, 0.82],
+        "eye": "split_supply_duet",
         "objective": {"type": "cleanse_marks", "target": "all"},
-        "placements": ["downstream_marks_9x9", "gate_hint_marks_9x9"],
-        "intent": "沙漏主公式：上游控制力转化为下游净化。",
-        "control": "vertical_line_gem",
+        "placements": ["split_duet_marks_9x9"],
+        "intent": "裂页双区：左右两边各自补给，玩家要分别点亮两页星尘。",
+        "control": "split_area_targeting",
     },
     8: {
         "role": "variation",
@@ -365,6 +377,10 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "gate_hint_marks_9x9": [
             overlay("gate_hint_marks", [[4, 3], [4, 4], [4, 5]], ["target_mark"])
         ],
+        "split_duet_marks_9x9": [
+            overlay("left_page_marks", [[2, 1], [3, 2], [4, 1], [5, 2]], ["target_mark"]),
+            overlay("right_page_marks", [[2, 7], [3, 6], [4, 7], [5, 6]], ["target_mark"]),
+        ],
         "crystal_gate_9x9": [
             overlay("crystal_gate", [[4, 3], [4, 4], [4, 5], [5, 3], [5, 4], [5, 5]], [shell_layer])
         ],
@@ -398,6 +414,464 @@ def objective_with_variant(objective: dict[str, Any], target_multiplier: float) 
     if isinstance(out.get("target"), int):
         out["target"] = max(1, int(round(int(out["target"]) * target_multiplier)))
     return out
+
+
+def generated_level_design(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    """Principles-language source for generated early levels.
+
+    This sits above `.lvl`: one thesis, one protagonist, a stage function,
+    an arc, negative-space bans, and validation claims. `.lvl.director` and
+    `design_claim` are compiled from this semantic source.
+    """
+
+    def design(
+        *,
+        thesis: str,
+        sentence: str,
+        fantasy: str,
+        protagonist: str,
+        protagonist_as: str,
+        support: list[dict[str, str]] | None,
+        reward: list[dict[str, str]] | None,
+        stage_function: str,
+        shape: str,
+        dramatic_axis: str,
+        focus: str,
+        friction_zone: str,
+        payoff_zone: str,
+        operation_space: str,
+        supply_logic: str,
+        world_state_change: str,
+        readable_goal: str,
+        opening: str,
+        friction: str,
+        turn: str,
+        payoff: str,
+        signature: str,
+        negative_statement: str,
+        forbid: list[str],
+        preserve: list[str],
+        play: str,
+        visual: str,
+        readability: str,
+        theme: str,
+        intended_solution: list[str],
+        crack_path: list[str],
+        max_primary_mechanisms: int = 1,
+    ) -> dict[str, Any]:
+        return {
+            "id": f"level_{level:03d}",
+            "thesis": {"key": thesis, "sentence": sentence},
+            "fantasy": fantasy,
+            "roles": {
+                "protagonist": {"mechanism": protagonist, "as": protagonist_as},
+                "support": support or [],
+                "reward": reward or [],
+            },
+            "stage": {
+                "function": stage_function,
+                "shape": shape,
+                "dramatic_axis": dramatic_axis,
+                "focus": focus,
+                "friction_zone": friction_zone,
+                "payoff_zone": payoff_zone,
+                "operation_space": operation_space,
+                "supply_logic": supply_logic,
+            },
+            "objective": {"world_state_change": world_state_change, "player_readable_goal": readable_goal},
+            "arc": {"opening": opening, "friction": friction, "turn": turn, "payoff": payoff},
+            "payoff": {"signature": signature},
+            "negative_space": {"statement": negative_statement, "forbid": sorted(set(forbid + list(FORBIDDEN_GENERATED_OBJECTIVES))), "preserve": preserve},
+            "four_in_one": {"play": play, "visual": visual, "readability": readability, "theme": theme},
+            "solution": {"intended_solution": intended_solution, "crack_path": crack_path},
+            "validation": {
+                "must_have": ["one_protagonist", "causal_closure", "visual_play_alignment", "readable_world_state_goal", "arc_turn_state_change"],
+                "reject_if": ["generic_counter_goal", "mechanism_without_role", "payoff_disconnected_from_objective", "visual_play_mismatch", "undeclared_noise"],
+                "max_primary_mechanisms": max_primary_mechanisms,
+            },
+        }
+
+    eye = coord["eye"]
+    if eye == "cleanse_direct":
+        return design(
+            thesis="cleanse_first_stardust",
+            sentence="擦亮中央星尘，理解净化就是通关。",
+            fantasy="帮时兔点亮森林遗迹中央的第一枚星尘徽记。",
+            protagonist="target_mark",
+            protagonist_as="stardust_focus",
+            support=[],
+            reward=[{"kind": "small_cascade", "as": "first_sparkle"}],
+            stage_function="open_practice",
+            shape="open_7x7_center",
+            dramatic_axis="center_focus",
+            focus="center_marks",
+            friction_zone="center_marks",
+            payoff_zone="center_marks",
+            operation_space="whole_board",
+            supply_logic="open_vertical_refill",
+            world_state_change="center_stardust_cleansed",
+            readable_goal="在中央星尘上做消除，把它们全部净化。",
+            opening="中央星尘聚成小徽记，玩家一眼知道看哪里。",
+            friction="星尘不会自己消失，必须在目标格上形成消除。",
+            turn="第一组星尘被净化，玩家理解目标层规则。",
+            payoff="中央徽记被擦亮，棋盘给出第一口小爽感。",
+            signature="中央星尘连续熄灭，像魔法书页被擦亮。",
+            negative_statement="边缘不放任何次目标，所有注意力留给中央星尘。",
+            forbid=["crystal_shell", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["whole_board_operation_space"],
+            play="只教目标印记，不引入障碍。",
+            visual="中心小花束构图，周围宝石做安静背景。",
+            readability="最亮的中央就是玩法优先级。",
+            theme="森林遗迹第一次被星尘点亮。",
+            intended_solution=["在中央目标附近找三消", "让消除覆盖星尘格", "收掉剩余中央印记"],
+            crack_path=["read_center_stardust", "access_open_board", "convert_matches_to_mark_progress", "finish_remaining_marks"],
+        )
+    if eye == "cleanse_edge":
+        return design(
+            thesis="reach_the_glowing_border",
+            sentence="边框星尘也需要主动够到。",
+            fantasy="沿魔法书页边框拾起散落的星尘碎片。",
+            protagonist="target_mark",
+            protagonist_as="edge_stardust",
+            support=[],
+            reward=[{"kind": "line_clear", "as": "border_sweep"}],
+            stage_function="edge_reach",
+            shape="open_7x7_border",
+            dramatic_axis="center_to_edge",
+            focus="edge_marks",
+            friction_zone="board_edges",
+            payoff_zone="edge_marks",
+            operation_space="center_open_space",
+            supply_logic="open_vertical_refill",
+            world_state_change="border_stardust_cleansed",
+            readable_goal="把机会送到四周边框，净化边缘星尘。",
+            opening="中心很宽松，但星尘都在四周发光。",
+            friction="边缘交换方向少，普通乱消容易停在中心。",
+            turn="玩家把一次横向或纵向消除送到边缘。",
+            payoff="一侧边框被扫亮，玩家理解边缘可达性。",
+            signature="整条边缘星尘被一次线性机会带走。",
+            negative_statement="中央保持干净，不放中心目标抢走视线。",
+            forbid=["crystal_shell", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["center_operation_space"],
+            play="同一星尘目标改成位置挑战。",
+            visual="发光边框像书页边饰。",
+            readability="HUD 星尘、边框星尘、玩法优先级三点一致。",
+            theme="修复魔法书页破损边框。",
+            intended_solution=["从中心制造边缘可达机会", "优先清四角和边缘", "用横竖消除扫边"],
+            crack_path=["read_edge_stardust", "access_edge_from_center", "convert_edge_matches_to_progress", "finish_corner_marks"],
+        )
+    if eye == "cleanse_trail":
+        return design(
+            thesis="follow_the_stardust_tracks",
+            sentence="星尘不是清单，而是一条能追踪的脚印路线。",
+            fantasy="跟着迷路小兽留下的星尘脚印穿过林地。",
+            protagonist="target_mark",
+            protagonist_as="stardust_trail",
+            support=[],
+            reward=[{"kind": "trail_cascade", "as": "footprints_fade"}],
+            stage_function="trail_reading",
+            shape="open_7x7_diagonal_trail",
+            dramatic_axis="upper_left_to_lower_center",
+            focus="trail_marks",
+            friction_zone="trail_turns",
+            payoff_zone="trail_marks",
+            operation_space="both_sides_of_trail",
+            supply_logic="open_vertical_refill",
+            world_state_change="stardust_trail_cleansed",
+            readable_goal="沿脚印路线逐段净化星尘。",
+            opening="星尘排成路径而不是一坨目标。",
+            friction="路线拐点分散，玩家需要切换清理段落。",
+            turn="中段脚印被连锁净化，整条路线方向变清楚。",
+            payoff="最后几枚脚印熄灭，像把路线追到终点。",
+            signature="拐弯处星尘一段段熄灭。",
+            negative_statement="路径外不放第二机制，保留追踪感。",
+            forbid=["crystal_shell", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["trail_side_operation_space"],
+            play="训练玩家读形状而非读数量。",
+            visual="斜向脚印构图让棋盘有方向。",
+            readability="玩家顺着星尘排列自然知道下一处。",
+            theme="森林里迷路小兽留下的星尘脚印。",
+            intended_solution=["沿路径附近找消除", "优先处理拐点", "用自然连锁收掉末端"],
+            crack_path=["read_mark_trail", "access_trail_segments", "convert_matches_to_mark_progress", "finish_path_tail"],
+        )
+    if eye == "cleanse_expedition_weak":
+        return design(
+            thesis="send_magic_downstream",
+            sentence="上游的控制力要穿过窄口，才能照亮下游星尘池。",
+            fantasy="把上游魔力送过遗迹窄口，唤醒下游星尘池。",
+            protagonist="target_mark",
+            protagonist_as="downstream_pool",
+            support=[],
+            reward=[{"kind": "downstream_cascade", "as": "pool_lights_up"}],
+            stage_function="downstream_expedition_intro",
+            shape="safe_bottleneck",
+            dramatic_axis="top_to_bottom",
+            focus="downstream_marks",
+            friction_zone="narrow_waist",
+            payoff_zone="downstream_pool",
+            operation_space="upper_board",
+            supply_logic="narrow_vertical_flow_without_full_seal",
+            world_state_change="downstream_stardust_pool_cleansed",
+            readable_goal="从上游把消除机会送到下游星尘池。",
+            opening="上方空间宽，下方星尘池明显更远。",
+            friction="窄口让下游补给慢，乱消会在上游空转。",
+            turn="一次纵向机会穿过窄口，下游开始活起来。",
+            payoff="下游星尘池被连锁洗亮。",
+            signature="魔力穿过窄腰后，底部三枚星尘连续净化。",
+            negative_statement="不用晶壳封门，避免第一次水文关出现空白断供。",
+            forbid=["crystal_shell", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["upper_operation_space", "readable_supply_path"],
+            play="地形距离本身成为题眼。",
+            visual="上宽下收的安全瓶颈，焦点落在下游池。",
+            readability="窄腰自然提示力量要往下送。",
+            theme="遗迹河道把星尘带往低处。",
+            intended_solution=["在上游制造纵向机会", "让消除穿过窄口", "收尾净化下游池"],
+            crack_path=["read_downstream_pool", "access_bottleneck", "send_control_downstream", "payoff_downstream_cascade", "finish_remaining_marks"],
+        )
+    if eye == "crystal_shell_gate_practice":
+        return design(
+            thesis="open_gate_restores_flow",
+            sentence="打开晶壳门，水文才恢复。",
+            fantasy="敲开晶壳闸门，把魔法水流放进下游星尘池。",
+            protagonist="crystal_shell",
+            protagonist_as="gate",
+            support=[{"mechanism": "target_mark", "as": "downstream_payoff"}],
+            reward=[{"kind": "cascade", "as": "released_flow"}],
+            stage_function="gate_release",
+            shape="bottleneck_gate",
+            dramatic_axis="top_to_bottom",
+            focus="crystal_gate",
+            friction_zone="center_gate",
+            payoff_zone="downstream_pool",
+            operation_space="upper_and_side_board",
+            supply_logic="gate_blocks_downstream_flow_but_not_full_row",
+            world_state_change="stardust_pool_cleansed_after_gate_opens",
+            readable_goal="先开门，再净化门后的星尘池。",
+            opening="中央晶壳门压住下游星尘池。",
+            friction="直接清下游效率低，必须先破门。",
+            turn="晶壳门破出缺口，补给穿过门洞。",
+            payoff="门后星尘被一波连锁净化。",
+            signature="中央晶壳门裂开，宝石瀑布落入下游星尘池。",
+            negative_statement="门外保留两侧操作空地，不堆第二种障碍。",
+            forbid=["drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["side_operation_space", "readable_gate_path"],
+            play="晶壳是主角，星尘是门后的收益。",
+            visual="晶壳门像横向闸坝压住下方目标区。",
+            readability="最硬最亮的门就是先处理点。",
+            theme="晶能工坊封印门被魔法敲开。",
+            intended_solution=["在门附近制造消除", "优先破中央晶壳", "门开后让下游连锁净化星尘"],
+            crack_path=["read_bottleneck_gate", "access_gate_by_match_or_line", "activate_gate_break", "payoff_downstream_cascade", "convert_to_target_mark_progress", "finish_remaining_marks"],
+            max_primary_mechanisms=2,
+        )
+    if eye == "shell_cleanup_breather":
+        return design(
+            thesis="clean_up_loose_crystals",
+            sentence="晶壳也可以是轻爽清理，而不总是硬门。",
+            fantasy="帮宠物清理散落在工坊里的小晶壳。",
+            protagonist="crystal_shell",
+            protagonist_as="loose_shells",
+            support=[],
+            reward=[{"kind": "shell_pop_chain", "as": "clean_workshop"}],
+            stage_function="breather_cleanup",
+            shape="open_7x7_scatter",
+            dramatic_axis="scatter_to_clear",
+            focus="soft_shell_clusters",
+            friction_zone="shell_neighbors",
+            payoff_zone="whole_board",
+            operation_space="whole_board",
+            supply_logic="open_vertical_refill",
+            world_state_change="all_loose_crystals_cleared",
+            readable_goal="敲碎散落晶壳，清空工坊。",
+            opening="少量晶壳散在开阔棋盘，压力低。",
+            friction="晶壳分散，需要在各处找相邻消除。",
+            turn="一次连锁敲掉两三块晶壳。",
+            payoff="最后一块晶壳碎掉，棋盘完全打开。",
+            signature="散落晶壳叮叮敲碎，像打扫完工坊。",
+            negative_statement="不放星尘目标，不让喘息关变成双目标清单。",
+            forbid=["target_mark", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["whole_board_operation_space"],
+            play="复习晶壳处理，降低认知负荷。",
+            visual="五点散落像待清理小石子。",
+            readability="每个晶壳都是直接目标。",
+            theme="晶能工坊碎壳清扫。",
+            intended_solution=["找晶壳旁边的普通消除", "利用开阔盘面制造连锁", "清完剩余晶壳"],
+            crack_path=["read_shell_targets", "access_adjacent_matches", "convert_matches_to_shell_breaks", "finish_remaining_shells"],
+        )
+    if eye == "split_supply_duet":
+        return design(
+            thesis="two_pages_need_two_plans",
+            sentence="裂开的两页各自补给，左右星尘要分别照顾。",
+            fantasy="修复被裂缝分成左右两页的魔法书。",
+            protagonist="target_mark",
+            protagonist_as="split_page_stardust",
+            support=[],
+            reward=[{"kind": "side_by_side_cascade", "as": "both_pages_light"}],
+            stage_function="split_supply_duet",
+            shape="split_columns",
+            dramatic_axis="left_right_duet",
+            focus="left_and_right_page_marks",
+            friction_zone="center_crack",
+            payoff_zone="two_page_marks",
+            operation_space="left_area_and_right_area",
+            supply_logic="two_independent_vertical_refill_areas",
+            world_state_change="both_pages_stardust_cleansed",
+            readable_goal="分别在左右两页净化星尘，不能指望中间裂缝互相帮忙。",
+            opening="中间裂缝把棋盘切成左右两页，星尘在两侧对称发光。",
+            friction="左右不互通，一边的好运不会自动救另一边。",
+            turn="玩家开始分别经营左右两边，而不是只盯一个区域。",
+            payoff="左右两页先后被点亮，像合上一本修好的魔法书。",
+            signature="左页连锁后转到右页收尾，两边星尘依次亮灭。",
+            negative_statement="不加入晶壳或幼兽，让双区补给本身成为题眼。",
+            forbid=["crystal_shell", "drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["left_area_operation_space", "right_area_operation_space", "center_crack_readability"],
+            play="地图舞台第一次成为主角级问题：左右补给独立。",
+            visual="中间裂缝把书页切开，星尘在两侧呼应。",
+            readability="HUD 星尘与两侧目标一致，中缝明确告诉玩家不能跨区。",
+            theme="魔法书被裂缝分成两页，需要分别修复。",
+            intended_solution=["先读出左右两区独立", "在左区处理左页星尘", "切换到右区处理右页星尘", "避免只在一侧空转"],
+            crack_path=["read_split_pages", "access_left_area", "convert_left_matches", "access_right_area", "convert_right_matches", "finish_remaining_marks"],
+        )
+    if eye == "cleanse_siege":
+        return design(
+            thesis="break_the_ring_to_open_the_vault",
+            sentence="先破壳环，才能拿到中心星尘宝库。",
+            fantasy="破解晶壳环，打开矿洞中心的星尘宝库。",
+            protagonist="crystal_shell",
+            protagonist_as="vault_ring",
+            support=[{"mechanism": "target_mark", "as": "center_treasure"}],
+            reward=[{"kind": "burst_clear", "as": "vault_opens"}],
+            stage_function="vault_siege",
+            shape="open_9x9_center_vault",
+            dramatic_axis="outside_to_center",
+            focus="vault_shell_ring",
+            friction_zone="shell_ring",
+            payoff_zone="center_vault_marks",
+            operation_space="outer_board",
+            supply_logic="open_refill_around_enclosure",
+            world_state_change="center_stardust_vault_cleansed_after_ring_breaks",
+            readable_goal="先破外圈晶壳，再净化中心星尘宝库。",
+            opening="中心星尘很诱人，但外圈晶壳挡住入口。",
+            friction="玩家能看见收益，却必须先拆外围。",
+            turn="晶壳环破开一侧，中心目标变得可触达。",
+            payoff="中心星尘被爆破或线消一口气收掉。",
+            signature="晶壳环打开缺口，中心宝库被一次爆破点亮。",
+            negative_statement="环外保留开阔操作区，让围城不是窒息。",
+            forbid=["drop_relic", "creep_growth", "spawner", "timed_core"],
+            preserve=["outer_operation_space"],
+            play="围城题眼：先破壳环，再拿中心收益。",
+            visual="中心宝库和外圈护盾构图稳定。",
+            readability="壳环包住目标，天然说明先破外围。",
+            theme="水晶矿洞里的封存宝库。",
+            intended_solution=["先破外圈晶壳", "打开中心目标区", "用爆破或线消收尾"],
+            crack_path=["read_vault_shell", "access_vault_ring", "activate_shell_break", "payoff_center_opens", "convert_to_target_mark_progress", "finish_remaining_marks"],
+            max_primary_mechanisms=2,
+        )
+    if eye == "drop_direct":
+        return design(
+            thesis="clear_path_rescues_lost_cub",
+            sentence="清开脚下道路，就是护送迷路幼兽回家。",
+            fantasy="清开脚下道路，把迷路幼兽送回底部巢门。",
+            protagonist="drop_relic",
+            protagonist_as="lost_cub",
+            support=[],
+            reward=[{"kind": "arrival", "as": "cub_reaches_nest"}],
+            stage_function="rescue_route",
+            shape="open_9x9_vertical_axis",
+            dramatic_axis="top_to_bottom_rescue",
+            focus="lost_cub_start_to_nest_exit",
+            friction_zone="cells_below_cub",
+            payoff_zone="bottom_nest",
+            operation_space="around_cub_column",
+            supply_logic="actor_falls_with_vertical_refill",
+            world_state_change="lost_cub_reaches_nest",
+            readable_goal="清掉幼兽脚下路线，让它落到底部巢门。",
+            opening="幼兽在上、巢门在下，同列关系清楚。",
+            friction="幼兽占格，玩家要清它下方而不是消它。",
+            turn="幼兽第一次下落一格，护送规则成立。",
+            payoff="幼兽落入巢门，目标立刻完成。",
+            signature="幼兽沿直线掉进巢门，顶部目标同步完成。",
+            negative_statement="不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
+            forbid=["crystal_shell", "target_mark", "creep_growth", "spawner", "timed_core"],
+            preserve=["straight_route_readability"],
+            play="运输目标教学，只考清下方路径。",
+            visual="幼兽与巢门垂直对齐，像救援绳。",
+            readability="上幼兽、下巢门，一眼说明通关条件。",
+            theme="森林小兽迷路回家。",
+            intended_solution=["看清幼兽所在列和巢门", "优先清幼兽下方路径", "让幼兽落到底部巢门"],
+            crack_path=["read_lost_cub_and_exit", "access_drop_path", "clear_below_cub", "payoff_cub_falls", "finish_drop_objective"],
+        )
+    if eye == "drop_bottleneck":
+        return design(
+            thesis="open_gate_then_rescue_cub",
+            sentence="先开门，再护送幼兽回家。",
+            fantasy="打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
+            protagonist="drop_relic",
+            protagonist_as="lost_cub",
+            support=[{"mechanism": "crystal_shell", "as": "route_gate"}],
+            reward=[{"kind": "arrival", "as": "cub_falls_through_gate"}],
+            stage_function="rescue_route_with_gate",
+            shape="bottleneck_gate_route",
+            dramatic_axis="top_to_bottom_rescue",
+            focus="cub_gate_nest_axis",
+            friction_zone="crystal_gate_on_route",
+            payoff_zone="bottom_nest",
+            operation_space="upper_and_side_board",
+            supply_logic="route_gate_blocks_actor_path_without_full_supply_seal",
+            world_state_change="lost_cub_reaches_nest_after_gate_opens",
+            readable_goal="先打开挡路晶壳门，再清路让幼兽回巢。",
+            opening="幼兽、晶壳门、巢门在同一视觉轴上。",
+            friction="幼兽下方路线被晶壳门卡住。",
+            turn="门被打开后，幼兽路线连通。",
+            payoff="幼兽穿过门洞落入巢门。",
+            signature="晶壳门裂开后，幼兽连续下落穿过门洞回家。",
+            negative_statement="只保留晶壳作为配角，不叠星尘目标。",
+            forbid=["target_mark", "creep_growth", "spawner", "timed_core"],
+            preserve=["cub_gate_nest_readability", "side_operation_space"],
+            play="运输目标是主角，晶壳只服务幼兽路线。",
+            visual="竖向救援轴穿过中央门，像一条升降井。",
+            readability="阻挡幼兽的门就是玩家必须先处理的点。",
+            theme="晶能工坊里的小兽救援。",
+            intended_solution=["看清幼兽-门-巢门轴线", "先破挡路晶壳", "清幼兽下方路径", "让幼兽穿过门洞回家"],
+            crack_path=["read_cub_gate_nest_axis", "access_gate", "activate_gate_break", "access_drop_path", "payoff_cub_falls", "finish_drop_objective"],
+            max_primary_mechanisms=2,
+        )
+    raise ValueError(f"no level_design principles for eye {eye!r}")
+
+
+def design_claim_from_level_design(level_design: dict[str, Any]) -> dict[str, Any]:
+    solution = level_design.get("solution", {})
+    return {
+        "eye": level_design.get("thesis", {}).get("sentence", ""),
+        "visual_focus": level_design.get("stage", {}).get("focus", ""),
+        "intended_solution": solution.get("intended_solution", []),
+        "crack_path": solution.get("crack_path", []),
+        "climax": level_design.get("payoff", {}).get("signature", level_design.get("arc", {}).get("payoff", "")),
+    }
+
+
+def director_from_level_design(level_design: dict[str, Any]) -> dict[str, Any]:
+    roles = level_design.get("roles", {})
+    protagonist = roles.get("protagonist", {}) if isinstance(roles.get("protagonist"), dict) else {}
+    support = roles.get("support", []) if isinstance(roles.get("support"), list) else []
+    support_mechanisms = [str(item.get("mechanism")) for item in support if isinstance(item, dict) and item.get("mechanism")]
+    negative = level_design.get("negative_space", {}) if isinstance(level_design.get("negative_space"), dict) else {}
+    validation = level_design.get("validation", {}) if isinstance(level_design.get("validation"), dict) else {}
+    return {
+        "intent": level_design.get("thesis", {}).get("sentence", ""),
+        "player_fantasy": level_design.get("fantasy", ""),
+        "protagonist": protagonist.get("mechanism", ""),
+        "supporting_roles": support_mechanisms,
+        "emotional_arc": level_design.get("arc", {}),
+        "signature_moment": level_design.get("payoff", {}).get("signature", ""),
+        "negative_space": negative.get("statement", ""),
+        "four_in_one": level_design.get("four_in_one", {}),
+        "anti_slop": {
+            "max_primary_mechanisms": int(validation.get("max_primary_mechanisms", 1) or 1),
+            "forbidden": sorted(set(str(x) for x in negative.get("forbid", [])) | FORBIDDEN_GENERATED_OBJECTIVES),
+            "no_color_order_goal": True,
+            "reject_if": validation.get("reject_if", []),
+        },
+    }
 
 
 def generated_design_claim(level: int, coord: dict[str, Any]) -> dict[str, Any]:
@@ -719,6 +1193,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     shell_hp_delta = int(variant_rule["shell_hp_delta"]) + int(tuning["shell_hp_delta"])
     seed = 1000 + level * 17 + list(VARIANT_RULES).index(variant) + (0 if candidate is None else candidate * 997)
     level_id = f"level_{level:03d}_{variant}" if candidate is None else f"level_{level:03d}_{variant}_c{candidate:02d}"
+    level_design = generated_level_design(level, coord)
 
     return {
         "id": level_id,
@@ -749,7 +1224,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
             "width": width,
             "height": height,
             "terrain": {"sample": coord["terrain"].replace("_7x7", "").replace("_9x9", "")},
-            "supply_topology": {"type": "vertical_down"},
+            "supply_topology": {"type": coord.get("topology", "vertical_down")},
         },
         "recipe": {
             "eye": coord["eye"],
@@ -765,8 +1240,9 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
         "board": rows,
         "overlays": build_overlays(coord["placements"], shell_hp_delta),
         "mechanisms": [],
-        "design_claim": generated_design_claim(level, coord),
-        "director": generated_director_claim(level, coord),
+        "level_design": level_design,
+        "design_claim": design_claim_from_level_design(level_design),
+        "director": director_from_level_design(level_design),
     }
 
 
@@ -811,7 +1287,7 @@ def board_rows(lvl: dict[str, Any], d: Diagnostics) -> list[str]:
 
 def lint_lvl(lvl: dict[str, Any]) -> Diagnostics:
     d = Diagnostics()
-    required = ["id", "version", "compile_mode", "meta", "personalization", "rules", "map", "recipe", "board", "overlays", "design_claim", "director"]
+    required = ["id", "version", "compile_mode", "meta", "personalization", "rules", "map", "recipe", "board", "overlays", "level_design", "design_claim", "director"]
     for key in required:
         if key not in lvl:
             d.error("E_MISSING_FIELD", key, f"missing required root field: {key}")
@@ -1271,6 +1747,113 @@ def director_text_blob(lvl: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def meaningful_semantic_text(value: Any, min_len: int = 4) -> bool:
+    return isinstance(value, str) and len(value.strip()) >= min_len and value.strip() not in DIRECTOR_GENERIC_PHRASES
+
+
+def semantic_validate_level_design(lvl: dict[str, Any]) -> dict[str, Any]:
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    design = lvl.get("level_design")
+    if not isinstance(design, dict):
+        fail("E_NO_LEVEL_DESIGN", "level_design", "level_design semantic source is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    thesis = design.get("thesis") if isinstance(design.get("thesis"), dict) else {}
+    sentence_ok = meaningful_semantic_text(thesis.get("sentence"), 8)
+    checks["thesis_sentence_specific"] = sentence_ok
+    if not sentence_ok:
+        fail("E_NO_THESIS", "level_design.thesis.sentence", "single-level thesis must be a specific sentence", 20)
+
+    roles = design.get("roles") if isinstance(design.get("roles"), dict) else {}
+    protagonist = roles.get("protagonist") if isinstance(roles.get("protagonist"), dict) else {}
+    protagonist_mechanism = protagonist.get("mechanism")
+    active = active_layer_set(lvl) - {"drop_exit"}
+    objective_layers = objective_layer_set(lvl)
+    protagonist_ok = isinstance(protagonist_mechanism, str) and protagonist_mechanism in (active | objective_layers)
+    checks["one_protagonist_present"] = protagonist_ok
+    if not protagonist_ok:
+        fail("E_NO_PROTAGONIST", "level_design.roles.protagonist.mechanism", f"protagonist {protagonist_mechanism!r} must appear in overlays/objectives", 25)
+
+    support = roles.get("support", [])
+    if not isinstance(support, list):
+        fail("E_SUPPORT_TYPE", "level_design.roles.support", "support must be a list", 10)
+        support = []
+    support_mechanisms = {str(item.get("mechanism")) for item in support if isinstance(item, dict) and item.get("mechanism")}
+    declared = ({str(protagonist_mechanism)} if isinstance(protagonist_mechanism, str) else set()) | support_mechanisms
+    undeclared = sorted(active - declared)
+    checks["mechanisms_have_roles"] = not undeclared
+    if undeclared:
+        fail("E_UNROLE_MECHANISM", "level_design.roles", f"active mechanism(s) without semantic role: {undeclared}", 20)
+
+    objective_covered = not objective_layers or bool(objective_layers & declared)
+    checks["objective_has_semantic_role"] = objective_covered
+    if not objective_covered:
+        fail("E_NO_CAUSAL_CLOSURE", "level_design.roles", f"objective layer(s) {sorted(objective_layers)} must be protagonist or support", 20)
+
+    stage = design.get("stage") if isinstance(design.get("stage"), dict) else {}
+    required_stage = ["function", "dramatic_axis", "focus", "friction_zone", "payoff_zone", "operation_space", "supply_logic"]
+    missing_stage = [key for key in required_stage if not meaningful_semantic_text(stage.get(key), 3)]
+    checks["stage_function_complete"] = not missing_stage
+    if missing_stage:
+        fail("E_STAGE_INCOMPLETE", "level_design.stage", f"missing stage semantic fields: {missing_stage}", 15)
+
+    arc = design.get("arc") if isinstance(design.get("arc"), dict) else {}
+    missing_arc = [key for key in DIRECTOR_ARC_FIELDS if not meaningful_semantic_text(arc.get(key), 6)]
+    checks["arc_turn_state_change"] = "turn" not in missing_arc and not missing_arc
+    if missing_arc:
+        fail("E_NO_TURN", "level_design.arc", f"missing or generic arc beats: {missing_arc}", 20)
+
+    objective = design.get("objective") if isinstance(design.get("objective"), dict) else {}
+    objective_ok = meaningful_semantic_text(objective.get("world_state_change"), 6) and meaningful_semantic_text(objective.get("player_readable_goal"), 8)
+    checks["readable_world_state_goal"] = objective_ok
+    if not objective_ok:
+        fail("E_COUNTER_OBJECTIVE", "level_design.objective", "objective must be a readable world-state change, not a counter-only goal", 20)
+
+    negative = design.get("negative_space") if isinstance(design.get("negative_space"), dict) else {}
+    forbidden = set(str(x) for x in negative.get("forbid", []) if isinstance(x, str))
+    objective_types = {str(obj.get("type")) for obj in normalize_objectives(lvl)}
+    forbidden_hits = sorted((active | objective_types) & forbidden)
+    checks["negative_space_enforced"] = not forbidden_hits
+    if forbidden_hits:
+        fail("E_UNDECLARED_NOISE", "level_design.negative_space.forbid", f"forbidden atom(s) present: {forbidden_hits}", 25)
+
+    validation = design.get("validation") if isinstance(design.get("validation"), dict) else {}
+    must_have = set(str(x) for x in validation.get("must_have", []) if isinstance(x, str))
+    expected_must = {"one_protagonist", "causal_closure", "visual_play_alignment", "readable_world_state_goal", "arc_turn_state_change"}
+    missing_must = sorted(expected_must - must_have)
+    checks["validation_claims_complete"] = not missing_must
+    if missing_must:
+        warn("W_SEMANTIC_VALIDATION_CLAIMS", "level_design.validation.must_have", f"missing recommended semantic claims: {missing_must}", 5)
+
+    director = lvl.get("director") if isinstance(lvl.get("director"), dict) else {}
+    director_match = director.get("protagonist") == protagonist_mechanism
+    checks["director_compiled_from_semantics"] = director_match
+    if not director_match:
+        fail("E_DIRECTOR_SEMANTIC_MISMATCH", "director.protagonist", "director protagonist must match level_design protagonist", 20)
+
+    payoff = design.get("payoff") if isinstance(design.get("payoff"), dict) else {}
+    payoff_ok = meaningful_semantic_text(payoff.get("signature"), 8)
+    checks["payoff_visible"] = payoff_ok
+    if not payoff_ok:
+        fail("E_PAYOFF_DISCONNECTED", "level_design.payoff.signature", "payoff must be a visible signature moment", 15)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def taste_audit_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
     """Executable taste gate.
 
@@ -1425,6 +2008,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
                         drop_path_ok = False
 
     structural_valid = playable >= 20 and legal and objective_ok and drop_path_ok
+    semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
     out["structural"] = {
         "valid": structural_valid,
@@ -1434,11 +2018,14 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         "objective_ok": objective_ok,
         "drop_path_ok": drop_path_ok,
     }
+    out["semantic"] = semantic
     out["taste"] = taste
-    if structural_valid and taste.get("valid"):
+    if structural_valid and semantic.get("valid") and taste.get("valid"):
         out["verdict"] = "approved"
     elif not structural_valid:
         out["verdict"] = "revise_major"
+    elif not semantic.get("valid"):
+        out["verdict"] = "revise_semantic"
     else:
         out["verdict"] = "revise_taste"
     if initial_matches:
@@ -1447,6 +2034,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append("seed/fixed board has no legal opening move")
     if not drop_path_ok:
         out["recommendations"].append("drop_relic must start above a bottom exit column in executable v0")
+    for err in semantic.get("errors", []):
+        out["recommendations"].append(f"semantic gate: {err.get('message')}")
+    for warn_item in semantic.get("warnings", []):
+        out["recommendations"].append(f"semantic warning: {warn_item.get('message')}")
     for err in taste.get("errors", []):
         out["recommendations"].append(f"taste gate: {err.get('message')}")
     for warn_item in taste.get("warnings", []):
@@ -1830,12 +2421,13 @@ def generate_select(level: int, variant: str, profile: str, candidates: int, run
             score = -9999.0
             pass_rate = 0.0
             solve_pass = False
-            regenerate_reason = "taste_invalid" if validation.get("verdict") == "revise_taste" else "structural_invalid"
+            regenerate_reason = "semantic_invalid" if validation.get("verdict") == "revise_semantic" else ("taste_invalid" if validation.get("verdict") == "revise_taste" else "structural_invalid")
         attempts.append({
             "candidate": idx,
             "level_id": lvl["id"],
             "seed": lvl["rules"]["seed"],
             "validation_verdict": validation.get("verdict"),
+            "semantic_score": validation.get("semantic", {}).get("score"),
             "taste_score": validation.get("taste", {}).get("score"),
             "target_pass_band": list(band),
             "profile": profile,

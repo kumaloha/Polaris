@@ -163,44 +163,146 @@
     }
   ],
   "mechanisms": [],
+  "level_design": {
+    "id": "level_005",
+    "thesis": {
+      "key": "open_gate_restores_flow",
+      "sentence": "打开晶壳门，水文才恢复。"
+    },
+    "fantasy": "敲开晶壳闸门，把魔法水流放进下游星尘池。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "crystal_shell",
+        "as": "gate"
+      },
+      "support": [
+        {
+          "mechanism": "target_mark",
+          "as": "downstream_payoff"
+        }
+      ],
+      "reward": [
+        {
+          "kind": "cascade",
+          "as": "released_flow"
+        }
+      ]
+    },
+    "stage": {
+      "function": "gate_release",
+      "shape": "bottleneck_gate",
+      "dramatic_axis": "top_to_bottom",
+      "focus": "crystal_gate",
+      "friction_zone": "center_gate",
+      "payoff_zone": "downstream_pool",
+      "operation_space": "upper_and_side_board",
+      "supply_logic": "gate_blocks_downstream_flow_but_not_full_row"
+    },
+    "objective": {
+      "world_state_change": "stardust_pool_cleansed_after_gate_opens",
+      "player_readable_goal": "先开门，再净化门后的星尘池。"
+    },
+    "arc": {
+      "opening": "中央晶壳门压住下游星尘池。",
+      "friction": "直接清下游效率低，必须先破门。",
+      "turn": "晶壳门破出缺口，补给穿过门洞。",
+      "payoff": "门后星尘被一波连锁净化。"
+    },
+    "payoff": {
+      "signature": "中央晶壳门裂开，宝石瀑布落入下游星尘池。"
+    },
+    "negative_space": {
+      "statement": "门外保留两侧操作空地，不堆第二种障碍。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "side_operation_space",
+        "readable_gate_path"
+      ]
+    },
+    "four_in_one": {
+      "play": "晶壳是主角，星尘是门后的收益。",
+      "visual": "晶壳门像横向闸坝压住下方目标区。",
+      "readability": "最硬最亮的门就是先处理点。",
+      "theme": "晶能工坊封印门被魔法敲开。"
+    },
+    "solution": {
+      "intended_solution": [
+        "在门附近制造消除",
+        "优先破中央晶壳",
+        "门开后让下游连锁净化星尘"
+      ],
+      "crack_path": [
+        "read_bottleneck_gate",
+        "access_gate_by_match_or_line",
+        "activate_gate_break",
+        "payoff_downstream_cascade",
+        "convert_to_target_mark_progress",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 2
+    }
+  },
   "design_claim": {
-    "eye": "晶壳门卡住下游星尘池，玩家必须先开门再净化。",
-    "visual_focus": "中央 2x3 晶壳门压住下方星尘池。",
+    "eye": "打开晶壳门，水文才恢复。",
+    "visual_focus": "crystal_gate",
     "intended_solution": [
-      "在上游找纵向线消机会",
-      "优先破中央晶壳门",
-      "门开后让下游 cascade 净化星尘印记"
+      "在门附近制造消除",
+      "优先破中央晶壳",
+      "门开后让下游连锁净化星尘"
     ],
     "crack_path": [
       "read_bottleneck_gate",
       "access_gate_by_match_or_line",
-      "activate_supply_recovery",
+      "activate_gate_break",
       "payoff_downstream_cascade",
       "convert_to_target_mark_progress",
       "finish_remaining_marks"
     ],
-    "climax": "晶壳门破后，下游星尘池连续净化。"
+    "climax": "中央晶壳门裂开，宝石瀑布落入下游星尘池。"
   },
   "director": {
-    "intent": "第 5 关是第一道真正的晶壳门：玩家的记忆点应是‘先开门，水才会活’。",
+    "intent": "打开晶壳门，水文才恢复。",
     "player_fantasy": "敲开晶壳闸门，把魔法水流放进下游星尘池。",
     "protagonist": "crystal_shell",
     "supporting_roles": [
       "target_mark"
     ],
     "emotional_arc": {
-      "opening": "中央晶壳门横在视线正中，下方星尘池像被压住。",
-      "friction": "直接清下游效率低，必须先在门附近找突破口。",
-      "turn": "晶壳门破出缺口后，补给穿过门洞，下游开始活起来。",
-      "payoff": "门后星尘被一波连锁净化，玩家感到自己打开了水闸。"
+      "opening": "中央晶壳门压住下游星尘池。",
+      "friction": "直接清下游效率低，必须先破门。",
+      "turn": "晶壳门破出缺口，补给穿过门洞。",
+      "payoff": "门后星尘被一波连锁净化。"
     },
-    "signature_moment": "中央 2x3 晶壳门裂开，宝石瀑布落入下游星尘池。",
+    "signature_moment": "中央晶壳门裂开，宝石瀑布落入下游星尘池。",
     "negative_space": "门外保留两侧操作空地，不堆第二种障碍。",
     "four_in_one": {
-      "play": "晶壳改变补给水文，是主角；星尘只是门后的收益。",
-      "visual": "晶壳门像横向闸坝，压住下方目标区。",
-      "readability": "最硬、最亮的门就是先处理的地方。",
-      "theme": "晶能工坊的封印门被魔法敲开。"
+      "play": "晶壳是主角，星尘是门后的收益。",
+      "visual": "晶壳门像横向闸坝压住下方目标区。",
+      "readability": "最硬最亮的门就是先处理点。",
+      "theme": "晶能工坊封印门被魔法敲开。"
     },
     "anti_slop": {
       "max_primary_mechanisms": 2,
@@ -214,9 +316,11 @@
       ],
       "no_color_order_goal": true,
       "reject_if": [
-        "generic_clear_list",
-        "unreadable_icon_only",
-        "mechanism_pileup"
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
       ]
     }
   }

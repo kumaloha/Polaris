@@ -113,7 +113,8 @@
       "pass_rate": 0.591,
       "solve_pass": true,
       "score": 108.82,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 1,
@@ -129,7 +130,8 @@
       "pass_rate": 0.585,
       "solve_pass": true,
       "score": 108.7,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 2,
@@ -145,7 +147,8 @@
       "pass_rate": 0.571,
       "solve_pass": true,
       "score": 108.42,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 3,
@@ -161,7 +164,8 @@
       "pass_rate": 0.637,
       "solve_pass": true,
       "score": 109.74,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 4,
@@ -177,7 +181,8 @@
       "pass_rate": 0.136,
       "solve_pass": false,
       "score": -141.4,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 5,
@@ -193,7 +198,8 @@
       "pass_rate": 0.217,
       "solve_pass": false,
       "score": -133.3,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 6,
@@ -209,7 +215,8 @@
       "pass_rate": 0.593,
       "solve_pass": true,
       "score": 108.86,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 7,
@@ -225,7 +232,8 @@
       "pass_rate": 0.65,
       "solve_pass": true,
       "score": 110.0,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 8,
@@ -241,7 +249,8 @@
       "pass_rate": 0.503,
       "solve_pass": false,
       "score": -104.7,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 9,
@@ -257,7 +266,8 @@
       "pass_rate": 0.616,
       "solve_pass": true,
       "score": 109.32,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 10,
@@ -273,7 +283,8 @@
       "pass_rate": 0.485,
       "solve_pass": false,
       "score": -106.5,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 11,
@@ -289,7 +300,8 @@
       "pass_rate": 0.503,
       "solve_pass": false,
       "score": -104.7,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 12,
@@ -305,7 +317,8 @@
       "pass_rate": 0.207,
       "solve_pass": false,
       "score": -134.3,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 13,
@@ -321,7 +334,8 @@
       "pass_rate": 0.208,
       "solve_pass": false,
       "score": -134.2,
-      "regenerate_reason": "solver_below_band"
+      "regenerate_reason": "solver_below_band",
+      "semantic_score": 100
     },
     {
       "candidate": 14,
@@ -337,7 +351,8 @@
       "pass_rate": 0.611,
       "solve_pass": true,
       "score": 109.22,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     },
     {
       "candidate": 15,
@@ -353,7 +368,8 @@
       "pass_rate": 0.641,
       "solve_pass": true,
       "score": 109.82,
-      "regenerate_reason": null
+      "regenerate_reason": null,
+      "semantic_score": 100
     }
   ],
   "verdict": "selected"
