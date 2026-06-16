@@ -1,0 +1,23 @@
+{
+  "level_id": "level_010_base_c10",
+  "lint": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  "compile": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  "structural": {
+    "valid": true,
+    "playable_cell_count": 57,
+    "initial_match_count": 0,
+    "legal_move_exists": true,
+    "objective_ok": true,
+    "drop_path_ok": true
+  },
+  "verdict": "approved",
+  "recommendations": []
+}

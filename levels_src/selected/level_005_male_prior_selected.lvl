@@ -1,0 +1,185 @@
+{
+  "id": "level_005_base_c00",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 5,
+    "variant": "base",
+    "role": "pressure_lite",
+    "complexity_tier": 2,
+    "theme": "crystal_workshop",
+    "target_pass_band": [
+      0.58,
+      0.8
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 0,
+    "candidate_tuning": {
+      "moves_delta": 0,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.58,
+      0.8
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 24,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1085
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "bottleneck"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "crystal_shell_gate_practice",
+    "obstacle_lane": {
+      "focus": "crystal_shell",
+      "stage": "pressure_lite",
+      "active": [
+        "crystal_shell",
+        "target_mark"
+      ],
+      "forbidden": [
+        "creep_growth",
+        "spawner",
+        "timed_core",
+        "drop_relic"
+      ]
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "vertical_line_gem"
+  },
+  "board": [
+    "..ooooo..",
+    ".ooooooo.",
+    "ooooooooo",
+    "ooooooooo",
+    "...ooo...",
+    "...ooo...",
+    "ooooooooo",
+    ".ooooooo.",
+    "..ooooo.."
+  ],
+  "overlays": [
+    {
+      "region": "downstream_marks",
+      "cells": [
+        [
+          6,
+          2
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          7,
+          4
+        ],
+        [
+          7,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "crystal_gate",
+      "cells": [
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          5,
+          5
+        ]
+      ],
+      "layers": [
+        "crystal_shell"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "晶壳门卡住下游星尘池，玩家必须先开门再净化。",
+    "visual_focus": "中央 2x3 晶壳门压住下方星尘池。",
+    "intended_solution": [
+      "在上游找纵向线消机会",
+      "优先破中央晶壳门",
+      "门开后让下游 cascade 净化星尘印记"
+    ],
+    "crack_path": [
+      "read_bottleneck_gate",
+      "access_gate_by_match_or_line",
+      "activate_supply_recovery",
+      "payoff_downstream_cascade",
+      "convert_to_target_mark_progress",
+      "finish_remaining_marks"
+    ],
+    "climax": "晶壳门破后，下游星尘池连续净化。"
+  }
+}

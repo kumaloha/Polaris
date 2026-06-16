@@ -1,0 +1,345 @@
+{
+  "level_coordinate": 10,
+  "variant": "base",
+  "profile": "female_prior",
+  "candidates_requested": 16,
+  "selected_sim": {
+    "level_id": "level_010_base_c10",
+    "valid": true,
+    "metric_mode": "stochastic",
+    "target_profile": "female_prior",
+    "profile_mix": {
+      "visual_casual": 0.25,
+      "goal_focused": 0.2,
+      "bottom_cascade": 0.15,
+      "special_builder": 0.12,
+      "mechanism_aware": 0.1,
+      "frustrated_retry": 0.13,
+      "random_baseline": 0.05
+    },
+    "runs_per_persona": 10,
+    "personas": {
+      "visual_casual": {
+        "simulated_pass_rate_at_1": 0.6,
+        "avg_remaining_moves": 18.17,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 14.233,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.4
+        }
+      },
+      "goal_focused": {
+        "simulated_pass_rate_at_1": 0.6,
+        "avg_remaining_moves": 19.33,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 12.833,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.3,
+          "no_legal_move_loop": 0.1
+        }
+      },
+      "bottom_cascade": {
+        "simulated_pass_rate_at_1": 0.8,
+        "avg_remaining_moves": 16.62,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 14.033,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.2
+        }
+      },
+      "special_builder": {
+        "simulated_pass_rate_at_1": 0.8,
+        "avg_remaining_moves": 18.75,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 12.533,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.1,
+          "no_legal_move_loop": 0.1
+        }
+      },
+      "mechanism_aware": {
+        "simulated_pass_rate_at_1": 0.7,
+        "avg_remaining_moves": 18.29,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 13.267,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.3
+        }
+      },
+      "frustrated_retry": {
+        "simulated_pass_rate_at_1": 0.7,
+        "avg_remaining_moves": 16.71,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 12.367,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.3
+        }
+      },
+      "random_baseline": {
+        "simulated_pass_rate_at_1": 0.3,
+        "avg_remaining_moves": 6.33,
+        "mechanism_activation_rate": 1.0,
+        "avg_cascade_score": 10.667,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.7
+        }
+      }
+    },
+    "aggregate_pass_rate_at_1": 0.662,
+    "aggregate_avg_remaining_moves": 17.47,
+    "aggregate_mechanism_activation_rate": 1.0,
+    "aggregate_cascade_score": 13.202,
+    "aggregate_fail_reason_distribution": {
+      "no_legal_move_loop": 0.032,
+      "too_many_leftovers": 0.306
+    }
+  },
+  "selected_score": 109.76,
+  "target_pass_band": [
+    0.55,
+    0.75
+  ],
+  "attempts": [
+    {
+      "candidate": 0,
+      "level_id": "level_010_base_c00",
+      "seed": 1170,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.685,
+      "solve_pass": true,
+      "score": 109.3,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 1,
+      "level_id": "level_010_base_c01",
+      "seed": 2167,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.614,
+      "solve_pass": true,
+      "score": 109.28,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 2,
+      "level_id": "level_010_base_c02",
+      "seed": 3164,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.771,
+      "solve_pass": false,
+      "score": 107.16,
+      "regenerate_reason": "solver_above_band"
+    },
+    {
+      "candidate": 3,
+      "level_id": "level_010_base_c03",
+      "seed": 4161,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.629,
+      "solve_pass": true,
+      "score": 109.58,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 4,
+      "level_id": "level_010_base_c04",
+      "seed": 5158,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.266,
+      "solve_pass": false,
+      "score": -128.4,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 5,
+      "level_id": "level_010_base_c05",
+      "seed": 6155,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.241,
+      "solve_pass": false,
+      "score": -130.9,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 6,
+      "level_id": "level_010_base_c06",
+      "seed": 7152,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.797,
+      "solve_pass": false,
+      "score": 106.12,
+      "regenerate_reason": "solver_above_band"
+    },
+    {
+      "candidate": 7,
+      "level_id": "level_010_base_c07",
+      "seed": 8149,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.749,
+      "solve_pass": true,
+      "score": 108.02,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 8,
+      "level_id": "level_010_base_c08",
+      "seed": 9146,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.675,
+      "solve_pass": true,
+      "score": 109.5,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 9,
+      "level_id": "level_010_base_c09",
+      "seed": 10143,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.611,
+      "solve_pass": true,
+      "score": 109.22,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 10,
+      "level_id": "level_010_base_c10",
+      "seed": 11140,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.662,
+      "solve_pass": true,
+      "score": 109.76,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 11,
+      "level_id": "level_010_base_c11",
+      "seed": 12137,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.526,
+      "solve_pass": false,
+      "score": -102.4,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 12,
+      "level_id": "level_010_base_c12",
+      "seed": 13134,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.247,
+      "solve_pass": false,
+      "score": -130.3,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 13,
+      "level_id": "level_010_base_c13",
+      "seed": 14131,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.255,
+      "solve_pass": false,
+      "score": -129.5,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 14,
+      "level_id": "level_010_base_c14",
+      "seed": 15128,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.752,
+      "solve_pass": false,
+      "score": 107.92,
+      "regenerate_reason": "solver_above_band"
+    },
+    {
+      "candidate": 15,
+      "level_id": "level_010_base_c15",
+      "seed": 16125,
+      "validation_verdict": "approved",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "profile": "female_prior",
+      "pass_rate": 0.741,
+      "solve_pass": true,
+      "score": 108.18,
+      "regenerate_reason": null
+    }
+  ],
+  "verdict": "selected"
+}

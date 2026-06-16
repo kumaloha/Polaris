@@ -1,0 +1,84 @@
+{
+  "level_id": "level_006_base",
+  "valid": true,
+  "metric_mode": "stochastic",
+  "target_profile": "male_prior",
+  "profile_mix": {
+    "visual_casual": 0.12,
+    "goal_focused": 0.18,
+    "bottom_cascade": 0.12,
+    "special_builder": 0.2,
+    "mechanism_aware": 0.25,
+    "frustrated_retry": 0.08,
+    "random_baseline": 0.05
+  },
+  "runs_per_persona": 20,
+  "personas": {
+    "visual_casual": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 6.15,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 6.467,
+      "fail_reason_distribution": {}
+    },
+    "goal_focused": {
+      "simulated_pass_rate_at_1": 0.95,
+      "avg_remaining_moves": 6.58,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 7.017,
+      "fail_reason_distribution": {
+        "low_target_progress": 0.05
+      }
+    },
+    "bottom_cascade": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 6.85,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 6.85,
+      "fail_reason_distribution": {}
+    },
+    "special_builder": {
+      "simulated_pass_rate_at_1": 0.9,
+      "avg_remaining_moves": 7.17,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 6.867,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.1
+      }
+    },
+    "mechanism_aware": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 6.7,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 7.083,
+      "fail_reason_distribution": {}
+    },
+    "frustrated_retry": {
+      "simulated_pass_rate_at_1": 0.95,
+      "avg_remaining_moves": 5.58,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 7.25,
+      "fail_reason_distribution": {
+        "low_target_progress": 0.05
+      }
+    },
+    "random_baseline": {
+      "simulated_pass_rate_at_1": 0.85,
+      "avg_remaining_moves": 4.71,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 4.5,
+      "fail_reason_distribution": {
+        "low_target_progress": 0.1,
+        "too_many_leftovers": 0.05
+      }
+    }
+  },
+  "aggregate_pass_rate_at_1": 0.959,
+  "aggregate_avg_remaining_moves": 6.53,
+  "aggregate_mechanism_activation_rate": 0.0,
+  "aggregate_cascade_score": 6.81,
+  "aggregate_fail_reason_distribution": {
+    "low_target_progress": 0.018,
+    "too_many_leftovers": 0.023
+  }
+}

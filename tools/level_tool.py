@@ -1,0 +1,1459 @@
+#!/usr/bin/env python3
+"""Minimal v0 level tooling for Polaris `.lvl` JSON Profile.
+
+The v0 executable profile deliberately uses strict JSON with a `.lvl`
+extension, so the compiler can run with Python's standard library and the
+Godot side can keep consuming ordinary level JSON records.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import random
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+
+PLAYABLE_TOKENS = set("o~msvnbre123456")
+SUPPORTED_OBJECTIVES = {
+    "cleanse_marks",
+    "collect",
+    "drop_relic",
+    "clear_shells",
+    "clear_creep",
+    "defuse_cores",
+    "score",
+    "order_color",
+}
+UNSUPPORTED_MECHANISMS = {
+    "starlight_cub",
+    "star_circuit",
+    "route_companion",
+    "resonance_core",
+    "star_nest",
+}
+SUPPORTED_TOPOLOGY = {"vertical_down", "split_columns"}
+
+
+TERRAIN_TEMPLATES: dict[str, list[str]] = {
+    "open_7x7": [
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+    ],
+    "open_9x9": [
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+        "ooooooooo",
+    ],
+    "bottleneck_9x9": [
+        "..ooooo..",
+        ".ooooooo.",
+        "ooooooooo",
+        "ooooooooo",
+        "...ooo...",
+        "...ooo...",
+        "ooooooooo",
+        ".ooooooo.",
+        "..ooooo..",
+    ],
+    "island_9x9": [
+        "ooooooooo",
+        "ooooooooo",
+        "ooo...ooo",
+        "oo.....oo",
+        "oo.....oo",
+        "oo.....oo",
+        "ooo...ooo",
+        "ooooooooo",
+        "ooooooooo",
+    ],
+    "fork_9x9": [
+        "ooooooooo",
+        "ooooooooo",
+        "oooo.oooo",
+        "oooo.oooo",
+        "ooooooooo",
+        "oo..o..oo",
+        "oo..o..oo",
+        "ooooooooo",
+        "ooooooooo",
+    ],
+}
+
+
+ROLE_DEFAULTS: dict[str, dict[str, Any]] = {
+    "teaching": {"colors": 4, "moves": 16},
+    "teaching_breather": {"colors": 4, "moves": 18},
+    "variation": {"colors": 5, "moves": 20},
+    "pressure_lite": {"colors": 5, "moves": 24},
+    "pressure": {"colors": 5, "moves": 26},
+    "breather": {"colors": 5, "moves": 20},
+}
+
+
+LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
+    1: {
+        "role": "teaching",
+        "complexity_tier": 0,
+        "theme": "forest_ruins",
+        "terrain": "open_7x7",
+        "target_pass_band": [0.92, 1.00],
+        "eye": "cleanse_direct",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["center_marks_7x7"],
+        "intent": "教玩家“星尘印记=要净化的目标”。",
+        "control": "direct_match",
+    },
+    2: {
+        "role": "variation",
+        "complexity_tier": 1,
+        "theme": "forest_ruins",
+        "terrain": "open_7x7",
+        "colors": 4,
+        "moves": 22,
+        "target_pass_band": [0.78, 0.92],
+        "eye": "cleanse_edge",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["edge_marks_7x7"],
+        "intent": "同目标换到边缘，训练目标位置变化。",
+        "control": "edge_targeting",
+    },
+    3: {
+        "role": "teaching_breather",
+        "complexity_tier": 1,
+        "theme": "crystal_workshop",
+        "terrain": "open_7x7",
+        "target_pass_band": [0.90, 1.00],
+        "eye": "collect_harvest",
+        "objective": {"type": "collect", "species": 0, "target": 18},
+        "placements": [],
+        "intent": "第一次换通关条件：收集指定颜色。",
+        "control": "harvest_color_0",
+    },
+    4: {
+        "role": "variation",
+        "complexity_tier": 1,
+        "theme": "hourglass_ruins",
+        "terrain": "bottleneck_9x9",
+        "target_pass_band": [0.68, 0.85],
+        "eye": "cleanse_expedition_weak",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["downstream_marks_9x9", "gate_hint_marks_9x9"],
+        "intent": "下游目标池，弱瓶颈，无晶壳。",
+        "control": "vertical_line_gem",
+    },
+    5: {
+        "role": "pressure_lite",
+        "complexity_tier": 2,
+        "theme": "crystal_workshop",
+        "terrain": "bottleneck_9x9",
+        "target_pass_band": [0.58, 0.80],
+        "eye": "crystal_shell_gate_practice",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["downstream_marks_9x9", "crystal_gate_9x9"],
+        "intent": "晶壳门首次正式改变水文：先开门再净化。",
+        "control": "vertical_line_gem",
+        "forbidden": ["creep_growth", "spawner", "timed_core", "drop_relic"],
+    },
+    6: {
+        "role": "breather",
+        "complexity_tier": 1,
+        "theme": "forest_ruins",
+        "terrain": "open_7x7",
+        "target_pass_band": [0.90, 0.99],
+        "eye": "collect_harvest",
+        "objective": {"type": "collect", "species": 1, "target": 24},
+        "placements": [],
+        "intent": "晶壳后喘息爽关，回到开阔收集。",
+        "control": "cascade_harvest",
+    },
+    7: {
+        "role": "pressure",
+        "complexity_tier": 2,
+        "theme": "hourglass_ruins",
+        "terrain": "bottleneck_9x9",
+        "moves": 22,
+        "target_pass_band": [0.55, 0.75],
+        "eye": "cleanse_expedition",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["downstream_marks_9x9", "gate_hint_marks_9x9"],
+        "intent": "沙漏主公式：上游控制力转化为下游净化。",
+        "control": "vertical_line_gem",
+    },
+    8: {
+        "role": "variation",
+        "complexity_tier": 2,
+        "theme": "crystal_mine",
+        "terrain": "open_9x9",
+        "colors": 6,
+        "moves": 16,
+        "target_pass_band": [0.65, 0.85],
+        "eye": "cleanse_siege",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["vault_marks_9x9", "vault_shell_ring_9x9"],
+        "intent": "孤岛围城：先破外圈晶壳，再净化中心。",
+        "control": "burst_gem",
+    },
+    9: {
+        "role": "teaching",
+        "complexity_tier": 1,
+        "theme": "forest_ruins",
+        "terrain": "open_9x9",
+        "moves": 36,
+        "target_pass_band": [0.90, 1.00],
+        "eye": "drop_direct",
+        "objective": {"type": "drop_relic", "target": 1},
+        "placements": ["relic_direct_9x9"],
+        "intent": "迷路幼兽回巢教学：让玩家看懂幼兽和巢门。",
+        "control": "clear_below_relic",
+    },
+    10: {
+        "role": "pressure",
+        "complexity_tier": 2,
+        "theme": "crystal_workshop",
+        "terrain": "bottleneck_9x9",
+        "moves": 46,
+        "target_pass_band": [0.55, 0.75],
+        "eye": "drop_bottleneck",
+        "objective": {"type": "drop_relic", "target": 1},
+        "placements": ["relic_bottleneck_9x9", "crystal_gate_9x9"],
+        "intent": "幼兽路径与晶壳门：先开路，再护送幼兽回巢。",
+        "control": "vertical_line_gem",
+    },
+}
+
+
+VARIANT_RULES: dict[str, dict[str, Any]] = {
+    "base": {"moves_delta": 0, "target_multiplier": 1.0, "shell_hp_delta": 0, "prior": "unknown", "prior_weight": 0.0},
+    "assisted": {"moves_delta": 3, "target_multiplier": 0.85, "shell_hp_delta": 0, "prior": "unknown", "prior_weight": 0.0},
+    "advanced": {"moves_delta": -2, "target_multiplier": 1.10, "shell_hp_delta": 1, "prior": "unknown", "prior_weight": 0.0},
+    "female_prior": {"moves_delta": 2, "target_multiplier": 0.90, "shell_hp_delta": 0, "prior": "female", "prior_weight": 0.20},
+    "male_prior": {"moves_delta": -1, "target_multiplier": 1.05, "shell_hp_delta": 1, "prior": "male", "prior_weight": 0.20},
+}
+
+
+CANDIDATE_TUNINGS: list[dict[str, Any]] = [
+    {"moves_delta": 0, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
+    {"moves_delta": -1, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
+    {"moves_delta": -2, "target_multiplier": 1.05, "shell_hp_delta": 0, "colors_delta": 0},
+    {"moves_delta": -3, "target_multiplier": 1.10, "shell_hp_delta": 1, "colors_delta": 0},
+    {"moves_delta": -4, "target_multiplier": 1.15, "shell_hp_delta": 1, "colors_delta": 1},
+    {"moves_delta": -5, "target_multiplier": 1.20, "shell_hp_delta": 2, "colors_delta": 1},
+    {"moves_delta": 1, "target_multiplier": 0.95, "shell_hp_delta": 0, "colors_delta": 0},
+    {"moves_delta": 2, "target_multiplier": 0.90, "shell_hp_delta": -1, "colors_delta": 0},
+]
+
+
+def candidate_tuning(candidate: int | None) -> dict[str, Any]:
+    if candidate is None:
+        return {"moves_delta": 0, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0}
+    base = dict(CANDIDATE_TUNINGS[candidate % len(CANDIDATE_TUNINGS)])
+    cycle = candidate // len(CANDIDATE_TUNINGS)
+    if cycle:
+        # Later retries keep moving outward instead of resampling only the RNG.
+        base["moves_delta"] = int(base["moves_delta"]) - cycle * 2
+        base["target_multiplier"] = float(base["target_multiplier"]) + cycle * 0.08
+        base["shell_hp_delta"] = int(base["shell_hp_delta"]) + cycle
+    return base
+
+
+ROLE_PASS_BANDS: dict[str, tuple[float, float]] = {
+    "teaching": (0.75, 0.98),
+    "teaching_breather": (0.70, 0.98),
+    "variation": (0.55, 0.92),
+    "breather": (0.65, 0.98),
+    "pressure_lite": (0.45, 0.88),
+    "pressure": (0.35, 0.82),
+    "peak": (0.25, 0.70),
+}
+
+
+@dataclass
+class Diagnostics:
+    errors: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+    def error(self, code: str, path: str, message: str) -> None:
+        self.errors.append({"code": code, "path": path, "message": message})
+
+    def warn(self, code: str, path: str, message: str) -> None:
+        self.warnings.append({"code": code, "path": path, "message": message})
+
+    def to_json(self) -> dict[str, Any]:
+        return {"valid": self.ok, "errors": self.errors, "warnings": self.warnings}
+
+
+def board_size(rows: list[str]) -> tuple[int, int]:
+    return len(rows[0]) if rows else 0, len(rows)
+
+
+def overlay(region: str, cells: list[list[int]], layers: list[Any]) -> dict[str, Any]:
+    return {"region": region, "cells": cells, "layers": layers}
+
+
+def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, Any]]:
+    shell_hp = max(1, 1 + shell_hp_delta)
+    shell_layer: Any = "crystal_shell" if shell_hp == 1 else {"crystal_shell": {"hp": shell_hp}}
+    presets: dict[str, list[dict[str, Any]]] = {
+        "center_marks_7x7": [
+            overlay("center_marks", [[2, 2], [2, 3], [2, 4], [3, 2], [3, 3], [3, 4]], ["target_mark"])
+        ],
+        "edge_marks_7x7": [
+            overlay("edge_marks", [[0, 1], [0, 5], [1, 0], [1, 6], [5, 0], [5, 6], [6, 1], [6, 5]], ["target_mark"])
+        ],
+        "downstream_marks_9x9": [
+            overlay("downstream_marks", [[6, 2], [6, 3], [6, 4], [6, 5], [6, 6], [7, 3], [7, 4], [7, 5]], ["target_mark"])
+        ],
+        "gate_hint_marks_9x9": [
+            overlay("gate_hint_marks", [[4, 3], [4, 4], [4, 5]], ["target_mark"])
+        ],
+        "crystal_gate_9x9": [
+            overlay("crystal_gate", [[4, 3], [4, 4], [4, 5], [5, 3], [5, 4], [5, 5]], [shell_layer])
+        ],
+        "vault_marks_9x9": [
+            overlay("vault_marks", [[3, 3], [3, 4], [3, 5], [4, 3], [4, 4], [4, 5], [5, 3], [5, 4], [5, 5]], ["target_mark"])
+        ],
+        "vault_shell_ring_9x9": [
+            overlay("vault_shell_ring", [[2, 3], [2, 4], [2, 5], [3, 2], [4, 2], [5, 2], [6, 3], [6, 4], [6, 5], [3, 6], [4, 6], [5, 6]], [shell_layer])
+        ],
+        "relic_direct_9x9": [
+            overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
+            overlay("nest_exit", [[8, 4]], ["drop_exit"]),
+        ],
+        "relic_bottleneck_9x9": [
+            overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
+            overlay("nest_exit", [[8, 4]], ["drop_exit"]),
+        ],
+    }
+    return [dict(item) for item in presets.get(preset, [])]
+
+
+def build_overlays(placements: list[str], shell_hp_delta: int = 0) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for preset in placements:
+        out.extend(placement_overlays(preset, shell_hp_delta))
+    return out
+
+
+def objective_with_variant(objective: dict[str, Any], target_multiplier: float) -> dict[str, Any]:
+    out = dict(objective)
+    if isinstance(out.get("target"), int):
+        out["target"] = max(1, int(round(int(out["target"]) * target_multiplier)))
+    return out
+
+
+def generated_design_claim(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    eye = coord["eye"]
+    if eye == "crystal_shell_gate_practice":
+        return {
+            "eye": "晶壳门卡住下游星尘池，玩家必须先开门再净化。",
+            "visual_focus": "中央 2x3 晶壳门压住下方星尘池。",
+            "intended_solution": ["在上游找纵向线消机会", "优先破中央晶壳门", "门开后让下游 cascade 净化星尘印记"],
+            "crack_path": ["read_bottleneck_gate", "access_gate_by_match_or_line", "activate_supply_recovery", "payoff_downstream_cascade", "convert_to_target_mark_progress", "finish_remaining_marks"],
+            "climax": "晶壳门破后，下游星尘池连续净化。",
+        }
+    if eye.startswith("drop"):
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "迷路幼兽起点、下方路径和底部巢门。",
+            "intended_solution": ["看清幼兽所在列和巢门", "优先清掉幼兽下方路径", "必要时先打开晶壳门", "让幼兽落到底部巢门"],
+            "crack_path": ["read_lost_cub_and_exit", "access_drop_path", "activate_path_opening", "payoff_cub_falls", "convert_to_drop_relic_progress", "finish_remaining_objectives"],
+            "climax": "迷路幼兽落入巢门回家。",
+        }
+    if eye.startswith("collect"):
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "开阔棋盘和收集目标计数。",
+            "intended_solution": ["优先消目标色", "利用自然连锁提高收集效率"],
+            "crack_path": ["read_collect_target", "access_open_board", "convert_matches_to_collection", "finish_collection"],
+            "climax": "一次连锁收集多个目标色。",
+        }
+    if "edge" in eye:
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "四周边缘星尘印记。",
+            "intended_solution": ["优先找边缘附近的消除", "用横竖线消补掉边角"],
+            "crack_path": ["read_edge_targets", "access_edge", "convert_matches_to_mark_progress", "finish_remaining_marks"],
+            "climax": "边缘连续被清掉后盘面打开。",
+        }
+    if "expedition" in eye:
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "中央窄口和下方星尘池。",
+            "intended_solution": ["在上游制造纵向清除", "通过窄口让下游产生连锁", "收尾净化下游印记"],
+            "crack_path": ["read_downstream_pool", "access_bottleneck", "payoff_downstream_cascade", "convert_to_target_mark_progress", "finish_remaining_marks"],
+            "climax": "窄口被打通后下游连续净化。",
+        }
+    if "siege" in eye:
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "中心星尘池和外圈晶壳。",
+            "intended_solution": ["先破外圈晶壳", "打开中心目标区", "用爆破或线消收尾"],
+            "crack_path": ["read_vault_shell", "access_vault", "activate_shell_break", "payoff_center_opens", "convert_to_target_mark_progress", "finish_remaining_marks"],
+            "climax": "中心金库打开后一次爆破清掉多枚印记。",
+        }
+    return {
+        "eye": coord["intent"],
+        "visual_focus": "目标区。",
+        "intended_solution": ["读取目标", "制造可用消除", "完成目标"],
+        "crack_path": ["read_objective", "access_target", "convert_progress", "finish"],
+        "climax": "目标完成。",
+    }
+
+
+def generate_level(level: int, variant: str = "base", candidate: int | None = None) -> dict[str, Any]:
+    if level not in LEVEL_COORDINATES:
+        raise ValueError(f"no programmatic coordinate for level {level}")
+    if variant not in VARIANT_RULES:
+        raise ValueError(f"unknown variant {variant}")
+    coord = LEVEL_COORDINATES[level]
+    variant_rule = VARIANT_RULES[variant]
+    tuning = candidate_tuning(candidate)
+    role = coord["role"]
+    role_defaults = ROLE_DEFAULTS[role]
+    rows = TERRAIN_TEMPLATES[coord["terrain"]]
+    width, height = board_size(rows)
+    moves = max(8, int(coord.get("moves", role_defaults["moves"])) + int(variant_rule["moves_delta"]) + int(tuning["moves_delta"]))
+    colors = max(4, min(6, int(coord.get("colors", role_defaults["colors"])) + int(tuning["colors_delta"])))
+    target_multiplier = float(variant_rule["target_multiplier"]) * float(tuning["target_multiplier"])
+    shell_hp_delta = int(variant_rule["shell_hp_delta"]) + int(tuning["shell_hp_delta"])
+    seed = 1000 + level * 17 + list(VARIANT_RULES).index(variant) + (0 if candidate is None else candidate * 997)
+    level_id = f"level_{level:03d}_{variant}" if candidate is None else f"level_{level:03d}_{variant}_c{candidate:02d}"
+
+    return {
+        "id": level_id,
+        "version": 0,
+        "compile_mode": "playable",
+        "meta": {
+            "level_coordinate": level,
+            "variant": variant,
+            "role": role,
+            "complexity_tier": coord["complexity_tier"],
+            "theme": coord["theme"],
+            "target_pass_band": coord["target_pass_band"],
+            "generated_by": "tools/level_tool.py generate",
+            "candidate_index": candidate,
+            "candidate_tuning": tuning if candidate is not None else None,
+        },
+        "personalization": {
+            "profile_band": "default_mid_skill",
+            "cold_start_prior": variant_rule["prior"],
+            "prior_weight": variant_rule["prior_weight"],
+            "target_pass_band": coord["target_pass_band"],
+            "target_attempts_to_first_win": [1.0, 2.0] if role in {"teaching", "teaching_breather"} else [1.5, 3.0],
+            "pet_skill_context": "ignored_v0",
+        },
+        "objective": objective_with_variant(coord["objective"], target_multiplier),
+        "rules": {"moves": moves, "colors": colors, "refill": "random", "gravity": "down", "seed": seed},
+        "map": {
+            "width": width,
+            "height": height,
+            "terrain": {"sample": coord["terrain"].replace("_7x7", "").replace("_9x9", "")},
+            "supply_topology": {"type": "vertical_down"},
+        },
+        "recipe": {
+            "eye": coord["eye"],
+            "obstacle_lane": {
+                "focus": "crystal_shell" if "crystal_gate" in coord["placements"] or "shell" in coord["eye"] else ("target_mark" if coord["objective"]["type"] == "cleanse_marks" else "none"),
+                "stage": role,
+                "active": sorted({name for entry in build_overlays(coord["placements"]) for name in layer_names(entry.get("layers", []))}),
+                "forbidden": coord.get("forbidden", []),
+            },
+            "mechanism_lane": {"focus": "none", "stage": "none"},
+            "intended_control": coord["control"],
+        },
+        "board": rows,
+        "overlays": build_overlays(coord["placements"], shell_hp_delta),
+        "mechanisms": [],
+        "design_claim": generated_design_claim(level, coord),
+    }
+
+
+def write_generated_levels(levels: list[int], variant: str, out_dir: Path) -> list[Path]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for level in levels:
+        lvl = generate_level(level, variant)
+        path = out_dir / f"level_{level:03d}_{variant}.lvl"
+        path.write_text(json.dumps(lvl, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        written.append(path)
+    return written
+
+
+def load_lvl(path: Path) -> tuple[dict[str, Any] | None, Diagnostics]:
+    d = Diagnostics()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        d.error("E_READ_FILE", str(path), str(exc))
+        return None, d
+    try:
+        obj = json.loads(text)
+    except json.JSONDecodeError as exc:
+        d.error("E_PARSE_JSON", str(path), f"{exc.msg} at line {exc.lineno}, col {exc.colno}")
+        return None, d
+    if not isinstance(obj, dict):
+        d.error("E_ROOT_TYPE", "$", "root must be a JSON object")
+        return None, d
+    return obj, d
+
+
+def board_rows(lvl: dict[str, Any], d: Diagnostics) -> list[str]:
+    board = lvl.get("board")
+    if isinstance(board, list) and all(isinstance(x, str) for x in board):
+        return board
+    if isinstance(board, str):
+        return [line.rstrip("\n") for line in board.splitlines() if line.strip()]
+    d.error("E_BOARD_TYPE", "board", "board must be a list of equal-width strings")
+    return []
+
+
+def lint_lvl(lvl: dict[str, Any]) -> Diagnostics:
+    d = Diagnostics()
+    required = ["id", "version", "compile_mode", "meta", "personalization", "rules", "map", "recipe", "board", "overlays", "design_claim"]
+    for key in required:
+        if key not in lvl:
+            d.error("E_MISSING_FIELD", key, f"missing required root field: {key}")
+
+    if "objective" in lvl and "objectives" in lvl:
+        d.error("E_OBJECTIVE_CONFLICT", "objective/objectives", "use either objective or objectives, not both")
+    if "objective" not in lvl and "objectives" not in lvl:
+        d.error("E_MISSING_FIELD", "objective", "one of objective/objectives is required")
+
+    compile_mode = lvl.get("compile_mode", "playable")
+    if compile_mode not in {"playable", "design_only"}:
+        d.error("E_COMPILE_MODE", "compile_mode", "compile_mode must be playable or design_only")
+
+    pass_band = lvl.get("meta", {}).get("target_pass_band")
+    if not (isinstance(pass_band, list) and len(pass_band) == 2 and all(isinstance(x, (int, float)) for x in pass_band) and 0.0 <= float(pass_band[0]) <= float(pass_band[1]) <= 1.0):
+        d.error("E_TARGET_PASS_BAND", "meta.target_pass_band", "target_pass_band must be [low, high] within 0..1")
+
+    rows = board_rows(lvl, d)
+    width = int(lvl.get("map", {}).get("width", 0) or 0)
+    height = int(lvl.get("map", {}).get("height", 0) or 0)
+    if rows:
+        if height and len(rows) != height:
+            d.error("E_BOARD_SIZE", "board", f"board height {len(rows)} != map.height {height}")
+        if width:
+            bad = [i for i, row in enumerate(rows) if len(row) != width]
+            if bad:
+                d.error("E_BOARD_SIZE", "board", f"rows {bad} do not match map.width {width}")
+        for r, row in enumerate(rows):
+            for c, ch in enumerate(row):
+                if ch != "." and ch not in PLAYABLE_TOKENS:
+                    d.error("E_UNKNOWN_TOKEN", f"board[{r}][{c}]", f"unknown board token {ch!r}")
+
+    rules = lvl.get("rules", {})
+    colors = int(rules.get("colors", 0) or 0)
+    if colors < 4 or colors > 6:
+        d.error("E_COLOR_COUNT", "rules.colors", "rules.colors must be in [4, 6]")
+    if rules.get("gravity", "down") != "down":
+        d.error("E_UNSUPPORTED_GRAVITY", "rules.gravity", "v0 playable only supports gravity=down")
+
+    topology = lvl.get("map", {}).get("supply_topology", {}).get("type", "vertical_down")
+    if compile_mode == "playable" and topology not in SUPPORTED_TOPOLOGY:
+        d.error("E_UNSUPPORTED_SUPPLY_TOPOLOGY", "map.supply_topology.type", f"{topology} is not playable_v0")
+
+    for i, m in enumerate(lvl.get("mechanisms", []) or []):
+        mtype = m.get("type")
+        if compile_mode == "playable" and mtype in UNSUPPORTED_MECHANISMS:
+            d.error("E_UNSUPPORTED_MECHANISM", f"mechanisms[{i}].type", f"{mtype} is design_only in v0")
+
+    objectives = normalize_objectives(lvl)
+    for i, obj in enumerate(objectives):
+        typ = obj.get("type")
+        if typ not in SUPPORTED_OBJECTIVES:
+            d.error("E_UNSUPPORTED_OBJECTIVE", f"objectives[{i}].type", f"{typ} is not supported in playable_v0")
+
+    if "crack_path" not in lvl.get("design_claim", {}):
+        d.error("E_MISSING_CRACK_PATH", "design_claim.crack_path", "design_claim.crack_path is required")
+
+    # Overlay coordinate checks.
+    for i, entry in enumerate(lvl.get("overlays", []) or []):
+        cells = overlay_cells(entry)
+        for cell in cells:
+            if not valid_cell(cell, height, width):
+                d.error("E_CELL_OUT_OF_RANGE", f"overlays[{i}]", f"cell {cell} out of range")
+                continue
+            if rows and rows[cell[0]][cell[1]] == "." and "drop_exit" not in layer_names(entry.get("layers", [])):
+                d.error("E_LAYER_ON_HOLE", f"overlays[{i}]", f"cell {cell} is a hole")
+
+    return d
+
+
+def normalize_objectives(lvl: dict[str, Any]) -> list[dict[str, Any]]:
+    if "objectives" in lvl:
+        return list(lvl.get("objectives") or [])
+    return [dict(lvl.get("objective") or {})]
+
+
+def valid_cell(cell: Any, height: int, width: int) -> bool:
+    return isinstance(cell, list) and len(cell) == 2 and isinstance(cell[0], int) and isinstance(cell[1], int) and 0 <= cell[0] < height and 0 <= cell[1] < width
+
+
+def overlay_cells(entry: dict[str, Any]) -> list[list[int]]:
+    if "cell" in entry:
+        return [entry["cell"]]
+    return list(entry.get("cells") or [])
+
+
+def layer_names(layers: list[Any]) -> list[str]:
+    out: list[str] = []
+    for layer in layers or []:
+        if isinstance(layer, str):
+            out.append(layer)
+        elif isinstance(layer, dict):
+            out.extend(str(k) for k in layer.keys())
+    return out
+
+
+def layer_item(layer: Any) -> tuple[str, dict[str, Any]]:
+    if isinstance(layer, str):
+        return layer, {}
+    if isinstance(layer, dict) and len(layer) == 1:
+        key = next(iter(layer))
+        val = layer[key]
+        return str(key), dict(val or {})
+    return str(layer), {}
+
+
+def blank(h: int, w: int, value: int = 0) -> list[list[int]]:
+    return [[value for _ in range(w)] for _ in range(h)]
+
+
+def build_grid(rows: list[str], colors: int, seed: int) -> list[list[int]]:
+    rng = random.Random(seed)
+    grid: list[list[int]] = []
+    for r, row in enumerate(rows):
+        out_row: list[int] = []
+        for c, ch in enumerate(row):
+            if ch == ".":
+                out_row.append(-2)
+            elif ch in "123456":
+                out_row.append(int(ch) - 1)
+            else:
+                choices = list(range(colors))
+                rng.shuffle(choices)
+                chosen = choices[0]
+                for candidate in choices:
+                    if not would_make_initial_match(grid, out_row, r, c, candidate):
+                        chosen = candidate
+                        break
+                out_row.append(chosen)
+        grid.append(out_row)
+    return grid
+
+
+def would_make_initial_match(grid: list[list[int]], row: list[int], r: int, c: int, val: int) -> bool:
+    if val < 0:
+        return False
+    if c >= 2 and row[c - 1] == val and row[c - 2] == val:
+        return True
+    if r >= 2 and grid[r - 1][c] == val and grid[r - 2][c] == val:
+        return True
+    return False
+
+
+def compile_lvl(lvl: dict[str, Any]) -> tuple[dict[str, Any] | None, Diagnostics]:
+    d = lint_lvl(lvl)
+    if not d.ok:
+        return None, d
+
+    rows = board_rows(lvl, d)
+    h = int(lvl["map"]["height"])
+    w = int(lvl["map"]["width"])
+    rules = lvl["rules"]
+    colors = int(rules["colors"])
+    seed = int(rules.get("seed", 0))
+
+    jelly = blank(h, w)
+    coat = blank(h, w)
+    choco = blank(h, w)
+    ing = blank(h, w)
+    bomb = blank(h, w)
+    cannon = blank(h, w)
+    popcorn = blank(h, w)
+    cake = blank(h, w)
+    mystery = blank(h, w)
+    exits: list[int] = []
+
+    for entry in lvl.get("overlays", []) or []:
+        for cell in overlay_cells(entry):
+            r, c = cell
+            for raw_layer in entry.get("layers", []) or []:
+                name, params = layer_item(raw_layer)
+                hp = int(params.get("hp", 1) or 1)
+                if name == "target_mark":
+                    jelly[r][c] = hp
+                elif name == "crystal_shell":
+                    coat[r][c] = hp
+                elif name == "creep_growth":
+                    choco[r][c] = hp
+                elif name == "drop_relic":
+                    ing[r][c] = int(params.get("count", 1) or 1)
+                elif name == "drop_exit":
+                    if r != h - 1:
+                        d.error("E_DROP_EXIT_ROW", "overlays", f"drop_exit must be on bottom row, got {cell}")
+                    elif c not in exits:
+                        exits.append(c)
+                elif name == "timed_core":
+                    bomb[r][c] = int(params.get("timer", max(1, int(rules["moves"]) // 2)))
+                elif name == "spawner":
+                    cannon[r][c] = int(params.get("kind", 1) or 1)
+                elif name in {"popcorn", "cake", "mystery"}:
+                    {"popcorn": popcorn, "cake": cake, "mystery": mystery}[name][r][c] = hp
+                else:
+                    d.warn("W_IGNORED_LAYER", "overlays", f"ignored non-engine layer {name}")
+
+    if not d.ok:
+        return None, d
+
+    objectives = [compile_objective(obj, jelly, coat, choco, ing, bomb, lvl, d) for obj in normalize_objectives(lvl)]
+    objectives = [o for o in objectives if o]
+    if not d.ok:
+        return None, d
+
+    record = {
+        "level_id": lvl["id"],
+        "w": w,
+        "h": h,
+        "species": list(range(colors)),
+        "init_board": build_grid(rows, colors, seed),
+        "target_score": int(first_objective(lvl).get("target_score", 0) or 0),
+        "move_limit": int(rules["moves"]),
+        "seed": seed,
+        "objectives": objectives,
+        "jelly": jelly,
+        "coat": coat,
+        "choco": choco,
+        "ing": ing,
+        "exits": sorted(exits),
+        "bomb": bomb,
+        "cannon": cannon,
+        "popcorn": popcorn,
+        "cake": cake,
+        "mystery": mystery,
+        "difficulty": difficulty_for_role(lvl.get("meta", {}).get("role", "")),
+    }
+    return record, d
+
+
+def first_objective(lvl: dict[str, Any]) -> dict[str, Any]:
+    return normalize_objectives(lvl)[0] if normalize_objectives(lvl) else {}
+
+
+def layer_sum(layer: list[list[int]]) -> int:
+    return sum(sum(max(0, int(x)) for x in row) for row in layer)
+
+
+def compile_objective(obj: dict[str, Any], jelly: list[list[int]], coat: list[list[int]], choco: list[list[int]], ing: list[list[int]], bomb: list[list[int]], lvl: dict[str, Any], d: Diagnostics) -> dict[str, Any] | None:
+    typ = obj.get("type")
+    if typ == "cleanse_marks":
+        target = layer_sum(jelly) if obj.get("target", "all") == "all" else int(obj.get("target", 0))
+        if target <= 0:
+            d.error("E_EMPTY_OBJECTIVE", "objective", "cleanse_marks requires at least one target_mark")
+        return {"type": "CLEAR_JELLY", "species": -1, "target": target}
+    if typ in {"collect", "order_color"}:
+        if "species" not in obj:
+            d.error("E_MISSING_OBJECTIVE_FIELD", "objective.species", f"{typ} requires species")
+            return None
+        return {"type": "COLLECT", "species": int(obj["species"]), "target": int(obj.get("target", 1))}
+    if typ == "drop_relic":
+        target = int(obj.get("target", layer_sum(ing)))
+        if target <= 0:
+            d.error("E_EMPTY_OBJECTIVE", "objective", "drop_relic requires at least one drop_relic")
+        return {"type": "COLLECT_INGREDIENT", "species": -1, "target": target}
+    if typ == "clear_shells":
+        return {"type": "CLEAR_BLOCKER", "species": -1, "target": int(obj.get("target", layer_sum(coat)))}
+    if typ == "clear_creep":
+        return {"type": "CLEAR_CHOCO", "species": -1, "target": int(obj.get("target", layer_sum(choco)))}
+    if typ == "defuse_cores":
+        return {"type": "DEFUSE_BOMB", "species": -1, "target": int(obj.get("target", layer_sum(bomb)))}
+    if typ == "score":
+        return {"type": "SCORE", "species": -1, "target": int(obj.get("target_score", 0))}
+    d.error("E_UNSUPPORTED_OBJECTIVE", "objective.type", f"{typ} unsupported")
+    return None
+
+
+def difficulty_for_role(role: str) -> str:
+    if role in {"teaching", "breather"}:
+        return "EASY"
+    if role in {"pressure", "pressure_lite", "variation"}:
+        return "MEDIUM"
+    if role == "peak":
+        return "HARD"
+    return "MEDIUM"
+
+
+def find_matches(grid: list[list[int]]) -> set[tuple[int, int]]:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    found: set[tuple[int, int]] = set()
+    for r in range(h):
+        c = 0
+        while c < w:
+            val = grid[r][c]
+            start = c
+            while c < w and grid[r][c] == val:
+                c += 1
+            if val >= 0 and c - start >= 3:
+                for x in range(start, c):
+                    found.add((r, x))
+    for c in range(w):
+        r = 0
+        while r < h:
+            val = grid[r][c]
+            start = r
+            while r < h and grid[r][c] == val:
+                r += 1
+            if val >= 0 and r - start >= 3:
+                for y in range(start, r):
+                    found.add((y, c))
+    return found
+
+
+def find_match_runs(grid: list[list[int]]) -> list[list[tuple[int, int]]]:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    runs: list[list[tuple[int, int]]] = []
+    for r in range(h):
+        c = 0
+        while c < w:
+            val = grid[r][c]
+            start = c
+            while c < w and grid[r][c] == val:
+                c += 1
+            if val >= 0 and c - start >= 3:
+                runs.append([(r, x) for x in range(start, c)])
+    for c in range(w):
+        r = 0
+        while r < h:
+            val = grid[r][c]
+            start = r
+            while r < h and grid[r][c] == val:
+                r += 1
+            if val >= 0 and r - start >= 3:
+                runs.append([(y, c) for y in range(start, r)])
+    return runs
+
+
+def has_legal_move(grid: list[list[int]]) -> bool:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    for r in range(h):
+        for c in range(w):
+            if grid[r][c] < 0:
+                continue
+            for dr, dc in ((1, 0), (0, 1)):
+                rr, cc = r + dr, c + dc
+                if rr >= h or cc >= w or grid[rr][cc] < 0:
+                    continue
+                grid[r][c], grid[rr][cc] = grid[rr][cc], grid[r][c]
+                ok = bool(find_matches(grid))
+                grid[r][c], grid[rr][cc] = grid[rr][cc], grid[r][c]
+                if ok:
+                    return True
+    return False
+
+
+def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
+    compiled, diag = compile_lvl(lvl)
+    out: dict[str, Any] = {
+        "level_id": lvl.get("id", "<unknown>"),
+        "lint": diag.to_json(),
+        "compile": {"valid": compiled is not None, "errors": diag.errors, "warnings": diag.warnings},
+        "structural": {},
+        "verdict": "reject",
+        "recommendations": [],
+    }
+    if compiled is None:
+        return out
+
+    grid = compiled["init_board"]
+    playable = sum(1 for row in grid for val in row if val >= 0)
+    initial_matches = len(find_matches(grid))
+    legal = has_legal_move([row[:] for row in grid])
+    objectives = compiled.get("objectives", [])
+    objective_ok = all(int(o.get("target", 0)) > 0 for o in objectives)
+
+    drop_path_ok = True
+    if any(o.get("type") == "COLLECT_INGREDIENT" for o in objectives):
+        exits = set(compiled.get("exits", []))
+        if not exits:
+            drop_path_ok = False
+        else:
+            for r, row in enumerate(compiled["ing"]):
+                for c, val in enumerate(row):
+                    if val > 0 and c not in exits:
+                        # v0 route check is intentionally conservative: a direct
+                        # vertical path to some exit column is required.
+                        drop_path_ok = False
+
+    structural_valid = playable >= 20 and legal and objective_ok and drop_path_ok
+    out["structural"] = {
+        "valid": structural_valid,
+        "playable_cell_count": playable,
+        "initial_match_count": initial_matches,
+        "legal_move_exists": legal,
+        "objective_ok": objective_ok,
+        "drop_path_ok": drop_path_ok,
+    }
+    out["verdict"] = "approved" if structural_valid else "revise_major"
+    if initial_matches:
+        out["recommendations"].append("initial board contains auto matches; acceptable for preview only, avoid for final tuning")
+    if not legal:
+        out["recommendations"].append("seed/fixed board has no legal opening move")
+    if not drop_path_ok:
+        out["recommendations"].append("drop_relic must start above a bottom exit column in executable v0")
+    return out
+
+
+PERSONA_WEIGHTS: dict[str, dict[str, float]] = {
+    "random_baseline": {"immediate": 0.10, "target": 0.05, "blocker": 0.05, "special": 0.00, "mechanism": 0.00, "bottom": 0.05, "cascade": 0.05, "risk": 0.00, "noise": 0.70},
+    "visual_casual": {"immediate": 0.30, "target": 0.22, "blocker": 0.12, "special": 0.06, "mechanism": 0.08, "bottom": 0.12, "cascade": 0.10, "risk": 0.05, "noise": 0.25},
+    "bottom_cascade": {"immediate": 0.22, "target": 0.12, "blocker": 0.08, "special": 0.08, "mechanism": 0.05, "bottom": 0.25, "cascade": 0.20, "risk": 0.04, "noise": 0.22},
+    "goal_focused": {"immediate": 0.18, "target": 0.34, "blocker": 0.18, "special": 0.07, "mechanism": 0.13, "bottom": 0.04, "cascade": 0.06, "risk": 0.06, "noise": 0.16},
+    "special_builder": {"immediate": 0.14, "target": 0.16, "blocker": 0.10, "special": 0.32, "mechanism": 0.08, "bottom": 0.05, "cascade": 0.15, "risk": 0.07, "noise": 0.18},
+    "mechanism_aware": {"immediate": 0.12, "target": 0.20, "blocker": 0.16, "special": 0.12, "mechanism": 0.30, "bottom": 0.03, "cascade": 0.07, "risk": 0.08, "noise": 0.12},
+    "frustrated_retry": {"immediate": 0.34, "target": 0.25, "blocker": 0.12, "special": 0.04, "mechanism": 0.08, "bottom": 0.07, "cascade": 0.05, "risk": 0.12, "noise": 0.30},
+}
+
+
+PROFILE_MIXES: dict[str, dict[str, float]] = {
+    "balanced": {
+        "visual_casual": 0.20,
+        "goal_focused": 0.20,
+        "bottom_cascade": 0.15,
+        "special_builder": 0.15,
+        "mechanism_aware": 0.15,
+        "frustrated_retry": 0.10,
+        "random_baseline": 0.05,
+    },
+    "female_prior": {
+        "visual_casual": 0.25,
+        "goal_focused": 0.20,
+        "bottom_cascade": 0.15,
+        "special_builder": 0.12,
+        "mechanism_aware": 0.10,
+        "frustrated_retry": 0.13,
+        "random_baseline": 0.05,
+    },
+    "male_prior": {
+        "visual_casual": 0.12,
+        "goal_focused": 0.18,
+        "bottom_cascade": 0.12,
+        "special_builder": 0.20,
+        "mechanism_aware": 0.25,
+        "frustrated_retry": 0.08,
+        "random_baseline": 0.05,
+    },
+}
+
+
+def normalized_profile_mix(profile: str) -> dict[str, float]:
+    if profile not in PROFILE_MIXES:
+        raise ValueError(f"unknown simulation profile {profile}")
+    mix = PROFILE_MIXES[profile]
+    total = sum(float(v) for v in mix.values())
+    return {k: float(v) / total for k, v in mix.items()}
+
+
+def objective_remaining(state: dict[str, Any], objectives: list[dict[str, Any]]) -> int:
+    total = 0
+    for obj in objectives:
+        typ = obj.get("type")
+        target = int(obj.get("target", 0))
+        if typ == "CLEAR_JELLY":
+            total += max(0, layer_sum(state["jelly"]))
+        elif typ == "CLEAR_BLOCKER":
+            total += max(0, layer_sum(state["coat"]))
+        elif typ == "COLLECT":
+            key = f"collect_{int(obj.get('species', -1))}"
+            total += max(0, target - int(state["progress"].get(key, 0)))
+        elif typ == "COLLECT_INGREDIENT":
+            total += max(0, target - int(state["progress"].get("ingredient_collected", 0)))
+    return total
+
+
+def is_sim_won(state: dict[str, Any], objectives: list[dict[str, Any]]) -> bool:
+    return objective_remaining(state, objectives) <= 0
+
+
+def copy_state(compiled: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "grid": [row[:] for row in compiled["init_board"]],
+        "jelly": [row[:] for row in compiled["jelly"]],
+        "coat": [row[:] for row in compiled["coat"]],
+        "choco": [row[:] for row in compiled["choco"]],
+        "ing": [row[:] for row in compiled["ing"]],
+        "exits": set(int(x) for x in compiled.get("exits", [])),
+        "progress": {},
+    }
+
+
+def legal_moves_for_grid(grid: list[list[int]]) -> list[tuple[tuple[int, int], tuple[int, int]]]:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    out: list[tuple[tuple[int, int], tuple[int, int]]] = []
+    for r in range(h):
+        for c in range(w):
+            if grid[r][c] < 0:
+                continue
+            for dr, dc in ((1, 0), (0, 1)):
+                rr, cc = r + dr, c + dc
+                if rr >= h or cc >= w or grid[rr][cc] < 0:
+                    continue
+                grid[r][c], grid[rr][cc] = grid[rr][cc], grid[r][c]
+                if find_matches(grid):
+                    out.append(((r, c), (rr, cc)))
+                grid[r][c], grid[rr][cc] = grid[rr][cc], grid[r][c]
+    return out
+
+
+def apply_gravity_simple(grid: list[list[int]], colors: int, rng: random.Random) -> None:
+    h = len(grid)
+    w = len(grid[0]) if h else 0
+    for c in range(w):
+        r = h - 1
+        while r >= 0:
+            if grid[r][c] == -2:
+                r -= 1
+                continue
+            end = r
+            while r >= 0 and grid[r][c] != -2:
+                r -= 1
+            start = r + 1
+            vals = [grid[y][c] for y in range(start, end + 1) if grid[y][c] >= 0]
+            missing = (end - start + 1) - len(vals)
+            new_vals = [rng.randrange(colors) for _ in range(missing)] + vals
+            for idx, y in enumerate(range(start, end + 1)):
+                grid[y][c] = new_vals[idx]
+
+
+def advance_ingredients_simple(state: dict[str, Any], cleared_cells: set[tuple[int, int]] | None = None) -> None:
+    """Advance drop_relic one row per cascade in the v0 persona simulator.
+
+    This is not a full engine recreation. It gives the simulator a readable
+    approximation of "clear below the lost cub so it travels toward the nest"
+    without introducing deep physics into the planning loop.  When
+    ``cleared_cells`` is provided, the cub only advances if the cell directly
+    below it participated in the current cascade; otherwise drop objectives are
+    unrealistically easy because the actor would drift downward every cascade.
+    """
+    ing = state["ing"]
+    grid = state["grid"]
+    exits = state.get("exits", set())
+    h = len(ing)
+    w = len(ing[0]) if h else 0
+    for r in range(h - 1, -1, -1):
+        for c in range(w):
+            if ing[r][c] <= 0:
+                continue
+            if r == h - 1:
+                if c in exits:
+                    state["progress"]["ingredient_collected"] = int(state["progress"].get("ingredient_collected", 0)) + ing[r][c]
+                    ing[r][c] = 0
+                continue
+            if cleared_cells is not None and (r + 1, c) not in cleared_cells:
+                continue
+            if grid[r + 1][c] != -2 and ing[r + 1][c] == 0:
+                count = ing[r][c]
+                ing[r][c] = 0
+                if r + 1 == h - 1 and c in exits:
+                    state["progress"]["ingredient_collected"] = int(state["progress"].get("ingredient_collected", 0)) + count
+                else:
+                    ing[r + 1][c] = count
+
+
+def simulate_apply_move(state: dict[str, Any], move: tuple[tuple[int, int], tuple[int, int]], colors: int, rng: random.Random, objectives: list[dict[str, Any]]) -> dict[str, float]:
+    before_remaining = objective_remaining(state, objectives)
+    before_coat = layer_sum(state["coat"])
+    grid = state["grid"]
+    (r1, c1), (r2, c2) = move
+    grid[r1][c1], grid[r2][c2] = grid[r2][c2], grid[r1][c1]
+    total_cleared = 0
+    cascade_count = 0
+    special_created = 0
+    touched_rows: list[int] = []
+
+    for _ in range(12):
+        runs = find_match_runs(grid)
+        if not runs:
+            break
+        cascade_count += 1
+        cells = {cell for run in runs for cell in run}
+        special_created += sum(1 for run in runs if len(run) >= 4)
+        total_cleared += len(cells)
+        for r, c in cells:
+            touched_rows.append(r)
+            val = grid[r][c]
+            if val >= 0:
+                key = f"collect_{val}"
+                state["progress"][key] = int(state["progress"].get(key, 0)) + 1
+            if state["jelly"][r][c] > 0:
+                state["jelly"][r][c] = 0
+            grid[r][c] = -1
+        # Adjacent/simple blocker damage.
+        damaged: set[tuple[int, int]] = set()
+        for r, c in cells:
+            for rr, cc in ((r, c), (r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
+                if 0 <= rr < len(grid) and 0 <= cc < len(grid[0]) and state["coat"][rr][cc] > 0:
+                    damaged.add((rr, cc))
+        for r, c in damaged:
+            state["coat"][r][c] = max(0, state["coat"][r][c] - 1)
+        apply_gravity_simple(grid, colors, rng)
+        advance_ingredients_simple(state, cells)
+
+    after_remaining = objective_remaining(state, objectives)
+    after_coat = layer_sum(state["coat"])
+    h = len(grid)
+    return {
+        "immediate": min(1.0, total_cleared / 9.0),
+        "target": min(1.0, max(0, before_remaining - after_remaining) / max(1, before_remaining)),
+        "blocker": min(1.0, max(0, before_coat - after_coat) / max(1, before_coat)),
+        "special": min(1.0, special_created / 2.0),
+        "mechanism": min(1.0, (max(0, before_coat - after_coat) + max(0, before_remaining - after_remaining)) / 4.0),
+        "bottom": (sum(touched_rows) / len(touched_rows) / max(1, h - 1)) if touched_rows else 0.0,
+        "cascade": min(1.0, max(0, cascade_count - 1) / 3.0),
+        "risk": 0.0,
+    }
+
+
+def score_move(compiled: dict[str, Any], base_state: dict[str, Any], move: tuple[tuple[int, int], tuple[int, int]], persona: str, rng: random.Random) -> tuple[float, dict[str, float]]:
+    trial = {
+        "grid": [row[:] for row in base_state["grid"]],
+        "jelly": [row[:] for row in base_state["jelly"]],
+        "coat": [row[:] for row in base_state["coat"]],
+        "choco": [row[:] for row in base_state["choco"]],
+        "ing": [row[:] for row in base_state["ing"]],
+        "exits": set(base_state.get("exits", set())),
+        "progress": dict(base_state["progress"]),
+    }
+    features = simulate_apply_move(trial, move, len(compiled["species"]), rng, compiled["objectives"])
+    weights = PERSONA_WEIGHTS[persona]
+    total = 0.0
+    for key, val in features.items():
+        if key == "risk":
+            total -= weights.get("risk", 0.0) * val
+        else:
+            total += weights.get(key, 0.0) * val
+    total += rng.uniform(-weights["noise"], weights["noise"])
+    return total, features
+
+
+def run_one_attempt(compiled: dict[str, Any], persona: str, seed: int) -> dict[str, Any]:
+    rng = random.Random(seed)
+    state = copy_state(compiled)
+    moves = int(compiled["move_limit"])
+    activation_turn = None
+    cascade_score = 0.0
+    for turn in range(1, moves + 1):
+        if is_sim_won(state, compiled["objectives"]):
+            return {"won": True, "turns": turn - 1, "moves_left": moves - turn + 1, "activation_turn": activation_turn, "cascade_score": cascade_score}
+        moves_list = legal_moves_for_grid(state["grid"])
+        if not moves_list:
+            return {"won": False, "turns": turn - 1, "moves_left": moves - turn + 1, "fail_reason": "no_legal_move_loop", "activation_turn": activation_turn, "cascade_score": cascade_score}
+        scored = [score_move(compiled, state, mv, persona, rng) + (mv,) for mv in moves_list]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        if rng.random() < 0.80 or len(scored) == 1:
+            chosen = scored[0]
+        else:
+            top = scored[: min(3, len(scored))]
+            weights = [math.exp(x[0] / 0.15) for x in top]
+            chosen = rng.choices(top, weights=weights, k=1)[0]
+        _, features, move = chosen
+        before_coat = layer_sum(state["coat"])
+        simulate_apply_move(state, move, len(compiled["species"]), rng, compiled["objectives"])
+        cascade_score += features.get("cascade", 0.0)
+        if activation_turn is None and before_coat > layer_sum(state["coat"]):
+            activation_turn = turn
+    won = is_sim_won(state, compiled["objectives"])
+    fail_reason = "too_many_leftovers" if objective_remaining(state, compiled["objectives"]) <= 3 else "low_target_progress"
+    return {"won": won, "turns": moves, "moves_left": 0, "fail_reason": None if won else fail_reason, "activation_turn": activation_turn, "cascade_score": cascade_score}
+
+
+def simulate_lvl(lvl: dict[str, Any], runs: int = 30, profile: str = "balanced") -> dict[str, Any]:
+    compiled, diag = compile_lvl(lvl)
+    if compiled is None:
+        return {"level_id": lvl.get("id", "<unknown>"), "valid": False, "lint": diag.to_json()}
+    try:
+        profile_mix = normalized_profile_mix(profile)
+    except ValueError as exc:
+        return {"level_id": lvl.get("id", "<unknown>"), "valid": False, "error": str(exc)}
+    summary: dict[str, Any] = {
+        "level_id": lvl.get("id"),
+        "valid": True,
+        "metric_mode": "stochastic",
+        "target_profile": profile,
+        "profile_mix": profile_mix,
+        "runs_per_persona": runs,
+        "personas": {},
+    }
+    weighted_pass = 0.0
+    weighted_remaining = 0.0
+    weighted_activation = 0.0
+    weighted_cascade = 0.0
+    weighted_fail_counts: dict[str, float] = {}
+    for persona, profile_weight in profile_mix.items():
+        persona_offset = sum(ord(ch) for ch in persona)
+        results = [run_one_attempt(compiled, persona, int(compiled["seed"]) + i + persona_offset) for i in range(runs)]
+        wins = [r for r in results if r["won"]]
+        pass_rate = len(wins) / max(1, runs)
+        fail_counts: dict[str, int] = {}
+        for r in results:
+            if not r["won"]:
+                fail_counts[str(r.get("fail_reason", "unknown"))] = fail_counts.get(str(r.get("fail_reason", "unknown")), 0) + 1
+        avg_remaining = sum(r["moves_left"] for r in wins) / max(1, len(wins))
+        activation_rate = sum(1 for r in results if r.get("activation_turn") is not None) / max(1, runs)
+        avg_cascade = sum(float(r.get("cascade_score", 0.0)) for r in results) / max(1, runs)
+        fail_dist = {k: v / max(1, runs) for k, v in fail_counts.items()}
+        summary["personas"][persona] = {
+            "simulated_pass_rate_at_1": round(pass_rate, 3),
+            "avg_remaining_moves": round(avg_remaining, 2),
+            "mechanism_activation_rate": round(activation_rate, 3),
+            "avg_cascade_score": round(avg_cascade, 3),
+            "fail_reason_distribution": {k: round(v, 3) for k, v in fail_dist.items()},
+        }
+        weighted_pass += profile_weight * pass_rate
+        weighted_remaining += profile_weight * avg_remaining
+        weighted_activation += profile_weight * activation_rate
+        weighted_cascade += profile_weight * avg_cascade
+        for reason, value in fail_dist.items():
+            weighted_fail_counts[reason] = weighted_fail_counts.get(reason, 0.0) + profile_weight * value
+    summary["aggregate_pass_rate_at_1"] = round(weighted_pass, 3)
+    summary["aggregate_avg_remaining_moves"] = round(weighted_remaining, 2)
+    summary["aggregate_mechanism_activation_rate"] = round(weighted_activation, 3)
+    summary["aggregate_cascade_score"] = round(weighted_cascade, 3)
+    summary["aggregate_fail_reason_distribution"] = {k: round(v, 3) for k, v in sorted(weighted_fail_counts.items())}
+    return summary
+
+
+def pass_band_for_level(lvl: dict[str, Any]) -> tuple[float, float]:
+    band = lvl.get("meta", {}).get("target_pass_band") or lvl.get("personalization", {}).get("target_pass_band")
+    if isinstance(band, list) and len(band) == 2:
+        return float(band[0]), float(band[1])
+    role = str(lvl.get("meta", {}).get("role", "variation"))
+    return ROLE_PASS_BANDS.get(role, ROLE_PASS_BANDS["variation"])
+
+
+def candidate_score(sim: dict[str, Any], band: tuple[float, float]) -> float:
+    if not sim.get("valid"):
+        return -999.0
+    pass_rate = float(sim.get("aggregate_pass_rate_at_1", 0.0))
+    activation = float(sim.get("aggregate_mechanism_activation_rate", 0.0))
+    cascade = float(sim.get("aggregate_cascade_score", 0.0))
+    low, high = band
+    if pass_rate < low:
+        return -100.0 - (low - pass_rate) * 100.0
+    # Within or above band: prefer inside the band, but mildly reward
+    # activation/cascade because a pass that ignores the mechanism is weak.
+    center = (low + high) / 2.0
+    distance = abs(pass_rate - center)
+    over_easy_penalty = max(0.0, pass_rate - high) * 20.0
+    return 100.0 - distance * 20.0 - over_easy_penalty + activation * 5.0 + min(5.0, cascade)
+
+
+def generate_select(level: int, variant: str, profile: str, candidates: int, runs: int) -> dict[str, Any]:
+    attempts: list[dict[str, Any]] = []
+    selected: dict[str, Any] | None = None
+    selected_sim: dict[str, Any] | None = None
+    selected_score = -9999.0
+    selected_band: tuple[float, float] | None = None
+    for idx in range(candidates):
+        lvl = generate_level(level, variant, candidate=idx)
+        validation = validate_lvl(lvl)
+        band = pass_band_for_level(lvl)
+        if validation.get("verdict") == "approved":
+            sim = simulate_lvl(lvl, runs=runs, profile=profile)
+            score = candidate_score(sim, band)
+            pass_rate = float(sim.get("aggregate_pass_rate_at_1", 0.0)) if sim.get("valid") else 0.0
+            if not sim.get("valid"):
+                solve_pass = False
+                regenerate_reason = "solver_invalid"
+            elif pass_rate < band[0]:
+                solve_pass = False
+                regenerate_reason = "solver_below_band"
+            elif pass_rate > band[1]:
+                solve_pass = False
+                regenerate_reason = "solver_above_band"
+            else:
+                solve_pass = True
+                regenerate_reason = None
+        else:
+            sim = {"valid": False, "error": "structural validation failed"}
+            score = -9999.0
+            pass_rate = 0.0
+            solve_pass = False
+            regenerate_reason = "structural_invalid"
+        attempts.append({
+            "candidate": idx,
+            "level_id": lvl["id"],
+            "seed": lvl["rules"]["seed"],
+            "validation_verdict": validation.get("verdict"),
+            "target_pass_band": list(band),
+            "profile": profile,
+            "pass_rate": round(pass_rate, 3),
+            "solve_pass": bool(solve_pass),
+            "score": round(score, 3),
+            "regenerate_reason": regenerate_reason,
+        })
+        if solve_pass and score > selected_score:
+            selected = lvl
+            selected_sim = sim
+            selected_score = score
+            selected_band = band
+    return {
+        "level_coordinate": level,
+        "variant": variant,
+        "profile": profile,
+        "candidates_requested": candidates,
+        "selected": selected,
+        "selected_sim": selected_sim,
+        "selected_score": round(selected_score, 3) if selected else None,
+        "target_pass_band": list(selected_band) if selected_band else None,
+        "attempts": attempts,
+        "verdict": "selected" if selected else "regenerate_failed",
+    }
+
+
+def ascii_view(lvl: dict[str, Any]) -> str:
+    rows = board_rows(lvl, Diagnostics())
+    lines = [f"id: {lvl.get('id')}", f"objective: {normalize_objectives(lvl)}", "board:"]
+    for i, row in enumerate(rows):
+        lines.append(f"{i:02d} {row}")
+    overlays = lvl.get("overlays", []) or []
+    lines.append("overlays:")
+    for entry in overlays:
+        cells = overlay_cells(entry)
+        lines.append(f"  {layer_names(entry.get('layers', []))}: {cells}")
+    return "\n".join(lines)
+
+
+def emit_json(data: Any, path: Path | None) -> None:
+    text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    if path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    else:
+        print(text, end="")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Polaris v0 .lvl JSON Profile tool")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    for name in ("lint", "compile", "validate", "ascii", "simulate"):
+        p = sub.add_parser(name)
+        p.add_argument("input", type=Path)
+        p.add_argument("-o", "--output", type=Path)
+        if name == "simulate":
+            p.add_argument("--runs", type=int, default=30)
+            p.add_argument("--profile", default="balanced", choices=sorted(PROFILE_MIXES.keys()))
+    gen = sub.add_parser("generate")
+    gen.add_argument("--level", type=int, help="single level coordinate to generate")
+    gen.add_argument("--through", type=int, help="generate levels 1..N")
+    gen.add_argument("--variant", default="base", choices=sorted(VARIANT_RULES.keys()))
+    gen.add_argument("-o", "--output", type=Path, help="single output .lvl path")
+    gen.add_argument("--out-dir", type=Path, default=Path("levels_src"), help="output directory for --through")
+    sel = sub.add_parser("generate-select")
+    sel.add_argument("--level", type=int, required=True)
+    sel.add_argument("--variant", default="base", choices=sorted(VARIANT_RULES.keys()))
+    sel.add_argument("--profile", default="balanced", choices=sorted(PROFILE_MIXES.keys()))
+    sel.add_argument("--candidates", type=int, default=10)
+    sel.add_argument("--runs", type=int, default=20)
+    sel.add_argument("--output", type=Path, required=True, help="selected .lvl output path")
+    sel.add_argument("--report", type=Path, help="selection report JSON path")
+    args = parser.parse_args(argv)
+
+    if args.cmd == "generate":
+        try:
+            if args.through is not None:
+                levels = list(range(1, int(args.through) + 1))
+                written = write_generated_levels(levels, args.variant, args.out_dir)
+                emit_json({"generated": [str(p) for p in written]}, None)
+                return 0
+            if args.level is None:
+                parser.error("generate requires --level or --through")
+            lvl = generate_level(int(args.level), args.variant)
+        except ValueError as exc:
+            emit_json({"valid": False, "error": str(exc)}, args.output)
+            return 1
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(lvl, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        else:
+            emit_json(lvl, None)
+        return 0
+
+    if args.cmd == "generate-select":
+        result = generate_select(args.level, args.variant, args.profile, args.candidates, args.runs)
+        selected = result.pop("selected")
+        if selected is None:
+            if args.report:
+                emit_json(result, args.report)
+            else:
+                emit_json(result, None)
+            return 1
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(selected, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if args.report:
+            emit_json(result, args.report)
+        else:
+            emit_json(result, None)
+        return 0
+
+    lvl, load_diag = load_lvl(args.input)
+    if lvl is None:
+        emit_json(load_diag.to_json(), args.output)
+        return 1
+
+    if args.cmd == "lint":
+        diag = lint_lvl(lvl)
+        emit_json(diag.to_json(), args.output)
+        return 0 if diag.ok else 1
+    if args.cmd == "compile":
+        compiled, diag = compile_lvl(lvl)
+        if compiled is None:
+            emit_json(diag.to_json(), args.output)
+            return 1
+        emit_json(compiled, args.output)
+        return 0
+    if args.cmd == "validate":
+        result = validate_lvl(lvl)
+        emit_json(result, args.output)
+        return 0 if result.get("verdict") != "reject" else 1
+    if args.cmd == "simulate":
+        result = simulate_lvl(lvl, args.runs, args.profile)
+        emit_json(result, args.output)
+        return 0 if result.get("valid") else 1
+    if args.cmd == "ascii":
+        text = ascii_view(lvl) + "\n"
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(text, encoding="utf-8")
+        else:
+            print(text, end="")
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

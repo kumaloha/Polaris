@@ -1,0 +1,79 @@
+flowchart TD
+    A[1000-Level Sequence Plan<br/>关号 / 角色 / 复杂度 / 目标通关率 / 解锁机制 / 主题组]
+    U[Player Profile<br/>行为画像 / 机制熟练度 / 失败容忍 / 爽点偏好 / 最近体验]
+    B[Personalized Level Brief<br/>序列意图 × 玩家画像 / 情绪弧 / 禁令]
+    C[Personalized Recipe Builder<br/>把设计坐标与画像翻译成出题配方]
+
+    subgraph L[Mechanism & Design Libraries 机制与设计资产]
+        L1[Eye Matrix<br/>题眼矩阵]
+        L2[Obstacle Program<br/>障碍节目单]
+        L3[Reward Mechanism Program<br/>奖励机关线]
+        L4[Terrain Prototypes<br/>地形/地图服务层]
+        L5[Special Combo Library<br/>特殊宝石组合库]
+        L6[Recipe Table<br/>角色→配方表]
+        L7[Theme Motifs<br/>主题母题库]
+    end
+
+    D[Recipe<br/>障碍 / 奖励机关 / 目标 / 地形 / 控制工具 / 难度 / 美学]
+    E[Candidate Generator<br/>按配方生成多个候选]
+
+    subgraph G[Generator Stages 候选生成阶段]
+        G1[Terrain Mask<br/>wall_mask / 孔洞 / 水文]
+        G2[Objective Placement<br/>目标位置语法]
+        G3[Obstacle Placement<br/>障碍层与阻塞点]
+        G4[Gem Distribution<br/>颜色数 / 初盘 / 预置特殊]
+        G5[Move Budget<br/>步数初估]
+    end
+
+    F[.lvl Intermediate Source<br/>人/AI 可读写的关卡源文件]
+    H[Compiler / Exporter<br/>.lvl → Board schema / levels.json]
+
+    subgraph V[Validator Stack 验证器栈]
+        V1[Structural Validator<br/>可达性 / 合法移动 / 断供 / 出口]
+        V2[Player Simulator Validator<br/>首胜尝试数 / 剩余步 / 失败原因 / cascade]
+        V3[Design Validator<br/>题眼 / 四位一体 / 视觉=玩法焦点]
+        V4[Human Feel Review<br/>公平 / 爽感 / 差一点 / 想再来]
+    end
+
+    R[Renderer<br/>PNG / Preview / 截图]
+    S[Player Simulator<br/>autoplay → behavior personas]
+    Q[Review & Selection Loop<br/>选中 / 小修 / 重生成 / 回退配方]
+    P[Approved Level Package<br/>.lvl + PNG + validation.json + design.md + exported level]
+    T[Telemetry & Cohort Analyzer<br/>尝试次数 / 失败原因 / 性别年龄 cohort / 行为画像]
+    O[Live Ops Rebalance<br/>上线数据 / 首胜尝试 / 流失 / 老关再平衡]
+
+    A --> B --> C
+    U --> B
+    U --> C
+    U --> S
+    L --> C
+    C --> D --> E
+    E --> G1 --> G2 --> G3 --> G4 --> G5 --> F
+    F --> H
+    F --> R
+    F --> S
+    F --> V
+    R --> Q
+    S --> V2
+    V --> Q
+    Q -->|approved| P
+    Q -->|revise candidate| F
+    Q -->|regenerate| E
+    Q -->|recipe mismatch| C
+    P --> T
+    T --> O
+    T --> U
+    O --> A
+    O --> U
+
+    classDef source fill:#eef6ff,stroke:#3b82f6,stroke-width:1px,color:#0f172a;
+    classDef lib fill:#f5f3ff,stroke:#8b5cf6,stroke-width:1px,color:#0f172a;
+    classDef gen fill:#ecfdf5,stroke:#10b981,stroke-width:1px,color:#0f172a;
+    classDef val fill:#fff7ed,stroke:#f97316,stroke-width:1px,color:#0f172a;
+    classDef pkg fill:#fef2f2,stroke:#ef4444,stroke-width:1px,color:#0f172a;
+
+    class A,U,B,C,D,F,H,Q,T,O source;
+    class L1,L2,L3,L4,L5,L6,L7 lib;
+    class E,G1,G2,G3,G4,G5 gen;
+    class V1,V2,V3,V4,R,S val;
+    class P pkg;

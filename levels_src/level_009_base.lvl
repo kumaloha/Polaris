@@ -1,0 +1,128 @@
+{
+  "id": "level_009_base",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 9,
+    "variant": "base",
+    "role": "teaching",
+    "complexity_tier": 1,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": null,
+    "candidate_tuning": null
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "drop_relic",
+    "target": 1
+  },
+  "rules": {
+    "moves": 36,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1153
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "drop_direct",
+    "obstacle_lane": {
+      "focus": "none",
+      "stage": "teaching",
+      "active": [
+        "drop_exit",
+        "drop_relic"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "clear_below_relic"
+  },
+  "board": [
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "lost_cub_start",
+      "cells": [
+        [
+          1,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_relic"
+      ]
+    },
+    {
+      "region": "nest_exit",
+      "cells": [
+        [
+          8,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_exit"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "迷路幼兽回巢教学：让玩家看懂幼兽和巢门。",
+    "visual_focus": "迷路幼兽起点、下方路径和底部巢门。",
+    "intended_solution": [
+      "看清幼兽所在列和巢门",
+      "优先清掉幼兽下方路径",
+      "必要时先打开晶壳门",
+      "让幼兽落到底部巢门"
+    ],
+    "crack_path": [
+      "read_lost_cub_and_exit",
+      "access_drop_path",
+      "activate_path_opening",
+      "payoff_cub_falls",
+      "convert_to_drop_relic_progress",
+      "finish_remaining_objectives"
+    ],
+    "climax": "迷路幼兽落入巢门回家。"
+  }
+}

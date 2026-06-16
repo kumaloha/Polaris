@@ -1,0 +1,80 @@
+{
+  "level_id": "level_009_base",
+  "valid": true,
+  "metric_mode": "stochastic",
+  "target_profile": "male_prior",
+  "profile_mix": {
+    "visual_casual": 0.12,
+    "goal_focused": 0.18,
+    "bottom_cascade": 0.12,
+    "special_builder": 0.2,
+    "mechanism_aware": 0.25,
+    "frustrated_retry": 0.08,
+    "random_baseline": 0.05
+  },
+  "runs_per_persona": 20,
+  "personas": {
+    "visual_casual": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 19.0,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 14.9,
+      "fail_reason_distribution": {}
+    },
+    "goal_focused": {
+      "simulated_pass_rate_at_1": 0.95,
+      "avg_remaining_moves": 20.68,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 14.633,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.05
+      }
+    },
+    "bottom_cascade": {
+      "simulated_pass_rate_at_1": 0.9,
+      "avg_remaining_moves": 15.78,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 20.1,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.1
+      }
+    },
+    "special_builder": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 21.15,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 13.917,
+      "fail_reason_distribution": {}
+    },
+    "mechanism_aware": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 18.9,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 15.85,
+      "fail_reason_distribution": {}
+    },
+    "frustrated_retry": {
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 17.15,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 16.183,
+      "fail_reason_distribution": {}
+    },
+    "random_baseline": {
+      "simulated_pass_rate_at_1": 0.6,
+      "avg_remaining_moves": 11.83,
+      "mechanism_activation_rate": 0.0,
+      "avg_cascade_score": 18.75,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.4
+      }
+    }
+  },
+  "aggregate_pass_rate_at_1": 0.959,
+  "aggregate_avg_remaining_moves": 18.82,
+  "aggregate_mechanism_activation_rate": 0.0,
+  "aggregate_cascade_score": 15.812,
+  "aggregate_fail_reason_distribution": {
+    "too_many_leftovers": 0.041
+  }
+}

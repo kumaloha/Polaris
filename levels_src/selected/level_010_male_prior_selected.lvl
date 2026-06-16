@@ -1,0 +1,170 @@
+{
+  "id": "level_010_base_c09",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 10,
+    "variant": "base",
+    "role": "pressure",
+    "complexity_tier": 2,
+    "theme": "crystal_workshop",
+    "target_pass_band": [
+      0.55,
+      0.75
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 9,
+    "candidate_tuning": {
+      "moves_delta": -3,
+      "target_multiplier": 1.08,
+      "shell_hp_delta": 1,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.55,
+      0.75
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "drop_relic",
+    "target": 1
+  },
+  "rules": {
+    "moves": 43,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 10143
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "bottleneck"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "drop_bottleneck",
+    "obstacle_lane": {
+      "focus": "none",
+      "stage": "pressure",
+      "active": [
+        "crystal_shell",
+        "drop_exit",
+        "drop_relic"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "vertical_line_gem"
+  },
+  "board": [
+    "..ooooo..",
+    ".ooooooo.",
+    "ooooooooo",
+    "ooooooooo",
+    "...ooo...",
+    "...ooo...",
+    "ooooooooo",
+    ".ooooooo.",
+    "..ooooo.."
+  ],
+  "overlays": [
+    {
+      "region": "lost_cub_start",
+      "cells": [
+        [
+          1,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_relic"
+      ]
+    },
+    {
+      "region": "nest_exit",
+      "cells": [
+        [
+          8,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_exit"
+      ]
+    },
+    {
+      "region": "crystal_gate",
+      "cells": [
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          5,
+          5
+        ]
+      ],
+      "layers": [
+        {
+          "crystal_shell": {
+            "hp": 2
+          }
+        }
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "幼兽路径与晶壳门：先开路，再护送幼兽回巢。",
+    "visual_focus": "迷路幼兽起点、下方路径和底部巢门。",
+    "intended_solution": [
+      "看清幼兽所在列和巢门",
+      "优先清掉幼兽下方路径",
+      "必要时先打开晶壳门",
+      "让幼兽落到底部巢门"
+    ],
+    "crack_path": [
+      "read_lost_cub_and_exit",
+      "access_drop_path",
+      "activate_path_opening",
+      "payoff_cub_falls",
+      "convert_to_drop_relic_progress",
+      "finish_remaining_objectives"
+    ],
+    "climax": "迷路幼兽落入巢门回家。"
+  }
+}

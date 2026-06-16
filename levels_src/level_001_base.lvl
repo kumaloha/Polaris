@@ -1,0 +1,130 @@
+{
+  "id": "level_001_base",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 1,
+    "variant": "base",
+    "role": "teaching",
+    "complexity_tier": 0,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": null,
+    "candidate_tuning": null
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 16,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1017
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_direct",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "teaching",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "direct_match"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "center_marks",
+      "cells": [
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          4
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "教玩家“星尘印记=要净化的目标”。",
+    "visual_focus": "目标区。",
+    "intended_solution": [
+      "读取目标",
+      "制造可用消除",
+      "完成目标"
+    ],
+    "crack_path": [
+      "read_objective",
+      "access_target",
+      "convert_progress",
+      "finish"
+    ],
+    "climax": "目标完成。"
+  }
+}

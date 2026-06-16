@@ -1,0 +1,93 @@
+{
+  "level_id": "level_010_base",
+  "valid": true,
+  "metric_mode": "stochastic",
+  "target_profile": "female_prior",
+  "profile_mix": {
+    "visual_casual": 0.25,
+    "goal_focused": 0.2,
+    "bottom_cascade": 0.15,
+    "special_builder": 0.12,
+    "mechanism_aware": 0.1,
+    "frustrated_retry": 0.13,
+    "random_baseline": 0.05
+  },
+  "runs_per_persona": 20,
+  "personas": {
+    "visual_casual": {
+      "simulated_pass_rate_at_1": 0.8,
+      "avg_remaining_moves": 19.5,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 13.767,
+      "fail_reason_distribution": {
+        "no_legal_move_loop": 0.05,
+        "too_many_leftovers": 0.15
+      }
+    },
+    "goal_focused": {
+      "simulated_pass_rate_at_1": 0.7,
+      "avg_remaining_moves": 13.43,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 16.817,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.3
+      }
+    },
+    "bottom_cascade": {
+      "simulated_pass_rate_at_1": 0.85,
+      "avg_remaining_moves": 18.0,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 15.433,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.15
+      }
+    },
+    "special_builder": {
+      "simulated_pass_rate_at_1": 0.65,
+      "avg_remaining_moves": 19.38,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 15.933,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.35
+      }
+    },
+    "mechanism_aware": {
+      "simulated_pass_rate_at_1": 0.7,
+      "avg_remaining_moves": 16.93,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 16.45,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.25,
+        "no_legal_move_loop": 0.05
+      }
+    },
+    "frustrated_retry": {
+      "simulated_pass_rate_at_1": 0.7,
+      "avg_remaining_moves": 16.93,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 14.95,
+      "fail_reason_distribution": {
+        "no_legal_move_loop": 0.05,
+        "too_many_leftovers": 0.25
+      }
+    },
+    "random_baseline": {
+      "simulated_pass_rate_at_1": 0.3,
+      "avg_remaining_moves": 9.33,
+      "mechanism_activation_rate": 1.0,
+      "avg_cascade_score": 10.817,
+      "fail_reason_distribution": {
+        "too_many_leftovers": 0.65,
+        "no_legal_move_loop": 0.05
+      }
+    }
+  },
+  "aggregate_pass_rate_at_1": 0.721,
+  "aggregate_avg_remaining_moves": 16.95,
+  "aggregate_mechanism_activation_rate": 1.0,
+  "aggregate_cascade_score": 15.161,
+  "aggregate_fail_reason_distribution": {
+    "no_legal_move_loop": 0.027,
+    "too_many_leftovers": 0.252
+  }
+}

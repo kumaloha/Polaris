@@ -1,0 +1,137 @@
+{
+  "id": "level_002_base",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 2,
+    "variant": "base",
+    "role": "variation",
+    "complexity_tier": 1,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.78,
+      0.92
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": null,
+    "candidate_tuning": null
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.78,
+      0.92
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 22,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1034
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_edge",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "variation",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "edge_targeting"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "edge_marks",
+      "cells": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          5
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          6,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "同目标换到边缘，训练目标位置变化。",
+    "visual_focus": "四周边缘星尘印记。",
+    "intended_solution": [
+      "优先找边缘附近的消除",
+      "用横竖线消补掉边角"
+    ],
+    "crack_path": [
+      "read_edge_targets",
+      "access_edge",
+      "convert_matches_to_mark_progress",
+      "finish_remaining_marks"
+    ],
+    "climax": "边缘连续被清掉后盘面打开。"
+  }
+}

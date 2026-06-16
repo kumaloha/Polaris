@@ -1,0 +1,95 @@
+{
+  "id": "level_006_base",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 6,
+    "variant": "base",
+    "role": "breather",
+    "complexity_tier": 1,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.9,
+      0.99
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": null,
+    "candidate_tuning": null
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "target_pass_band": [
+      0.9,
+      0.99
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "collect",
+    "species": 1,
+    "target": 24
+  },
+  "rules": {
+    "moves": 20,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1102
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "collect_harvest",
+    "obstacle_lane": {
+      "focus": "none",
+      "stage": "breather",
+      "active": [],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "cascade_harvest"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [],
+  "mechanisms": [],
+  "design_claim": {
+    "eye": "晶壳后喘息爽关，回到开阔收集。",
+    "visual_focus": "开阔棋盘和收集目标计数。",
+    "intended_solution": [
+      "优先消目标色",
+      "利用自然连锁提高收集效率"
+    ],
+    "crack_path": [
+      "read_collect_target",
+      "access_open_board",
+      "convert_matches_to_collection",
+      "finish_collection"
+    ],
+    "climax": "一次连锁收集多个目标色。"
+  }
+}
