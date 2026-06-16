@@ -745,6 +745,61 @@ func _rebuild_overlay_nodes() -> void:
 	OverlayRegistry.rebuild_all(board, _overlay_parent(), _overlay_nodes, cell_size, func(c: Vector2i) -> Vector2:
 		return _cell_center(c.y, c.x))
 
+func _ingredient_rows_by_col(layer: Array) -> Dictionary:
+	var by_col := {}
+	for row in range(layer.size()):
+		if not (layer[row] is Array):
+			continue
+		for col in range(layer[row].size()):
+			if int(layer[row][col]) > 0:
+				if not by_col.has(col):
+					by_col[col] = []
+				by_col[col].append(row)
+	for col in by_col.keys():
+		by_col[col].sort()
+		by_col[col].reverse()   # bottom-most first; ingredient gravity preserves per-column order.
+	return by_col
+
+func _sync_ingredient_overlay_motion(before_ing: Array, after_ing: Array, fallback_duration: float = 0.0) -> float:
+	if board == null or before_ing.is_empty():
+		return 0.0
+	var before_by_col := _ingredient_rows_by_col(before_ing)
+	if before_by_col.is_empty():
+		return 0.0
+	var after_by_col := _ingredient_rows_by_col(after_ing)
+	var max_time := 0.0
+	for raw_col in before_by_col.keys():
+		var col: int = int(raw_col)
+		var before_rows: Array = before_by_col[col]
+		var after_rows: Array = after_by_col.get(col, [])
+		for idx in range(before_rows.size()):
+			var from_row: int = int(before_rows[idx])
+			var from_cell := Vector2i(col, from_row)
+			var old_key := ["ing", from_cell]
+			var node = _overlay_nodes.get(old_key)
+			if node == null or not is_instance_valid(node):
+				continue
+			var has_final_cell := idx < after_rows.size()
+			var target_row: int = int(after_rows[idx]) if has_final_cell else (board.height - 1 if board.exit_cols.has(col) else from_row)
+			var target_cell := Vector2i(col, target_row)
+			var target_pos := _cell_center(target_row, col)
+			_overlay_nodes.erase(old_key)
+			if has_final_cell:
+				node.cell = target_cell
+				_overlay_nodes[["ing", target_cell]] = node
+			var duration: float = maxf(fallback_duration, _fall_duration_for_positions(node.position, target_pos))
+			if not is_inside_tree() or duration <= 0.0:
+				node.position = target_pos
+				if not has_final_cell:
+					node.on_cleared()
+				continue
+			var t := create_tween()
+			t.tween_property(node, "position", target_pos, duration).set_trans(Tween.TRANS_LINEAR)
+			if not has_final_cell:
+				t.tween_callback(Callable(node, "on_cleared"))
+			max_time = maxf(max_time, duration)
+	return max_time
+
 func _sync_overlays_at(cell: Vector2i) -> void:
 	if board == null:
 		return
@@ -1149,21 +1204,23 @@ func _sync_changed_visuals_to_board() -> void:
 	_refresh_coat_visuals()
 	_rebuild_overlay_nodes()
 
-func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) -> void:
+func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array, before_ing: Array = []) -> void:
 	if board == null:
 		return
 	if before_grid.is_empty() or old_nodes.is_empty():
 		_sync_changed_visuals_to_board()
 		return
-	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
-		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
+	if _grid_has_fall_obstacle(before_grid, before_ing) or _grid_has_fall_obstacle(board.grid, board.ing):
+		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes, before_ing)
+		var ing_time := _sync_ingredient_overlay_motion(before_ing, board.ing, wall_slide_time)
 		_repair_missing_gem_nodes_from_board()
 		_refresh_wall_visuals()
 		_refresh_jelly_visuals()
 		_refresh_coat_visuals()
+		var wait_time: float = maxf(wall_slide_time, ing_time)
+		if wait_time > 0.0 and is_inside_tree():
+			await get_tree().create_timer(wait_time).timeout
 		_rebuild_overlay_nodes()
-		if wall_slide_time > 0.0:
-			await get_tree().create_timer(wall_slide_time).timeout
 		return
 	var new_nodes: Array = _blank_visual_rows()
 	var t := create_tween().set_parallel(true)
@@ -1171,7 +1228,7 @@ func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) 
 	for col in range(board.width):
 		var seg_end: int = board.height - 1
 		for row in range(board.height - 1, -2, -1):
-			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
+			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col, before_ing):
 				continue
 			if row + 1 <= seg_end:
 				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved
@@ -1188,8 +1245,8 @@ func _animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) 
 		await t.finished
 
 ## level 的消费步数结算路径调本方法做增量改板（行为零变化, 含 settle/refresh 由 level 持有）。
-func animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array) -> void:
-	await _animate_board_changes_from_snapshot(before_grid, old_nodes)
+func animate_board_changes_from_snapshot(before_grid: Array, old_nodes: Array, before_ing: Array = []) -> void:
+	await _animate_board_changes_from_snapshot(before_grid, old_nodes, before_ing)
 
 ## 取整阵快照（level 在消费步数/彩球/融合前 duplicate _gem_nodes 用）。
 func snapshot_gem_nodes() -> Array:
@@ -1214,8 +1271,8 @@ func play_special_fx(pos: Vector2i, kind: int) -> void:
 
 # ───────── 墙滑视觉簇（计算在 level_motion；本类只搬节点）──────────
 
-func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int) -> bool:
-	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
+func _fall_barrier_in_grid(grid_snapshot: Array, row: int, col: int, ing_snapshot: Array = []) -> bool:
+	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col, ing_snapshot)
 
 func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_start: int, seg_end: int) -> Array:
 	var entries := []
@@ -1292,14 +1349,14 @@ func _sync_fixed_cell_visual(row: int, col: int, old_nodes: Array, new_nodes: Ar
 func _fall_duration_for_positions(start_pos: Vector2, target: Vector2) -> float:
 	return LevelMotion.fall_duration_for_positions(start_pos, target, cell_size)
 
-func _grid_has_fall_obstacle(grid_data: Array) -> bool:
-	return LevelMotion.grid_has_fall_obstacle(grid_data, board.coat, board.choco)
+func _grid_has_fall_obstacle(grid_data: Array, ing_snapshot: Array = []) -> bool:
+	return LevelMotion.grid_has_fall_obstacle(grid_data, board.coat, board.choco, ing_snapshot)
 
 func _wall_refill_start_position(row: int, col: int, source_map: Array = []) -> Vector2:
 	return LevelMotion.wall_refill_start_position(row, col, source_map, board_origin, cell_size)
 
-func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int) -> bool:
-	return LevelMotion.wall_slide_target_has_fall_obstacle_above(grid_data, board.coat, board.choco, board.cannon, row, col)
+func _wall_slide_target_has_fall_obstacle_above(grid_data: Array, row: int, col: int, ing_snapshot: Array = []) -> bool:
+	return LevelMotion.wall_slide_target_has_fall_obstacle_above(grid_data, board.coat, board.choco, board.cannon, row, col, ing_snapshot)
 
 func _wall_slide_path_points(start_pos: Vector2, target: Vector2) -> Array:
 	return LevelMotion.wall_slide_path_points(start_pos, target, board_origin, cell_size, board.width, board.height)
@@ -1343,11 +1400,11 @@ func _wall_slide_path_rows(grid_snapshot: Array) -> Array:
 func _wall_slide_source_rows(grid_snapshot: Array) -> Array:
 	return LevelMotion.wall_slide_source_rows(grid_snapshot)
 
-func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, row: int, col: int) -> bool:
-	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col)
+func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, row: int, col: int, ing_snapshot: Array = []) -> bool:
+	return LevelMotion.fall_barrier_in_grid(grid_snapshot, board.coat, board.choco, row, col, ing_snapshot)
 
-func _build_wall_slide_tracking_maps(before_grid: Array) -> Dictionary:
-	return LevelMotion.build_wall_slide_tracking_maps(before_grid, board.coat, board.choco, board.cannon, board.is_scrolling)
+func _build_wall_slide_tracking_maps(before_grid: Array, before_ing: Array = []) -> Dictionary:
+	return LevelMotion.build_wall_slide_tracking_maps(before_grid, board.coat, board.choco, board.cannon, board.is_scrolling, before_ing)
 
 func _wall_slide_source_priority(row: int, col: int, target_row: int, target_col: int, allow_cross_column: bool) -> int:
 	return LevelMotion.wall_slide_source_priority(row, col, target_row, target_col, allow_cross_column)
@@ -1417,11 +1474,11 @@ func _free_unused_wall_slide_sources(old_nodes: Array, used: Dictionary) -> void
 			if node != null and is_instance_valid(node):
 				node.queue_free()
 
-func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
+func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array, before_ing: Array = []) -> float:
 	var move_time := 0.0
 	var used := {}
 	var new_nodes := _blank_visual_rows()
-	var tracking_maps := _build_wall_slide_tracking_maps(before_grid)
+	var tracking_maps := _build_wall_slide_tracking_maps(before_grid, before_ing)
 	var source_map: Array = tracking_maps["source"]
 	var path_map: Array = tracking_maps["path"]
 	for row in range(board.height - 1, -1, -1):
@@ -1429,7 +1486,7 @@ func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
 			var sp: int = board.grid[row][col]
 			if sp < 0:
 				continue
-			var allow_cross_column := _wall_slide_target_has_fall_obstacle_above(before_grid, row, col)
+			var allow_cross_column := _wall_slide_target_has_fall_obstacle_above(before_grid, row, col, before_ing)
 			var node := _take_wall_slide_source(before_grid, old_nodes, used, row, col, sp, allow_cross_column, source_map)
 			if node == null:
 				node = _replace_gem_node(row, col)
@@ -1452,6 +1509,7 @@ func _sync_wall_slide_visuals(before_grid: Array, old_nodes: Array) -> float:
 ## 每轮消除后用核心重力/补充收口，并增量移动/补充表现层，确保并行层不掉队且不全盘闪烁。
 func _collapse_and_refill() -> void:
 	var before_grid: Array = board.grid.duplicate(true)
+	var before_ing: Array = board.ing.duplicate(true)
 	var old_nodes: Array = _gem_nodes.duplicate(true)
 	ME.apply_gravity(board.grid, board.fx, false, board._layers())
 	var collected: int = ME._drain_ingredients(board.grid, board.fx, false, board._layers())
@@ -1461,22 +1519,24 @@ func _collapse_and_refill() -> void:
 	if not board.is_scrolling:
 		ME.refill(board.grid, board.species, board.rng, board.fx, refill_feed, board._layers())
 	var new_nodes: Array = _blank_visual_rows()
-	if _grid_has_fall_obstacle(before_grid) or _grid_has_fall_obstacle(board.grid):
-		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes)
+	if _grid_has_fall_obstacle(before_grid, before_ing) or _grid_has_fall_obstacle(board.grid, board.ing):
+		var wall_slide_time := _sync_wall_slide_visuals(before_grid, old_nodes, before_ing)
+		var ing_time := _sync_ingredient_overlay_motion(before_ing, board.ing, wall_slide_time)
 		_repair_missing_gem_nodes_from_board()
 		_refresh_wall_visuals()
 		_refresh_jelly_visuals()
 		_refresh_coat_visuals()
+		var wait_time: float = maxf(wall_slide_time, ing_time)
+		if wait_time > 0.0 and is_inside_tree():
+			await get_tree().create_timer(wait_time).timeout
 		_rebuild_overlay_nodes()
-		if wall_slide_time > 0.0:
-			await get_tree().create_timer(wall_slide_time).timeout
 		return
 	var t := create_tween().set_parallel(true)
 	var moved := false
 	for col in range(board.width):
 		var seg_end: int = board.height - 1
 		for row in range(board.height - 1, -2, -1):
-			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col):
+			if row >= 0 and not _fall_barrier_in_grid(before_grid, row, col, before_ing):
 				continue
 			if row + 1 <= seg_end:
 				moved = _sync_collapse_segment(before_grid, old_nodes, new_nodes, col, row + 1, seg_end, t) or moved

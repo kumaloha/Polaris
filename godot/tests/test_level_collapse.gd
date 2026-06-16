@@ -94,6 +94,40 @@ func test_level_wall_collapse_uses_cross_column_slide_visuals() -> void:
 	assert_true(body.contains("_sync_wall_slide_visuals(before_grid, old_nodes"), "obstacle boards use cross-column slide visuals instead of per-column segment-only syncing")
 
 
+func test_ingredient_actor_routes_collapse_through_obstacle_branch() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
+	level.board_view.board = level.board
+	var plain := [[0, 1, 2], [1, ME.EMPTY, 0], [2, 0, 1]]
+	var ing := [
+		[0, 0, 0],
+		[0, 1, 0],
+		[0, 0, 0],
+	]
+	assert_true(level.board_view.call("_grid_has_fall_obstacle", plain, ing), "a moving lost-cub actor must route collapse through obstacle-aware visual gravity")
+	level.free()
+
+
+func test_wall_slide_tracking_maps_treat_ingredient_as_moving_obstacle() -> void:
+	var E := ME.EMPTY
+	var grid := [
+		[E, E, E],
+		[5, E, 6],
+		[E, E, E],
+	]
+	var ing := [
+		[0, 0, 0],
+		[0, 1, 0],
+		[0, 0, 0],
+	]
+	var maps: Dictionary = LevelMotion.build_wall_slide_tracking_maps(grid, [], [], [], true, ing)
+	var source_map: Array = maps["source"]
+	assert_eq(source_map[2][0], Vector2i(0, 1), "left gem falls beside the lost-cub actor")
+	assert_eq(source_map[2][2], Vector2i(2, 1), "right gem falls beside the lost-cub actor")
+	assert_eq(source_map[2][1], LevelMotion.source_none(), "no gem is visually routed into the lost-cub actor's occupied cell")
+
+
 func test_wall_slide_tracking_maps_include_coat_blockers() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
@@ -445,7 +479,7 @@ func test_level_wall_slide_visuals_only_cross_columns_under_fall_obstacles() -> 
 		return
 	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
 	# 钉源码理由: 只有真正落体障碍下方的格(_wall_slide_target_has_fall_obstacle_above)才允许斜向取源, 否则普通格会错误地从邻列借宝石
-	assert_true(sync_body.contains("_wall_slide_target_has_fall_obstacle_above(before_grid, row, col)"), "only cells below actual fall blockers may use diagonal visual sourcing")
+	assert_true(sync_body.contains("_wall_slide_target_has_fall_obstacle_above(before_grid, row, col, before_ing)"), "only cells below actual fall blockers may use diagonal visual sourcing")
 
 
 func test_level_wall_slide_source_prefers_right_above_before_left_above() -> void:
@@ -467,7 +501,7 @@ func test_level_wall_slide_source_prefers_right_above_before_left_above() -> voi
 		return
 	var sync_body: String = src.substr(sync_start, sync_end - sync_start)
 	# 钉源码理由: 墙滑视觉必须先重放引力建源/路径图(_build_wall_slide_tracking_maps)再据此取旧节点, 否则跨列宝石身份错配
-	assert_true(sync_body.contains("_build_wall_slide_tracking_maps(before_grid)"), "wall slide visuals build source and path maps by replaying gravity")
+	assert_true(sync_body.contains("_build_wall_slide_tracking_maps(before_grid, before_ing)"), "wall slide visuals build source and path maps by replaying gravity")
 
 
 func test_level_wall_refill_start_uses_spawn_source_map() -> void:

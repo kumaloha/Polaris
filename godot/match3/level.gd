@@ -1266,10 +1266,11 @@ func debug_first_legal_swap() -> bool:
 func _finish_consumed_move(step_choco: int, cascades: int) -> bool:
 	var before_grid: Array = board.grid.duplicate(true)
 	var before_fx: Array = board.fx.duplicate(true)
+	var before_ing: Array = board.ing.duplicate(true)
 	var old_nodes: Array = board_view.snapshot_gem_nodes()
 	board._settle_consumed_move(step_choco, cascades)
-	if before_grid != board.grid or before_fx != board.fx:
-		await board_view.animate_board_changes_from_snapshot(before_grid, old_nodes)
+	if before_grid != board.grid or before_fx != board.fx or before_ing != board.ing:
+		await board_view.animate_board_changes_from_snapshot(before_grid, old_nodes, before_ing)
 	else:
 		board_view.refresh_jelly_coat_visuals()
 	_refresh_hud()

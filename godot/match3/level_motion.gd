@@ -12,16 +12,16 @@ const WALL_SLIDE_STEP_TIME := FALL_EXTRA_CELL_TIME
 const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME
 
 
-static func fall_barrier_in_grid(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
+static func fall_barrier_in_grid(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int, ing: Array = []) -> bool:
 	if row < 0 or row >= grid_snapshot.size() or col < 0 or col >= grid_snapshot[row].size():
 		return false
-	return grid_snapshot[row][col] == ME.WALL or _layer_value(coat, row, col) > 0 or _layer_value(choco, row, col) > 0
+	return grid_snapshot[row][col] == ME.WALL or _layer_value(coat, row, col) > 0 or _layer_value(choco, row, col) > 0 or _layer_value(ing, row, col) > 0
 
 
-static func grid_has_fall_obstacle(grid_data: Array, coat: Array, choco: Array) -> bool:
+static func grid_has_fall_obstacle(grid_data: Array, coat: Array, choco: Array, ing: Array = []) -> bool:
 	for row in range(grid_data.size()):
 		for col in range(grid_data[row].size()):
-			if fall_barrier_in_grid(grid_data, coat, choco, row, col):
+			if fall_barrier_in_grid(grid_data, coat, choco, row, col, ing):
 				return true
 	return false
 
@@ -50,13 +50,13 @@ static func wall_refill_start_position(row: int, col: int, source_map: Array, bo
 	return LevelLayout.cell_center(row, source_col, cell_size, board_origin) - Vector2(0.0, cell_size * travel_cells)
 
 
-static func wall_slide_target_has_fall_obstacle_above(grid_data: Array, coat: Array, choco: Array, cannon: Array, row: int, col: int) -> bool:
+static func wall_slide_target_has_fall_obstacle_above(grid_data: Array, coat: Array, choco: Array, cannon: Array, row: int, col: int, ing: Array = []) -> bool:
 	if row <= 0 or grid_data.is_empty() or col < 0 or col >= grid_data[0].size():
 		return false
 	for y in range(row):
 		if _layer_value(cannon, y, col) > 0:
 			continue
-		if fall_barrier_in_grid(grid_data, coat, choco, y, col):
+		if fall_barrier_in_grid(grid_data, coat, choco, y, col, ing):
 			return true
 	return false
 
@@ -228,30 +228,32 @@ static func wall_slide_source_rows(grid_snapshot: Array) -> Array:
 	return rows
 
 
-static func build_wall_slide_tracking_maps(before_grid: Array, coat: Array, choco: Array, cannon: Array, is_scrolling: bool) -> Dictionary:
+static func build_wall_slide_tracking_maps(before_grid: Array, coat: Array, choco: Array, cannon: Array, is_scrolling: bool, ing: Array = []) -> Dictionary:
 	var tracking_grid: Array = before_grid.duplicate(true)
+	var tracking_ing: Array = ing.duplicate(true)
 	var source_map := wall_slide_source_rows(tracking_grid)
 	var path_map := wall_slide_path_rows(tracking_grid)
+	_apply_wall_slide_tracking_ingredient_occupancy(tracking_grid, source_map, path_map, tracking_ing)
 	if _grid_height(tracking_grid) <= 0 or _grid_width(tracking_grid) <= 0:
 		return {"source": source_map, "path": path_map}
-	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon)
+	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon, tracking_ing)
 	if is_scrolling:
 		return {"source": source_map, "path": path_map}
 	var max_steps: int = maxi(1, _grid_height(tracking_grid) * _grid_width(tracking_grid) * 2)
 	for _i in range(max_steps):
-		_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon)
+		_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon, tracking_ing)
 		var spawned := false
 		for col in range(_grid_width(tracking_grid)):
-			if not _wall_slide_tracking_empty_cell(tracking_grid, coat, choco, 0, col):
+			if not _wall_slide_tracking_empty_cell(tracking_grid, coat, choco, tracking_ing, 0, col):
 				continue
 			tracking_grid[0][col] = 0
 			source_map[0][col] = source_spawn(col)
 			path_map[0][col] = [Vector2i(col, 0)]
 			spawned = true
 		if not spawned:
-			_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon)
+			_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon, tracking_ing)
 			return {"source": source_map, "path": path_map}
-	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon)
+	_apply_wall_slide_tracking_gravity(tracking_grid, source_map, path_map, coat, choco, cannon, tracking_ing)
 	return {"source": source_map, "path": path_map}
 
 
@@ -334,7 +336,67 @@ static func wall_slide_visual_start_position(source_map: Array, path_map: Array,
 	return wall_refill_start_position(row, col, source_map, board_origin, cell_size)
 
 
-static func _apply_wall_slide_tracking_gravity(grid_snapshot: Array, source_map: Array, path_map: Array, coat: Array, choco: Array, cannon: Array) -> void:
+static func _apply_wall_slide_tracking_ingredient_occupancy(grid_snapshot: Array, source_map: Array, path_map: Array, ing: Array) -> void:
+	if ing.is_empty():
+		return
+	for row in range(mini(_grid_height(grid_snapshot), ing.size())):
+		for col in range(mini(_grid_width(grid_snapshot), ing[row].size())):
+			if int(ing[row][col]) > 0:
+				grid_snapshot[row][col] = ME.EMPTY
+				source_map[row][col] = source_none()
+				path_map[row][col] = []
+
+
+static func _wall_slide_tracking_ing_occupied(ing: Array, row: int, col: int) -> bool:
+	return not ing.is_empty() and row >= 0 and row < ing.size() and col >= 0 and col < ing[row].size() and int(ing[row][col]) > 0
+
+
+static func _wall_slide_tracking_has_ingredient_actor(ing: Array) -> bool:
+	for row in ing:
+		if not (row is Array):
+			continue
+		for v in row:
+			if int(v) > 0:
+				return true
+	return false
+
+
+static func _try_move_wall_slide_tracking_ingredient(grid_snapshot: Array, ing: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
+	if not _wall_slide_tracking_ing_occupied(ing, row, col):
+		return false
+	var target_row := row + 1
+	if not _wall_slide_tracking_empty_cell(grid_snapshot, coat, choco, ing, target_row, col):
+		return false
+	ing[target_row][col] = ing[row][col]
+	ing[row][col] = 0
+	return true
+
+
+static func _apply_wall_slide_tracking_gravity_with_ingredients(grid_snapshot: Array, source_map: Array, path_map: Array, coat: Array, choco: Array, cannon: Array, ing: Array) -> void:
+	var moved := true
+	var guard := 0
+	var max_steps: int = maxi(1, _grid_height(grid_snapshot) * _grid_width(grid_snapshot) * 2)
+	while moved and guard < max_steps:
+		moved = false
+		guard += 1
+		var actor_moved := true
+		while actor_moved and guard < max_steps:
+			actor_moved = false
+			guard += 1
+			for row in range(_grid_height(grid_snapshot) - 2, -1, -1):
+				for col in range(_grid_width(grid_snapshot)):
+					actor_moved = _try_move_wall_slide_tracking_ingredient(grid_snapshot, ing, coat, choco, row, col) or actor_moved
+			moved = actor_moved or moved
+		for row in range(_grid_height(grid_snapshot) - 1, 0, -1):
+			for col in range(_grid_width(grid_snapshot)):
+				moved = _try_fill_wall_slide_tracking_slot(grid_snapshot, source_map, path_map, coat, choco, cannon, row, col, ing) or moved
+
+
+static func _apply_wall_slide_tracking_gravity(grid_snapshot: Array, source_map: Array, path_map: Array, coat: Array, choco: Array, cannon: Array, ing: Array = []) -> void:
+	if _wall_slide_tracking_has_ingredient_actor(ing):
+		_apply_wall_slide_tracking_ingredient_occupancy(grid_snapshot, source_map, path_map, ing)
+		_apply_wall_slide_tracking_gravity_with_ingredients(grid_snapshot, source_map, path_map, coat, choco, cannon, ing)
+		return
 	var moved := true
 	var guard := 0
 	var max_steps: int = maxi(1, _grid_height(grid_snapshot) * _grid_width(grid_snapshot) * 2)
@@ -346,16 +408,16 @@ static func _apply_wall_slide_tracking_gravity(grid_snapshot: Array, source_map:
 				moved = _try_fill_wall_slide_tracking_slot(grid_snapshot, source_map, path_map, coat, choco, cannon, row, col) or moved
 
 
-static func _try_fill_wall_slide_tracking_slot(grid_snapshot: Array, source_map: Array, path_map: Array, coat: Array, choco: Array, cannon: Array, target_row: int, target_col: int) -> bool:
-	if target_row <= 0 or not _wall_slide_tracking_empty_cell(grid_snapshot, coat, choco, target_row, target_col):
+static func _try_fill_wall_slide_tracking_slot(grid_snapshot: Array, source_map: Array, path_map: Array, coat: Array, choco: Array, cannon: Array, target_row: int, target_col: int, ing: Array = []) -> bool:
+	if target_row <= 0 or not _wall_slide_tracking_empty_cell(grid_snapshot, coat, choco, ing, target_row, target_col):
 		return false
 	var source_row := target_row - 1
 	var candidates := [Vector2i(target_col, source_row)]
-	if _wall_slide_tracking_blocked_above(grid_snapshot, coat, choco, cannon, target_row, target_col) and not _wall_slide_tracking_has_vertical_source_above(grid_snapshot, coat, choco, target_row, target_col):
+	if _wall_slide_tracking_blocked_above(grid_snapshot, coat, choco, cannon, target_row, target_col, ing) and not _wall_slide_tracking_has_vertical_source_above(grid_snapshot, coat, choco, target_row, target_col, ing):
 		candidates.append(Vector2i(target_col + 1, source_row))
 		candidates.append(Vector2i(target_col - 1, source_row))
 	for p in candidates:
-		if _wall_slide_tracking_movable_cell(grid_snapshot, coat, choco, p.y, p.x):
+		if _wall_slide_tracking_movable_cell(grid_snapshot, coat, choco, ing, p.y, p.x):
 			_move_wall_slide_tracking_cell(grid_snapshot, source_map, path_map, p.y, p.x, target_row, target_col)
 			return true
 	return false
@@ -376,36 +438,36 @@ static func _wall_slide_tracking_fixed_cell(grid_snapshot: Array, coat: Array, c
 	return grid_snapshot[row][col] == ME.WALL or _layer_value(coat, row, col) > 0 or _layer_value(choco, row, col) > 0
 
 
-static func _wall_slide_tracking_empty_cell(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
+static func _wall_slide_tracking_empty_cell(grid_snapshot: Array, coat: Array, choco: Array, ing: Array, row: int, col: int) -> bool:
 	if row < 0 or row >= _grid_height(grid_snapshot) or col < 0 or col >= _grid_width(grid_snapshot):
 		return false
-	return grid_snapshot[row][col] == ME.EMPTY and not _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, row, col)
+	return grid_snapshot[row][col] == ME.EMPTY and not _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, row, col) and not _wall_slide_tracking_ing_occupied(ing, row, col)
 
 
-static func _wall_slide_tracking_movable_cell(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
+static func _wall_slide_tracking_movable_cell(grid_snapshot: Array, coat: Array, choco: Array, ing: Array, row: int, col: int) -> bool:
 	if row < 0 or row >= _grid_height(grid_snapshot) or col < 0 or col >= _grid_width(grid_snapshot):
 		return false
-	return grid_snapshot[row][col] >= 0 and not _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, row, col)
+	return grid_snapshot[row][col] >= 0 and not _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, row, col) and not _wall_slide_tracking_ing_occupied(ing, row, col)
 
 
-static func _wall_slide_tracking_blocked_above(grid_snapshot: Array, coat: Array, choco: Array, cannon: Array, row: int, col: int) -> bool:
+static func _wall_slide_tracking_blocked_above(grid_snapshot: Array, coat: Array, choco: Array, cannon: Array, row: int, col: int, ing: Array = []) -> bool:
 	if row <= 0 or col < 0 or col >= _grid_width(grid_snapshot):
 		return false
 	for y in range(row):
 		if _layer_value(cannon, y, col) > 0:
 			continue
-		if _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, y, col):
+		if _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, y, col) or _wall_slide_tracking_ing_occupied(ing, y, col):
 			return true
 	return false
 
 
-static func _wall_slide_tracking_has_vertical_source_above(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
+static func _wall_slide_tracking_has_vertical_source_above(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int, ing: Array = []) -> bool:
 	if row <= 0 or col < 0 or col >= _grid_width(grid_snapshot):
 		return false
 	for y in range(row - 1, -1, -1):
-		if _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, y, col):
+		if _wall_slide_tracking_fixed_cell(grid_snapshot, coat, choco, y, col) or _wall_slide_tracking_ing_occupied(ing, y, col):
 			return false
-		if _wall_slide_tracking_movable_cell(grid_snapshot, coat, choco, y, col):
+		if _wall_slide_tracking_movable_cell(grid_snapshot, coat, choco, ing, y, col):
 			return true
 	return false
 
