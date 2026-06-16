@@ -7,6 +7,8 @@ const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 
 const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
+const DROP_RELIC_GOAL_ICON := "res://art/reference_ui/portal_exit.png"
+const RACCOON_AVATAR_ICON := "res://assets/avatars/av_raccoon_miner.png"
 
 
 func _prepare_level_scene() -> Node:
@@ -148,4 +150,16 @@ func test_objectives_view_collect_reads_board_state() -> void:
 	assert_eq(view[0].get("label", ""), "清果冻", "jelly objective is labeled by its clearing action")
 	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "jelly objective uses the readable jelly icon")
 	assert_eq(view[0].get("progress", -1), 0, "jelly starts at zero progress")
+	level.free()
+
+
+func test_drop_relic_objective_uses_exit_goal_icon_not_pet_avatar() -> void:
+	var level := _prepare_level_scene()
+	var objs := [{"type": "COLLECT_INGREDIENT", "species": -1, "target": 1}]
+	level.board = Board.new(9, 9, [0, 1, 2, 3, 4], 0, 36, 1, [], objs)
+	var view: Array = level.hud.call("_objectives_view")
+	assert_eq(view.size(), 1, "one drop-relic objective card")
+	assert_eq(view[0].get("label", ""), "回巢", "drop-relic objective communicates escorting home, not generic ingredient collection")
+	assert_eq(view[0].get("icon", ""), DROP_RELIC_GOAL_ICON, "drop-relic objective uses the portal/exit icon")
+	assert_true(view[0].get("icon", "") != RACCOON_AVATAR_ICON, "drop-relic objective must not look like a pet skill avatar")
 	level.free()

@@ -45,8 +45,9 @@ const OBJECTIVES_DEMO := [
 # 目标卡图标资源(迁自 level.gd)。
 const JELLY_GOAL_ICON := "res://assets/obstacles/ob_bubble.png"
 const BARRIER_ICE_ICON := "res://assets/obstacles/ob_ice.png"  # synced from resources/barrier/ob_ice.png
-# COLLECT 用该色宝石图标; 非 COLLECT 类暂用矿工头像占位(TODO 美术: 给障碍目标各出专属图标)。
-const OBJ_PLACEHOLDER_ICON := "res://assets/avatars/av_raccoon_miner.png"
+const DROP_RELIC_GOAL_ICON := "res://art/reference_ui/portal_exit.png"  # 迷路幼兽回巢/出口目标；不要复用宠物头像
+# COLLECT 用该色宝石图标；其它类型必须优先给机制专属图标，避免看起来像宠物技能头像。
+const OBJ_PLACEHOLDER_ICON := STAR_GOLD
 
 const DESIGN_W := LevelLayout.DESIGN_W
 const DESIGN_H := 1520.0
@@ -310,7 +311,7 @@ func _objective_label(t: String) -> String:
 		"CLEAR_CHOCO":
 			return "巧克力"
 		"COLLECT_INGREDIENT":
-			return "原料"
+			return "回巢"
 		"DEFUSE_BOMB":
 			return "炸弹"
 		"POP_POPCORN":
@@ -355,6 +356,8 @@ func _objectives_view() -> Array:
 			"CLEAR_CHOCO":
 				progress = board.choco_cleared
 			"COLLECT_INGREDIENT":
+				if ResourceLoader.exists(DROP_RELIC_GOAL_ICON):
+					icon = DROP_RELIC_GOAL_ICON
 				progress = board.ingredient_collected
 			"DEFUSE_BOMB":
 				progress = board.bomb_defused

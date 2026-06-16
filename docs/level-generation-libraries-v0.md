@@ -83,10 +83,11 @@ emotional_payoff: "幼兽回家"
 | `cleanse_edge` | cleanse_marks | precision | 边角目标难触达 | edge_deadzone | playable_v0 |
 | `cleanse_expedition` | cleanse_marks | expedition | 目标在下游/远端 | hourglass/bottleneck | playable_v0 |
 | `cleanse_siege` | cleanse_marks | siege | 先破壳再清目标 | island/vault | playable_v0 |
-| `collect_harvest` | collect | harvest | 大面积收集指定色 | open | playable_v0 |
+| `cleanse_trail` | cleanse_marks | harvest | 开阔盘路径式净化，替代指定色收集 | open | playable_v0 |
+| `shell_cleanup_breather` | clear_shells | cleanup | 开阔盘清少量晶壳，作为清障喘息 | open | playable_v0 |
 | `drop_direct` | drop_relic | expedition | 护送迷路幼兽回到底部巢门 | open + exits | playable_v0 |
 | `drop_bottleneck` | drop_relic | expedition | 迷路幼兽路径被瓶颈影响 | bottleneck | playable_v0 |
-| `order_key_color` | order_color | key | 指定颜色收集/控制 | open/vault | playable_v0 subset |
+| `order_key_color` | order_color | key | 指定颜色收集/控制 | open/vault | engine-supported but generator-forbidden-v0 |
 | `cleanse_reveal` | cleanse_marks | reveal | 目标被晶壳覆盖 | fault/vault | playable_v0 |
 | `cleanse_dynamic_light` | cleanse_marks | pressure | 蔓生给轻动态压力 | vault/open | playable_v0 but late |
 | `reward_release` | cleanse_marks | reward | 先救奖励再清场 | open/vault | design_only_v0 |
@@ -461,10 +462,10 @@ engine_need:
 |---:|---|---|---|---|
 | 1 | teaching | cleanse_direct | target_mark | base, assisted |
 | 2 | variation | cleanse_edge | target_mark | base, female_prior |
-| 3 | teaching/breather | collect_harvest | collect | base |
+| 3 | teaching/breather | cleanse_trail | target_mark | base |
 | 4 | variation | cleanse_expedition_weak | target_mark | base, assisted |
 | 5 | pressure_lite | crystal_shell_gate_practice | target_mark + crystal_shell | base, assisted, advanced |
-| 6 | breather | collect_harvest | collect + open cascade | base, female_prior, male_prior |
+| 6 | breather | shell_cleanup_breather | crystal_shell + open cascade | base, female_prior, male_prior |
 | 7 | pressure | cleanse_expedition | target_mark | base, assisted, advanced |
 | 8 | variation | cleanse_siege | target_mark + crystal_shell | base |
 | 9 | teaching | drop_direct | drop_relic | base, assisted |
@@ -472,9 +473,9 @@ engine_need:
 | 11 | pressure | split | target_mark | base, male_prior |
 | 12 | variation | cleanse_reveal | target_mark + crystal_shell | base |
 | 13 | teaching | timed/key light | timed_core or order_color | base |
-| 14 | pressure | order_key_color | order_color + crystal_shell | base, male_prior |
+| 14 | pressure | order_key_color | design_only_v0 | base, male_prior |
 | 15 | peak | cleanse_chain | target_mark + crystal_shell | base, assisted, advanced |
-| 16 | breather | harvest | collect | base |
+| 16 | breather | cleanup/cleanse | target_mark/crystal_shell | base |
 | 17 | pressure | dynamic_light | target_mark + creep_growth | base |
 | 18 | variation | drop_split | drop_relic | base, advanced |
 | 19 | pressure | precision | target_mark edge | base, assisted |
@@ -487,10 +488,10 @@ python3 tools/level_tool.py generate --through 10 --out-dir levels_src
 
 levels_src/level_001_base.lvl  cleanse_direct
 levels_src/level_002_base.lvl  cleanse_edge
-levels_src/level_003_base.lvl  collect_harvest
+levels_src/level_003_base.lvl  cleanse_trail
 levels_src/level_004_base.lvl  cleanse_expedition_weak
 levels_src/level_005_base.lvl  crystal_shell_gate_practice
-levels_src/level_006_base.lvl  collect_harvest
+levels_src/level_006_base.lvl  shell_cleanup_breather
 levels_src/level_007_base.lvl  cleanse_expedition
 levels_src/level_008_base.lvl  cleanse_siege
 levels_src/level_009_base.lvl  drop_direct

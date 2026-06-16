@@ -35,7 +35,7 @@
     "target": 1
   },
   "rules": {
-    "moves": 46,
+    "moves": 58,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
@@ -70,15 +70,15 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
     "..ooooo..",
-    ".ooooooo.",
-    "ooooooooo",
-    "ooooooooo",
+    "..ooooo..",
     "...ooo...",
     "...ooo...",
-    "ooooooooo",
-    ".ooooooo.",
-    "..ooooo.."
+    "...ooo..."
   ],
   "overlays": [
     {

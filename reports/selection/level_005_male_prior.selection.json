@@ -21,82 +21,79 @@
     "personas": {
       "visual_casual": {
         "simulated_pass_rate_at_1": 0.8,
-        "avg_remaining_moves": 13.25,
+        "avg_remaining_moves": 9.88,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 7.1,
+        "avg_cascade_score": 8.333,
         "fail_reason_distribution": {
           "too_many_leftovers": 0.2
         }
       },
       "goal_focused": {
         "simulated_pass_rate_at_1": 0.7,
-        "avg_remaining_moves": 9.29,
+        "avg_remaining_moves": 15.0,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 7.167,
+        "avg_cascade_score": 6.333,
         "fail_reason_distribution": {
           "too_many_leftovers": 0.3
         }
       },
       "bottom_cascade": {
-        "simulated_pass_rate_at_1": 0.6,
-        "avg_remaining_moves": 11.83,
+        "simulated_pass_rate_at_1": 0.8,
+        "avg_remaining_moves": 11.88,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 8.433,
+        "avg_cascade_score": 6.8,
         "fail_reason_distribution": {
-          "too_many_leftovers": 0.3,
-          "low_target_progress": 0.1
+          "too_many_leftovers": 0.1,
+          "no_legal_move_loop": 0.1
         }
       },
       "special_builder": {
-        "simulated_pass_rate_at_1": 0.8,
-        "avg_remaining_moves": 14.0,
+        "simulated_pass_rate_at_1": 0.6,
+        "avg_remaining_moves": 12.17,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 6.7,
+        "avg_cascade_score": 9.333,
         "fail_reason_distribution": {
-          "no_legal_move_loop": 0.1,
-          "too_many_leftovers": 0.1
+          "too_many_leftovers": 0.4
         }
       },
       "mechanism_aware": {
-        "simulated_pass_rate_at_1": 0.7,
-        "avg_remaining_moves": 13.57,
+        "simulated_pass_rate_at_1": 0.8,
+        "avg_remaining_moves": 12.25,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 6.6,
+        "avg_cascade_score": 7.067,
         "fail_reason_distribution": {
-          "too_many_leftovers": 0.3
+          "too_many_leftovers": 0.2
         }
       },
       "frustrated_retry": {
-        "simulated_pass_rate_at_1": 0.9,
+        "simulated_pass_rate_at_1": 0.8,
         "avg_remaining_moves": 12.0,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 6.5,
+        "avg_cascade_score": 7.5,
         "fail_reason_distribution": {
-          "too_many_leftovers": 0.1
+          "too_many_leftovers": 0.2
         }
       },
       "random_baseline": {
-        "simulated_pass_rate_at_1": 0.4,
-        "avg_remaining_moves": 8.75,
+        "simulated_pass_rate_at_1": 0.3,
+        "avg_remaining_moves": 5.33,
         "mechanism_activation_rate": 1.0,
-        "avg_cascade_score": 5.133,
+        "avg_cascade_score": 5.633,
         "fail_reason_distribution": {
-          "too_many_leftovers": 0.5,
-          "low_target_progress": 0.1
+          "too_many_leftovers": 0.7
         }
       }
     },
-    "aggregate_pass_rate_at_1": 0.721,
-    "aggregate_avg_remaining_moves": 12.27,
+    "aggregate_pass_rate_at_1": 0.717,
+    "aggregate_avg_remaining_moves": 12.03,
     "aggregate_mechanism_activation_rate": 1.0,
-    "aggregate_cascade_score": 6.921,
+    "aggregate_cascade_score": 7.471,
     "aggregate_fail_reason_distribution": {
-      "low_target_progress": 0.017,
-      "no_legal_move_loop": 0.02,
-      "too_many_leftovers": 0.242
+      "no_legal_move_loop": 0.012,
+      "too_many_leftovers": 0.271
     }
   },
-  "selected_score": 109.38,
+  "selected_score": 109.46,
   "target_pass_band": [
     0.58,
     0.8
@@ -112,9 +109,9 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.721,
+      "pass_rate": 0.717,
       "solve_pass": true,
-      "score": 109.38,
+      "score": 109.46,
       "regenerate_reason": null
     },
     {
@@ -127,10 +124,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.884,
+      "pass_rate": 0.098,
       "solve_pass": false,
-      "score": 104.44,
-      "regenerate_reason": "solver_above_band"
+      "score": -148.2,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 2,
@@ -142,10 +139,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.888,
+      "pass_rate": 0.23,
       "solve_pass": false,
-      "score": 103.245,
-      "regenerate_reason": "solver_above_band"
+      "score": -135.0,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 3,
@@ -157,10 +154,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.769,
-      "solve_pass": true,
-      "score": 108.42,
-      "regenerate_reason": null
+      "pass_rate": 0.257,
+      "solve_pass": false,
+      "score": -132.3,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 4,
@@ -172,9 +169,9 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.443,
+      "pass_rate": 0.045,
       "solve_pass": false,
-      "score": -113.7,
+      "score": -153.5,
       "regenerate_reason": "solver_below_band"
     },
     {
@@ -187,9 +184,9 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.499,
+      "pass_rate": 0.063,
       "solve_pass": false,
-      "score": -108.1,
+      "score": -151.7,
       "regenerate_reason": "solver_below_band"
     },
     {
@@ -202,10 +199,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.943,
+      "pass_rate": 0.206,
       "solve_pass": false,
-      "score": 100.17,
-      "regenerate_reason": "solver_above_band"
+      "score": -137.4,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 7,
@@ -217,10 +214,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.852,
+      "pass_rate": 0.269,
       "solve_pass": false,
-      "score": 105.088,
-      "regenerate_reason": "solver_above_band"
+      "score": -131.1,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 8,
@@ -232,10 +229,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.882,
+      "pass_rate": 0.116,
       "solve_pass": false,
-      "score": 104.52,
-      "regenerate_reason": "solver_above_band"
+      "score": -146.4,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 9,
@@ -247,10 +244,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.87,
+      "pass_rate": 0.326,
       "solve_pass": false,
-      "score": 104.017,
-      "regenerate_reason": "solver_above_band"
+      "score": -125.4,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 10,
@@ -262,10 +259,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.816,
+      "pass_rate": 0.252,
       "solve_pass": false,
-      "score": 107.16,
-      "regenerate_reason": "solver_above_band"
+      "score": -132.8,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 11,
@@ -277,10 +274,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.733,
-      "solve_pass": true,
-      "score": 109.14,
-      "regenerate_reason": null
+      "pass_rate": 0.308,
+      "solve_pass": false,
+      "score": -127.2,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 12,
@@ -292,10 +289,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.613,
-      "solve_pass": true,
-      "score": 107.543,
-      "regenerate_reason": null
+      "pass_rate": 0.085,
+      "solve_pass": false,
+      "score": -149.5,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 13,
@@ -307,9 +304,9 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.376,
+      "pass_rate": 0.113,
       "solve_pass": false,
-      "score": -120.4,
+      "score": -146.7,
       "regenerate_reason": "solver_below_band"
     },
     {
@@ -322,10 +319,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.86,
+      "pass_rate": 0.558,
       "solve_pass": false,
-      "score": 105.071,
-      "regenerate_reason": "solver_above_band"
+      "score": -102.2,
+      "regenerate_reason": "solver_below_band"
     },
     {
       "candidate": 15,
@@ -337,10 +334,10 @@
         0.8
       ],
       "profile": "male_prior",
-      "pass_rate": 0.814,
+      "pass_rate": 0.295,
       "solve_pass": false,
-      "score": 107.24,
-      "regenerate_reason": "solver_above_band"
+      "score": -128.5,
+      "regenerate_reason": "solver_below_band"
     }
   ],
   "verdict": "selected"

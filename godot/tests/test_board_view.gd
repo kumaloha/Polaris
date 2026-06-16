@@ -55,6 +55,22 @@ func test_rebuild_populates_node_grid_matching_board() -> void:
 	level.free()
 
 
+func test_rebuild_hides_gem_under_ingredient_overlay() -> void:
+	var b := Board.new(4, 4, [0, 1, 2, 3], 999999, 30, 7)
+	b.ing = [
+		[0, 0, 0, 0],
+		[0, 1, 0, 0],
+		[0, 0, 0, 0],
+		[0, 0, 0, 0],
+	]
+	b.grid[1][1] = 0
+	var level := _prepare_level(4, 4, b)
+	level.board_view.rebuild(level.board)
+	assert_true(level.board_view.node_at(Vector2i(1, 1)) == null, "ingredient/lost-cub cells do not also render a normal gem")
+	assert_true(level.board_view._overlay_nodes.has(["ing", Vector2i(1, 1)]), "ingredient overlay remains visible as the actual objective actor")
+	level.free()
+
+
 func test_node_at_out_of_bounds_is_null_not_crash() -> void:
 	var level := _prepare_level(3, 3)
 	level.board_view.rebuild(level.board)

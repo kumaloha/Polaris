@@ -37,6 +37,7 @@ UNSUPPORTED_MECHANISMS = {
     "star_nest",
 }
 SUPPORTED_TOPOLOGY = {"vertical_down", "split_columns"}
+FORBIDDEN_GENERATED_OBJECTIVES = {"collect", "order_color"}
 
 
 TERRAIN_TEMPLATES: dict[str, list[str]] = {
@@ -61,15 +62,15 @@ TERRAIN_TEMPLATES: dict[str, list[str]] = {
         "ooooooooo",
     ],
     "bottleneck_9x9": [
-        "..ooooo..",
-        ".ooooooo.",
         "ooooooooo",
-        "ooooooooo",
-        "...ooo...",
-        "...ooo...",
         "ooooooooo",
         ".ooooooo.",
+        ".ooooooo.",
         "..ooooo..",
+        "..ooooo..",
+        "...ooo...",
+        "...ooo...",
+        "...ooo...",
     ],
     "island_9x9": [
         "ooooooooo",
@@ -139,17 +140,18 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "theme": "crystal_workshop",
         "terrain": "open_7x7",
         "target_pass_band": [0.90, 1.00],
-        "eye": "collect_harvest",
-        "objective": {"type": "collect", "species": 0, "target": 18},
-        "placements": [],
-        "intent": "第一次换通关条件：收集指定颜色。",
-        "control": "harvest_color_0",
+        "eye": "cleanse_trail",
+        "objective": {"type": "cleanse_marks", "target": "all"},
+        "placements": ["trail_marks_7x7"],
+        "intent": "换一种星尘印记分布，不再用指定颜色收集当目标。",
+        "control": "target_path_reading",
     },
     4: {
         "role": "variation",
         "complexity_tier": 1,
         "theme": "hourglass_ruins",
         "terrain": "bottleneck_9x9",
+        "moves": 36,
         "target_pass_band": [0.68, 0.85],
         "eye": "cleanse_expedition_weak",
         "objective": {"type": "cleanse_marks", "target": "all"},
@@ -175,19 +177,19 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "complexity_tier": 1,
         "theme": "forest_ruins",
         "terrain": "open_7x7",
-        "target_pass_band": [0.90, 0.99],
-        "eye": "collect_harvest",
-        "objective": {"type": "collect", "species": 1, "target": 24},
-        "placements": [],
-        "intent": "晶壳后喘息爽关，回到开阔收集。",
-        "control": "cascade_harvest",
+        "target_pass_band": [0.90, 1.00],
+        "eye": "shell_cleanup_breather",
+        "objective": {"type": "clear_shells", "target": "all"},
+        "placements": ["soft_shell_clusters_7x7"],
+        "intent": "晶壳后喘息爽关：在开阔盘面清掉少量散落晶壳。",
+        "control": "adjacent_shell_cleanup",
     },
     7: {
         "role": "pressure",
         "complexity_tier": 2,
         "theme": "hourglass_ruins",
         "terrain": "bottleneck_9x9",
-        "moves": 22,
+        "moves": 42,
         "target_pass_band": [0.55, 0.75],
         "eye": "cleanse_expedition",
         "objective": {"type": "cleanse_marks", "target": "all"},
@@ -227,7 +229,7 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "complexity_tier": 2,
         "theme": "crystal_workshop",
         "terrain": "bottleneck_9x9",
-        "moves": 46,
+        "moves": 58,
         "target_pass_band": [0.55, 0.75],
         "eye": "drop_bottleneck",
         "objective": {"type": "drop_relic", "target": 1},
@@ -320,8 +322,14 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "edge_marks_7x7": [
             overlay("edge_marks", [[0, 1], [0, 5], [1, 0], [1, 6], [5, 0], [5, 6], [6, 1], [6, 5]], ["target_mark"])
         ],
+        "trail_marks_7x7": [
+            overlay("trail_marks", [[1, 2], [1, 3], [2, 4], [3, 2], [3, 3], [3, 4], [4, 2], [5, 3]], ["target_mark"])
+        ],
+        "soft_shell_clusters_7x7": [
+            overlay("soft_shell_clusters", [[2, 2], [2, 4], [3, 3], [4, 2], [4, 4]], [shell_layer])
+        ],
         "downstream_marks_9x9": [
-            overlay("downstream_marks", [[6, 2], [6, 3], [6, 4], [6, 5], [6, 6], [7, 3], [7, 4], [7, 5]], ["target_mark"])
+            overlay("downstream_marks", [[6, 3], [6, 4], [6, 5], [7, 3], [7, 4], [7, 5], [8, 3], [8, 4], [8, 5]], ["target_mark"])
         ],
         "gate_hint_marks_9x9": [
             overlay("gate_hint_marks", [[4, 3], [4, 4], [4, 5]], ["target_mark"])
@@ -379,13 +387,21 @@ def generated_design_claim(level: int, coord: dict[str, Any]) -> dict[str, Any]:
             "crack_path": ["read_lost_cub_and_exit", "access_drop_path", "activate_path_opening", "payoff_cub_falls", "convert_to_drop_relic_progress", "finish_remaining_objectives"],
             "climax": "迷路幼兽落入巢门回家。",
         }
-    if eye.startswith("collect"):
+    if eye == "shell_cleanup_breather":
         return {
             "eye": coord["intent"],
-            "visual_focus": "开阔棋盘和收集目标计数。",
-            "intended_solution": ["优先消目标色", "利用自然连锁提高收集效率"],
-            "crack_path": ["read_collect_target", "access_open_board", "convert_matches_to_collection", "finish_collection"],
-            "climax": "一次连锁收集多个目标色。",
+            "visual_focus": "开阔棋盘中少量散落晶壳。",
+            "intended_solution": ["找晶壳旁边的普通消除", "利用开阔盘面制造连锁", "清完剩余晶壳"],
+            "crack_path": ["read_shell_targets", "access_adjacent_matches", "convert_matches_to_shell_breaks", "finish_remaining_shells"],
+            "climax": "一次连锁连续敲碎多块晶壳。",
+        }
+    if eye == "cleanse_trail":
+        return {
+            "eye": coord["intent"],
+            "visual_focus": "开阔棋盘里的星尘路径。",
+            "intended_solution": ["沿星尘路径附近找消除", "用自然连锁净化中段", "收掉路径末端印记"],
+            "crack_path": ["read_mark_trail", "access_open_board", "convert_matches_to_mark_progress", "finish_remaining_marks"],
+            "climax": "星尘路径被连续净化。",
         }
     if "edge" in eye:
         return {
@@ -583,6 +599,8 @@ def lint_lvl(lvl: dict[str, Any]) -> Diagnostics:
         typ = obj.get("type")
         if typ not in SUPPORTED_OBJECTIVES:
             d.error("E_UNSUPPORTED_OBJECTIVE", f"objectives[{i}].type", f"{typ} is not supported in playable_v0")
+        if typ in FORBIDDEN_GENERATED_OBJECTIVES:
+            d.error("E_FORBIDDEN_COLOR_TARGET_OBJECTIVE", f"objectives[{i}].type", f"{typ} uses a specific gem color as the goal; generated v0 levels must use board/mechanism goals")
 
     if "crack_path" not in lvl.get("design_claim", {}):
         d.error("E_MISSING_CRACK_PATH", "design_claim.crack_path", "design_claim.crack_path is required")
@@ -596,6 +614,13 @@ def lint_lvl(lvl: dict[str, Any]) -> Diagnostics:
                 continue
             if rows and rows[cell[0]][cell[1]] == "." and "drop_exit" not in layer_names(entry.get("layers", [])):
                 d.error("E_LAYER_ON_HOLE", f"overlays[{i}]", f"cell {cell} is a hole")
+
+    dead_zones = vertical_supply_dead_zones(rows)
+    if dead_zones:
+        d.error("E_GRAVITY_DEAD_ZONE", "board", f"playable cells below holes cannot be supplied in v0: {dead_zones[:12]}")
+    sealed_rows = full_supply_seal_rows(rows, lvl)
+    if sealed_rows:
+        d.error("E_FULL_SUPPLY_SEAL", "overlays", f"crystal_shell seals every playable cell on row(s) {sealed_rows}")
 
     return d
 
@@ -624,6 +649,57 @@ def layer_names(layers: list[Any]) -> list[str]:
         elif isinstance(layer, dict):
             out.extend(str(k) for k in layer.keys())
     return out
+
+
+def vertical_supply_dead_zones(rows: list[str]) -> list[list[int]]:
+    """Cells that cannot be supplied by straight top-down refill in v0.
+
+    Godot supports some wall-slide behavior, but the early generated pack uses
+    a stricter contract: no playable cell may sit below a hole in the same
+    column. That prevents "pretty hourglass" maps from creating lower pockets
+    that can become empty or visually confusing.
+    """
+    if not rows:
+        return []
+    h = len(rows)
+    w = len(rows[0])
+    dead: list[list[int]] = []
+    for c in range(w):
+        gap_above = False
+        for r in range(h):
+            if rows[r][c] == ".":
+                gap_above = True
+            elif gap_above:
+                dead.append([r, c])
+    return dead
+
+
+def crystal_shell_cells(lvl: dict[str, Any]) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for entry in lvl.get("overlays", []) or []:
+        if "crystal_shell" not in layer_names(entry.get("layers", [])):
+            continue
+        for r, c in overlay_cells(entry):
+            cells.add((r, c))
+    return cells
+
+
+def full_supply_seal_rows(rows: list[str], lvl: dict[str, Any]) -> list[int]:
+    """Rows where every playable cell is occupied by gravity-blocking shells."""
+    if not rows:
+        return []
+    shells = crystal_shell_cells(lvl)
+    sealed: list[int] = []
+    for r, row in enumerate(rows):
+        playable_cols = [c for c, ch in enumerate(row) if ch != "."]
+        if not playable_cols:
+            continue
+        if not all((r, c) in shells for c in playable_cols):
+            continue
+        has_playable_below = any(rows[rr][c] != "." for c in playable_cols for rr in range(r + 1, len(rows)))
+        if has_playable_below:
+            sealed.append(r)
+    return sealed
 
 
 def layer_item(layer: Any) -> tuple[str, dict[str, Any]]:
@@ -783,7 +859,11 @@ def compile_objective(obj: dict[str, Any], jelly: list[list[int]], coat: list[li
             d.error("E_EMPTY_OBJECTIVE", "objective", "drop_relic requires at least one drop_relic")
         return {"type": "COLLECT_INGREDIENT", "species": -1, "target": target}
     if typ == "clear_shells":
-        return {"type": "CLEAR_BLOCKER", "species": -1, "target": int(obj.get("target", layer_sum(coat)))}
+        raw_target = obj.get("target", layer_sum(coat))
+        target = layer_sum(coat) if raw_target == "all" else int(raw_target)
+        if target <= 0:
+            d.error("E_EMPTY_OBJECTIVE", "objective", "clear_shells requires at least one crystal_shell")
+        return {"type": "CLEAR_BLOCKER", "species": -1, "target": target}
     if typ == "clear_creep":
         return {"type": "CLEAR_CHOCO", "species": -1, "target": int(obj.get("target", layer_sum(choco)))}
     if typ == "defuse_cores":

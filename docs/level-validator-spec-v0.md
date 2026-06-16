@@ -160,6 +160,7 @@ v0 不做完整证明，做保守近似：
 - `crystal_shell` 若完全包围目标，必须有至少一个可攻击边。
 - `drop_relic` 必须存在到任一出口的垂直/近似路径。
 - `spawner` 不能开局堵死唯一补给路径。
+- 生成关主目标禁止 `collect/order_color`：不要把“某色棋子数量”当通关条件。
 
 ### 5.3 Supply 检查
 
@@ -168,6 +169,8 @@ v0 不做完整证明，做保守近似：
 | `vertical_down` | 每个目标区上方或同区应有可补给路径 |
 | `split_columns` | 每个目标列至少有独立可玩区 |
 | permanent dead zone | 若目标在永久断供区，fail；若 design_claim 明确依赖特殊宝石，warning |
+| early vertical dead zone | 前 20 关 playable_v0 中，任何可玩格若同列上方被 hole/wall 断开，fail |
+| full supply seal | 晶壳/障碍不能整行封死下方补给，除非该关有明确的可读补给拓扑与教学 |
 
 ### 5.4 输出
 

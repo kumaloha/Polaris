@@ -31,9 +31,8 @@
     "pet_skill_context": "ignored_v0"
   },
   "objective": {
-    "type": "collect",
-    "species": 0,
-    "target": 18
+    "type": "cleanse_marks",
+    "target": "all"
   },
   "rules": {
     "moves": 18,
@@ -53,18 +52,20 @@
     }
   },
   "recipe": {
-    "eye": "collect_harvest",
+    "eye": "cleanse_trail",
     "obstacle_lane": {
-      "focus": "none",
+      "focus": "target_mark",
       "stage": "teaching_breather",
-      "active": [],
+      "active": [
+        "target_mark"
+      ],
       "forbidden": []
     },
     "mechanism_lane": {
       "focus": "none",
       "stage": "none"
     },
-    "intended_control": "harvest_color_0"
+    "intended_control": "target_path_reading"
   },
   "board": [
     "ooooooo",
@@ -75,21 +76,63 @@
     "ooooooo",
     "ooooooo"
   ],
-  "overlays": [],
+  "overlays": [
+    {
+      "region": "trail_marks",
+      "cells": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          5,
+          3
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
   "mechanisms": [],
   "design_claim": {
-    "eye": "第一次换通关条件：收集指定颜色。",
-    "visual_focus": "开阔棋盘和收集目标计数。",
+    "eye": "换一种星尘印记分布，不再用指定颜色收集当目标。",
+    "visual_focus": "开阔棋盘里的星尘路径。",
     "intended_solution": [
-      "优先消目标色",
-      "利用自然连锁提高收集效率"
+      "沿星尘路径附近找消除",
+      "用自然连锁净化中段",
+      "收掉路径末端印记"
     ],
     "crack_path": [
-      "read_collect_target",
+      "read_mark_trail",
       "access_open_board",
-      "convert_matches_to_collection",
-      "finish_collection"
+      "convert_matches_to_mark_progress",
+      "finish_remaining_marks"
     ],
-    "climax": "一次连锁收集多个目标色。"
+    "climax": "星尘路径被连续净化。"
   }
 }

@@ -335,6 +335,16 @@ func _layer_value(layer: Array, row: int, col: int) -> int:
 		return 0
 	return int(row_data[col])
 
+func _cell_has_ingredient(row: int, col: int) -> bool:
+	return board != null and _layer_value(board.ing, row, col) > 0
+
+func _visual_species_for_cell(row: int, col: int) -> int:
+	if board == null:
+		return ME.EMPTY
+	if _cell_has_ingredient(row, col):
+		return ME.EMPTY
+	return int(board.grid[row][col])
+
 # ───────── 整盘渲染 ─────────
 
 func _render_board(opening_drop: bool = false) -> void:
@@ -359,7 +369,7 @@ func _render_board(opening_drop: bool = false) -> void:
 				cs.scale = _fit_scale(cell_tex, cell_size * CELL_FILL)
 				cs.modulate = Color(1, 1, 1, 0.5)
 				_board_layer().add_child(cs)
-			var visual_sp: int = _opening_visual_species(r, c) if opening_drop else board.grid[r][c]
+			var visual_sp: int = ME.EMPTY if _cell_has_ingredient(r, c) else (_opening_visual_species(r, c) if opening_drop else _visual_species_for_cell(r, c))
 			var gnode: Sprite2D = _make_gem(visual_sp, center)
 			if gnode != null and opening_drop:
 				gnode.position = _opening_drop_start_position(center, r)
@@ -1071,7 +1081,7 @@ func _node_matches_species(node: Sprite2D, sp: int) -> bool:
 func _replace_gem_node(row: int, col: int, old_node: Sprite2D = null) -> Sprite2D:
 	if old_node != null and is_instance_valid(old_node):
 		old_node.queue_free()
-	var sp: int = board.grid[row][col]
+	var sp: int = _visual_species_for_cell(row, col)
 	if sp < 0:
 		return null
 	var node := _make_gem(sp, _cell_center(row, col))
@@ -1080,7 +1090,7 @@ func _replace_gem_node(row: int, col: int, old_node: Sprite2D = null) -> Sprite2
 	return node
 
 func _reuse_or_replace_gem_node(row: int, col: int, node: Sprite2D) -> Sprite2D:
-	var sp: int = board.grid[row][col]
+	var sp: int = _visual_species_for_cell(row, col)
 	if sp < 0:
 		if node != null and is_instance_valid(node):
 			node.queue_free()
@@ -1100,7 +1110,7 @@ func _repair_missing_gem_nodes_from_board() -> void:
 			return
 	for row in range(board.height):
 		for col in range(board.width):
-			var sp: int = board.grid[row][col]
+			var sp: int = _visual_species_for_cell(row, col)
 			var node: Sprite2D = _gem_nodes[row][col]
 			if sp < 0:
 				if node != null and is_instance_valid(node):
@@ -1214,7 +1224,7 @@ func _segment_old_entries(grid_snapshot: Array, old_nodes: Array, col: int, seg_
 func _segment_after_slots(col: int, seg_start: int, seg_end: int) -> Array:
 	var slots := []
 	for row in range(seg_start, seg_end + 1):
-		if board.grid[row][col] != ME.EMPTY and board.grid[row][col] != ME.WALL:
+		if _visual_species_for_cell(row, col) != ME.EMPTY and _visual_species_for_cell(row, col) != ME.WALL:
 			slots.append(row)
 	return slots
 

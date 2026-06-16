@@ -12,7 +12,7 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 57,
+    "playable_cell_count": 51,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,

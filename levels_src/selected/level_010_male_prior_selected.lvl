@@ -1,5 +1,5 @@
 {
-  "id": "level_010_base_c09",
+  "id": "level_010_base_c08",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,9 +13,9 @@
       0.75
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 9,
+    "candidate_index": 8,
     "candidate_tuning": {
-      "moves_delta": -3,
+      "moves_delta": -2,
       "target_multiplier": 1.08,
       "shell_hp_delta": 1,
       "colors_delta": 0
@@ -40,11 +40,11 @@
     "target": 1
   },
   "rules": {
-    "moves": 43,
+    "moves": 56,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
-    "seed": 10143
+    "seed": 9146
   },
   "map": {
     "width": 9,
@@ -75,15 +75,15 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
     "..ooooo..",
-    ".ooooooo.",
-    "ooooooooo",
-    "ooooooooo",
+    "..ooooo..",
     "...ooo...",
     "...ooo...",
-    "ooooooooo",
-    ".ooooooo.",
-    "..ooooo.."
+    "...ooo..."
   ],
   "overlays": [
     {

@@ -236,13 +236,13 @@ overlays:
 | 设计 objective | 可执行状态 | Godot objective | 需要的层/字段 |
 |---|---|---|---|
 | `cleanse_marks` | playable | `CLEAR_JELLY` | `target_mark -> jelly` |
-| `collect` | playable | `COLLECT` | `species`, `target` |
+| `collect` | engine-supported / generator-forbidden-v0 | `COLLECT` | `species`, `target` |
 | `drop_relic` | playable | `COLLECT_INGREDIENT` | `drop_relic -> ing`, `drop_exit -> exits` |
 | `clear_shells` | playable | `CLEAR_BLOCKER` | `crystal_shell -> coat` |
 | `clear_creep` | playable | `CLEAR_CHOCO` | `creep_growth -> choco` |
 | `defuse_cores` | playable | `DEFUSE_BOMB` | `timed_core -> bomb` |
 | `score` | playable | `SCORE` | `target_score` |
-| `order_color` | playable subset | `COLLECT` | color/species orders only |
+| `order_color` | engine-supported / generator-forbidden-v0 | `COLLECT` | color/species orders only |
 | `order_special` | unsupported_v0 | — | 需要新增特殊宝石收集计数 |
 | `activate_mechanism` | unsupported_v0 | — | 需要机制事件系统 |
 

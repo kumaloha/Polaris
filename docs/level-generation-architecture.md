@@ -93,8 +93,9 @@
 2. **最小工具链落地在 `tools/level_tool.py`**：提供 `lint / compile / validate / simulate / ascii` 五个命令；先输出 Godot 现有 `levels.json` 单关 record。Godot 渲染 wrapper 后补，不阻塞关卡源文件、结构验证与玩家模拟。
 3. **前 10 关由程序生成真实 `.lvl`**：`tools/level_tool.py generate --through 10 --out-dir levels_src` 生成 `levels_src/level_001_base.lvl` 到 `level_010_base.lvl`；生成后必须能 compile/validate/simulate。
 4. **第 5 关口径统一为 crystal_shell practice / pressure-lite**：它不是爽关；它负责第一次让玩家理解“晶壳门改变补给水文”。爽关后移到第 6 或第 10。
-5. **v0 可玩机制只用 engine-backed 子集**：`target_mark / crystal_shell / collect / drop_relic / creep_growth / spawner / timed_core`；原创奖励机关留在 design_only，不混入 playable。
-6. **玩家模拟器 v0 先是可解释启发式**：1-step move scoring + persona 权重 + noise；不追求最优解，不上深搜。
+5. **v0 可玩机制只用 engine-backed 子集**：`target_mark / crystal_shell / drop_relic / creep_growth / spawner / timed_core`；`collect/order_color` 虽然引擎支持，但生成关暂不把“某色棋子数量”作为主通关条件，因为它不够主题化、读起来像任务清单，不像关卡题眼。
+6. **早期 playable 地形必须补给安全**：障碍可以阻拦下落，但前 20 关不允许“下方可玩区悬在洞/墙下面”造成玩家以为会补棋却实际断供。漂亮形状必须先过 supply reachability。
+7. **玩家模拟器 v0 先是可解释启发式**：1-step move scoring + persona 权重 + noise；不追求最优解，不上深搜。
 
 闭合判断标准：
 
@@ -682,7 +683,7 @@ validation:
 | objective | 中文 | 设计价值 | v0 立场 |
 |---|---|---|---|
 | cleanse_marks | 净化目标印记 | 主菜，直观、项目原生 | v0 主力 |
-| collect | 收集指定物 | 可逼特殊控制力 | v0 可用 |
+| collect/order_color | 收集指定颜色 | 任务清单感强，主题弱 | 引擎支持，但生成关禁作主目标 |
 | drop_relic | 运输/掉出口 | 路径规划强 | v0 重点验证 |
 | order | 订单/指定组合 | 训练特殊宝石 | v0 后半段引入 |
 | score | 凑分 | 最浅 | v0 少用或禁用 |
@@ -707,7 +708,7 @@ v0 优先填这 8 个组合：
 2. cleanse_marks × siege
 3. drop_relic × expedition
 4. drop_relic × split
-5. collect × harvest
+5. clear_shells × cleanup
 6. order × key
 7. cleanse_marks × reveal
 8. cleanse_marks × chain
@@ -2073,8 +2074,8 @@ Level Coordinate
 
 | sample | width x height | board rows | 用途 |
 |---|---|---|---|
-| open_7x7 | 7x7 | `ooooooo` × 7 | teaching / collect / breather |
-| bottleneck_9x9 | 9x9 | `..ooooo..`, `.ooooooo.`, `ooooooooo`, `ooooooooo`, `...ooo...`, `...ooo...`, `ooooooooo`, `.ooooooo.`, `..ooooo..` | expedition / crystal_shell gate / drop path |
+| open_7x7 | 7x7 | `ooooooo` × 7 | teaching / breather |
+| bottleneck_9x9 | 9x9 | `ooooooooo`, `ooooooooo`, `.ooooooo.`, `.ooooooo.`, `..ooooo..`, `..ooooo..`, `...ooo...`, `...ooo...`, `...ooo...` | 补给安全的上宽下窄 expedition / crystal_shell gate / drop path |
 | edge_7x7 | 7x7 open + edge overlay preset | edge target / precision |
 | island_9x9 | 9x9 open + center/vault overlay preset | siege / vault |
 | fork_9x9 | 9x9 wall split + two downstream pools | drop split / resource split |
@@ -2090,6 +2091,8 @@ Level Coordinate
 | downstream_marks_9x9 | `target_mark` 放 bottleneck 下游池，窄口可放少量提示印记 |
 | crystal_gate_9x9 | `crystal_shell` 放 bottleneck 窄口 2x3，hp=1，前 10 关不叠 2 层 |
 | relic_direct_9x9 | `drop_relic` 放出口列正上方，`drop_exit` 放底行同列 |
+| trail_marks_7x7 | `target_mark` 放成开阔路径，替代“指定颜色收集”教学 |
+| soft_shell_clusters_7x7 | 少量 `crystal_shell` 散落在开阔盘，作为清障喘息关 |
 
 #### 7.8.3 role default 数值
 
@@ -2432,10 +2435,10 @@ human_review:
 |---:|---|---|---|---|---|
 | 1 | teaching | cleanse × direct | open | target_mark | 基本净化 |
 | 2 | variation | cleanse × edge | edge_deadzone | target_mark | 边角难清 |
-| 3 | teaching/breather | collect_harvest | open | collect | 第一次换通关条件：收集指定色 |
+| 3 | teaching/breather | cleanse_trail | open | target_mark | 换星尘分布，不用指定颜色目标 |
 | 4 | variation | cleanse × expedition weak | bottleneck | target_mark | 弱瓶颈：下游目标池 |
 | 5 | pressure_lite | crystal_shell practice | bottleneck | target_mark + crystal_shell | 晶壳门教学：先开门再净化 |
-| 6 | breather | collect_harvest | open | collect | 晶壳后喘息爽关 |
+| 6 | breather | shell_cleanup_breather | open | crystal_shell | 晶壳后喘息爽关 |
 | 7 | pressure | cleanse × expedition | hourglass | target_mark | 沙漏主公式 |
 | 8 | variation | siege | island | target_mark | 孤岛围城 |
 | 9 | teaching | drop_relic direct | open + exits | drop_relic | 迷路幼兽回巢教学 |
@@ -2445,7 +2448,7 @@ human_review:
 | 13 | teaching | bomb/line combo | open | order | 组合教学 |
 | 14 | pressure | order × key | vault | order | 必须造特定控制 |
 | 15 | peak | cleanse × chain | hourglass | target_mark | 第一小墙 |
-| 16 | breather | harvest | open | collect | 难后喘息 |
+| 16 | breather | cleanup/cleanse | open | target_mark/crystal_shell | 难后喘息 |
 | 17 | pressure | siege + dynamic | vault | target_mark/creep_growth | 动态压力轻测 |
 | 18 | variation | drop_relic × split | fork | drop_relic | 双路运输 |
 | 19 | pressure | precision | edge_deadzone | target_mark | 精算尾盘 |
@@ -2459,14 +2462,16 @@ human_review:
 |---:|---|---|---|---|---|
 | 1 | teaching | `level_001_base.lvl` | cleanse_direct | target_mark | 教玩家“星尘印记=要净化的目标” |
 | 2 | variation | `level_002_base.lvl` | cleanse_edge | target_mark | 同目标换到边缘，训练目标位置变化 |
-| 3 | teaching/breather | `level_003_base.lvl` | collect_harvest | collect | 第一次换通关条件：收集指定颜色 |
-| 4 | variation | `level_004_base.lvl` | cleanse_expedition_weak | target_mark | 下游目标池，弱瓶颈，无晶壳 |
+| 3 | teaching/breather | `level_003_base.lvl` | cleanse_trail | target_mark | 换一种星尘印记分布，不用指定颜色目标 |
+| 4 | variation | `level_004_base.lvl` | cleanse_expedition_weak | target_mark | 补给安全瓶颈：上宽下窄，不制造断供空区 |
 | 5 | pressure_lite | `level_005_base.lvl` | crystal_shell_gate_practice | target_mark + crystal_shell | 晶壳门首次正式改变水文：先开门再净化 |
-| 6 | breather | `level_006_base.lvl` | collect_harvest | collect | 晶壳后喘息爽关 |
+| 6 | breather | `level_006_base.lvl` | shell_cleanup_breather | crystal_shell | 开阔盘面清少量散落晶壳 |
 | 7 | pressure | `level_007_base.lvl` | cleanse_expedition | target_mark | 沙漏主公式 |
 | 8 | variation | `level_008_base.lvl` | cleanse_siege | target_mark + crystal_shell | 围城/金库变体 |
 | 9 | teaching | `level_009_base.lvl` | drop_direct | drop_relic | 迷路幼兽回巢教学 |
 | 10 | pressure | `level_010_base.lvl` | drop_bottleneck | drop_relic + crystal_shell | 幼兽路径与晶壳门 |
+
+运行时表达要求：`drop_relic` 的 HUD 图标必须表达“回巢/出口/护送”，不能复用宠物技能头像；棋盘上 `drop_relic/ing` 所在格也不能同时显示普通宝石，否则玩家会误以为它参与三消。
 
 第 5 关的闭合配方：
 

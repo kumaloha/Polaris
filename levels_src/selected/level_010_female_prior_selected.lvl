@@ -1,5 +1,5 @@
 {
-  "id": "level_010_base_c10",
+  "id": "level_010_base_c11",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,11 +13,11 @@
       0.75
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 10,
+    "candidate_index": 11,
     "candidate_tuning": {
-      "moves_delta": -4,
-      "target_multiplier": 1.1300000000000001,
-      "shell_hp_delta": 1,
+      "moves_delta": -5,
+      "target_multiplier": 1.1800000000000002,
+      "shell_hp_delta": 2,
       "colors_delta": 0
     }
   },
@@ -40,11 +40,11 @@
     "target": 1
   },
   "rules": {
-    "moves": 42,
+    "moves": 53,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
-    "seed": 11140
+    "seed": 12137
   },
   "map": {
     "width": 9,
@@ -75,15 +75,15 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
     "..ooooo..",
-    ".ooooooo.",
-    "ooooooooo",
-    "ooooooooo",
+    "..ooooo..",
     "...ooo...",
     "...ooo...",
-    "ooooooooo",
-    ".ooooooo.",
-    "..ooooo.."
+    "...ooo..."
   ],
   "overlays": [
     {
@@ -141,7 +141,7 @@
       "layers": [
         {
           "crystal_shell": {
-            "hp": 2
+            "hp": 3
           }
         }
       ]

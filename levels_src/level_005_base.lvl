@@ -74,24 +74,20 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
     "..ooooo..",
-    ".ooooooo.",
-    "ooooooooo",
-    "ooooooooo",
+    "..ooooo..",
     "...ooo...",
     "...ooo...",
-    "ooooooooo",
-    ".ooooooo.",
-    "..ooooo.."
+    "...ooo..."
   ],
   "overlays": [
     {
       "region": "downstream_marks",
       "cells": [
-        [
-          6,
-          2
-        ],
         [
           6,
           3
@@ -105,10 +101,6 @@
           5
         ],
         [
-          6,
-          6
-        ],
-        [
           7,
           3
         ],
@@ -118,6 +110,18 @@
         ],
         [
           7,
+          5
+        ],
+        [
+          8,
+          3
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          8,
           5
         ]
       ],

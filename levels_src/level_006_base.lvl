@@ -10,7 +10,7 @@
     "theme": "forest_ruins",
     "target_pass_band": [
       0.9,
-      0.99
+      1.0
     ],
     "generated_by": "tools/level_tool.py generate",
     "candidate_index": null,
@@ -22,7 +22,7 @@
     "prior_weight": 0.0,
     "target_pass_band": [
       0.9,
-      0.99
+      1.0
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -31,9 +31,8 @@
     "pet_skill_context": "ignored_v0"
   },
   "objective": {
-    "type": "collect",
-    "species": 1,
-    "target": 24
+    "type": "clear_shells",
+    "target": "all"
   },
   "rules": {
     "moves": 20,
@@ -53,18 +52,20 @@
     }
   },
   "recipe": {
-    "eye": "collect_harvest",
+    "eye": "shell_cleanup_breather",
     "obstacle_lane": {
-      "focus": "none",
+      "focus": "crystal_shell",
       "stage": "breather",
-      "active": [],
+      "active": [
+        "crystal_shell"
+      ],
       "forbidden": []
     },
     "mechanism_lane": {
       "focus": "none",
       "stage": "none"
     },
-    "intended_control": "cascade_harvest"
+    "intended_control": "adjacent_shell_cleanup"
   },
   "board": [
     "ooooooo",
@@ -75,21 +76,51 @@
     "ooooooo",
     "ooooooo"
   ],
-  "overlays": [],
+  "overlays": [
+    {
+      "region": "soft_shell_clusters",
+      "cells": [
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "layers": [
+        "crystal_shell"
+      ]
+    }
+  ],
   "mechanisms": [],
   "design_claim": {
-    "eye": "晶壳后喘息爽关，回到开阔收集。",
-    "visual_focus": "开阔棋盘和收集目标计数。",
+    "eye": "晶壳后喘息爽关：在开阔盘面清掉少量散落晶壳。",
+    "visual_focus": "开阔棋盘中少量散落晶壳。",
     "intended_solution": [
-      "优先消目标色",
-      "利用自然连锁提高收集效率"
+      "找晶壳旁边的普通消除",
+      "利用开阔盘面制造连锁",
+      "清完剩余晶壳"
     ],
     "crack_path": [
-      "read_collect_target",
-      "access_open_board",
-      "convert_matches_to_collection",
-      "finish_collection"
+      "read_shell_targets",
+      "access_adjacent_matches",
+      "convert_matches_to_shell_breaks",
+      "finish_remaining_shells"
     ],
-    "climax": "一次连锁收集多个目标色。"
+    "climax": "一次连锁连续敲碎多块晶壳。"
   }
 }
