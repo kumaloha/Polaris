@@ -115,6 +115,58 @@
     }
   ],
   "mechanisms": [],
+  "mechanism_specs": {
+    "crystal_shell": {
+      "mechanic_id": "crystal_shell",
+      "category": "blocker",
+      "state_dynamics": "static",
+      "player_action": "clear_adjacent_or_hit_with_special",
+      "board_effect": "occupies_space_and_blocks_until_hp_zero",
+      "reward_effect": "opens_route_or_reveals_target_space",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 5,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "drop_relic",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "coat_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "coat"
+      },
+      "level_role": "breather",
+      "linked_eye": "shell_cleanup_breather"
+    }
+  },
   "level_intent": {
     "objective_verb": "cleanse",
     "skill_lesson": {

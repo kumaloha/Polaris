@@ -112,6 +112,97 @@
     }
   ],
   "mechanisms": [],
+  "mechanism_specs": {
+    "drop_exit": {
+      "mechanic_id": "drop_exit",
+      "category": "routing",
+      "state_dynamics": "static",
+      "player_action": "route_actor_to_exit_column",
+      "board_effect": "collects_actor_when_it_reaches_bottom_exit",
+      "reward_effect": "transport_objective_completion",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "paired_with_actor_reveal",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_relic",
+          "crystal_shell"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "exit_columns",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "exits"
+      },
+      "level_role": "teaching",
+      "linked_eye": "drop_direct"
+    },
+    "drop_relic": {
+      "mechanic_id": "drop_relic",
+      "category": "actor",
+      "state_dynamics": "actor_moving",
+      "player_action": "clear_below_actor_to_move_down",
+      "board_effect": "actor_travels_toward_exit_after_supported_clears",
+      "reward_effect": "rescue_completion_feedback",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_exit",
+          "crystal_shell",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "ingredient_actor",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "ingredient"
+      },
+      "level_role": "teaching",
+      "linked_eye": "drop_direct"
+    }
+  },
   "level_intent": {
     "objective_verb": "transport",
     "skill_lesson": {

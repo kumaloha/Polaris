@@ -59,6 +59,30 @@
     "errors": [],
     "warnings": []
   },
+  "mechanism_spec_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "active_atoms": [
+        "target_mark"
+      ],
+      "active_atoms_have_specs": true,
+      "unused_specs": [],
+      "target_mark.id_matches_key": true,
+      "target_mark.category_known": true,
+      "target_mark.state_dynamics_known": true,
+      "target_mark.effect_text_present": true,
+      "target_mark.compatible_objective_verbs_declared": true,
+      "target_mark.compatible_terrain_declared": true,
+      "target_mark.intro_rule_declared": true,
+      "target_mark.new_reveal_matches_intro_level": true,
+      "target_mark.mixing_rule_declared": true,
+      "target_mark.simulator_hook_declared": true,
+      "target_mark.godot_support_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "personalization_gate": {
     "valid": true,
     "score": 100,

@@ -59,6 +59,41 @@
     "errors": [],
     "warnings": []
   },
+  "mechanism_spec_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "active_atoms": [
+        "drop_exit",
+        "drop_relic"
+      ],
+      "active_atoms_have_specs": true,
+      "unused_specs": [],
+      "drop_exit.id_matches_key": true,
+      "drop_exit.category_known": true,
+      "drop_exit.state_dynamics_known": true,
+      "drop_exit.effect_text_present": true,
+      "drop_exit.compatible_objective_verbs_declared": true,
+      "drop_exit.compatible_terrain_declared": true,
+      "drop_exit.intro_rule_declared": true,
+      "drop_exit.mixing_rule_declared": true,
+      "drop_exit.simulator_hook_declared": true,
+      "drop_exit.godot_support_declared": true,
+      "drop_relic.id_matches_key": true,
+      "drop_relic.category_known": true,
+      "drop_relic.state_dynamics_known": true,
+      "drop_relic.effect_text_present": true,
+      "drop_relic.compatible_objective_verbs_declared": true,
+      "drop_relic.compatible_terrain_declared": true,
+      "drop_relic.intro_rule_declared": true,
+      "drop_relic.new_reveal_matches_intro_level": true,
+      "drop_relic.mixing_rule_declared": true,
+      "drop_relic.simulator_hook_declared": true,
+      "drop_relic.godot_support_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "personalization_gate": {
     "valid": true,
     "score": 100,

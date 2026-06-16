@@ -55,6 +55,40 @@
     "errors": [],
     "warnings": []
   },
+  "mechanism_spec_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "active_atoms": [
+        "line_h_gem",
+        "target_mark"
+      ],
+      "active_atoms_have_specs": true,
+      "unused_specs": [],
+      "line_h_gem.id_matches_key": true,
+      "line_h_gem.category_known": true,
+      "line_h_gem.state_dynamics_known": true,
+      "line_h_gem.effect_text_present": true,
+      "line_h_gem.compatible_objective_verbs_declared": true,
+      "line_h_gem.compatible_terrain_declared": true,
+      "line_h_gem.intro_rule_declared": true,
+      "line_h_gem.mixing_rule_declared": true,
+      "line_h_gem.simulator_hook_declared": true,
+      "line_h_gem.godot_support_declared": true,
+      "target_mark.id_matches_key": true,
+      "target_mark.category_known": true,
+      "target_mark.state_dynamics_known": true,
+      "target_mark.effect_text_present": true,
+      "target_mark.compatible_objective_verbs_declared": true,
+      "target_mark.compatible_terrain_declared": true,
+      "target_mark.intro_rule_declared": true,
+      "target_mark.mixing_rule_declared": true,
+      "target_mark.simulator_hook_declared": true,
+      "target_mark.godot_support_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "personalization_gate": {
     "valid": true,
     "score": 100,

@@ -584,6 +584,186 @@ VISUAL_DENSITY_BANDS: dict[str, list[float]] = {
 }
 
 
+MECHANISM_SPEC_REQUIRED_FIELDS = {
+    "mechanic_id",
+    "category",
+    "state_dynamics",
+    "player_action",
+    "board_effect",
+    "reward_effect",
+    "compatible_objective_verbs",
+    "compatible_terrain",
+    "intro_rule",
+    "mixing_rule",
+    "simulator_hook",
+    "godot_support",
+}
+MECHANISM_STATE_DYNAMICS = {"static", "self_evolving", "actor_moving"}
+MECHANISM_CATEGORIES = {"objective", "blocker", "actor", "routing", "reward"}
+MECHANISM_COMPATIBLE_TERRAIN = ["open", "bottleneck", "island", "fork", "split_columns"]
+
+
+def mechanism_spec_record(
+    mechanic_id: str,
+    *,
+    category: str,
+    state_dynamics: str,
+    player_action: str,
+    board_effect: str,
+    reward_effect: str,
+    compatible_objective_verbs: list[str],
+    first_reveal_level: int | None,
+    first_reveal_phase: str,
+    can_pair_with: list[str],
+    simulator_kind: str,
+    godot_layer: str,
+) -> dict[str, Any]:
+    return {
+        "mechanic_id": mechanic_id,
+        "category": category,
+        "state_dynamics": state_dynamics,
+        "player_action": player_action,
+        "board_effect": board_effect,
+        "reward_effect": reward_effect,
+        "compatible_objective_verbs": compatible_objective_verbs,
+        "compatible_terrain": list(MECHANISM_COMPATIBLE_TERRAIN),
+        "intro_rule": {
+            "first_reveal_level": first_reveal_level,
+            "first_reveal_phase": first_reveal_phase,
+            "new_reveal_problem_space": "small" if first_reveal_level is not None else "n/a",
+        },
+        "mixing_rule": {
+            "can_pair_with": can_pair_with,
+            "forbidden_with": [],
+            "max_support_mechanisms_early": 1,
+        },
+        "simulator_hook": {
+            "kind": simulator_kind,
+            "supported": True,
+        },
+        "godot_support": {
+            "playable_v0": True,
+            "compile_layer": godot_layer,
+        },
+    }
+
+
+BASE_MECHANISM_SPECS: dict[str, dict[str, Any]] = {
+    "target_mark": mechanism_spec_record(
+        "target_mark",
+        category="objective",
+        state_dynamics="static",
+        player_action="match_on_target_cell",
+        board_effect="clears_target_mark_layer",
+        reward_effect="objective_progress_feedback",
+        compatible_objective_verbs=["cleanse", "craft", "mixed"],
+        first_reveal_level=1,
+        first_reveal_phase="reveal_safe",
+        can_pair_with=["crystal_shell", "line_h_gem", "line_v_gem", "burst_gem", "color_bomb_gem"],
+        simulator_kind="jelly_layer",
+        godot_layer="jelly",
+    ),
+    "crystal_shell": mechanism_spec_record(
+        "crystal_shell",
+        category="blocker",
+        state_dynamics="static",
+        player_action="clear_adjacent_or_hit_with_special",
+        board_effect="occupies_space_and_blocks_until_hp_zero",
+        reward_effect="opens_route_or_reveals_target_space",
+        compatible_objective_verbs=["cleanse", "transport", "craft", "rescue", "mixed"],
+        first_reveal_level=5,
+        first_reveal_phase="reveal_safe",
+        can_pair_with=["target_mark", "drop_relic", "line_h_gem", "line_v_gem", "burst_gem", "color_bomb_gem", "drop_exit"],
+        simulator_kind="coat_layer",
+        godot_layer="coat",
+    ),
+    "drop_relic": mechanism_spec_record(
+        "drop_relic",
+        category="actor",
+        state_dynamics="actor_moving",
+        player_action="clear_below_actor_to_move_down",
+        board_effect="actor_travels_toward_exit_after_supported_clears",
+        reward_effect="rescue_completion_feedback",
+        compatible_objective_verbs=["transport", "rescue", "mixed"],
+        first_reveal_level=9,
+        first_reveal_phase="reveal_safe",
+        can_pair_with=["drop_exit", "crystal_shell", "line_v_gem", "burst_gem", "color_bomb_gem"],
+        simulator_kind="ingredient_actor",
+        godot_layer="ingredient",
+    ),
+    "drop_exit": mechanism_spec_record(
+        "drop_exit",
+        category="routing",
+        state_dynamics="static",
+        player_action="route_actor_to_exit_column",
+        board_effect="collects_actor_when_it_reaches_bottom_exit",
+        reward_effect="transport_objective_completion",
+        compatible_objective_verbs=["transport", "rescue", "mixed"],
+        first_reveal_level=9,
+        first_reveal_phase="paired_with_actor_reveal",
+        can_pair_with=["drop_relic", "crystal_shell"],
+        simulator_kind="exit_columns",
+        godot_layer="exits",
+    ),
+    "line_h_gem": mechanism_spec_record(
+        "line_h_gem",
+        category="reward",
+        state_dynamics="static",
+        player_action="trigger_or_swap_special_reward",
+        board_effect="clears_horizontal_line",
+        reward_effect="edge_or_row_sweep",
+        compatible_objective_verbs=["cleanse", "transport", "craft", "connect", "rescue", "mixed"],
+        first_reveal_level=None,
+        first_reveal_phase="reward_tool",
+        can_pair_with=["target_mark", "crystal_shell", "drop_relic", "drop_exit"],
+        simulator_kind="fx_line_h",
+        godot_layer="fx",
+    ),
+    "line_v_gem": mechanism_spec_record(
+        "line_v_gem",
+        category="reward",
+        state_dynamics="static",
+        player_action="trigger_or_swap_special_reward",
+        board_effect="clears_vertical_line",
+        reward_effect="gate_or_route_sweep",
+        compatible_objective_verbs=["cleanse", "transport", "craft", "connect", "rescue", "mixed"],
+        first_reveal_level=None,
+        first_reveal_phase="reward_tool",
+        can_pair_with=["target_mark", "crystal_shell", "drop_relic", "drop_exit"],
+        simulator_kind="fx_line_v",
+        godot_layer="fx",
+    ),
+    "burst_gem": mechanism_spec_record(
+        "burst_gem",
+        category="reward",
+        state_dynamics="static",
+        player_action="trigger_or_swap_special_reward",
+        board_effect="clears_local_radius",
+        reward_effect="cracks_cluster_or_ring",
+        compatible_objective_verbs=["cleanse", "transport", "craft", "connect", "rescue", "mixed"],
+        first_reveal_level=None,
+        first_reveal_phase="reward_tool",
+        can_pair_with=["target_mark", "crystal_shell", "drop_relic", "drop_exit"],
+        simulator_kind="fx_burst",
+        godot_layer="fx",
+    ),
+    "color_bomb_gem": mechanism_spec_record(
+        "color_bomb_gem",
+        category="reward",
+        state_dynamics="static",
+        player_action="swap_with_color_to_clear_species",
+        board_effect="clears_one_species",
+        reward_effect="large_board_sweep",
+        compatible_objective_verbs=["cleanse", "transport", "craft", "connect", "rescue", "mixed"],
+        first_reveal_level=None,
+        first_reveal_phase="reward_tool",
+        can_pair_with=["target_mark", "crystal_shell", "drop_relic", "drop_exit"],
+        simulator_kind="fx_color_bomb",
+        godot_layer="fx",
+    ),
+}
+
+
 CANDIDATE_TUNINGS: list[dict[str, Any]] = [
     {"moves_delta": 0, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
     {"moves_delta": -1, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
@@ -842,6 +1022,19 @@ def generated_visual_grammar(composition: dict[str, Any], coord: dict[str, Any])
         "anchor_layers": anchor_layers,
         "max_centroid_offset": 1.25,
     }
+
+
+def generated_mechanism_specs(level: int, coord: dict[str, Any], draft_lvl: dict[str, Any]) -> dict[str, Any]:
+    """Return the per-level subset of the mechanism library used by a level."""
+    specs: dict[str, dict[str, Any]] = {}
+    for atom in sorted(mechanism_atoms_for_lvl(draft_lvl)):
+        if atom not in BASE_MECHANISM_SPECS:
+            continue
+        spec = copy.deepcopy(BASE_MECHANISM_SPECS[atom])
+        spec["level_role"] = coord["role"]
+        spec["linked_eye"] = coord["eye"]
+        specs[atom] = spec
+    return specs
 
 
 def generated_level_intent(level: int, coord: dict[str, Any]) -> dict[str, Any]:
@@ -1647,6 +1840,14 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     obstacle_composition = generated_obstacle_composition(level, coord)
     level_intent = generated_level_intent(level, coord)
     placements = list(coord["placements"]) + list(coord.get("reward_placements", []))
+    overlays = build_overlays(placements, shell_hp_delta)
+    objective = objective_with_variant(coord["objective"], target_multiplier)
+    draft_for_mechanisms = {
+        "objective": objective,
+        "overlays": overlays,
+        "mechanisms": [],
+    }
+    mechanism_specs = generated_mechanism_specs(level, coord, draft_for_mechanisms)
 
     return {
         "id": level_id,
@@ -1672,7 +1873,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
             "target_attempts_to_first_win": [1.0, 2.0] if role in {"teaching", "teaching_breather"} else [1.5, 3.0],
             "pet_skill_context": "ignored_v0",
         },
-        "objective": objective_with_variant(coord["objective"], target_multiplier),
+        "objective": objective,
         "rules": {"moves": moves, "colors": colors, "refill": "random", "gravity": "down", "seed": seed},
         "map": {
             "width": width,
@@ -1692,8 +1893,9 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
             "intended_control": coord["control"],
         },
         "board": rows,
-        "overlays": build_overlays(placements, shell_hp_delta),
+        "overlays": overlays,
         "mechanisms": [],
+        "mechanism_specs": mechanism_specs,
         "level_intent": level_intent,
         "progression": progression,
         "obstacle_composition": obstacle_composition,
@@ -2190,6 +2392,20 @@ def reward_layer_set(lvl: dict[str, Any]) -> set[str]:
     for entry in lvl.get("overlays", []) or []:
         out.update(name for name in layer_names(entry.get("layers", [])) if name in REWARD_LAYER_TO_FX)
     return out
+
+
+def mechanism_atoms_for_lvl(lvl: dict[str, Any]) -> set[str]:
+    """All design atoms that need a mechanism spec in this level."""
+    atoms = set(active_layer_set(lvl)) | set(reward_layer_set(lvl))
+    for layer in objective_layer_set(lvl):
+        atoms.add(layer)
+    if cells_for_layer(lvl, "drop_exit"):
+        atoms.add("drop_exit")
+    for mech in lvl.get("mechanisms", []) or []:
+        mtype = mech.get("type")
+        if isinstance(mtype, str):
+            atoms.add(mtype)
+    return atoms
 
 
 def cells_for_layer(lvl: dict[str, Any], layer_name: str) -> set[tuple[int, int]]:
@@ -2693,6 +2909,152 @@ def level_intent_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | No
     return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
 
 
+def mechanism_spec_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate the per-level mechanism library contract."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    specs = lvl.get("mechanism_specs")
+    if not isinstance(specs, dict):
+        fail("E_MECHANISM_SPECS_MISSING", "mechanism_specs", "mechanism_specs contract is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    active_atoms = mechanism_atoms_for_lvl(lvl)
+    checks["active_atoms"] = sorted(active_atoms)
+    missing_active = sorted(active_atoms - set(specs))
+    checks["active_atoms_have_specs"] = not missing_active
+    if missing_active:
+        fail("E_MECHANISM_SPEC_MISSING_ACTIVE", "mechanism_specs", f"active atom(s) missing specs: {missing_active}", 35)
+
+    unused_specs = sorted(set(specs) - active_atoms)
+    checks["unused_specs"] = unused_specs
+    if unused_specs:
+        warn("W_MECHANISM_SPEC_UNUSED", "mechanism_specs", f"unused mechanism spec(s): {unused_specs}", 5)
+
+    intent = lvl.get("level_intent") if isinstance(lvl.get("level_intent"), dict) else {}
+    objective_verb = str(intent.get("objective_verb", ""))
+    terrain = str(lvl.get("map", {}).get("terrain", {}).get("sample", ""))
+    compile_mode = str(lvl.get("compile_mode", "playable"))
+    slot = int(lvl.get("meta", {}).get("level_coordinate", 0) or 0)
+    progression = lvl.get("progression") if isinstance(lvl.get("progression"), dict) else {}
+    lifecycle = progression.get("mechanic_lifecycle") if isinstance(progression.get("mechanic_lifecycle"), list) else []
+    new_reveals = {
+        str(item.get("mechanic"))
+        for item in lifecycle
+        if isinstance(item, dict) and bool(item.get("is_new")) and item.get("phase") == "reveal_safe"
+    }
+
+    for key, raw_spec in specs.items():
+        if not isinstance(raw_spec, dict):
+            fail("E_MECHANISM_SPEC_TYPE", f"mechanism_specs.{key}", "mechanism spec must be an object", 20)
+            continue
+        missing_fields = sorted(MECHANISM_SPEC_REQUIRED_FIELDS - set(raw_spec))
+        if missing_fields:
+            fail("E_MECHANISM_SPEC_FIELDS", f"mechanism_specs.{key}", f"missing mechanism spec fields: {missing_fields}", 25)
+            continue
+
+        mechanic_id = str(raw_spec.get("mechanic_id", ""))
+        id_ok = mechanic_id == str(key)
+        checks[f"{key}.id_matches_key"] = id_ok
+        if not id_ok:
+            fail("E_MECHANISM_SPEC_ID_MISMATCH", f"mechanism_specs.{key}.mechanic_id", f"mechanic_id {mechanic_id!r} must match key {key!r}", 15)
+
+        category = str(raw_spec.get("category", ""))
+        category_ok = category in MECHANISM_CATEGORIES
+        checks[f"{key}.category_known"] = category_ok
+        if not category_ok:
+            fail("E_MECHANISM_SPEC_CATEGORY", f"mechanism_specs.{key}.category", f"unknown mechanism category {category!r}", 15)
+
+        dynamics = str(raw_spec.get("state_dynamics", ""))
+        dynamics_ok = dynamics in MECHANISM_STATE_DYNAMICS
+        checks[f"{key}.state_dynamics_known"] = dynamics_ok
+        if not dynamics_ok:
+            fail("E_MECHANISM_SPEC_STATE_DYNAMICS", f"mechanism_specs.{key}.state_dynamics", f"unknown state_dynamics {dynamics!r}", 15)
+
+        text_fields_ok = all(isinstance(raw_spec.get(field), str) and bool(str(raw_spec.get(field))) for field in ("player_action", "board_effect", "reward_effect"))
+        checks[f"{key}.effect_text_present"] = text_fields_ok
+        if not text_fields_ok:
+            fail("E_MECHANISM_SPEC_EFFECT_TEXT", f"mechanism_specs.{key}", "player_action, board_effect, and reward_effect must be concrete strings", 15)
+
+        compat_verbs = [str(x) for x in raw_spec.get("compatible_objective_verbs", []) if isinstance(x, str)]
+        compat_ok = bool(compat_verbs)
+        checks[f"{key}.compatible_objective_verbs_declared"] = compat_ok
+        if not compat_ok:
+            fail("E_MECHANISM_SPEC_OBJECTIVE_COMPAT", f"mechanism_specs.{key}.compatible_objective_verbs", "compatible_objective_verbs must be a non-empty list", 15)
+        elif key in active_atoms and objective_verb and objective_verb not in compat_verbs:
+            fail(
+                "E_MECHANISM_SPEC_OBJECTIVE_INCOMPATIBLE",
+                f"mechanism_specs.{key}.compatible_objective_verbs",
+                f"active mechanism {key!r} is not compatible with objective verb {objective_verb!r}",
+                25,
+            )
+
+        compat_terrain = [str(x) for x in raw_spec.get("compatible_terrain", []) if isinstance(x, str)]
+        terrain_ok = bool(compat_terrain)
+        checks[f"{key}.compatible_terrain_declared"] = terrain_ok
+        if not terrain_ok:
+            fail("E_MECHANISM_SPEC_TERRAIN_COMPAT", f"mechanism_specs.{key}.compatible_terrain", "compatible_terrain must be a non-empty list", 15)
+        elif key in active_atoms and terrain and terrain not in compat_terrain:
+            fail("E_MECHANISM_SPEC_TERRAIN_INCOMPATIBLE", f"mechanism_specs.{key}.compatible_terrain", f"active mechanism {key!r} is not compatible with terrain {terrain!r}", 20)
+
+        intro = raw_spec.get("intro_rule") if isinstance(raw_spec.get("intro_rule"), dict) else {}
+        intro_ok = bool(intro) and "first_reveal_phase" in intro and "new_reveal_problem_space" in intro
+        checks[f"{key}.intro_rule_declared"] = intro_ok
+        if not intro_ok:
+            fail("E_MECHANISM_SPEC_INTRO_RULE", f"mechanism_specs.{key}.intro_rule", "intro_rule must declare first_reveal_phase and new_reveal_problem_space", 15)
+        if key in new_reveals:
+            first_level = intro.get("first_reveal_level")
+            first_level_ok = isinstance(first_level, int) and first_level == slot
+            checks[f"{key}.new_reveal_matches_intro_level"] = first_level_ok
+            if not first_level_ok:
+                fail("E_MECHANISM_SPEC_INTRO_LEVEL", f"mechanism_specs.{key}.intro_rule.first_reveal_level", f"new reveal at level {slot} must match intro first_reveal_level", 20)
+
+        mixing = raw_spec.get("mixing_rule") if isinstance(raw_spec.get("mixing_rule"), dict) else {}
+        can_pair = [str(x) for x in mixing.get("can_pair_with", []) if isinstance(x, str)]
+        forbidden = {str(x) for x in mixing.get("forbidden_with", []) if isinstance(x, str)}
+        mixing_ok = isinstance(mixing, dict) and "can_pair_with" in mixing and "forbidden_with" in mixing
+        checks[f"{key}.mixing_rule_declared"] = mixing_ok
+        if not mixing_ok:
+            fail("E_MECHANISM_SPEC_MIXING_RULE", f"mechanism_specs.{key}.mixing_rule", "mixing_rule must declare can_pair_with and forbidden_with", 15)
+        if key in active_atoms:
+            forbidden_hits = sorted((active_atoms - {key}) & forbidden)
+            if forbidden_hits:
+                fail("E_MECHANISM_SPEC_FORBIDDEN_MIX", f"mechanism_specs.{key}.mixing_rule.forbidden_with", f"active forbidden pairing(s): {forbidden_hits}", 25)
+            soft_unlisted = sorted((active_atoms - {key}) - set(can_pair))
+            if soft_unlisted and category not in {"reward", "routing"}:
+                warn("W_MECHANISM_SPEC_UNLISTED_PAIRING", f"mechanism_specs.{key}.mixing_rule.can_pair_with", f"active pairing(s) not explicitly listed: {soft_unlisted}", 5)
+
+        simulator = raw_spec.get("simulator_hook") if isinstance(raw_spec.get("simulator_hook"), dict) else {}
+        sim_ok = bool(simulator) and isinstance(simulator.get("kind"), str)
+        checks[f"{key}.simulator_hook_declared"] = sim_ok
+        if not sim_ok:
+            fail("E_MECHANISM_SPEC_SIM_HOOK", f"mechanism_specs.{key}.simulator_hook", "simulator_hook must declare kind", 15)
+        elif key in active_atoms and not bool(simulator.get("supported")):
+            fail("E_MECHANISM_SPEC_SIM_UNSUPPORTED", f"mechanism_specs.{key}.simulator_hook.supported", f"active mechanism {key!r} is not supported by the player simulator", 25)
+
+        godot = raw_spec.get("godot_support") if isinstance(raw_spec.get("godot_support"), dict) else {}
+        godot_ok = bool(godot) and isinstance(godot.get("compile_layer"), str)
+        checks[f"{key}.godot_support_declared"] = godot_ok
+        if not godot_ok:
+            fail("E_MECHANISM_SPEC_GODOT_HOOK", f"mechanism_specs.{key}.godot_support", "godot_support must declare compile_layer", 15)
+        elif compile_mode == "playable" and key in active_atoms and not bool(godot.get("playable_v0")):
+            fail("E_MECHANISM_SPEC_GODOT_UNSUPPORTED", f"mechanism_specs.{key}.godot_support.playable_v0", f"active mechanism {key!r} is not playable in Godot v0", 25)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def obstacle_composition_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate whether blocker geometry serves the declared design purpose."""
     errors: list[dict[str, Any]] = []
@@ -3154,6 +3516,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
     level_intent = level_intent_validate_lvl(lvl, compiled)
+    mechanism_spec = mechanism_spec_validate_lvl(lvl, compiled)
     personalization = personalization_validate_lvl(lvl, compiled)
     progression = progression_validate_lvl(lvl, compiled)
     obstacle_composition = obstacle_composition_validate_lvl(lvl, compiled)
@@ -3168,6 +3531,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     }
     out["semantic"] = semantic
     out["level_intent_gate"] = level_intent
+    out["mechanism_spec_gate"] = mechanism_spec
     out["personalization_gate"] = personalization
     out["taste"] = taste
     out["progression"] = progression
@@ -3177,6 +3541,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         structural_valid
         and semantic.get("valid")
         and level_intent.get("valid")
+        and mechanism_spec.get("valid")
         and personalization.get("valid")
         and progression.get("valid")
         and obstacle_composition.get("valid")
@@ -3190,6 +3555,8 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["verdict"] = "revise_semantic"
     elif not level_intent.get("valid"):
         out["verdict"] = "revise_level_intent"
+    elif not mechanism_spec.get("valid"):
+        out["verdict"] = "revise_mechanism_spec"
     elif not personalization.get("valid"):
         out["verdict"] = "revise_personalization"
     elif not progression.get("valid"):
@@ -3214,6 +3581,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"level intent gate: {err.get('message')}")
     for warn_item in level_intent.get("warnings", []):
         out["recommendations"].append(f"level intent warning: {warn_item.get('message')}")
+    for err in mechanism_spec.get("errors", []):
+        out["recommendations"].append(f"mechanism spec gate: {err.get('message')}")
+    for warn_item in mechanism_spec.get("warnings", []):
+        out["recommendations"].append(f"mechanism spec warning: {warn_item.get('message')}")
     for err in personalization.get("errors", []):
         out["recommendations"].append(f"personalization gate: {err.get('message')}")
     for warn_item in personalization.get("warnings", []):

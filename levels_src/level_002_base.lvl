@@ -139,6 +139,102 @@
     }
   ],
   "mechanisms": [],
+  "mechanism_specs": {
+    "line_h_gem": {
+      "mechanic_id": "line_h_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_horizontal_line",
+      "reward_effect": "edge_or_row_sweep",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_line_h",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_edge"
+    },
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_edge"
+    }
+  },
   "level_intent": {
     "objective_verb": "cleanse",
     "skill_lesson": {

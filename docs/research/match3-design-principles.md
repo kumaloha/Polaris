@@ -208,3 +208,41 @@ Current 1-10 cadence:
 - Level 5 reveals crystal shell.
 - Level 9 reveals lost cub transport.
 - The gaps are wide enough for practice/variation before the next reveal.
+
+### Law 12: A mechanism is a contract, not a name
+
+Adding a new blocker/reward/actor should not mean “write a name in prose and hope the generator understands it.” Every playable mechanism needs a spec that tells the generator, validator, simulator, and Godot what it is.
+
+Executable rule:
+
+```yaml
+mechanism_specs.<mechanic_id>:
+  mechanic_id: target_mark | crystal_shell | drop_relic | ...
+  category: objective | blocker | actor | routing | reward
+  state_dynamics: static | self_evolving | actor_moving
+  player_action: clear_below_actor | match_on_target_cell | trigger_special_reward
+  board_effect: what changes on the board
+  reward_effect: what satisfaction/resource this creates
+  compatible_objective_verbs: [cleanse, transport, craft, connect, rescue, mixed]
+  compatible_terrain: [open, bottleneck, island, fork, split_columns]
+  intro_rule:
+    first_reveal_level: number | null
+    first_reveal_phase: reveal_safe | reward_tool | ...
+    new_reveal_problem_space: small | n/a
+  mixing_rule:
+    can_pair_with: [...]
+    forbidden_with: [...]
+  simulator_hook:
+    kind: jelly_layer | coat_layer | ingredient_actor | fx_line_v | ...
+    supported: true
+  godot_support:
+    playable_v0: true
+    compile_layer: jelly | coat | ingredient | fx | exits
+```
+
+The validator must reject a level if:
+
+- an active atom lacks a spec;
+- the spec says it is not compatible with the level objective verb or terrain;
+- a playable atom has no supported simulator hook;
+- a playable atom has no Godot support.

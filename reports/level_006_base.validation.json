@@ -55,6 +55,29 @@
     "errors": [],
     "warnings": []
   },
+  "mechanism_spec_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "active_atoms": [
+        "crystal_shell"
+      ],
+      "active_atoms_have_specs": true,
+      "unused_specs": [],
+      "crystal_shell.id_matches_key": true,
+      "crystal_shell.category_known": true,
+      "crystal_shell.state_dynamics_known": true,
+      "crystal_shell.effect_text_present": true,
+      "crystal_shell.compatible_objective_verbs_declared": true,
+      "crystal_shell.compatible_terrain_declared": true,
+      "crystal_shell.intro_rule_declared": true,
+      "crystal_shell.mixing_rule_declared": true,
+      "crystal_shell.simulator_hook_declared": true,
+      "crystal_shell.godot_support_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "personalization_gate": {
     "valid": true,
     "score": 100,

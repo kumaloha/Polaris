@@ -15,6 +15,7 @@
   → Compile Validator
   → Semantic Design Language Gate
   → Level Intent Gate
+  → Mechanism Spec Gate
   → Personalization Prior Gate
   → Progression Rhythm Gate
   → Obstacle Composition Gate
@@ -26,7 +27,7 @@
   → Validation Report
 ```
 
-九类 verdict：
+主要 verdict：
 
 | verdict | 含义 |
 |---|---|
@@ -34,6 +35,7 @@
 | `revise_minor` | 小改后可重跑 |
 | `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
 | `revise_level_intent` | 外部原则契约不成立；目标动词/技能课题/棋盘尺度需要重写 |
+| `revise_mechanism_spec` | 机制规格契约不成立；活跃机制缺 spec、不可模拟、不可编译或目标不兼容 |
 | `revise_personalization` | 冷启动画像契约不成立；persona axes 与 prior 不匹配 |
 | `revise_progression` | 长期节奏契约不成立；机制生命周期/奖励资源/烦躁预算/难度带需要重写 |
 | `revise_obstacle_composition` | 障碍构图不成立；母题/主障碍/动作方向/负空间/读序需要重写 |
@@ -70,6 +72,7 @@ input:
   "compile": {},
   "semantic": {},
   "level_intent_gate": {},
+  "mechanism_spec_gate": {},
   "personalization_gate": {},
   "progression": {},
   "obstacle_composition_gate": {},
@@ -93,20 +96,14 @@ input:
 | check | fail code |
 |---|---|
 | JSON 可解析 | `E_PARSE_JSON` |
-| 必填根字段存在 | `E_MISSING_FIELD` |
+| 执行必需根字段存在 | `E_MISSING_FIELD` |
 | board 尺寸等于 map.width/height | `E_BOARD_SIZE` |
 | board token 合法 | `E_UNKNOWN_TOKEN` |
 | 坐标在范围内 | `E_CELL_OUT_OF_RANGE` |
 | overlay 不落在 hole 上 | `E_LAYER_ON_HOLE` |
 | objective/objectives 不冲突 | `E_OBJECTIVE_CONFLICT` |
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
-| level_design 根字段存在 | `E_MISSING_FIELD` |
-| level_intent 根字段存在 | `E_MISSING_FIELD` |
-| personalization 根字段存在 | `E_MISSING_FIELD` |
-| progression 根字段存在 | `E_MISSING_FIELD` |
-| obstacle_composition 根字段存在 | `E_MISSING_FIELD` |
-| obstacle_composition.visual_grammar 存在 | `E_MISSING_FIELD` |
-| director 根字段存在 | `E_MISSING_FIELD` |
+| design_claim / level_design / director 执行源存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
 ### 3.2 输出
@@ -479,6 +476,59 @@ seed_policy: deterministic_sequence
     {"code": "E_BOARD_SCALE_NEW_REVEAL_TOO_LARGE", "path": "map", "message": "new mechanism reveal board has 81 cells; expected <= 49"}
   ],
   "warnings": []
+}
+```
+
+---
+
+## 8.4 Mechanism Spec Gate
+
+`mechanism_specs` 是机制库 v1 的 per-level 子集。它回答：棋盘上每一个活跃目标/障碍/演员/奖励/出口，是否都有明确的状态动态、玩家动作、棋盘效果、奖励效果、兼容目标、首秀规则、混合规则、求解器 hook 和 Godot 支持。
+
+### 8.4.1 机器必检 mechanism spec gate
+
+| check | pass 条件 |
+|---|---|
+| `active_atoms_have_specs` | `overlays/objective/mechanisms` 中出现的 atom 都有 `mechanism_specs.<id>` |
+| `mechanic_id` | spec 内 `mechanic_id` 必须等于 key |
+| `category_known` | category 属于 `objective/blocker/actor/routing/reward` |
+| `state_dynamics_known` | `state_dynamics` 属于 `static/self_evolving/actor_moving` |
+| `effect_text_present` | `player_action/board_effect/reward_effect` 都是具体字符串 |
+| `compatible_objective_verbs_declared` | 声明兼容目标动词，且活跃机制必须兼容本关 `level_intent.objective_verb` |
+| `compatible_terrain_declared` | 声明兼容地形，且活跃机制必须兼容本关 terrain sample |
+| `intro_rule_declared` | 声明 first reveal phase/problem space；新机制首秀必须匹配 first_reveal_level |
+| `mixing_rule_declared` | 声明 can_pair_with / forbidden_with；forbidden 命中会 fail |
+| `simulator_hook_declared` | 活跃机制必须有 supported simulator hook |
+| `godot_support_declared` | playable 模式下活跃机制必须 `playable_v0=true` |
+
+`mechanism_spec_gate.valid=false` 时，候选只能得到 `revise_mechanism_spec`。
+
+### 8.4.2 机制规格最小形态
+
+```json
+{
+  "target_mark": {
+    "mechanic_id": "target_mark",
+    "category": "objective",
+    "state_dynamics": "static",
+    "player_action": "match_on_target_cell",
+    "board_effect": "clears_target_mark_layer",
+    "reward_effect": "objective_progress_feedback",
+    "compatible_objective_verbs": ["cleanse", "craft", "mixed"],
+    "compatible_terrain": ["open", "bottleneck", "island", "fork", "split_columns"],
+    "intro_rule": {
+      "first_reveal_level": 1,
+      "first_reveal_phase": "reveal_safe",
+      "new_reveal_problem_space": "small"
+    },
+    "mixing_rule": {
+      "can_pair_with": ["crystal_shell", "line_h_gem", "line_v_gem"],
+      "forbidden_with": [],
+      "max_support_mechanisms_early": 1
+    },
+    "simulator_hook": {"kind": "jelly_layer", "supported": true},
+    "godot_support": {"playable_v0": true, "compile_layer": "jelly"}
+  }
 }
 ```
 
