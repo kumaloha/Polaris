@@ -891,37 +891,36 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	board._gain(ME.score_for_clear(to_clear.size(), 1))
 	# 表现: 彩球吸收预览 + 对清除格放特效(限量精细, 避免一次太多卡顿)。
 	await _play_colorbomb_absorb_preview(cb_pos, cells, virtual_fx.keys())
-	if ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx):
-		await _show_colorbomb_virtual_conversion(virtual_fx)
+	var has_conversion := ClearVisuals.colorbomb_combo_has_conversion_phase(virtual_fx)
+	await _show_colorbomb_virtual_conversion(virtual_fx)
 	var fine_budget: int = COLORBOMB_FINE_CLEAR_BUDGET
-	var fx_batch_count := 0
-	for p in cells:
-		if p == cb_pos:
-			continue
-		var spawned_fx := false
-		var fk: int = board.fx[p.y][p.x]
-		var vk: int = int(virtual_fx.get(p, ME.SP_NONE))
-		if vk != ME.SP_NONE:
-			board_view.play_special_fx(p, vk)   # 彩球+十字星/条纹: 目标色格按虚拟特效播同几何动画
-			spawned_fx = true
-		elif fk != ME.SP_NONE:
-			board_view.play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
-			spawned_fx = true
-		elif visual_species.has(p):
-			Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
-			spawned_fx = true
-		elif fine_budget > 0:
-			var sp: int = board.grid[p.y][p.x]
-			if sp >= 0 and sp < GEM_KEYS.size():
-				Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
-				fine_budget -= 1
+	if has_conversion:
+		await _play_colorbomb_combo_blast(cells, to_clear, virtual_fx)
+	else:
+		var fx_batch_count := 0
+		for p in cells:
+			if p == cb_pos:
+				continue
+			var spawned_fx := false
+			var fk: int = board.fx[p.y][p.x]
+			if fk != ME.SP_NONE:
+				board_view.play_special_fx(p, fk)   # 卷入的条纹/十字/彩球放几何特效
 				spawned_fx = true
-		if spawned_fx:
-			fx_batch_count += 1
-			if fx_batch_count >= COLORBOMB_CLEAR_FX_BATCH_SIZE:
-				fx_batch_count = 0
-				await get_tree().process_frame
-	await get_tree().create_timer(0.30).timeout   # 让爆发可见
+			elif visual_species.has(p):
+				Fx.spawn_shatter(_cell_center(p.y, p.x), _gem_raw_color(int(visual_species[p])))
+				spawned_fx = true
+			elif fine_budget > 0:
+				var sp: int = board.grid[p.y][p.x]
+				if sp >= 0 and sp < GEM_KEYS.size():
+					Fx.spawn_elimination(GEM_KEYS[sp], _cell_center(p.y, p.x), cell_size * 0.72)
+					fine_budget -= 1
+					spawned_fx = true
+			if spawned_fx:
+				fx_batch_count += 1
+				if fx_batch_count >= COLORBOMB_CLEAR_FX_BATCH_SIZE:
+					fx_batch_count = 0
+					await get_tree().process_frame
+		await get_tree().create_timer(0.30).timeout   # 让爆发可见
 	# 清除: 只清 account_clears 过滤后的格，锁住/原料/巧克力/爆米花/神秘糖仅破层或揭开。
 	ME._apply_clears(board.grid, board.fx, to_clear, [])
 	for p in to_clear:
@@ -931,6 +930,41 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 	var settled_now: bool = await _finish_consumed_move(int(acc.get("choco_cleared", 0)) + int(settle.get("choco_cleared", 0)), int(settle.get("cascades", 0)))
 	if not settled_now:
 		_busy = false
+
+
+func _play_colorbomb_combo_blast(cells: Array, to_clear: Array, virtual_fx: Dictionary) -> void:
+	var raw_special_fx_cells: Dictionary = _special_fx_cells_for_clear_visuals(cells, virtual_fx)
+	var clear_visual_timing: Dictionary = _clear_visual_timing_for_triggers(virtual_fx.keys(), virtual_fx)
+	var previous_fx: Dictionary = _apply_colorbomb_virtual_fx_for_blast(virtual_fx)
+	await board_view.play_clear(to_clear, [], {}, raw_special_fx_cells, clear_visual_timing)
+	_restore_colorbomb_virtual_fx_after_blast(previous_fx)
+
+
+func _apply_colorbomb_virtual_fx_for_blast(virtual_fx: Dictionary) -> Dictionary:
+	var previous := {}
+	if board == null or board.fx.is_empty():
+		return previous
+	for raw_pos in virtual_fx:
+		if not (raw_pos is Vector2i):
+			continue
+		var p: Vector2i = raw_pos
+		if p.y < 0 or p.y >= board.fx.size() or p.x < 0 or p.x >= board.fx[p.y].size():
+			continue
+		previous[p] = board.fx[p.y][p.x]
+		board.fx[p.y][p.x] = int(virtual_fx[p])
+	return previous
+
+
+func _restore_colorbomb_virtual_fx_after_blast(previous_fx: Dictionary) -> void:
+	if board == null or board.fx.is_empty():
+		return
+	for raw_pos in previous_fx:
+		if not (raw_pos is Vector2i):
+			continue
+		var p: Vector2i = raw_pos
+		if p.y < 0 or p.y >= board.fx.size() or p.x < 0 or p.x >= board.fx[p.y].size():
+			continue
+		board.fx[p.y][p.x] = int(previous_fx[p])
 
 
 func _colorbomb_absorb_preview_targets(cb_pos: Vector2i, cells: Array, priority_targets: Array = [], budget_limit: int = COLORBOMB_ABSORB_TARGET_BUDGET) -> Array:

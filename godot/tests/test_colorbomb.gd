@@ -189,6 +189,29 @@ func test_colorbomb_plus_bomb_overrides_target_color_line_specials_to_bombs() ->
 		assert_false(int(override[p]) == ME.SP_LINE_H or int(override[p]) == ME.SP_LINE_V, "colorbomb+bomb must not generate horizontal/vertical virtual specials")
 
 
+func test_colorbomb_plus_special_uses_endgame_special_blast_visual_path() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var resolve_start: int = src.find("func _resolve_colorbomb")
+	var resolve_end: int = src.find("func _colorbomb_absorb_preview_targets", resolve_start)
+	assert_true(resolve_start >= 0 and resolve_end > resolve_start, "_resolve_colorbomb can be inspected")
+	if resolve_start < 0 or resolve_end <= resolve_start:
+		return
+	var resolve_body: String = src.substr(resolve_start, resolve_end - resolve_start)
+	assert_true(resolve_body.contains("await _play_colorbomb_combo_blast(cells, to_clear, virtual_fx)"), "5+4 colorbomb combo delegates the post-conversion blast to the shared special-blast helper")
+	assert_false(resolve_body.contains("if vk != ME.SP_NONE:\n\t\t\tboard_view.play_special_fx"), "5+4 colorbomb combo must not use the old manual per-cell special FX path")
+	var helper_start: int = src.find("func _play_colorbomb_combo_blast")
+	var helper_end: int = src.find("func _apply_colorbomb_virtual_fx_for_blast", helper_start)
+	assert_true(helper_start >= 0 and helper_end > helper_start, "_play_colorbomb_combo_blast can be inspected")
+	if helper_start < 0 or helper_end <= helper_start:
+		return
+	var helper_body: String = src.substr(helper_start, helper_end - helper_start)
+	# 钉源码理由：5合1吃4合1转化后应和结算奖励的 4合1 自动爆裂一样，走 board_view.play_clear + special timing，
+	# 而不是自己手写 play_special_fx/shatter/elimination，避免同一种“满屏4合1爆裂”出现两种观感。
+	assert_true(helper_body.contains("_special_fx_cells_for_clear_visuals(cells, virtual_fx)"), "5+4 blast feeds virtual specials into the shared special-clear visual map")
+	assert_true(helper_body.contains("_clear_visual_timing_for_triggers(virtual_fx.keys(), virtual_fx)"), "5+4 blast uses the same trigger timing model as special-blast chains")
+	assert_true(helper_body.contains("await board_view.play_clear(to_clear, [], {}, raw_special_fx_cells, clear_visual_timing)"), "5+4 blast uses board_view.play_clear just like the endgame special-blast path")
+
+
 # ───────────── 断言③：彩球 + 普通棋子 → 清掉该色(行为不退) ─────────────
 
 func test_colorbomb_plus_plain_clears_color_only() -> void:
