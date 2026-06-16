@@ -19,5 +19,37 @@
     "drop_path_ok": true
   },
   "verdict": "approved",
-  "recommendations": []
+  "recommendations": [],
+  "taste": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "intent_specific": true,
+      "player_fantasy_specific": true,
+      "signature_moment_specific": true,
+      "negative_space_specific": true,
+      "emotional_arc_complete": true,
+      "four_in_one_complete": true,
+      "protagonist_present_on_board_or_objective": true,
+      "objective_covered_by_director_roles": true,
+      "active_layers_declared": true,
+      "mechanism_budget_ok": {
+        "valid": true,
+        "active": [
+          "target_mark"
+        ],
+        "max": 1
+      },
+      "forbidden_atoms_absent": true,
+      "no_color_order_goal": true,
+      "protagonist_language_aligned": true,
+      "pacing_context": {
+        "move_limit": 16,
+        "objective_target_total": 6
+      }
+    },
+    "errors": [],
+    "warnings": []
+  }
 }

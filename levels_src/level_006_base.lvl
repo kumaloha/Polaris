@@ -122,5 +122,38 @@
       "finish_remaining_shells"
     ],
     "climax": "一次连锁连续敲碎多块晶壳。"
+  },
+  "director": {
+    "intent": "晶壳教学后给一关清脆喘息：不考水文，只让玩家享受敲壳反馈。",
+    "player_fantasy": "帮宠物清理散落在工坊里的小晶壳。",
+    "protagonist": "crystal_shell",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "少量晶壳散在开阔棋盘，压力低。",
+      "friction": "晶壳分散，玩家要在各处找相邻消除。",
+      "turn": "一次连锁敲掉两三块晶壳，节奏变轻。",
+      "payoff": "最后一块晶壳碎掉，棋盘完全打开。"
+    },
+    "signature_moment": "散落晶壳被连锁叮叮敲碎，像打扫完工坊。",
+    "negative_space": "不放星尘目标，不让喘息关变成双目标清单。",
+    "four_in_one": {
+      "play": "单机制复习，降低认知负荷。",
+      "visual": "五点散落构图，像待清理的小石子。",
+      "readability": "每个晶壳都是直接目标，没有隐藏优先级。",
+      "theme": "晶能工坊的碎壳清扫。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

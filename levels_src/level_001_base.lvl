@@ -126,5 +126,38 @@
       "finish"
     ],
     "climax": "目标完成。"
+  },
+  "director": {
+    "intent": "第一关只雕一个中心星尘焦点：玩家不是在消颜色，而是在擦亮遗迹的第一枚魔法印记。",
+    "player_fantasy": "帮时兔点亮森林遗迹中央的星尘徽记。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "目标都聚在中央，玩家一眼敢下手。",
+      "friction": "星尘不会自动消失，必须在它身上或旁边做出有效三消。",
+      "turn": "中心连消开始带走多枚印记，玩家理解净化规则。",
+      "payoff": "中央徽记恢复干净，形成第一口小爽感。"
+    },
+    "signature_moment": "中央六枚星尘被连续净化，棋盘像被擦亮一块。",
+    "negative_space": "边缘不放干扰，留白把视线和操作都推回中心。",
+    "four_in_one": {
+      "play": "近距离教学目标印记，不用额外障碍稀释规则。",
+      "visual": "中心小花束构图，普通宝石作为背景。",
+      "readability": "最亮的区域就是要净化的区域。",
+      "theme": "森林遗迹第一次被魔法星尘点亮。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

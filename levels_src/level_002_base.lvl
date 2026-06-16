@@ -133,5 +133,38 @@
       "finish_remaining_marks"
     ],
     "climax": "边缘连续被清掉后盘面打开。"
+  },
+  "director": {
+    "intent": "把同一种星尘目标推到边缘，让玩家学会边角不是装饰，而是需要主动够到的边界。",
+    "player_fantasy": "沿书页边框拾起散落的星尘碎片。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "棋盘中间很宽松，但目标在四周发光。",
+      "friction": "边缘可交换方向少，玩家要把机会送到边上。",
+      "turn": "一条横线或竖线擦过边缘，几个边角同时被救回来。",
+      "payoff": "四周星尘逐圈消失，画面从边框开始变干净。"
+    },
+    "signature_moment": "一侧边缘被整排净化，玩家第一次感到线消的价值。",
+    "negative_space": "中央保持开阔，避免玩家误以为中心才是题眼。",
+    "four_in_one": {
+      "play": "目标位置变化带来执行难度，不新增规则。",
+      "visual": "边缘花环构图，留出中庭作操作区。",
+      "readability": "发光边框直接告诉玩家要向外侧发力。",
+      "theme": "像修复一本魔法书破损的边框。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

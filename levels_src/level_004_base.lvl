@@ -161,5 +161,38 @@
       "finish_remaining_marks"
     ],
     "climax": "窄口被打通后下游连续净化。"
+  },
+  "director": {
+    "intent": "第 4 关只展示上游到下游的水文距离，不再用硬障碍把棋子堵空。",
+    "player_fantasy": "把上游魔力送过窄口，唤醒下游星尘池。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "上半区好下手，下方星尘池明显更远。",
+      "friction": "窄口让下游补给慢，乱消会在上游空转。",
+      "turn": "一次纵向控制穿过窄口，下游开始自己连锁。",
+      "payoff": "下游星尘池被连锁洗亮。"
+    },
+    "signature_moment": "魔力穿过窄腰落到下游，连续净化三枚星尘。",
+    "negative_space": "不用晶壳封门，避免玩家看到空白断供区。",
+    "four_in_one": {
+      "play": "地形距离本身成为题眼，障碍不抢戏。",
+      "visual": "弱沙漏构图，上宽下聚。",
+      "readability": "窄腰自然提示力量要往下送。",
+      "theme": "遗迹河道把星尘带往低处。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

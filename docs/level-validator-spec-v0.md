@@ -14,17 +14,19 @@
   → Lint Validator
   → Compile Validator
   → Structural Validator
+  → Taste Director Gate
   → Player Simulator Validator
   → Design Checklist Validator
   → Validation Report
 ```
 
-四类 verdict：
+五类 verdict：
 
 | verdict | 含义 |
 |---|---|
 | `approved` | 可以进入人工手感评审 |
 | `revise_minor` | 小改后可重跑 |
+| `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
 | `revise_major` | 配方或布局错配，需要重做候选 |
 | `reject` | 不应继续投入 |
 
@@ -79,6 +81,7 @@ input:
 | overlay 不落在 hole 上 | `E_LAYER_ON_HOLE` |
 | objective/objectives 不冲突 | `E_OBJECTIVE_CONFLICT` |
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
+| director 根字段存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
 ### 3.2 输出
@@ -380,9 +383,28 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 7. Design Checklist Validator
+## 7. Taste Director / Design Checklist Validator
 
-AI/人都可以执行的 checklist。
+`director` 是机器可读的品味契约，用来拦住“流程背熟但没有主角/记忆点/留白”的关卡。AI/人仍可执行 checklist，但 v0 的 `validate` 已经会输出 `taste` gate。
+
+### 7.1 机器必检 taste gate
+
+| check | pass 条件 |
+|---|---|
+| `required_fields_present` | `intent/player_fantasy/protagonist/supporting_roles/emotional_arc/signature_moment/negative_space/four_in_one/anti_slop` 全存在 |
+| `protagonist_present_on_board_or_objective` | 主角机制必须真的出现在 overlays/objective 里 |
+| `objective_covered_by_director_roles` | 通关目标对应机制必须是 protagonist 或 supporting_roles |
+| `active_layers_declared` | 所有活跃机制都被 director 解释，不允许暗中堆料 |
+| `mechanism_budget_ok` | 活跃机制数不超过 `anti_slop.max_primary_mechanisms` |
+| `forbidden_atoms_absent` | 不出现 director 禁用的目标/机制 |
+| `no_color_order_goal` | 生成关不以某色棋子收集/订单作为主目标 |
+| `emotional_arc_complete` | opening/friction/turn/payoff 四段都具体 |
+| `four_in_one_complete` | play/visual/readability/theme 四位一体都具体 |
+| `protagonist_language_aligned` | 文案与主角机制关键词对齐 |
+
+`taste.valid=false` 时，结构再正确也只能得到 `revise_taste`。
+
+### 7.2 人/AI checklist
 
 | check | pass 条件 |
 |---|---|

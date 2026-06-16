@@ -134,5 +134,38 @@
       "finish_remaining_marks"
     ],
     "climax": "星尘路径被连续净化。"
+  },
+  "director": {
+    "intent": "把星尘做成一条路径，让玩家沿着形状追踪，而不是扫清一堆无序点。",
+    "player_fantasy": "跟着小兽留下的星尘脚印穿过林地。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "星尘不是一团，而是一条能读出来的路。",
+      "friction": "路径拐点分散，玩家要在不同小段之间切换注意力。",
+      "turn": "中段被连锁净化后，整条路径的方向突然清楚。",
+      "payoff": "最后几枚脚印被抹去，像把路线追到了终点。"
+    },
+    "signature_moment": "拐弯处连续净化，星尘脚印一段段熄灭。",
+    "negative_space": "路径外不塞第二机制，保留追踪感。",
+    "four_in_one": {
+      "play": "同一目标改成阅读路线，训练目标分布理解。",
+      "visual": "斜向步道构图，比方块堆更有方向。",
+      "readability": "玩家顺着星尘排列自然知道下一处该清哪里。",
+      "theme": "森林里迷路脚印的轻叙事。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

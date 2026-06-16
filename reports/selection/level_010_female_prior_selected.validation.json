@@ -1,5 +1,5 @@
 {
-  "level_id": "level_010_base_c10",
+  "level_id": "level_010_base_c07",
   "lint": {
     "valid": true,
     "errors": [],
@@ -12,12 +12,45 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 57,
+    "playable_cell_count": 50,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,
     "drop_path_ok": true
   },
   "verdict": "approved",
-  "recommendations": []
+  "recommendations": [],
+  "taste": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "intent_specific": true,
+      "player_fantasy_specific": true,
+      "signature_moment_specific": true,
+      "negative_space_specific": true,
+      "emotional_arc_complete": true,
+      "four_in_one_complete": true,
+      "protagonist_present_on_board_or_objective": true,
+      "objective_covered_by_director_roles": true,
+      "active_layers_declared": true,
+      "mechanism_budget_ok": {
+        "valid": true,
+        "active": [
+          "crystal_shell",
+          "drop_relic"
+        ],
+        "max": 2
+      },
+      "forbidden_atoms_absent": true,
+      "no_color_order_goal": true,
+      "protagonist_language_aligned": true,
+      "pacing_context": {
+        "move_limit": 60,
+        "objective_target_total": 1
+      }
+    },
+    "errors": [],
+    "warnings": []
+  }
 }

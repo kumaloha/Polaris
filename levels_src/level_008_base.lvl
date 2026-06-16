@@ -199,5 +199,40 @@
       "finish_remaining_marks"
     ],
     "climax": "中心金库打开后一次爆破清掉多枚印记。"
+  },
+  "director": {
+    "intent": "第 8 关做围城感：晶壳外圈不是硬凑数量，而是把中心星尘变成一座需要打开的金库。",
+    "player_fantasy": "破解晶壳环，打开矿洞中心的星尘宝库。",
+    "protagonist": "crystal_shell",
+    "supporting_roles": [
+      "target_mark"
+    ],
+    "emotional_arc": {
+      "opening": "中心目标很诱人，但外圈晶壳清楚地挡住入口。",
+      "friction": "玩家能看见收益，却必须先拆外圈。",
+      "turn": "晶壳环破开一侧后，中心目标变得可触达。",
+      "payoff": "中心星尘被爆破或线消一口气收掉。"
+    },
+    "signature_moment": "晶壳环打开缺口，中心宝库被一次爆破点亮。",
+    "negative_space": "环外保留开阔操作区，让围城不是窒息。",
+    "four_in_one": {
+      "play": "围城题眼：先破壳环，再拿中心收益。",
+      "visual": "中心宝库 + 外圈护盾，构图稳定。",
+      "readability": "壳环包住目标，天然说明先破外围。",
+      "theme": "水晶矿洞里的封存宝库。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 2,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

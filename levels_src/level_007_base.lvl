@@ -161,5 +161,38 @@
       "finish_remaining_marks"
     ],
     "climax": "窄口被打通后下游连续净化。"
+  },
+  "director": {
+    "intent": "把第 4 关的弱水文升级为正式远征：玩家要主动把控制力送进下游死水区。",
+    "player_fantasy": "从遗迹上游引导星光，穿过窄腰照亮下层星池。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "上游机会多，下游目标集中，距离感明确。",
+      "friction": "窄腰让自然连锁不稳定，乱消很难碰到下游。",
+      "turn": "玩家制造纵向清除或连锁穿过窄腰，下游开始松动。",
+      "payoff": "下游星尘池连续净化，像水被终于引到低处。"
+    },
+    "signature_moment": "一束纵向控制穿过窄腰，底部星尘连锁亮灭。",
+    "negative_space": "不加新障碍，把压力留给地形和目标距离。",
+    "four_in_one": {
+      "play": "同机制做压力版，考控制力传递。",
+      "visual": "更明确的沙漏形，焦点在窄腰与下游池。",
+      "readability": "窄腰与目标池同线，暗示向下打通。",
+      "theme": "时间沙漏里的星尘流向底部。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "order_color"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

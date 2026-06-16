@@ -185,5 +185,44 @@
       "finish_remaining_marks"
     ],
     "climax": "晶壳门破后，下游星尘池连续净化。"
+  },
+  "director": {
+    "intent": "第 5 关是第一道真正的晶壳门：玩家的记忆点应是‘先开门，水才会活’。",
+    "player_fantasy": "敲开晶壳闸门，把魔法水流放进下游星尘池。",
+    "protagonist": "crystal_shell",
+    "supporting_roles": [
+      "target_mark"
+    ],
+    "emotional_arc": {
+      "opening": "中央晶壳门横在视线正中，下方星尘池像被压住。",
+      "friction": "直接清下游效率低，必须先在门附近找突破口。",
+      "turn": "晶壳门破出缺口后，补给穿过门洞，下游开始活起来。",
+      "payoff": "门后星尘被一波连锁净化，玩家感到自己打开了水闸。"
+    },
+    "signature_moment": "中央 2x3 晶壳门裂开，宝石瀑布落入下游星尘池。",
+    "negative_space": "门外保留两侧操作空地，不堆第二种障碍。",
+    "four_in_one": {
+      "play": "晶壳改变补给水文，是主角；星尘只是门后的收益。",
+      "visual": "晶壳门像横向闸坝，压住下方目标区。",
+      "readability": "最硬、最亮的门就是先处理的地方。",
+      "theme": "晶能工坊的封印门被魔法敲开。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 2,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_clear_list",
+        "unreadable_icon_only",
+        "mechanism_pileup"
+      ]
+    }
   }
 }

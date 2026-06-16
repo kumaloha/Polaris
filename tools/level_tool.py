@@ -285,6 +285,37 @@ ROLE_PASS_BANDS: dict[str, tuple[float, float]] = {
 }
 
 
+DIRECTOR_REQUIRED_FIELDS = (
+    "intent",
+    "player_fantasy",
+    "protagonist",
+    "supporting_roles",
+    "emotional_arc",
+    "signature_moment",
+    "negative_space",
+    "four_in_one",
+    "anti_slop",
+)
+DIRECTOR_ARC_FIELDS = ("opening", "friction", "turn", "payoff")
+DIRECTOR_FOUR_IN_ONE_FIELDS = ("play", "visual", "readability", "theme")
+DIRECTOR_GENERIC_PHRASES = {"目标完成", "目标区", "读取目标", "制造可用消除", "完成目标", "中心目标区"}
+DIRECTOR_LAYER_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "target_mark": ("星尘", "印记", "净化"),
+    "crystal_shell": ("晶壳", "门", "壳", "封"),
+    "drop_relic": ("幼兽", "巢", "回家", "护送"),
+    "creep_growth": ("蔓", "生长", "侵蚀"),
+    "spawner": ("生成", "源", "吐出"),
+    "timed_core": ("倒计时", "核心", "爆"),
+}
+OBJECTIVE_TO_LAYER: dict[str, str] = {
+    "cleanse_marks": "target_mark",
+    "clear_shells": "crystal_shell",
+    "drop_relic": "drop_relic",
+    "clear_creep": "creep_growth",
+    "defuse_cores": "timed_core",
+}
+
+
 @dataclass
 class Diagnostics:
     errors: list[dict[str, Any]] = field(default_factory=list)
@@ -436,6 +467,240 @@ def generated_design_claim(level: int, coord: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def generated_director_claim(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    """Machine-readable taste contract for a generated level.
+
+    `design_claim` explains how to solve the level. `director` explains why the
+    level deserves to exist: the intended feeling, the one protagonist mechanism,
+    the memorable moment, and what the generator deliberately leaves out.
+    """
+    eye = coord["eye"]
+    protagonist = OBJECTIVE_TO_LAYER.get(coord["objective"]["type"], "target_mark")
+    supporting_roles: list[str] = []
+
+    def claim(
+        *,
+        intent: str,
+        player_fantasy: str,
+        protagonist: str = protagonist,
+        supporting_roles: list[str] | None = None,
+        opening: str,
+        friction: str,
+        turn: str,
+        payoff: str,
+        signature_moment: str,
+        negative_space: str,
+        play: str,
+        visual: str,
+        readability: str,
+        theme: str,
+        max_primary_mechanisms: int = 2,
+    ) -> dict[str, Any]:
+        return {
+            "intent": intent,
+            "player_fantasy": player_fantasy,
+            "protagonist": protagonist,
+            "supporting_roles": supporting_roles or [],
+            "emotional_arc": {"opening": opening, "friction": friction, "turn": turn, "payoff": payoff},
+            "signature_moment": signature_moment,
+            "negative_space": negative_space,
+            "four_in_one": {"play": play, "visual": visual, "readability": readability, "theme": theme},
+            "anti_slop": {
+                "max_primary_mechanisms": max_primary_mechanisms,
+                "forbidden": sorted(set(coord.get("forbidden", []) + list(FORBIDDEN_GENERATED_OBJECTIVES))),
+                "no_color_order_goal": True,
+                "reject_if": ["generic_clear_list", "unreadable_icon_only", "mechanism_pileup"],
+            },
+        }
+
+    if eye == "cleanse_direct":
+        return claim(
+            intent="第一关只雕一个中心星尘焦点：玩家不是在消颜色，而是在擦亮遗迹的第一枚魔法印记。",
+            player_fantasy="帮时兔点亮森林遗迹中央的星尘徽记。",
+            protagonist="target_mark",
+            opening="目标都聚在中央，玩家一眼敢下手。",
+            friction="星尘不会自动消失，必须在它身上或旁边做出有效三消。",
+            turn="中心连消开始带走多枚印记，玩家理解净化规则。",
+            payoff="中央徽记恢复干净，形成第一口小爽感。",
+            signature_moment="中央六枚星尘被连续净化，棋盘像被擦亮一块。",
+            negative_space="边缘不放干扰，留白把视线和操作都推回中心。",
+            play="近距离教学目标印记，不用额外障碍稀释规则。",
+            visual="中心小花束构图，普通宝石作为背景。",
+            readability="最亮的区域就是要净化的区域。",
+            theme="森林遗迹第一次被魔法星尘点亮。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "cleanse_edge":
+        return claim(
+            intent="把同一种星尘目标推到边缘，让玩家学会边角不是装饰，而是需要主动够到的边界。",
+            player_fantasy="沿书页边框拾起散落的星尘碎片。",
+            protagonist="target_mark",
+            opening="棋盘中间很宽松，但目标在四周发光。",
+            friction="边缘可交换方向少，玩家要把机会送到边上。",
+            turn="一条横线或竖线擦过边缘，几个边角同时被救回来。",
+            payoff="四周星尘逐圈消失，画面从边框开始变干净。",
+            signature_moment="一侧边缘被整排净化，玩家第一次感到线消的价值。",
+            negative_space="中央保持开阔，避免玩家误以为中心才是题眼。",
+            play="目标位置变化带来执行难度，不新增规则。",
+            visual="边缘花环构图，留出中庭作操作区。",
+            readability="发光边框直接告诉玩家要向外侧发力。",
+            theme="像修复一本魔法书破损的边框。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "cleanse_trail":
+        return claim(
+            intent="把星尘做成一条路径，让玩家沿着形状追踪，而不是扫清一堆无序点。",
+            player_fantasy="跟着小兽留下的星尘脚印穿过林地。",
+            protagonist="target_mark",
+            opening="星尘不是一团，而是一条能读出来的路。",
+            friction="路径拐点分散，玩家要在不同小段之间切换注意力。",
+            turn="中段被连锁净化后，整条路径的方向突然清楚。",
+            payoff="最后几枚脚印被抹去，像把路线追到了终点。",
+            signature_moment="拐弯处连续净化，星尘脚印一段段熄灭。",
+            negative_space="路径外不塞第二机制，保留追踪感。",
+            play="同一目标改成阅读路线，训练目标分布理解。",
+            visual="斜向步道构图，比方块堆更有方向。",
+            readability="玩家顺着星尘排列自然知道下一处该清哪里。",
+            theme="森林里迷路脚印的轻叙事。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "cleanse_expedition_weak":
+        return claim(
+            intent="第 4 关只展示上游到下游的水文距离，不再用硬障碍把棋子堵空。",
+            player_fantasy="把上游魔力送过窄口，唤醒下游星尘池。",
+            protagonist="target_mark",
+            opening="上半区好下手，下方星尘池明显更远。",
+            friction="窄口让下游补给慢，乱消会在上游空转。",
+            turn="一次纵向控制穿过窄口，下游开始自己连锁。",
+            payoff="下游星尘池被连锁洗亮。",
+            signature_moment="魔力穿过窄腰落到下游，连续净化三枚星尘。",
+            negative_space="不用晶壳封门，避免玩家看到空白断供区。",
+            play="地形距离本身成为题眼，障碍不抢戏。",
+            visual="弱沙漏构图，上宽下聚。",
+            readability="窄腰自然提示力量要往下送。",
+            theme="遗迹河道把星尘带往低处。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "crystal_shell_gate_practice":
+        return claim(
+            intent="第 5 关是第一道真正的晶壳门：玩家的记忆点应是‘先开门，水才会活’。",
+            player_fantasy="敲开晶壳闸门，把魔法水流放进下游星尘池。",
+            protagonist="crystal_shell",
+            supporting_roles=["target_mark"],
+            opening="中央晶壳门横在视线正中，下方星尘池像被压住。",
+            friction="直接清下游效率低，必须先在门附近找突破口。",
+            turn="晶壳门破出缺口后，补给穿过门洞，下游开始活起来。",
+            payoff="门后星尘被一波连锁净化，玩家感到自己打开了水闸。",
+            signature_moment="中央 2x3 晶壳门裂开，宝石瀑布落入下游星尘池。",
+            negative_space="门外保留两侧操作空地，不堆第二种障碍。",
+            play="晶壳改变补给水文，是主角；星尘只是门后的收益。",
+            visual="晶壳门像横向闸坝，压住下方目标区。",
+            readability="最硬、最亮的门就是先处理的地方。",
+            theme="晶能工坊的封印门被魔法敲开。",
+        )
+    if eye == "shell_cleanup_breather":
+        return claim(
+            intent="晶壳教学后给一关清脆喘息：不考水文，只让玩家享受敲壳反馈。",
+            player_fantasy="帮宠物清理散落在工坊里的小晶壳。",
+            protagonist="crystal_shell",
+            opening="少量晶壳散在开阔棋盘，压力低。",
+            friction="晶壳分散，玩家要在各处找相邻消除。",
+            turn="一次连锁敲掉两三块晶壳，节奏变轻。",
+            payoff="最后一块晶壳碎掉，棋盘完全打开。",
+            signature_moment="散落晶壳被连锁叮叮敲碎，像打扫完工坊。",
+            negative_space="不放星尘目标，不让喘息关变成双目标清单。",
+            play="单机制复习，降低认知负荷。",
+            visual="五点散落构图，像待清理的小石子。",
+            readability="每个晶壳都是直接目标，没有隐藏优先级。",
+            theme="晶能工坊的碎壳清扫。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "cleanse_expedition":
+        return claim(
+            intent="把第 4 关的弱水文升级为正式远征：玩家要主动把控制力送进下游死水区。",
+            player_fantasy="从遗迹上游引导星光，穿过窄腰照亮下层星池。",
+            protagonist="target_mark",
+            opening="上游机会多，下游目标集中，距离感明确。",
+            friction="窄腰让自然连锁不稳定，乱消很难碰到下游。",
+            turn="玩家制造纵向清除或连锁穿过窄腰，下游开始松动。",
+            payoff="下游星尘池连续净化，像水被终于引到低处。",
+            signature_moment="一束纵向控制穿过窄腰，底部星尘连锁亮灭。",
+            negative_space="不加新障碍，把压力留给地形和目标距离。",
+            play="同机制做压力版，考控制力传递。",
+            visual="更明确的沙漏形，焦点在窄腰与下游池。",
+            readability="窄腰与目标池同线，暗示向下打通。",
+            theme="时间沙漏里的星尘流向底部。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "cleanse_siege":
+        return claim(
+            intent="第 8 关做围城感：晶壳外圈不是硬凑数量，而是把中心星尘变成一座需要打开的金库。",
+            player_fantasy="破解晶壳环，打开矿洞中心的星尘宝库。",
+            protagonist="crystal_shell",
+            supporting_roles=["target_mark"],
+            opening="中心目标很诱人，但外圈晶壳清楚地挡住入口。",
+            friction="玩家能看见收益，却必须先拆外圈。",
+            turn="晶壳环破开一侧后，中心目标变得可触达。",
+            payoff="中心星尘被爆破或线消一口气收掉。",
+            signature_moment="晶壳环打开缺口，中心宝库被一次爆破点亮。",
+            negative_space="环外保留开阔操作区，让围城不是窒息。",
+            play="围城题眼：先破壳环，再拿中心收益。",
+            visual="中心宝库 + 外圈护盾，构图稳定。",
+            readability="壳环包住目标，天然说明先破外围。",
+            theme="水晶矿洞里的封存宝库。",
+        )
+    if eye == "drop_direct":
+        return claim(
+            intent="迷路幼兽第一次出现必须像一个会移动的角色，而不是一个看不懂的目标头像。",
+            player_fantasy="清开脚下道路，把迷路幼兽送回底部巢门。",
+            protagonist="drop_relic",
+            opening="幼兽在同一列上方，巢门在正下方，救援路线直观。",
+            friction="幼兽自己占格，玩家要清它下方而不是把它当普通宝石消掉。",
+            turn="幼兽第一次下落一格，玩家理解‘清路=护送’。",
+            payoff="幼兽落入底部巢门，目标数字立刻完成。",
+            signature_moment="幼兽沿直线掉进巢门，顶部目标图标同步消失。",
+            negative_space="不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
+            play="运输目标教学，只考清下方路径。",
+            visual="幼兽与巢门垂直对齐，像一条救援绳。",
+            readability="上幼兽、下巢门，同列关系一眼说明通关条件。",
+            theme="森林小兽迷路回家。",
+            max_primary_mechanisms=1,
+        )
+    if eye == "drop_bottleneck":
+        return claim(
+            intent="把幼兽护送和晶壳门配对：不是多塞机制，而是先开门再护送的两段式小戏剧。",
+            player_fantasy="打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
+            protagonist="drop_relic",
+            supporting_roles=["crystal_shell"],
+            opening="幼兽、晶壳门、巢门在同一视觉轴上。",
+            friction="幼兽下方路线被晶壳门卡住，不能只在幼兽周围乱消。",
+            turn="门被打开后，幼兽的下降路线突然连通。",
+            payoff="幼兽穿过门洞落入巢门，形成明确救援结局。",
+            signature_moment="晶壳门裂开后，幼兽连续下落穿过门洞回家。",
+            negative_space="只保留晶壳作为配角，不叠星尘目标。",
+            play="运输目标 + 门控水文，二者共用同一条竖向路径。",
+            visual="竖向救援轴穿过中央门，构图像一条升降井。",
+            readability="阻挡幼兽的门就是玩家必须先处理的点。",
+            theme="晶能工坊里的小兽救援。",
+        )
+    return claim(
+        intent=f"第 {level} 关必须围绕一个明确题眼成立，而不是模板换数字。",
+        player_fantasy="用魔法宝石解决一个清楚可读的小麻烦。",
+        protagonist=protagonist,
+        supporting_roles=supporting_roles,
+        opening="玩家能在开局读出主要目标。",
+        friction="主角机制制造唯一主要阻力。",
+        turn="玩家按破局路径让主角机制发生状态变化。",
+        payoff="主角机制释放收益并完成目标。",
+        signature_moment="主角机制被破解后产生一次可见爽点。",
+        negative_space="不加入与题眼无关的第二套噪音。",
+        play="单题眼驱动玩法。",
+        visual="视觉焦点跟玩法焦点重合。",
+        readability="玩家能从形状读出优先级。",
+        theme="魔法世界主题给机制提供风味。",
+    )
+
 def generate_level(level: int, variant: str = "base", candidate: int | None = None) -> dict[str, Any]:
     if level not in LEVEL_COORDINATES:
         raise ValueError(f"no programmatic coordinate for level {level}")
@@ -501,6 +766,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
         "overlays": build_overlays(coord["placements"], shell_hp_delta),
         "mechanisms": [],
         "design_claim": generated_design_claim(level, coord),
+        "director": generated_director_claim(level, coord),
     }
 
 
@@ -545,7 +811,7 @@ def board_rows(lvl: dict[str, Any], d: Diagnostics) -> list[str]:
 
 def lint_lvl(lvl: dict[str, Any]) -> Diagnostics:
     d = Diagnostics()
-    required = ["id", "version", "compile_mode", "meta", "personalization", "rules", "map", "recipe", "board", "overlays", "design_claim"]
+    required = ["id", "version", "compile_mode", "meta", "personalization", "rules", "map", "recipe", "board", "overlays", "design_claim", "director"]
     for key in required:
         if key not in lvl:
             d.error("E_MISSING_FIELD", key, f"missing required root field: {key}")
@@ -961,6 +1227,170 @@ def has_legal_move(grid: list[list[int]]) -> bool:
     return False
 
 
+
+def active_layer_set(lvl: dict[str, Any]) -> set[str]:
+    active: set[str] = set()
+    for entry in lvl.get("overlays", []) or []:
+        active.update(layer_names(entry.get("layers", [])))
+    for mech in lvl.get("mechanisms", []) or []:
+        mtype = mech.get("type")
+        if isinstance(mtype, str):
+            active.add(mtype)
+    return active
+
+
+def objective_layer_set(lvl: dict[str, Any]) -> set[str]:
+    out: set[str] = set()
+    for obj in normalize_objectives(lvl):
+        layer = OBJECTIVE_TO_LAYER.get(str(obj.get("type")))
+        if layer:
+            out.add(layer)
+    return out
+
+
+def meaningful_director_text(value: Any, min_len: int = 8) -> bool:
+    if not isinstance(value, str):
+        return False
+    text = value.strip()
+    if len(text) < min_len:
+        return False
+    return text not in DIRECTOR_GENERIC_PHRASES
+
+
+def director_text_blob(lvl: dict[str, Any]) -> str:
+    director = lvl.get("director", {}) if isinstance(lvl.get("director"), dict) else {}
+    design = lvl.get("design_claim", {}) if isinstance(lvl.get("design_claim"), dict) else {}
+    parts: list[str] = []
+    for obj in (director, director.get("emotional_arc", {}), director.get("four_in_one", {}), design):
+        if isinstance(obj, dict):
+            for val in obj.values():
+                if isinstance(val, str):
+                    parts.append(val)
+                elif isinstance(val, list):
+                    parts.extend(str(x) for x in val)
+    return " ".join(parts)
+
+
+def taste_audit_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Executable taste gate.
+
+    This is intentionally not a replacement for human taste. It catches the
+    class of failure the user called out: rote levels that satisfy structure and
+    solver metrics but do not declare a protagonist, emotional arc, memorable
+    moment, or anti-pileup choice.
+    """
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    director = lvl.get("director")
+    if not isinstance(director, dict):
+        fail("E_DIRECTOR_MISSING", "director", "director taste contract is required", 30)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    missing = [field for field in DIRECTOR_REQUIRED_FIELDS if field not in director]
+    checks["required_fields_present"] = not missing
+    if missing:
+        fail("E_DIRECTOR_FIELDS", "director", f"missing director fields: {missing}", 20)
+
+    for field in ("intent", "player_fantasy", "signature_moment", "negative_space"):
+        ok = meaningful_director_text(director.get(field), 10)
+        checks[f"{field}_specific"] = ok
+        if not ok:
+            fail("E_DIRECTOR_GENERIC_TEXT", f"director.{field}", f"{field} must be a specific taste/design sentence", 10)
+
+    arc = director.get("emotional_arc")
+    if not isinstance(arc, dict):
+        fail("E_DIRECTOR_ARC", "director.emotional_arc", "emotional_arc must be an object", 15)
+        arc = {}
+    arc_missing = [field for field in DIRECTOR_ARC_FIELDS if not meaningful_director_text(arc.get(field), 6)]
+    checks["emotional_arc_complete"] = not arc_missing
+    if arc_missing:
+        fail("E_DIRECTOR_ARC", "director.emotional_arc", f"missing or generic arc beats: {arc_missing}", 15)
+
+    four = director.get("four_in_one")
+    if not isinstance(four, dict):
+        fail("E_DIRECTOR_FOUR_IN_ONE", "director.four_in_one", "four_in_one must be an object", 15)
+        four = {}
+    four_missing = [field for field in DIRECTOR_FOUR_IN_ONE_FIELDS if not meaningful_director_text(four.get(field), 6)]
+    checks["four_in_one_complete"] = not four_missing
+    if four_missing:
+        fail("E_DIRECTOR_FOUR_IN_ONE", "director.four_in_one", f"missing or generic four-in-one dimensions: {four_missing}", 15)
+
+    protagonist = director.get("protagonist")
+    active = active_layer_set(lvl)
+    objective_layers = objective_layer_set(lvl)
+    budget_layers = active - {"drop_exit"}
+    declared = {str(protagonist)} if isinstance(protagonist, str) and protagonist else set()
+    supporting = director.get("supporting_roles", [])
+    if isinstance(supporting, list):
+        declared.update(str(x) for x in supporting if isinstance(x, str))
+    else:
+        fail("E_DIRECTOR_SUPPORTING_ROLES", "director.supporting_roles", "supporting_roles must be a list", 10)
+        supporting = []
+
+    protagonist_ok = isinstance(protagonist, str) and protagonist in (active | objective_layers)
+    checks["protagonist_present_on_board_or_objective"] = protagonist_ok
+    if not protagonist_ok:
+        fail("E_DIRECTOR_PROTAGONIST", "director.protagonist", f"protagonist {protagonist!r} is not present in overlays/objectives", 20)
+
+    objective_covered = not objective_layers or bool(objective_layers & declared)
+    checks["objective_covered_by_director_roles"] = objective_covered
+    if not objective_covered:
+        fail("E_DIRECTOR_OBJECTIVE_UNCOVERED", "director.supporting_roles", f"objective layer(s) {sorted(objective_layers)} must be protagonist or supporting_roles", 15)
+
+    undeclared = sorted(budget_layers - declared)
+    checks["active_layers_declared"] = not undeclared
+    if undeclared:
+        fail("E_DIRECTOR_UNDECLARED_LAYER", "director.supporting_roles", f"active layer(s) not accounted for by director: {undeclared}", 10)
+
+    anti_slop = director.get("anti_slop") if isinstance(director.get("anti_slop"), dict) else {}
+    max_primary = int(anti_slop.get("max_primary_mechanisms", 2) or 2)
+    within_budget = len(budget_layers) <= max_primary
+    checks["mechanism_budget_ok"] = {"valid": within_budget, "active": sorted(budget_layers), "max": max_primary}
+    if not within_budget:
+        fail("E_DIRECTOR_MECHANISM_PILEUP", "director.anti_slop.max_primary_mechanisms", f"{len(budget_layers)} active mechanisms exceed max {max_primary}", 20)
+
+    forbidden = set(str(x) for x in anti_slop.get("forbidden", []) if isinstance(x, str))
+    objective_types = set(str(obj.get("type")) for obj in normalize_objectives(lvl))
+    forbidden_hits = sorted((budget_layers | active | objective_types) & forbidden)
+    checks["forbidden_atoms_absent"] = not forbidden_hits
+    if forbidden_hits:
+        fail("E_DIRECTOR_FORBIDDEN_ATOM", "director.anti_slop.forbidden", f"forbidden atom(s) present: {forbidden_hits}", 20)
+
+    color_goal = bool(objective_types & FORBIDDEN_GENERATED_OBJECTIVES)
+    checks["no_color_order_goal"] = not color_goal
+    if color_goal:
+        fail("E_DIRECTOR_COLOR_GOAL", "objective", "generated levels may not use color collection/order as the primary goal", 25)
+
+    blob = director_text_blob(lvl)
+    keywords = DIRECTOR_LAYER_KEYWORDS.get(str(protagonist), ()) if isinstance(protagonist, str) else ()
+    aligned = not keywords or any(keyword in blob for keyword in keywords)
+    checks["protagonist_language_aligned"] = aligned
+    if not aligned:
+        warn("W_DIRECTOR_LANGUAGE_ALIGNMENT", "director", f"director text does not mention protagonist keywords for {protagonist}", 5)
+
+    if compiled is not None:
+        move_limit = int(compiled.get("move_limit", 0) or 0)
+        target_count = sum(int(o.get("target", 0) or 0) for o in compiled.get("objectives", []))
+        checks["pacing_context"] = {"move_limit": move_limit, "objective_target_total": target_count}
+        if target_count > 0 and move_limit > 0 and target_count / max(1, move_limit) > 1.0:
+            warn("W_DIRECTOR_TAIL_GRIND_RISK", "rules.moves", "target density may create cleanup grind; verify with simulator", 5)
+
+    valid = not errors and score >= 80
+    return {"valid": valid, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
 def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     compiled, diag = compile_lvl(lvl)
     out: dict[str, Any] = {
@@ -995,6 +1425,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
                         drop_path_ok = False
 
     structural_valid = playable >= 20 and legal and objective_ok and drop_path_ok
+    taste = taste_audit_lvl(lvl, compiled)
     out["structural"] = {
         "valid": structural_valid,
         "playable_cell_count": playable,
@@ -1003,13 +1434,23 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         "objective_ok": objective_ok,
         "drop_path_ok": drop_path_ok,
     }
-    out["verdict"] = "approved" if structural_valid else "revise_major"
+    out["taste"] = taste
+    if structural_valid and taste.get("valid"):
+        out["verdict"] = "approved"
+    elif not structural_valid:
+        out["verdict"] = "revise_major"
+    else:
+        out["verdict"] = "revise_taste"
     if initial_matches:
         out["recommendations"].append("initial board contains auto matches; acceptable for preview only, avoid for final tuning")
     if not legal:
         out["recommendations"].append("seed/fixed board has no legal opening move")
     if not drop_path_ok:
         out["recommendations"].append("drop_relic must start above a bottom exit column in executable v0")
+    for err in taste.get("errors", []):
+        out["recommendations"].append(f"taste gate: {err.get('message')}")
+    for warn_item in taste.get("warnings", []):
+        out["recommendations"].append(f"taste warning: {warn_item.get('message')}")
     return out
 
 
@@ -1385,16 +1826,17 @@ def generate_select(level: int, variant: str, profile: str, candidates: int, run
                 solve_pass = True
                 regenerate_reason = None
         else:
-            sim = {"valid": False, "error": "structural validation failed"}
+            sim = {"valid": False, "error": "validation failed"}
             score = -9999.0
             pass_rate = 0.0
             solve_pass = False
-            regenerate_reason = "structural_invalid"
+            regenerate_reason = "taste_invalid" if validation.get("verdict") == "revise_taste" else "structural_invalid"
         attempts.append({
             "candidate": idx,
             "level_id": lvl["id"],
             "seed": lvl["rules"]["seed"],
             "validation_verdict": validation.get("verdict"),
+            "taste_score": validation.get("taste", {}).get("score"),
             "target_pass_band": list(band),
             "profile": profile,
             "pass_rate": round(pass_rate, 3),
@@ -1525,7 +1967,7 @@ def main(argv: list[str]) -> int:
     if args.cmd == "validate":
         result = validate_lvl(lvl)
         emit_json(result, args.output)
-        return 0 if result.get("verdict") != "reject" else 1
+        return 0 if result.get("verdict") == "approved" else 1
     if args.cmd == "simulate":
         result = simulate_lvl(lvl, args.runs, args.profile)
         emit_json(result, args.output)
