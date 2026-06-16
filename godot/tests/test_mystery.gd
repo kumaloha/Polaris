@@ -79,7 +79,7 @@ func test_mystery_revealed_not_emptied_on_clear() -> void:
 	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5], rng, [], [], false, null, {"mystery": mystery})
 	assert_eq(r.get("mystery_revealed", -1), 1, "exactly one mystery candy revealed when cleared")
 	assert_eq(mystery[0][1], 0, "revealed mystery cell: mystery flag cleared to 0")
-	# 揭开的格【不清空】：纯三消路径无 fx 层 → 特效档退化为普通糖，故揭开后 grid 必 >=0（普通糖或原料占位）。
+	# 揭开的格【不清空】：纯三消路径无 fx/ing 层 → 特效/原料档都退化为普通糖，故揭开后 grid 必 >=0。
 	assert_true(grid[0][1] >= 0, "revealed mystery cell is NOT emptied — it holds new content (grid >= 0), not EMPTY")
 	# 旁边两个非神秘糖的三连成员被正常清空（揭开只针对神秘糖格）。
 	assert_eq(grid[0][0], ME.EMPTY, "the non-mystery match member (0,0) is cleared normally")
@@ -274,7 +274,7 @@ func test_no_mystery_layer_is_noop() -> void:
 func test_mystery_coexists_with_bomb_and_ingredient() -> void:
 	# 同一 resolve 里神秘糖 + 炸弹 + 原料并存：神秘糖被消揭开、炸弹随重力沉、原料下沉，互不干扰。
 	var grid := [
-		[0, 0, 0, 9, 4],   # 行0: (0,0)(1,0)(2,0)=0,0,0 三连；(1,0) 是神秘糖。(3,0)=9 原料占位
+		[0, 0, 0, ME.EMPTY, 4],   # 行0: (0,0)(1,0)(2,0)=0,0,0 三连；(1,0) 是神秘糖。(3,0) 是原料 actor
 		[5, 6, 7, 8, 1],
 		[2, 3, 4, 5, 6],
 		[5, 5, 7, 8, 1],   # (0,3)(1,3)=5 盖炸弹之一

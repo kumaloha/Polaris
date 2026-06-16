@@ -148,6 +148,7 @@ func start() -> void:
 	choco = init_choco.duplicate(true)
 	choco_cleared = 0
 	ing = init_ing.duplicate(true)
+	ME.apply_ingredient_occupancy(grid, fx, ing)
 	ingredient_collected = 0
 	bomb = init_bomb.duplicate(true)
 	bomb_defused = 0

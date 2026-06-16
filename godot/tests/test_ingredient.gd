@@ -67,7 +67,7 @@ func test_ingredient_falls_under_gravity() -> void:
 	var grid := [[5], [E], [E]]
 	var ing := [[1], [0], [0]]
 	ME.apply_gravity(grid, [], false, {"ing": ing})
-	assert_eq(grid[2][0], 5, "ingredient tile fell to the column bottom")
+	assert_eq(grid[2][0], E, "lost cub actor occupies the bottom without carrying a hidden gem")
 	assert_eq(ing[2][0], 1, "ing layer moved with the tile (now at bottom)")
 	assert_eq(grid[0][0], E, "top is now empty")
 	assert_eq(ing[0][0], 0, "ing layer cleared at the old top cell")
@@ -89,9 +89,46 @@ func test_ingredient_sinks_one_after_clear_below() -> void:
 	# do_refill=false、无出口(exit_cols=[]) → 只看下沉、不收集、不补充。
 	var r := ME.resolve(grid, [0, 1, 2, 3, 4, 5, 6, 7, 9], rng, [], [], false, null, {"ing": ing})
 	assert_eq(ing[2][1], 1, "ingredient sank exactly one row (from y=1 to y=2)")
-	assert_eq(grid[2][1], 9, "ingredient-covered tile moved down with it (species 9 preserved)")
+	assert_eq(grid[2][1], ME.EMPTY, "lost cub actor moved down as an empty occupied cell, not a hidden species tile")
 	assert_eq(ing[1][1], 0, "old ingredient cell cleared")
 	assert_eq(r.get("ingredient_collected", -1), 0, "no exit configured -> nothing collected")
+
+
+func test_ingredient_is_moving_obstacle_not_hidden_tile() -> void:
+	var E := ME.EMPTY
+	var grid := [[E], [E], [E]]
+	var ing := [[1], [0], [0]]
+	ME.apply_gravity(grid, [], false, {"ing": ing})
+	assert_eq(ing[2][0], 1, "lost cub actor falls to the bottom as its own moving obstacle")
+	assert_eq(grid[2][0], E, "lost cub cell remains empty in grid; it does not carry a hidden gem")
+	assert_eq(ing[0][0], 0, "old lost cub cell is cleared after falling")
+
+func test_refill_does_not_spawn_inside_ingredient_actor() -> void:
+	var E := ME.EMPTY
+	var grid := [[E], [E], [E]]
+	var ing := [[0], [1], [0]]
+	var rng := RandomNumberGenerator.new(); rng.seed = 11
+	ME.refill(grid, [0, 1, 2], rng, [], [], {"ing": ing})
+	assert_eq(ing[2][0], 1, "refill first lets the lost cub actor fall as gravity allows")
+	assert_eq(grid[2][0], E, "refill does not put a normal gem inside the lost cub cell")
+
+func test_ingredient_falls_before_adjacent_gems_can_slide_under_it() -> void:
+	var E := ME.EMPTY
+	var grid := [
+		[E, E, E],
+		[5, E, 6],
+		[E, E, E],
+	]
+	var ing := [
+		[0, 0, 0],
+		[0, 1, 0],
+		[0, 0, 0],
+	]
+	ME.apply_gravity(grid, [], false, {"ing": ing})
+	assert_eq(ing[2][1], 1, "lost cub actor takes the open gravity slot before adjacent gems can slide underneath")
+	assert_eq(grid[2][1], E, "lost cub destination remains grid-empty, not a hidden or slid-in gem")
+	assert_eq(grid[2][0], 5, "left gem falls beside the actor")
+	assert_eq(grid[2][2], 6, "right gem falls beside the actor")
 
 # ───────────── 落到底部出口 → 被收集 ─────────────
 
@@ -125,7 +162,7 @@ func test_ingredient_sinks_to_bottom_and_collected() -> void:
 	# 列0：[原料, 空, 空, 空]，整列下方全空 → 原料一路沉到 (0,3) 出口被收。
 	var E := ME.EMPTY
 	var grid := [
-		[5, 0, 1, 2],
+		[E, 0, 1, 2],
 		[E, 3, 4, 0],
 		[E, 1, 2, 3],
 		[E, 4, 0, 1],   # 列0 全空，原料从顶 (0,0) 落到底 (0,3)
@@ -149,7 +186,7 @@ func test_board_collect_via_swap() -> void:
 	var b := Board.new(4, 4, [0, 1, 2, 3, 4, 5, 7], 999999, 10, 1)
 	b.exit_cols = [0]
 	b.grid = [
-		[5, 1, 2, 0],
+		[ME.EMPTY, 1, 2, 0],
 		[ME.EMPTY, 3, 4, 1],
 		[ME.EMPTY, 2, 7, 1],   # (2,2)=7
 		[7, 7, 2, 3],          # 底行 (0,3),(1,3)=7,7，(2,3)=2；交换 (2,2)<->(2,3) → 底行 7,7,7
@@ -157,6 +194,7 @@ func test_board_collect_via_swap() -> void:
 	b.fx = b._blank_fx()
 	b.ing = b._blank_fx()   # 复用 _blank_fx 造同维全 0 层
 	b.ing[0][0] = 1
+	b.grid[0][0] = ME.EMPTY
 	var before := b.ingredient_collected
 	var r := b.try_swap(Vector2i(2, 2), Vector2i(2, 3))   # 底行 → 7,7,7
 	assert_true(r["ok"], "legal swap forms bottom-row 7,7,7")

@@ -73,12 +73,13 @@ static func find_matches(grid: Array, layers: Dictionary = {}) -> Array:
 # 重力：每列非空格子落到列底，空格升到顶（原地修改 grid）。up=true 则反向上浮（重力翻转技能 #5）。
 # fx 可选：传入则特效层与棋子层同步下落（保持对齐）。
 # choco 可选：巧克力格(choco>0)与锁住格(coat>0)一样原地固定、把列切段（巧克力不下落）。
-# ing 可选：原料格(ing>0)与普通棋子一样【随重力下落】（不切段、不固定）——这是原料与 choco 的关键区别。
-#   原料是可移动格，作为段内一个元素和 grid 一起沉底，ing 层与 grid 列同步重排（像 fx 那样跟随）。
+# ing 可选：迷路幼兽/原料 actor(ing>0)是【会移动的占位障碍】：
+#   其 grid/fx 必为空，由 ing 层单独占格；它随重力移动，但普通棋子不能落进同格，也不能从它身上穿过去。
+#   含实际 ing>0 的盘面走 moving-ingredient 重力分支；只有空 ing 层时才走下方旧式层同步兜底。
 # bomb 可选：炸弹倒计时标记。炸弹格的 grid 是【普通棋子】(可消可换)，bomb 只是叠加的倒计时——
-#   故 bomb 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】（与 ing 同样跟随，但语义更纯：纯标记）。
+#   故 bomb 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】。
 # popcorn 可选：爆米花剩余命中数。爆米花格 grid 是普通 species(占位)、不可消，但【随重力下落】——
-#   与 ing/bomb 同构：不切段、作为段内可动元素的标记随 grid 同序搬运。
+#   与 bomb 同构：不切段、作为段内可动元素的标记随 grid 同序搬运。
 # mystery 可选：神秘糖标记。神秘糖格 grid 是【普通 species】(可消可换)，mystery 只是叠加的"这格是神秘糖"标记——
 #   故 mystery 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】（与 bomb 同构：纯标记跟随）。
 #   神秘糖随重力下落时其 mystery 标记必须跟着移动，否则下落后标记与真身错位，故此处给 apply_gravity 加 mystery 参数。
@@ -89,6 +90,32 @@ static func _gravity_empty_cell(grid: Array, coat: Array, choco: Array, row: int
 	if row < 0 or row >= grid.size() or col < 0 or col >= grid[row].size():
 		return false
 	return grid[row][col] == EMPTY and not _gravity_fixed_cell(grid, coat, choco, row, col)
+
+static func _ing_occupied(ing: Array, row: int, col: int) -> bool:
+	return not ing.is_empty() and row >= 0 and row < ing.size() and col >= 0 and col < ing[row].size() and ing[row][col] > 0
+
+static func has_ingredient_actor(ing: Array) -> bool:
+	for row in ing:
+		for v in row:
+			if v > 0:
+				return true
+	return false
+
+static func apply_ingredient_occupancy(grid: Array, fx: Array, ing: Array) -> void:
+	if ing.is_empty():
+		return
+	for y in range(mini(grid.size(), ing.size())):
+		for x in range(mini(grid[y].size(), ing[y].size())):
+			if ing[y][x] > 0:
+				grid[y][x] = EMPTY
+				if not fx.is_empty():
+					fx[y][x] = SP_NONE
+
+static func _gravity_empty_cell_with_ing(grid: Array, coat: Array, choco: Array, ing: Array, row: int, col: int) -> bool:
+	return _gravity_empty_cell(grid, coat, choco, row, col) and not _ing_occupied(ing, row, col)
+
+static func _gravity_movable_cell_with_ing(grid: Array, coat: Array, choco: Array, ing: Array, row: int, col: int) -> bool:
+	return _gravity_movable_cell(grid, coat, choco, row, col) and not _ing_occupied(ing, row, col)
 
 static func _gravity_movable_cell(grid: Array, coat: Array, choco: Array, row: int, col: int) -> bool:
 	if row < 0 or row >= grid.size() or col < 0 or col >= grid[row].size():
@@ -166,6 +193,96 @@ static func _clear_spawn_layers(fx: Array, layers: Dictionary, row: int, col: in
 		if not layer.is_empty():
 			layer[row][col] = 0
 
+static func _try_move_ingredient(grid: Array, coat: Array, choco: Array, ing: Array, row: int, col: int, up: bool) -> bool:
+	if not _ing_occupied(ing, row, col):
+		return false
+	var target_row := row - 1 if up else row + 1
+	if not _gravity_empty_cell_with_ing(grid, coat, choco, ing, target_row, col):
+		return false
+	ing[target_row][col] = ing[row][col]
+	ing[row][col] = 0
+	return true
+
+static func _gravity_blocked_above_with_ing(grid: Array, coat: Array, choco: Array, cannon: Array, ing: Array, row: int, col: int) -> bool:
+	if row <= 0 or col < 0 or grid.is_empty() or col >= grid[0].size():
+		return false
+	for y in range(row):
+		if _gravity_cannon_cell(cannon, y, col):
+			continue
+		if _gravity_fixed_cell(grid, coat, choco, y, col) or _ing_occupied(ing, y, col):
+			return true
+	return false
+
+static func _gravity_has_vertical_source_above_with_ing(grid: Array, coat: Array, choco: Array, ing: Array, row: int, col: int) -> bool:
+	if row <= 0 or col < 0 or grid.is_empty() or col >= grid[0].size():
+		return false
+	for y in range(row - 1, -1, -1):
+		if _gravity_fixed_cell(grid, coat, choco, y, col) or _ing_occupied(ing, y, col):
+			return false
+		if _gravity_movable_cell_with_ing(grid, coat, choco, ing, y, col):
+			return true
+	return false
+
+static func _try_fill_gravity_slot_with_ing(grid: Array, fx: Array, coat: Array, choco: Array, cannon: Array, ing: Array, bomb: Array, popcorn: Array, mystery: Array, target_row: int, target_col: int) -> bool:
+	if target_row <= 0 or not _gravity_empty_cell_with_ing(grid, coat, choco, ing, target_row, target_col):
+		return false
+	var source_row := target_row - 1
+	var candidates := [Vector2i(target_col, source_row)]
+	if _gravity_blocked_above_with_ing(grid, coat, choco, cannon, ing, target_row, target_col) and not _gravity_has_vertical_source_above_with_ing(grid, coat, choco, ing, target_row, target_col):
+		candidates.append(Vector2i(target_col + 1, source_row))
+		candidates.append(Vector2i(target_col - 1, source_row))
+	for p in candidates:
+		if _gravity_movable_cell_with_ing(grid, coat, choco, ing, p.y, p.x):
+			_move_gravity_cell(grid, fx, [], bomb, popcorn, mystery, p.y, p.x, target_row, target_col)
+			return true
+	return false
+
+static func _apply_gravity_with_moving_ingredients(grid: Array, fx: Array, up: bool, layers: Dictionary) -> void:
+	var coat: Array = layers.get("coat", [])
+	var choco: Array = layers.get("choco", [])
+	var cannon: Array = layers.get("cannon", [])
+	var ing: Array = layers.get("ing", [])
+	var bomb: Array = layers.get("bomb", [])
+	var popcorn: Array = layers.get("popcorn", [])
+	var mystery: Array = layers.get("mystery", [])
+	var h := grid.size()
+	if h == 0:
+		return
+	var w: int = grid[0].size()
+	var moved := true
+	var guard := 0
+	var max_steps: int = maxi(1, h * w * 2)
+	while moved and guard < max_steps:
+		moved = false
+		guard += 1
+		if up:
+			var actor_moved := true
+			while actor_moved and guard < max_steps:
+				actor_moved = false
+				guard += 1
+				for y in range(1, h):
+					for x in range(w):
+						actor_moved = _try_move_ingredient(grid, coat, choco, ing, y, x, true) or actor_moved
+				moved = actor_moved or moved
+			for y in range(0, h - 1):
+				for x in range(w):
+					# 上浮仅用于技能翻转后的兜底，维持直线补位，不引入横滑。
+					if _gravity_empty_cell_with_ing(grid, coat, choco, ing, y, x) and _gravity_movable_cell_with_ing(grid, coat, choco, ing, y + 1, x):
+						_move_gravity_cell(grid, fx, [], bomb, popcorn, mystery, y + 1, x, y, x)
+						moved = true
+		else:
+			var actor_moved := true
+			while actor_moved and guard < max_steps:
+				actor_moved = false
+				guard += 1
+				for y in range(h - 2, -1, -1):
+					for x in range(w):
+						actor_moved = _try_move_ingredient(grid, coat, choco, ing, y, x, false) or actor_moved
+				moved = actor_moved or moved
+			for y in range(h - 1, 0, -1):
+				for x in range(w):
+					moved = _try_fill_gravity_slot_with_ing(grid, fx, coat, choco, cannon, ing, bomb, popcorn, mystery, y, x) or moved
+
 static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers: Dictionary = {}) -> void:
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
@@ -185,6 +302,10 @@ static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers:
 	var has_bomb := not bomb.is_empty()
 	var has_pop := not popcorn.is_empty()
 	var has_mystery := not mystery.is_empty()
+	if has_ing and has_ingredient_actor(ing):
+		apply_ingredient_occupancy(grid, fx, ing)
+		_apply_gravity_with_moving_ingredients(grid, fx, up, layers)
+		return
 	if not up and _has_fall_obstacles(grid, coat, choco):
 		var moved := true
 		var guard := 0
@@ -198,13 +319,13 @@ static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers:
 		return
 	for x in w:
 		# 墙 与 锁住格(coat>0) 与 巧克力格(choco>0) 把列切成独立段、原地固定，各段内分别下落。
-		# 原料(ing>0) 不切段——它是段内可移动元素，随段一起下落。炸弹(bomb>0)/爆米花(popcorn>0)同样不切段（皆段内可动格）。
+		# 含实际原料 actor 的盘面已在上方返回；这里的 ing 仅为全 0 空层兼容。炸弹/爆米花/神秘糖仍随 grid 同步搬运。
 		var seg_start := 0
 		for y in range(h + 1):
 			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				var stack := []     # 段内非空 species（段内无墙）
 				var fx_stack := []
-				var ing_stack := []   # 段内每个可动格的原料标记，随 stack 同序搬运（原料随棋子一起落）
+				var ing_stack := []   # 兼容空 ing 层的旧式同步数组；实际 ing>0 不会进入本分支。
 				var bomb_stack := []  # 段内每个可动格的炸弹倒计时，随 stack 同序搬运（炸弹随棋子一起落）
 				var pop_stack := []   # 段内每个可动格的爆米花命中数，随 stack 同序搬运（爆米花随棋子一起落）
 				var mys_stack := []   # 段内每个可动格的神秘糖标记，随 stack 同序搬运（神秘糖随棋子一起落）
@@ -244,7 +365,7 @@ static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers:
 						if has_fx:
 							fx[k][x] = fx_stack[si]
 						if has_ing:
-							ing[k][x] = ing_stack[si]   # 原料标记随该格内容一起落
+							ing[k][x] = ing_stack[si]   # 空 ing 层兼容同步；实际原料 actor 由专用重力分支处理
 						if has_bomb:
 							bomb[k][x] = bomb_stack[si]   # 炸弹倒计时随该格内容一起落
 						if has_pop:
@@ -295,8 +416,37 @@ static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, 
 	var has_feed := not feed.is_empty()
 	var coat: Array = layers.get("coat", [])
 	var choco: Array = layers.get("choco", [])
+	var ing: Array = layers.get("ing", [])
 	var has_coat := not coat.is_empty()
+	var has_ing := not ing.is_empty()
 	var has_obstacles := _has_fall_obstacles(grid, coat, choco)
+	if has_ing and has_ingredient_actor(ing):
+		apply_ingredient_occupancy(grid, fx, ing)
+		var h := grid.size()
+		if h == 0:
+			return
+		var w: int = grid[0].size()
+		var max_steps: int = maxi(1, h * w * 2)
+		for _i in range(max_steps):
+			apply_gravity(grid, fx, false, layers)
+			var spawned := false
+			for x in range(w):
+				if not _gravity_empty_cell_with_ing(grid, coat, choco, ing, 0, x):
+					continue
+				if has_feed:
+					if x < feed.size() and not feed[x].is_empty():
+						grid[0][x] = feed[x].pop_front()
+						_clear_spawn_layers(fx, layers, 0, x)
+						spawned = true
+				else:
+					grid[0][x] = species_set[rng.randi() % n]
+					_clear_spawn_layers(fx, layers, 0, x)
+					spawned = true
+			if not spawned:
+				apply_gravity(grid, fx, false, layers)
+				return
+		apply_gravity(grid, fx, false, layers)
+		return
 	if has_obstacles:
 		if has_coat:
 			apply_blocker_occupancy(grid, fx, coat)
@@ -330,6 +480,8 @@ static func refill(grid: Array, species_set: Array, rng: RandomNumberGenerator, 
 	for y in grid.size():
 		for x in grid[y].size():
 			if grid[y][x] == EMPTY:
+				if has_ing and _ing_occupied(ing, y, x):
+					continue
 				if has_coat and coat[y][x] > 0:
 					if has_fx:
 						fx[y][x] = SP_NONE
@@ -374,7 +526,7 @@ static func resolve(grid: Array, species_set: Array, rng: RandomNumberGenerator,
 # 注：纯重力不触发消除循环，故消除稳定后必须单独跑这个把已落定原料送进出口（先 gravity 让原料触到出口行）。
 # bomb 可选：原料下沉伴随的重力也需让炸弹标记跟随搬运（与棋子一起落），故透传 bomb。
 # popcorn 可选：同理透传——原料下沉的重力也要让爆米花格随之沉底（避免原料关与爆米花共存时爆米花掉队）。
-# mystery 可选：同理透传——原料下沉的重力也要让神秘糖标记随之沉底（避免原料关与神秘糖共存时标记掉队）。
+# mystery 可选：同理透传——原料 actor 下沉时也要让神秘糖标记随普通棋子沉底（避免原料关与神秘糖共存时标记掉队）。
 static func _drain_ingredients(grid: Array, fx: Array, up: bool, layers: Dictionary = {}) -> int:
 	var ing: Array = layers.get("ing", [])
 	var exit_cols: Array = layers.get("exit_cols", [])
@@ -532,8 +684,8 @@ static func _reveal_mystery_at(grid: Array, fx: Array, ing: Array, mystery: Arra
 		if not ing.is_empty():
 			ing[pos.y][pos.x] = 0
 	else:
-		# 10%：原料（grid=随机色占位 + ing=1）；无 ing 层则退化为普通色。
-		grid[pos.y][pos.x] = new_sp
+		# 10%：原料 actor；有 ing 层时占格但不藏普通糖，无 ing 层则退化为普通色。
+		grid[pos.y][pos.x] = EMPTY if not ing.is_empty() else new_sp
 		if not fx.is_empty():
 			fx[pos.y][pos.x] = SP_NONE
 		if not ing.is_empty():
@@ -654,7 +806,7 @@ static func _resolve_plain(grid: Array, species_set: Array, rng: RandomNumberGen
 					bomb_defused += 1
 				grid[bp.y][bp.x] = EMPTY
 				cleared_total += 1
-		apply_gravity(grid, [], false, layers)   # 原料/炸弹/爆米花/神秘糖随重力下落（随 grid 同步移动）
+		apply_gravity(grid, [], false, layers)   # 原料 actor 按占位障碍移动；炸弹/爆米花/神秘糖随 grid 同步移动
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)  # 落到出口的原料即收
 		if do_refill:
@@ -871,7 +1023,7 @@ static func _resolve_fx(grid: Array, species_set: Array, rng: RandomNumberGenera
 					to_clear.append(bp)
 					cleared_total += 1
 		_apply_clears(grid, fx, to_clear, c["spawns"], triggered_spawns)
-		apply_gravity(grid, fx, false, layers)   # 原料/炸弹/爆米花/神秘糖随重力下落（随 grid/fx 同步移动）
+		apply_gravity(grid, fx, false, layers)   # 原料 actor 按占位障碍移动；炸弹/爆米花/神秘糖随 grid/fx 同步移动
 		if has_ing:
 			ingredient_collected += collect_ingredients_at_exit(grid, ing, exit_cols)
 		if do_refill:
@@ -1596,7 +1748,8 @@ static func spawn_from_cannons(cannon: Array, grid: Array, species_set: Array, r
 				continue   # 下方非空 → 本步不产（等位置空出）
 			grid[by][x] = species_set[rng.randi() % n]   # 产出一个随机 species 棋子
 			if cannon[y][x] == 2 and has_ing:
-				ing[by][x] = 1   # 产原料炮：在产出格打原料标记（随重力下落、可被运到出口）
+				grid[by][x] = EMPTY
+				ing[by][x] = 1   # 产原料炮：在产出格打原料 actor（随重力下落、可被运到出口）
 			produced += 1
 	return produced
 

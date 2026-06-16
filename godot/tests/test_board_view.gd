@@ -76,6 +76,26 @@ func test_rebuild_hides_gem_under_ingredient_overlay() -> void:
 	level.free()
 
 
+func test_collapse_refill_collects_lost_cub_already_on_bottom_exit() -> void:
+	var b := Board.new(3, 3, [0, 1, 2], 0, 10, 7, [], [{"type": "COLLECT_INGREDIENT", "species": -1, "target": 1}])
+	b.exit_cols = [1]
+	b.grid = [
+		[0, 1, 2],
+		[1, 2, 0],
+		[2, ME.EMPTY, 0],
+	]
+	b.fx = b._blank_fx()
+	b.ing = b._blank_fx()
+	b.ing[2][1] = 1
+	var level := _prepare_level(3, 3, b)
+	level.board_view.rebuild(level.board)
+	level.board_view.collapse_and_refill()
+	assert_eq(level.board.ingredient_collected, 1, "front-end collapse/refill path collects a lost cub that reaches the bottom exit")
+	assert_eq(level.board.ing[2][1], 0, "collected lost cub is removed from the ingredient layer")
+	assert_true(level.board.is_won(), "COLLECT_INGREDIENT objective wins as soon as the cub reaches the exit")
+	level.free()
+
+
 func test_node_at_out_of_bounds_is_null_not_crash() -> void:
 	var level := _prepare_level(3, 3)
 	level.board_view.rebuild(level.board)

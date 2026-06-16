@@ -933,9 +933,10 @@ func test_account_clears_locks_ingredient_direct_clear() -> void:
 		[0, 0, 0],
 	]
 	var target := Vector2i(1, 0)
+	ME.apply_ingredient_occupancy(grid, fx, ing)
 	var acc: Dictionary = ME.account_clears(grid, [target], fx, null, [], {"ing": ing})
 	assert_true(acc.get("locked", []).has(target), "direct clears must lock ingredient cells instead of clearing them")
-	assert_false(acc.get("by_species", {}).has(1), "ingredient-covered species does not count as collected by direct clear")
+	assert_false(acc.get("by_species", {}).has(1), "ingredient actor has no hidden species to collect by direct clear")
 	var locked := {}
 	for p in acc.get("locked", []):
 		locked[p] = true
@@ -943,8 +944,8 @@ func test_account_clears_locks_ingredient_direct_clear() -> void:
 	if not locked.has(target):
 		to_clear.append(target)
 	ME._apply_clears(grid, fx, to_clear, [])
-	assert_eq(grid[0][1], 1, "caller filtering keeps ingredient-covered tile in place")
-	assert_eq(ing[0][1], 1, "ingredient marker remains aligned with the tile")
+	assert_eq(grid[0][1], ME.EMPTY, "caller filtering keeps the ingredient actor cell grid-empty")
+	assert_eq(ing[0][1], 1, "ingredient actor remains in its own layer")
 
 func test_coat_occupancy_removes_underlying_gem() -> void:
 	var grid := [

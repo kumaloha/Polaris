@@ -808,12 +808,18 @@ def compile_lvl(lvl: dict[str, Any]) -> tuple[dict[str, Any] | None, Diagnostics
     if not d.ok:
         return None, d
 
+    init_board = build_grid(rows, colors, seed)
+    for r in range(h):
+        for c in range(w):
+            if ing[r][c] > 0:
+                init_board[r][c] = -1
+
     record = {
         "level_id": lvl["id"],
         "w": w,
         "h": h,
         "species": list(range(colors)),
-        "init_board": build_grid(rows, colors, seed),
+        "init_board": init_board,
         "target_score": int(first_objective(lvl).get("target_score", 0) or 0),
         "move_limit": int(rules["moves"]),
         "seed": seed,

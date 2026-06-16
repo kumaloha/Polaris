@@ -435,6 +435,21 @@ func test_level_library_parses_and_builds() -> void:
 	assert_eq(b.move_limit, 10, "move_limit from json")
 	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")
 
+
+func test_level_library_clears_hidden_tile_under_ingredient_actor() -> void:
+	var d := {
+		"w": 2, "h": 2,
+		"species": [0, 1],
+		"init_board": [[0, 1], [1, 0]],
+		"move_limit": 10,
+		"objectives": [{"type": "COLLECT_INGREDIENT", "species": -1, "target": 1}],
+		"ing": [[0, 1], [0, 0]],
+		"exits": [1],
+	}
+	var b := LevelLibrary.to_board(d)
+	assert_eq(b.ing[0][1], 1, "ingredient actor layer loaded")
+	assert_eq(b.grid[0][1], ME.EMPTY, "loaded ingredient actor does not keep a hidden normal gem underneath")
+
 func test_level_library_resolves_levels_path_from_args() -> void:
 	assert_eq(LevelLibrary.levels_path_from_args([]), "res://levels.json", "default level library path")
 	assert_eq(LevelLibrary.levels_path_from_args(["--levels", "res://levels.generated.json"]), "res://levels.generated.json", "--levels value selects generated library")

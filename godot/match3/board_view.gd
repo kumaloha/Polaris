@@ -1454,6 +1454,9 @@ func _collapse_and_refill() -> void:
 	var before_grid: Array = board.grid.duplicate(true)
 	var old_nodes: Array = _gem_nodes.duplicate(true)
 	ME.apply_gravity(board.grid, board.fx, false, board._layers())
+	var collected: int = ME._drain_ingredients(board.grid, board.fx, false, board._layers())
+	if collected > 0:
+		board._accumulate_progress({"ingredient_collected": collected})
 	var refill_feed: Array = board.feed if board.is_scrolling else []
 	if not board.is_scrolling:
 		ME.refill(board.grid, board.species, board.rng, board.fx, refill_feed, board._layers())

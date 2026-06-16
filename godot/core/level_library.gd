@@ -72,6 +72,7 @@ static func to_board(d: Dictionary) -> Board:
 		b.grid = init_grid   # 用导出盘面覆盖随机生成的 make_board 结果
 		b.fx = b._blank_fx()
 		ME.apply_blocker_occupancy(b.grid, b.fx, b.coat)
+		ME.apply_ingredient_occupancy(b.grid, b.fx, b.ing)
 	if bool(d.get("is_scrolling", false)):   # 滚动/挖矿关：补充从预设 feed 出，挖穿通关
 		b.is_scrolling = true
 		var fd := []

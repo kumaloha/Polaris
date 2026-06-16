@@ -54,7 +54,7 @@ func test_cannon_type1_produces_plain_candy() -> void:
 	assert_eq(ing[1][0], 0, "plain cannon does NOT mark ingredient (ing stays 0)")
 
 func test_cannon_type2_produces_ingredient() -> void:
-	# cannon=2 → 产原料：产出格 grid 是普通棋子且 ing=1（与运料关协同：炮源源产原料）。
+	# cannon=2 → 产原料 actor：产出格 grid 保持 EMPTY 且 ing=1。
 	var E := ME.EMPTY
 	var W := ME.WALL
 	var grid := [[W, 1, 2], [E, 3, 4], [5, 0, 1]]
@@ -64,8 +64,8 @@ func test_cannon_type2_produces_ingredient() -> void:
 	var rng := RandomNumberGenerator.new(); rng.seed = 7
 	var produced := ME.spawn_from_cannons(cannon, grid, [0, 1, 2, 3, 4, 5], rng, ing)
 	assert_eq(produced, 1, "ingredient cannon produced one piece")
-	assert_true(grid[1][0] >= 0, "produced cell holds a normal-species tile (not WALL/EMPTY)")
-	assert_eq(ing[1][0], 1, "produced cell is marked as an ingredient (ing=1)")
+	assert_eq(grid[1][0], E, "produced ingredient actor does not hide a normal-species tile")
+	assert_eq(ing[1][0], 1, "produced cell is marked as an ingredient actor (ing=1)")
 	assert_eq(ME.count_ingredients(ing), 1, "exactly one ingredient now on board")
 
 # ───────────── 断言⑤：下方非空时不产（等位置空出）─────────────
