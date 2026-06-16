@@ -435,6 +435,22 @@ func test_level_library_parses_and_builds() -> void:
 	assert_eq(b.move_limit, 10, "move_limit from json")
 	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")
 
+func test_level_library_resolves_levels_path_from_args() -> void:
+	assert_eq(LevelLibrary.levels_path_from_args([]), "res://levels.json", "default level library path")
+	assert_eq(LevelLibrary.levels_path_from_args(["--levels", "res://levels.generated.json"]), "res://levels.generated.json", "--levels value selects generated library")
+	assert_eq(LevelLibrary.levels_path_from_args(["--levels=res://levels.generated.json"]), "res://levels.generated.json", "--levels=value selects generated library")
+	assert_eq(LevelLibrary.levels_path_from_args(["--level-library", "res://custom.json"]), "res://custom.json", "--level-library alias works")
+	assert_eq(LevelLibrary.levels_path_from_args(["--levels"]), "res://levels.json", "missing --levels value falls back safely")
+
+func test_generated_level_library_loads() -> void:
+	var lvls := LevelLibrary.load_file("res://levels.generated.json")
+	assert_eq(lvls.size(), 10, "generated solver-gated library contains first ten levels")
+	if lvls.is_empty():
+		return
+	assert_eq(lvls[0].get("level_id", ""), "level_001_base", "generated library starts at level_001_base")
+	assert_eq(int(lvls[0].get("w", 0)), 7, "generated first level width")
+	assert_eq(int(lvls[0].get("h", 0)), 7, "generated first level height")
+
 func test_level_library_reads_scrolling() -> void:
 	# C++ 导出的滚动关：is_scrolling + 每列 feed 队列 → Board
 	var d := {

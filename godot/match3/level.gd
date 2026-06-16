@@ -70,6 +70,7 @@ const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错
 var board
 var board_origin: Vector2
 var cell_size: float = 0.0
+var _levels_path: String = LEVELS_PATH
 var _levels: Array = []          # 真实关卡库(levels.json 的 levels 数组), 空=回退 LevelConfig
 var _playable: Array = []        # 可玩关索引(跳过 objectives 为空的关), 元素是 _levels 的下标
 var _play_pos: int = 0           # 当前在 _playable 列表中的位置(翻关用)
@@ -139,9 +140,11 @@ func _ready() -> void:
 	gem_layer.layer = 3
 	$FXLayer.layer = 4
 	Fx.attach($FXLayer, gem_layer)  # 特效挂 FXLayer, 震动抖棋子层
-	# 阶段6: 接真实 126 关。读 levels.json → 构建"可玩关索引"(跳过 18 个空 objectives 关,
+	# 阶段6: 接真实关卡库。默认读 levels.json；可用 --levels 指向新生成关卡库。
+	# 构建"可玩关索引"(跳过 18 个空 objectives 关,
 	# 否则空目标 → is_won 退化为 score>=target_score(=0) → 进关即赢)。json 缺失则回退 LevelConfig。
-	_levels = LevelLibrary.load_file(LEVELS_PATH)
+	_levels_path = _levels_path_from_args(OS.get_cmdline_user_args())
+	_levels = LevelLibrary.load_file(_levels_path)
 	_playable = []
 	for i in range(_levels.size()):
 		var objs = _levels[i].get("objectives", [])
@@ -183,6 +186,9 @@ func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 			return -1
 		return _player_level_to_raw_idx(raw.to_int(), level_count)
 	return -1
+
+func _levels_path_from_args(args: Array) -> String:
+	return LevelLibrary.levels_path_from_args(args, LEVELS_PATH)
 
 func _player_level_to_raw_idx(level_number: int, level_count: int) -> int:
 	var player_idx := level_number - 1
@@ -1272,4 +1278,3 @@ func _finish_consumed_move(step_choco: int, cascades: int) -> bool:
 	if is_inside_tree():
 		await get_tree().process_frame
 	return settled_now
-

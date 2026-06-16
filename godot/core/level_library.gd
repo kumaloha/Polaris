@@ -4,6 +4,28 @@ extends RefCounted
 
 const Board := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
+const DEFAULT_LEVELS_PATH := "res://levels.json"
+
+# 从启动参数选择关卡库。默认不变；传入：
+#   --levels res://levels.generated.json
+#   --levels=res://levels.generated.json
+# 可切到新生成的关卡包。只返回路径，不做存在性校验，便于调用方统一 fallback/log。
+static func levels_path_from_args(args: Array, default_path: String = DEFAULT_LEVELS_PATH) -> String:
+	for i in args.size():
+		var arg := String(args[i])
+		var raw := ""
+		if arg == "--levels" or arg == "--level-library":
+			if i + 1 >= args.size():
+				return default_path
+			raw = String(args[i + 1])
+		elif arg.begins_with("--levels="):
+			raw = arg.substr("--levels=".length())
+		elif arg.begins_with("--level-library="):
+			raw = arg.substr("--level-library=".length())
+		raw = raw.strip_edges()
+		if not raw.is_empty():
+			return raw
+	return default_path
 
 # 解析 JSON 文本 → Array[Dictionary]（每项是一关）。失败返回 []。
 static func load_string(json_text: String) -> Array:

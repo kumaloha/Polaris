@@ -7,8 +7,9 @@ extends Node
 
 const MetaState := preload("res://meta/meta_state.gd")
 const Session   := preload("res://app/session.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
-# 加载关卡配置（levels.json 在 godot/ 根目录下）
+# 加载关卡配置（默认 levels.json；可用 --levels 指向生成关卡包）
 const LEVELS_PATH := "res://levels.json"
 
 # ── 状态枚举 ─────────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ enum State { BOOT, MAP, LEVEL, RESULT }
 var _state: State = State.BOOT
 var _meta: MetaState
 var _session: Session
+var _levels_path: String = LEVELS_PATH
 var _library: Array         # levels.json 全量
 var _current_index: int = 0 # 当前进入关卡的库索引
 var _last_summary: Dictionary = {}  # bank() 返回的入账摘要，供 Result 页显示
@@ -31,18 +33,19 @@ var _result_panel: Control     # Result 结算面板
 func _ready() -> void:
 	_meta    = MetaState.new()
 	_session = Session.new()
+	_levels_path = LevelLibrary.levels_path_from_args(OS.get_cmdline_user_args(), LEVELS_PATH)
 	_library = _load_library()
 	_build_ui()
 	_enter_boot()
 
 # ── 关卡库加载 ────────────────────────────────────────────────────────────────
 func _load_library() -> Array:
-	if not FileAccess.file_exists(LEVELS_PATH):
-		push_warning("game_root: levels.json not found at " + LEVELS_PATH)
+	if not FileAccess.file_exists(_levels_path):
+		push_warning("game_root: levels library not found at " + _levels_path)
 		return []
-	var f := FileAccess.open(LEVELS_PATH, FileAccess.READ)
+	var f := FileAccess.open(_levels_path, FileAccess.READ)
 	if f == null:
-		push_warning("game_root: failed to open levels.json")
+		push_warning("game_root: failed to open levels library " + _levels_path)
 		return []
 	var parsed = JSON.parse_string(f.get_as_text())
 	f.close()
@@ -50,7 +53,7 @@ func _load_library() -> Array:
 		return parsed
 	if typeof(parsed) == TYPE_DICTIONARY and parsed.has("levels") and typeof(parsed["levels"]) == TYPE_ARRAY:
 		return parsed["levels"]
-	push_warning("game_root: levels.json has unexpected structure")
+	push_warning("game_root: levels library has unexpected structure: " + _levels_path)
 	return []
 
 # ── UI 骨架构建 ───────────────────────────────────────────────────────────────
