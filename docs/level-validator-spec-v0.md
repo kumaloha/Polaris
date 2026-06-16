@@ -15,8 +15,10 @@
   → Compile Validator
   → Semantic Design Language Gate
   → Level Intent Gate
+  → Personalization Prior Gate
   → Progression Rhythm Gate
   → Obstacle Composition Gate
+  → Visual Grammar Gate
   → Structural Validator
   → Taste Director Gate
   → Player Simulator Validator
@@ -24,7 +26,7 @@
   → Validation Report
 ```
 
-七类 verdict：
+九类 verdict：
 
 | verdict | 含义 |
 |---|---|
@@ -32,8 +34,10 @@
 | `revise_minor` | 小改后可重跑 |
 | `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
 | `revise_level_intent` | 外部原则契约不成立；目标动词/技能课题/棋盘尺度需要重写 |
+| `revise_personalization` | 冷启动画像契约不成立；persona axes 与 prior 不匹配 |
 | `revise_progression` | 长期节奏契约不成立；机制生命周期/奖励资源/烦躁预算/难度带需要重写 |
 | `revise_obstacle_composition` | 障碍构图不成立；母题/主障碍/动作方向/负空间/读序需要重写 |
+| `revise_visual_grammar` | 视觉构图契约不成立；焦点/密度/对称/轮廓需要重写 |
 | `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
 | `revise_major` | 配方或布局错配，需要重做候选 |
 | `reject` | 不应继续投入 |
@@ -66,8 +70,10 @@ input:
   "compile": {},
   "semantic": {},
   "level_intent_gate": {},
+  "personalization_gate": {},
   "progression": {},
   "obstacle_composition_gate": {},
+  "visual_grammar_gate": {},
   "structural": {},
   "taste": {},
   "player_simulator": {},
@@ -96,8 +102,10 @@ input:
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
 | level_design 根字段存在 | `E_MISSING_FIELD` |
 | level_intent 根字段存在 | `E_MISSING_FIELD` |
+| personalization 根字段存在 | `E_MISSING_FIELD` |
 | progression 根字段存在 | `E_MISSING_FIELD` |
 | obstacle_composition 根字段存在 | `E_MISSING_FIELD` |
+| obstacle_composition.visual_grammar 存在 | `E_MISSING_FIELD` |
 | director 根字段存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
@@ -476,6 +484,26 @@ seed_policy: deterministic_sequence
 
 ---
 
+## 8.5 Personalization Prior Gate
+
+`personalization.persona_axes` 把“冷启动男性/女性偏好”从口头画像变成可调参数。它不是生物学断言，也不是最终玩家画像；上线后应被真实行为数据覆盖。
+
+### 8.5.1 机器必检 personalization gate
+
+| check | pass 条件 |
+|---|---|
+| `prior_known` | `cold_start_prior` 属于 `unknown/female/male` |
+| `persona_axes_present` | `novelty_bias/reward_bias/challenge_bias/strategy_bias/cuteness_bias/annoyance_tolerance` 全存在 |
+| `*_valid` | 每个 axis 都是 `[0,1]` 数值 |
+| `prior_weight_valid` | `prior_weight` 是 `[0,1]`；unknown 必须不偏置，gender prior 必须为正 |
+| `female_prior_shape` | female 冷启动偏向新鲜感/奖励/萌宠反馈，且烦躁容忍较低 |
+| `male_prior_shape` | male 冷启动偏向挑战/策略，但不能无限提高烦躁容忍 |
+| `unknown_prior_balanced` | unknown prior 不应明显偏斜 |
+
+`personalization_gate.valid=false` 时，候选只能得到 `revise_personalization`。
+
+---
+
 ## 9. Progression Rhythm Gate
 
 `progression` 是“这关在长线运营里为什么存在”的机器契约。它不替代 `level_design`，而是检查：机制有没有生命周期位置、玩家有没有真实奖励资源、通过率之外是否控制烦躁、难度带是否服务前后节奏。
@@ -557,6 +585,26 @@ seed_policy: deterministic_sequence
   "warnings": []
 }
 ```
+
+---
+
+## 10.5 Visual Grammar Gate
+
+`obstacle_composition.visual_grammar` 是“好看”进入程序的第一层表达。它不试图审美打分，而是拦住机器可判的坏构图：焦点不在题眼、密度不在预算、声明中心门却摆到角落、声明双区却只有一边。
+
+### 10.5.1 机器必检 visual gate
+
+| check | pass 条件 |
+|---|---|
+| `required_fields_present` | `focal_alignment/symmetry/density_band/silhouette/anchor_layers` 全存在 |
+| `anchor_layers_present` | visual anchor 对应的 overlay layer 真实存在 |
+| `density_band_declared` | density_band 是 `[min,max]` 且在 `[0,1]` |
+| `anchor_density_in_band` | anchor cells / playable cells 落在密度预算内 |
+| `focal_alignment_ok` | `center_column/vertical_lane/split_dual/center_ring/edge_pairs/path` 等焦点约束成立 |
+| `symmetry_ok` | `center_axis/bilateral/radial_hint/none` 与 anchor 分布大致一致；弱不一定 fail，但会 warning |
+| `silhouette_declared` | 命名玩家应看到的轮廓，例如 `crystal_door/cub_path_to_nest` |
+
+`visual_grammar_gate.valid=false` 时，候选只能得到 `revise_visual_grammar`。
 
 ---
 
@@ -687,6 +735,7 @@ seed_policy: deterministic_sequence
 | `tools/level_tool.py validate` | `.lvl` strict JSON | lint + compile + structural validation JSON |
 | `tools/level_tool.py simulate` | `.lvl` strict JSON | v0 persona player-sim metrics |
 | `tools/level_tool.py ascii` | `.lvl` strict JSON | human-readable board summary |
+| `episode_rhythm_validate_levels` | ordered `.lvl` list | cross-level new-mechanic cadence report |
 | future Godot renderer | compiled JSON | preview PNG |
 | `telemetry_schema.json` | event | schema validation |
 

@@ -20,6 +20,14 @@
     "profile_band": "default_mid_skill",
     "cold_start_prior": "unknown",
     "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
     "target_pass_band": [
       0.9,
       1.0
@@ -195,7 +203,20 @@
       "theme_shape_serves_play_shape"
     ],
     "level_role": "teaching_breather",
-    "linked_eye": "cleanse_trail"
+    "linked_eye": "cleanse_trail",
+    "visual_grammar": {
+      "focal_alignment": "path",
+      "symmetry": "none",
+      "density_band": [
+        0.02,
+        0.2
+      ],
+      "silhouette": "paw_stardust_trail",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
   },
   "level_design": {
     "id": "level_003",

@@ -1,0 +1,27 @@
+{
+  "valid": true,
+  "score": 100,
+  "checks": {
+    "new_reveal_slots": [
+      {
+        "slot": 1,
+        "mechanic": "target_mark",
+        "level_id": "level_001_base"
+      },
+      {
+        "slot": 5,
+        "mechanic": "crystal_shell",
+        "level_id": "level_005_base"
+      },
+      {
+        "slot": 9,
+        "mechanic": "drop_relic",
+        "level_id": "level_009_base"
+      }
+    ],
+    "new_reveal_min_gap_at_least_3": true,
+    "pressure_count": 1
+  },
+  "errors": [],
+  "warnings": []
+}

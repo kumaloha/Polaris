@@ -1,5 +1,5 @@
 {
-  "id": "level_005_male_prior_c02",
+  "id": "level_005_male_prior_c03",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,11 +13,11 @@
       1.0
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 2,
+    "candidate_index": 3,
     "candidate_tuning": {
-      "moves_delta": -2,
-      "target_multiplier": 1.05,
-      "shell_hp_delta": 0,
+      "moves_delta": -3,
+      "target_multiplier": 1.1,
+      "shell_hp_delta": 1,
       "colors_delta": 0
     }
   },
@@ -25,6 +25,14 @@
     "profile_band": "default_mid_skill",
     "cold_start_prior": "male",
     "prior_weight": 0.2,
+    "persona_axes": {
+      "novelty_bias": 0.46,
+      "reward_bias": 0.48,
+      "challenge_bias": 0.7,
+      "strategy_bias": 0.74,
+      "cuteness_bias": 0.45,
+      "annoyance_tolerance": 0.52
+    },
     "target_pass_band": [
       0.9,
       1.0
@@ -40,11 +48,11 @@
     "target": "all"
   },
   "rules": {
-    "moves": 19,
+    "moves": 18,
     "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 3083
+    "seed": 4080
   },
   "map": {
     "width": 7,
@@ -139,7 +147,7 @@
       "layers": [
         {
           "crystal_shell": {
-            "hp": 2
+            "hp": 3
           }
         }
       ]
@@ -245,7 +253,20 @@
       "theme_shape_serves_play_shape"
     ],
     "level_role": "teaching",
-    "linked_eye": "crystal_shell_gate_practice"
+    "linked_eye": "crystal_shell_gate_practice",
+    "visual_grammar": {
+      "focal_alignment": "center_column",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.03,
+        0.26
+      ],
+      "silhouette": "crystal_door",
+      "anchor_layers": [
+        "crystal_shell"
+      ],
+      "max_centroid_offset": 1.25
+    }
   },
   "level_design": {
     "id": "level_005",

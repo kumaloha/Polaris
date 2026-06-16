@@ -55,6 +55,24 @@
     "errors": [],
     "warnings": []
   },
+  "personalization_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "prior_known": true,
+      "persona_axes_present": true,
+      "annoyance_tolerance_valid": true,
+      "challenge_bias_valid": true,
+      "cuteness_bias_valid": true,
+      "novelty_bias_valid": true,
+      "reward_bias_valid": true,
+      "strategy_bias_valid": true,
+      "prior_weight_valid": true,
+      "male_prior_shape": true
+    },
+    "errors": [],
+    "warnings": []
+  },
   "taste": {
     "valid": true,
     "score": 100,
@@ -125,6 +143,22 @@
       "read_order_spatially_plausible": true,
       "beauty_rules_declared": true,
       "delete_test_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "visual_grammar_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "anchor_layers_present": true,
+      "density_band_declared": true,
+      "anchor_density": 0.118,
+      "anchor_density_in_band": true,
+      "focal_alignment_ok": true,
+      "symmetry_ok": true,
+      "silhouette_declared": true
     },
     "errors": [],
     "warnings": []

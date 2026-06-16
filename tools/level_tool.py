@@ -545,6 +545,45 @@ VARIANT_RULES: dict[str, dict[str, Any]] = {
 }
 
 
+PERSONA_AXES_BY_PRIOR: dict[str, dict[str, float]] = {
+    # Cold-start defaults are deliberately explicit.  They are not demographic
+    # truth claims; they are tunable generator priors until telemetry replaces
+    # them.
+    "unknown": {
+        "novelty_bias": 0.50,
+        "reward_bias": 0.50,
+        "challenge_bias": 0.50,
+        "strategy_bias": 0.50,
+        "cuteness_bias": 0.50,
+        "annoyance_tolerance": 0.45,
+    },
+    "female": {
+        "novelty_bias": 0.70,
+        "reward_bias": 0.68,
+        "challenge_bias": 0.42,
+        "strategy_bias": 0.46,
+        "cuteness_bias": 0.74,
+        "annoyance_tolerance": 0.35,
+    },
+    "male": {
+        "novelty_bias": 0.46,
+        "reward_bias": 0.48,
+        "challenge_bias": 0.70,
+        "strategy_bias": 0.74,
+        "cuteness_bias": 0.45,
+        "annoyance_tolerance": 0.52,
+    },
+}
+
+
+VISUAL_DENSITY_BANDS: dict[str, list[float]] = {
+    "none": [0.02, 0.20],
+    "low": [0.03, 0.26],
+    "medium": [0.08, 0.32],
+    "high": [0.18, 0.42],
+}
+
+
 CANDIDATE_TUNINGS: list[dict[str, Any]] = [
     {"moves_delta": 0, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
     {"moves_delta": -1, "target_multiplier": 1.00, "shell_hp_delta": 0, "colors_delta": 0},
@@ -753,7 +792,56 @@ def generated_obstacle_composition(level: int, coord: dict[str, Any]) -> dict[st
     out = copy.deepcopy(spec)
     out["level_role"] = coord["role"]
     out["linked_eye"] = coord["eye"]
+    out["visual_grammar"] = generated_visual_grammar(out, coord)
     return out
+
+
+def generated_visual_grammar(composition: dict[str, Any], coord: dict[str, Any]) -> dict[str, Any]:
+    """Compile obstacle taste prose into measurable composition constraints."""
+    archetype = str(composition.get("archetype", ""))
+    focus_area = str(composition.get("focus_area", ""))
+    density = str(composition.get("density", "low"))
+    primary = str(composition.get("primary_blocker", "none"))
+    objective_layer = OBJECTIVE_TO_LAYER.get(str(coord.get("objective", {}).get("type")), "target_mark")
+
+    if primary != "none":
+        anchor_layers = [primary]
+    else:
+        anchor_layers = [objective_layer]
+
+    if archetype == "split_lock":
+        focal_alignment = "split_dual"
+        symmetry = "bilateral"
+    elif archetype == "lane":
+        focal_alignment = "vertical_lane"
+        symmetry = "center_axis"
+    elif archetype == "gate" or "center_column" in focus_area or "route_gate" in focus_area:
+        focal_alignment = "center_column"
+        symmetry = "center_axis"
+    elif archetype == "ring":
+        focal_alignment = "center_ring"
+        symmetry = "radial_hint"
+    elif archetype == "funnel":
+        focal_alignment = "vertical_funnel"
+        symmetry = "center_axis"
+    elif "edge" in focus_area:
+        focal_alignment = "edge_pairs"
+        symmetry = "bilateral"
+    elif archetype == "key_path" or "trail" in focus_area:
+        focal_alignment = "path"
+        symmetry = "none"
+    else:
+        focal_alignment = "center_cluster"
+        symmetry = "center_axis"
+
+    return {
+        "focal_alignment": focal_alignment,
+        "symmetry": symmetry,
+        "density_band": VISUAL_DENSITY_BANDS.get(density, VISUAL_DENSITY_BANDS["low"]),
+        "silhouette": str(composition.get("theme_shape", "play_shape")),
+        "anchor_layers": anchor_layers,
+        "max_centroid_offset": 1.25,
+    }
 
 
 def generated_level_intent(level: int, coord: dict[str, Any]) -> dict[str, Any]:
@@ -1579,6 +1667,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
             "profile_band": "default_mid_skill",
             "cold_start_prior": variant_rule["prior"],
             "prior_weight": variant_rule["prior_weight"],
+            "persona_axes": copy.deepcopy(PERSONA_AXES_BY_PRIOR[str(variant_rule["prior"])]),
             "target_pass_band": coord["target_pass_band"],
             "target_attempts_to_first_win": [1.0, 2.0] if role in {"teaching", "teaching_breather"} else [1.5, 3.0],
             "pet_skill_context": "ignored_v0",
@@ -2776,6 +2865,258 @@ def obstacle_composition_validate_lvl(lvl: dict[str, Any], compiled: dict[str, A
     return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
 
 
+def visual_grammar_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate measurable composition grammar: focus, symmetry, and density."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    composition = lvl.get("obstacle_composition") if isinstance(lvl.get("obstacle_composition"), dict) else {}
+    visual = composition.get("visual_grammar") if isinstance(composition.get("visual_grammar"), dict) else None
+    if not isinstance(visual, dict):
+        fail("E_VISUAL_GRAMMAR_MISSING", "obstacle_composition.visual_grammar", "visual_grammar contract is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    required = {"focal_alignment", "symmetry", "density_band", "silhouette", "anchor_layers"}
+    missing = sorted(required - set(visual))
+    checks["required_fields_present"] = not missing
+    if missing:
+        fail("E_VISUAL_GRAMMAR_FIELDS", "obstacle_composition.visual_grammar", f"missing visual grammar fields: {missing}", 25)
+
+    rows = board_rows(lvl, Diagnostics())
+    playable = playable_cell_set(rows)
+    height = len(rows)
+    width = len(rows[0]) if rows else 0
+    mid_r = (height - 1) / 2.0 if height else 0.0
+    mid_c = (width - 1) / 2.0 if width else 0.0
+
+    anchor_layers = [str(x) for x in visual.get("anchor_layers", []) if isinstance(x, str)]
+    anchor_cells: set[tuple[int, int]] = set()
+    for layer in anchor_layers:
+        anchor_cells.update(cells_for_layer(lvl, layer))
+    checks["anchor_layers_present"] = bool(anchor_layers) and bool(anchor_cells)
+    if not anchor_layers or not anchor_cells:
+        fail("E_VISUAL_ANCHOR_ABSENT", "obstacle_composition.visual_grammar.anchor_layers", "visual grammar anchor layers must exist on the board", 25)
+
+    density_band = visual.get("density_band")
+    density_ok = (
+        isinstance(density_band, list)
+        and len(density_band) == 2
+        and all(isinstance(x, (int, float)) for x in density_band)
+        and 0.0 <= float(density_band[0]) <= float(density_band[1]) <= 1.0
+    )
+    checks["density_band_declared"] = density_ok
+    density = len(anchor_cells) / max(1, len(playable))
+    checks["anchor_density"] = round(density, 3)
+    if not density_ok:
+        fail("E_VISUAL_DENSITY_BAND", "obstacle_composition.visual_grammar.density_band", "density_band must be [min,max] within 0..1", 15)
+    else:
+        low, high = float(density_band[0]), float(density_band[1])
+        checks["anchor_density_in_band"] = low <= density <= high
+        if not (low <= density <= high):
+            fail("E_VISUAL_DENSITY_OUT_OF_BAND", "overlays", f"anchor density {density:.2f} outside visual band [{low:.2f}, {high:.2f}]", 20)
+
+    center = centroid(anchor_cells)
+    row_span = (max((r for r, _ in anchor_cells), default=0) - min((r for r, _ in anchor_cells), default=0)) if anchor_cells else 0
+    col_span = (max((c for _, c in anchor_cells), default=0) - min((c for _, c in anchor_cells), default=0)) if anchor_cells else 0
+    alignment = str(visual.get("focal_alignment", ""))
+    max_offset = float(visual.get("max_centroid_offset", 1.25) or 1.25)
+    focus_ok = bool(center)
+    if center:
+        cr, cc = center
+        if alignment == "center_column":
+            focus_ok = abs(cc - mid_c) <= max_offset and cr >= mid_r - 1.0
+        elif alignment == "center_cluster":
+            focus_ok = abs(cc - mid_c) <= max_offset and abs(cr - mid_r) <= max_offset
+        elif alignment == "center_ring":
+            focus_ok = abs(cc - mid_c) <= max_offset and abs(cr - mid_r) <= max_offset and row_span >= 3 and col_span >= 3
+        elif alignment == "vertical_lane":
+            exits = cells_for_layer(lvl, "drop_exit")
+            exit_cols = {c for _, c in exits}
+            focus_ok = abs(cc - mid_c) <= max_offset and (not exit_cols or any(abs(c - cc) <= 0.5 for c in exit_cols))
+        elif alignment == "vertical_funnel":
+            focus_ok = abs(cc - mid_c) <= max_offset and cr >= mid_r
+        elif alignment == "edge_pairs":
+            edge_hits = sum(1 for r, c in anchor_cells if r in {0, height - 1} or c in {0, width - 1})
+            focus_ok = edge_hits >= max(2, len(anchor_cells) // 2)
+        elif alignment == "split_dual":
+            focus_ok = any(c < mid_c - 1 for _, c in anchor_cells) and any(c > mid_c + 1 for _, c in anchor_cells)
+        elif alignment == "path":
+            focus_ok = row_span + col_span >= 3
+        else:
+            focus_ok = False
+    checks["focal_alignment_ok"] = bool(focus_ok)
+    if not focus_ok:
+        fail("E_VISUAL_FOCAL_ALIGNMENT", "overlays", f"anchor cells do not satisfy focal_alignment {alignment!r}", 25)
+
+    symmetry = str(visual.get("symmetry", ""))
+    symmetry_ok = symmetry in {"none", "center_axis", "bilateral", "radial_hint"}
+    if symmetry_ok and anchor_cells:
+        if symmetry == "center_axis":
+            symmetry_ok = bool(center) and abs(center[1] - mid_c) <= max_offset
+        elif symmetry == "bilateral":
+            left = sum(1 for _, c in anchor_cells if c < mid_c)
+            right = sum(1 for _, c in anchor_cells if c > mid_c)
+            symmetry_ok = abs(left - right) <= max(1, len(anchor_cells) * 0.25)
+        elif symmetry == "radial_hint":
+            symmetry_ok = row_span >= 3 and col_span >= 3 and bool(center) and abs(center[0] - mid_r) <= max_offset and abs(center[1] - mid_c) <= max_offset
+    checks["symmetry_ok"] = bool(symmetry_ok)
+    if not symmetry_ok:
+        warn("W_VISUAL_SYMMETRY_WEAK", "obstacle_composition.visual_grammar.symmetry", f"anchor cells weakly satisfy symmetry {symmetry!r}", 5)
+
+    silhouette_ok = meaningful_semantic_text(visual.get("silhouette"), 4)
+    checks["silhouette_declared"] = silhouette_ok
+    if not silhouette_ok:
+        fail("E_VISUAL_SILHOUETTE", "obstacle_composition.visual_grammar.silhouette", "silhouette must name the intended visible shape", 10)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
+def personalization_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate cold-start persona priors as explicit generator language."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    personalization = lvl.get("personalization")
+    if not isinstance(personalization, dict):
+        fail("E_PERSONALIZATION_MISSING", "personalization", "personalization contract is required", 35)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    prior = str(personalization.get("cold_start_prior", "unknown"))
+    checks["prior_known"] = prior in PERSONA_AXES_BY_PRIOR
+    if prior not in PERSONA_AXES_BY_PRIOR:
+        fail("E_PERSONA_PRIOR_UNKNOWN", "personalization.cold_start_prior", f"unknown cold_start_prior {prior!r}", 15)
+
+    axes = personalization.get("persona_axes") if isinstance(personalization.get("persona_axes"), dict) else {}
+    required_axes = set(next(iter(PERSONA_AXES_BY_PRIOR.values())).keys())
+    missing = sorted(required_axes - set(axes))
+    checks["persona_axes_present"] = not missing
+    if missing:
+        fail("E_PERSONA_AXES_MISSING", "personalization.persona_axes", f"missing persona axes: {missing}", 25)
+
+    numeric_axes: dict[str, float] = {}
+    for key in sorted(required_axes & set(axes)):
+        value = axes.get(key)
+        ok = isinstance(value, (int, float)) and 0.0 <= float(value) <= 1.0
+        checks[f"{key}_valid"] = ok
+        if ok:
+            numeric_axes[key] = float(value)
+        else:
+            fail("E_PERSONA_AXIS_RANGE", f"personalization.persona_axes.{key}", f"{key} must be a 0..1 number", 10)
+
+    prior_weight = personalization.get("prior_weight")
+    prior_weight_ok = isinstance(prior_weight, (int, float)) and 0.0 <= float(prior_weight) <= 1.0
+    checks["prior_weight_valid"] = prior_weight_ok
+    if not prior_weight_ok:
+        fail("E_PERSONA_PRIOR_WEIGHT", "personalization.prior_weight", "prior_weight must be a 0..1 number", 10)
+    elif prior == "unknown" and float(prior_weight) != 0.0:
+        warn("W_PERSONA_UNKNOWN_PRIOR_WEIGHT", "personalization.prior_weight", "unknown prior should not bias generation", 5)
+    elif prior in {"female", "male"} and float(prior_weight) <= 0.0:
+        fail("E_PERSONA_PRIOR_WEIGHT_ZERO", "personalization.prior_weight", "gender prior variants need a positive prior_weight", 10)
+
+    if required_axes.issubset(numeric_axes):
+        if prior == "female":
+            ok = (
+                numeric_axes["novelty_bias"] >= numeric_axes["strategy_bias"]
+                and numeric_axes["reward_bias"] >= numeric_axes["challenge_bias"]
+                and numeric_axes["cuteness_bias"] >= numeric_axes["strategy_bias"]
+                and numeric_axes["annoyance_tolerance"] <= 0.45
+            )
+            checks["female_prior_shape"] = ok
+            if not ok:
+                fail("E_PERSONA_FEMALE_PRIOR_MISMATCH", "personalization.persona_axes", "female prior should lean novelty/reward/cuteness and lower annoyance tolerance", 25)
+        elif prior == "male":
+            ok = (
+                numeric_axes["strategy_bias"] >= numeric_axes["novelty_bias"]
+                and numeric_axes["challenge_bias"] >= numeric_axes["reward_bias"]
+                and numeric_axes["annoyance_tolerance"] <= 0.65
+            )
+            checks["male_prior_shape"] = ok
+            if not ok:
+                fail("E_PERSONA_MALE_PRIOR_MISMATCH", "personalization.persona_axes", "male prior should lean strategy/challenge without unlimited annoyance tolerance", 25)
+        else:
+            spread = max(numeric_axes.values()) - min(numeric_axes.values())
+            checks["unknown_prior_balanced"] = spread <= 0.20
+            if spread > 0.20:
+                warn("W_PERSONA_UNKNOWN_PRIOR_SKEWED", "personalization.persona_axes", "unknown prior axes are unexpectedly skewed", 5)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
+def episode_rhythm_validate_levels(levels: list[dict[str, Any]]) -> dict[str, Any]:
+    """Validate long-run new-mechanic cadence across an ordered level slice."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    ordered = sorted(levels, key=lambda lvl: int(lvl.get("meta", {}).get("level_coordinate", 0) or 0))
+    reveal_slots: list[tuple[int, str, str]] = []
+    for lvl in ordered:
+        slot = int(lvl.get("meta", {}).get("level_coordinate", 0) or 0)
+        lifecycle = lvl.get("progression", {}).get("mechanic_lifecycle", []) if isinstance(lvl.get("progression"), dict) else []
+        reveals = [
+            str(item.get("mechanic"))
+            for item in lifecycle
+            if isinstance(item, dict) and bool(item.get("is_new")) and item.get("phase") == "reveal_safe"
+        ]
+        if len(reveals) > 1:
+            fail("E_EPISODE_MULTIPLE_NEW_REVEALS", f"level[{slot}].progression.mechanic_lifecycle", "a level may reveal at most one new mechanic", 20)
+        for mechanic in reveals:
+            reveal_slots.append((slot, mechanic, str(lvl.get("id", ""))))
+
+    checks["new_reveal_slots"] = [{"slot": slot, "mechanic": mechanic, "level_id": level_id} for slot, mechanic, level_id in reveal_slots]
+    min_gap_ok = True
+    for prev, curr in zip(reveal_slots, reveal_slots[1:]):
+        gap = curr[0] - prev[0]
+        if gap < 3:
+            min_gap_ok = False
+            fail(
+                "E_EPISODE_NEW_REVEAL_TOO_CLOSE",
+                "progression.mechanic_lifecycle",
+                f"new mechanic reveals {prev[1]!r} at level {prev[0]} and {curr[1]!r} at level {curr[0]} are only {gap} level(s) apart",
+                25,
+            )
+    checks["new_reveal_min_gap_at_least_3"] = min_gap_ok
+
+    roles = [str(lvl.get("meta", {}).get("role", "")) for lvl in ordered]
+    pressure_count = sum(1 for role in roles if role in {"pressure", "pressure_lite", "peak"})
+    checks["pressure_count"] = pressure_count
+    if ordered and pressure_count > max(1, math.ceil(len(ordered) * 0.35)):
+        warnings.append({"code": "W_EPISODE_TOO_PRESSURE_HEAVY", "path": "meta.role", "message": "early episode may be too pressure-heavy"})
+        score = max(0, score - 5)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     compiled, diag = compile_lvl(lvl)
     out: dict[str, Any] = {
@@ -2813,8 +3154,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
     level_intent = level_intent_validate_lvl(lvl, compiled)
+    personalization = personalization_validate_lvl(lvl, compiled)
     progression = progression_validate_lvl(lvl, compiled)
     obstacle_composition = obstacle_composition_validate_lvl(lvl, compiled)
+    visual_grammar = visual_grammar_validate_lvl(lvl, compiled)
     out["structural"] = {
         "valid": structural_valid,
         "playable_cell_count": playable,
@@ -2825,10 +3168,21 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     }
     out["semantic"] = semantic
     out["level_intent_gate"] = level_intent
+    out["personalization_gate"] = personalization
     out["taste"] = taste
     out["progression"] = progression
     out["obstacle_composition_gate"] = obstacle_composition
-    if structural_valid and semantic.get("valid") and level_intent.get("valid") and taste.get("valid") and progression.get("valid") and obstacle_composition.get("valid"):
+    out["visual_grammar_gate"] = visual_grammar
+    if (
+        structural_valid
+        and semantic.get("valid")
+        and level_intent.get("valid")
+        and personalization.get("valid")
+        and progression.get("valid")
+        and obstacle_composition.get("valid")
+        and visual_grammar.get("valid")
+        and taste.get("valid")
+    ):
         out["verdict"] = "approved"
     elif not structural_valid:
         out["verdict"] = "revise_major"
@@ -2836,10 +3190,14 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["verdict"] = "revise_semantic"
     elif not level_intent.get("valid"):
         out["verdict"] = "revise_level_intent"
+    elif not personalization.get("valid"):
+        out["verdict"] = "revise_personalization"
     elif not progression.get("valid"):
         out["verdict"] = "revise_progression"
     elif not obstacle_composition.get("valid"):
         out["verdict"] = "revise_obstacle_composition"
+    elif not visual_grammar.get("valid"):
+        out["verdict"] = "revise_visual_grammar"
     else:
         out["verdict"] = "revise_taste"
     if initial_matches:
@@ -2856,6 +3214,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"level intent gate: {err.get('message')}")
     for warn_item in level_intent.get("warnings", []):
         out["recommendations"].append(f"level intent warning: {warn_item.get('message')}")
+    for err in personalization.get("errors", []):
+        out["recommendations"].append(f"personalization gate: {err.get('message')}")
+    for warn_item in personalization.get("warnings", []):
+        out["recommendations"].append(f"personalization warning: {warn_item.get('message')}")
     for err in taste.get("errors", []):
         out["recommendations"].append(f"taste gate: {err.get('message')}")
     for warn_item in taste.get("warnings", []):
@@ -2868,6 +3230,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"obstacle composition gate: {err.get('message')}")
     for warn_item in obstacle_composition.get("warnings", []):
         out["recommendations"].append(f"obstacle composition warning: {warn_item.get('message')}")
+    for err in visual_grammar.get("errors", []):
+        out["recommendations"].append(f"visual grammar gate: {err.get('message')}")
+    for warn_item in visual_grammar.get("warnings", []):
+        out["recommendations"].append(f"visual grammar warning: {warn_item.get('message')}")
     return out
 
 

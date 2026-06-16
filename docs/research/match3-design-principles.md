@@ -1,6 +1,6 @@
 # Match-3 Level Design Principles for Polaris
 
-> Purpose: convert benchmark research into executable design laws for the Polaris level generator. These are not final level layouts; they are rules that should feed `level_intent`, `progression`, `obstacle_composition`, solver targets, and future telemetry.
+> Purpose: convert benchmark research into executable design laws for the Polaris level generator. These are not final level layouts; they are rules that feed `level_intent`, `personalization`, `progression`, `obstacle_composition`, `visual_grammar`, solver targets, and future telemetry.
 
 ## Evidence Base
 
@@ -149,3 +149,62 @@ When the user says a principle like “new mechanism reveal should use a smaller
 - a validator check;
 - a generation constraint;
 - a regression test.
+
+### Law 9: Visual taste starts as geometry, not adjectives
+
+“Beautiful” is too vague for generation, but several bad designs are machine-detectable:
+
+```yaml
+visual_grammar:
+  focal_alignment: center_column | vertical_lane | split_dual | center_ring | edge_pairs | path
+  symmetry: none | center_axis | bilateral | radial_hint
+  density_band: [min, max]
+  silhouette: player_readable_shape_name
+  anchor_layers: [target_mark | crystal_shell | drop_relic | ...]
+```
+
+Executable rule:
+
+- If a level says “center_column gate,” the anchor cells must actually sit on the center lane, not in a corner.
+- If it says “split_dual,” both sides must contain meaningful anchors.
+- If density is outside the band, the shape is either too empty to read or too cluttered to enjoy.
+
+### Law 10: Cold-start personalization is parameterized, not hand-waved
+
+Before telemetry exists, gender priors are only soft generator priors. They must be explicit and bounded:
+
+```yaml
+persona_axes:
+  novelty_bias: 0..1
+  reward_bias: 0..1
+  challenge_bias: 0..1
+  strategy_bias: 0..1
+  cuteness_bias: 0..1
+  annoyance_tolerance: 0..1
+```
+
+Executable rule:
+
+- `female_prior` leans novelty/reward/cuteness with lower annoyance tolerance.
+- `male_prior` leans challenge/strategy without allowing unlimited annoyance.
+- `unknown` stays near-balanced.
+
+### Law 11: New mechanisms need cadence across levels
+
+A single level can be valid while the episode rhythm is bad. Early live-ops match-3 needs breathing room between new rules.
+
+Executable rule:
+
+```yaml
+episode_rhythm:
+  max_new_mechanics_per_level: 1
+  min_gap_between_new_reveals: 3
+  pressure_heavy_warning: pressure_roles > 35%
+```
+
+Current 1-10 cadence:
+
+- Level 1 reveals target marks.
+- Level 5 reveals crystal shell.
+- Level 9 reveals lost cub transport.
+- The gaps are wide enough for practice/variation before the next reveal.

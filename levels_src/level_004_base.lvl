@@ -20,6 +20,14 @@
     "profile_band": "default_mid_skill",
     "cold_start_prior": "unknown",
     "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
     "target_pass_band": [
       0.68,
       0.85
@@ -222,7 +230,20 @@
       "goal_blocker_solution_readable"
     ],
     "level_role": "variation",
-    "linked_eye": "cleanse_expedition_weak"
+    "linked_eye": "cleanse_expedition_weak",
+    "visual_grammar": {
+      "focal_alignment": "vertical_funnel",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.03,
+        0.26
+      ],
+      "silhouette": "book_page_funnel",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
   },
   "level_design": {
     "id": "level_004",
