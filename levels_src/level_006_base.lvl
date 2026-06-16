@@ -44,7 +44,7 @@
   },
   "rules": {
     "moves": 20,
-    "colors": 5,
+    "colors": 4,
     "refill": "random",
     "gravity": "down",
     "seed": 1102

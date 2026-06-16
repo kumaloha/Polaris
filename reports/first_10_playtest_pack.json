@@ -12,6 +12,12 @@
         "candidates_per_level": 9,
         "runs_per_candidate": 20,
         "reason": "20-run verification of first selected candidate landed just below target band"
+      },
+      {
+        "level_coordinate": 6,
+        "candidates_per_level": 8,
+        "runs_per_candidate": 20,
+        "reason": "regenerated to keep early blocker breather under six basic gem colors"
       }
     ]
   },
@@ -199,16 +205,16 @@
         7
       ],
       "moves": 15,
-      "colors": 6,
+      "colors": 5,
       "target_pass_band": [
         0.9,
         1.0
       ],
-      "candidate_pass_count": 6,
-      "selection_score": 105.927,
-      "selection_pass_rate": 0.95,
-      "verification_pass_rate": 0.96,
-      "verification_annoyance_score": 0.078,
+      "candidate_pass_count": 8,
+      "selection_score": 106.257,
+      "selection_pass_rate": 1.0,
+      "verification_pass_rate": 1.0,
+      "verification_annoyance_score": 0.008,
       "mechanisms": [
         "crystal_shell"
       ],

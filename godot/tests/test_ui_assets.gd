@@ -192,6 +192,39 @@ func _prepare_level_scene() -> Node:
 	return level
 
 
+func _prepare_generated_level_scene() -> Node:
+	var level := _prepare_level_scene()
+	level._levels = LevelLibrary.load_file("res://levels.generated.json")
+	level._playable = []
+	for i in range(level._levels.size()):
+		var objs = level._levels[i].get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			level._playable.append(i)
+	return level
+
+
+func _count_rendered_gem_nodes(level: Node) -> int:
+	var count := 0
+	for row in level.board_view.gem_nodes():
+		if not (row is Array):
+			continue
+		for node in row:
+			if node is Sprite2D:
+				var sprite := node as Sprite2D
+				if sprite.texture != null and sprite.modulate.a > 0.01 and sprite.visible:
+					count += 1
+	return count
+
+
+func _count_board_playable_gems(board) -> int:
+	var count := 0
+	for y in board.grid.size():
+		for x in board.grid[y].size():
+			if int(board.grid[y][x]) >= 0:
+				count += 1
+	return count
+
+
 # 造一个挂在 level 之上、注入 level 上下文的时兔施法控制器(契约 C)。
 # 不入树→施法走 headless 路径(立即落地+收尾); 测试可直接调 _build_visuals/_apply_effect/_finish 钩子检查演出。
 func _make_rabbit_cast(level, cast_effect: bool = true) -> TimeRabbitCast:
@@ -1076,6 +1109,25 @@ func test_level_scene_renders_blockers_as_keyed_barrier_ice_sprites() -> void:
 		# 整图(含透明边)尺寸=cell*1.26, 故阈值按实体0.90对应的整图(0.90/0.686≈1.31)放宽。
 		var drawn_size: Vector2 = sprite.texture.get_size() * sprite.scale
 		assert_true(drawn_size.x <= level.cell_size * 1.31 and drawn_size.y <= level.cell_size * 1.31, "barrier visible art stays inside one board cell")
+	level.free()
+
+
+func test_level_six_blocker_level_keeps_visible_gems() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(5)
+	var expected_gems := _count_board_playable_gems(level.board)
+	assert_true(expected_gems > 0, "default level 6 has playable gems after blocker occupancy")
+	assert_eq(_count_rendered_gem_nodes(level), expected_gems, "default level 6 renders every playable gem node")
+	level.free()
+
+
+func test_generated_level_six_keeps_visible_gems() -> void:
+	var level := _prepare_generated_level_scene()
+	level.load_level(5)
+	assert_true(level.board.species.size() <= 5, "generated level 6 must not introduce the sixth basic gem color in the early blocker breather")
+	var expected_gems := _count_board_playable_gems(level.board)
+	assert_true(expected_gems > 0, "generated level 6 has playable gems after blocker occupancy")
+	assert_eq(_count_rendered_gem_nodes(level), expected_gems, "generated level 6 renders every playable gem node")
 	level.free()
 
 

@@ -199,6 +199,7 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "complexity_tier": 1,
         "theme": "forest_ruins",
         "terrain": "open_7x7",
+        "colors": 4,
         "target_pass_band": [0.90, 1.00],
         "eye": "shell_cleanup_breather",
         "objective": {"type": "clear_shells", "target": "all"},

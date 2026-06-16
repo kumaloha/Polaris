@@ -49,7 +49,7 @@
   },
   "rules": {
     "moves": 15,
-    "colors": 6,
+    "colors": 5,
     "refill": "random",
     "gravity": "down",
     "seed": 6087
