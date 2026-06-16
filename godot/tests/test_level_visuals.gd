@@ -526,6 +526,21 @@ func test_ice_marker_position_is_horizontally_centered_in_cell() -> void:
 	assert_eq(marker_position.x, center.x, "ice marker should be horizontally centered in its cell")
 	level.free()
 
+func test_cascade_does_not_remove_destroyed_ice_before_refill() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var start: int = src.find("func _resolve_cascades")
+	var end: int = src.find("func _special_fx_cells_for_clear_visuals", start)
+	assert_true(start >= 0 and end > start, "_resolve_cascades can be inspected")
+	if start < 0 or end <= start:
+		return
+	var body: String = src.substr(start, end - start)
+	var early_refresh_idx: int = body.find("board_view.refresh_jelly_coat_visuals()")
+	var play_step_idx: int = body.find("await board_view.play_step")
+	assert_true(play_step_idx >= 0, "cascade still delegates visual clear/collapse to board_view.play_step")
+	# 钉源码理由: account_clears 会先把被破掉的冰格 grid 置 EMPTY；若此时立刻刷新冰层，
+	# 玩家会在 collapse/refill 前看到裸空洞。冰层视觉必须等 play_step 的清除+补位收口后再刷新。
+	assert_true(early_refresh_idx < 0 or early_refresh_idx > play_step_idx, "destroyed ice markers are not removed before refill can put a gem into the exposed slot")
+
 
 func test_opening_drop_uses_temporary_gems_for_wall_cells() -> void:
 	var scene: PackedScene = load("res://Level.tscn")

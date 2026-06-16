@@ -1213,8 +1213,9 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1), force_prefe
 		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
 		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
 		step_choco += int(acc.get("choco_cleared", 0))
-		# 障碍底片(果冻/冰锁)视觉刷新随 board 障碍层扣减同步; 障碍 overlay 演出(契约B)在 board_view.play_step 广播。
-		board_view.refresh_jelly_coat_visuals()       # 同步已破冰锁, 避免数据清了画面还在
+		# 障碍底片(果冻/冰锁)视觉刷新不能早于 play_step：
+		# account_clears 已把刚破掉的冰格置 EMPTY；若此处先删冰层，collapse/refill 前会露出裸空洞。
+		# board_view.play_step 的 collapse/refill 收口会在补位后刷新 jelly/coat。
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
 		var locked := {}
 		for p in acc.get("locked", []):

@@ -1019,6 +1019,43 @@ func test_destroyed_coat_slot_fills_by_gravity() -> void:
 	ME.apply_gravity(grid, [], false, {"coat": coat})
 	assert_eq(grid[1][0], 9, "tile above drops into the former ice slot")
 
+func test_destroyed_coat_slot_refills_while_other_coats_remain() -> void:
+	var grid := [
+		[1, 4, 1, 1, 0, 2, 2],
+		[1, 1, 3, 3, 1, 2, 0],
+		[0, 3, 1, 3, 3, 0, 4],
+		[0, 0, 3, 4, 4, 1, 0],
+		[2, 0, 4, 4, 0, 0, 1],
+		[4, 3, 1, 1, 2, 1, 2],
+		[4, 2, 0, 0, 4, 1, 2],
+	]
+	var coat := [
+		[0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 1, 0, 3, 0, 0],
+		[0, 0, 0, 3, 0, 0, 0],
+		[0, 0, 3, 0, 3, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0],
+		[0, 0, 0, 0, 0, 0, 0],
+	]
+	var fx := []
+	for _y in range(grid.size()):
+		var row := []
+		for _x in range(grid[0].size()):
+			row.append(ME.SP_NONE)
+		fx.append(row)
+	ME.apply_blocker_occupancy(grid, fx, coat)
+	var acc: Dictionary = ME.account_clears(grid, [Vector2i(2, 1)], fx, null, [], {"coat": coat})
+	assert_eq(acc["blocker_cleared"], 1, "adjacent match destroys the one-layer ice")
+	assert_eq(coat[2][2], 0, "destroyed ice is no longer a blocker")
+	assert_eq(grid[2][2], ME.EMPTY, "destroyed blocker first exposes an empty slot")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 606
+	ME.apply_gravity(grid, fx, false, {"coat": coat})
+	ME.refill(grid, [0, 1, 2, 3, 4], rng, fx, [], {"coat": coat})
+	assert_true(grid[2][2] >= 0, "former ice slot must receive a visible gem even while other ice blockers remain")
+	assert_eq(coat[4][2], 3, "unrelated remaining blockers still occupy their cells")
+
 # ───────────── Meta 技能原语（10 §7 B 第一批）─────────────
 
 func test_apply_gravity_up_flip() -> void:
