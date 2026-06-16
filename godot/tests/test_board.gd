@@ -435,6 +435,19 @@ func test_level_library_parses_and_builds() -> void:
 	assert_eq(b.move_limit, 10, "move_limit from json")
 	assert_eq(LevelLibrary.load_string("not json").size(), 0, "bad json -> empty (safe)")
 
+func test_level_library_preserves_compiled_fx_rewards() -> void:
+	var d := {
+		"w": 2, "h": 2,
+		"species": [0, 1],
+		"init_board": [[0, 1], [1, 0]],
+		"fx": [[ME.SP_LINE_H, ME.SP_NONE], [ME.SP_NONE, ME.SP_BOMB]],
+		"move_limit": 10,
+		"objectives": [],
+	}
+	var b := LevelLibrary.to_board(d)
+	assert_eq(b.fx[0][0], ME.SP_LINE_H, "compiled horizontal line reward preserved")
+	assert_eq(b.fx[1][1], ME.SP_BOMB, "compiled burst reward preserved")
+
 
 func test_level_library_clears_hidden_tile_under_ingredient_actor() -> void:
 	var d := {

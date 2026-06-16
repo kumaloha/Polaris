@@ -160,9 +160,64 @@
       "layers": [
         "crystal_shell"
       ]
+    },
+    {
+      "region": "gate_line_reward",
+      "cells": [
+        [
+          3,
+          4
+        ]
+      ],
+      "layers": [
+        "line_v_gem"
+      ]
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 5,
+      "arc_role": "blocker_reveal_with_tool"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "crystal_shell",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      },
+      {
+        "mechanic": "target_mark",
+        "phase": "known_goal_as_payoff",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "line_v_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.06,
+      "max_dead_board_rate": 0.06,
+      "max_no_progress_turn_rate": 0.4,
+      "max_luck_dependency_proxy": 0.45
+    },
+    "difficulty_rhythm": {
+      "shape": "new_mechanic_safe_test",
+      "target_pass_band": [
+        0.58,
+        0.8
+      ],
+      "role": "pressure_lite"
+    }
+  },
   "level_design": {
     "id": "level_005",
     "thesis": {

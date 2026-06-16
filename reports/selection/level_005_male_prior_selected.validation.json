@@ -1,5 +1,5 @@
 {
-  "level_id": "level_005_base_c00",
+  "level_id": "level_005_male_prior_c01",
   "lint": {
     "valid": true,
     "errors": [],
@@ -65,9 +65,30 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 24,
+        "move_limit": 22,
         "objective_target_total": 9
       }
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "progression": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "episode_slot_and_role_present": true,
+      "primary_lifecycle_matches_protagonist": true,
+      "design_mechanics_in_lifecycle": true,
+      "lifecycle_phases_specific": true,
+      "reward_primitives_known": true,
+      "reward_primitives_present_on_board": true,
+      "reward_primitives_compile_to_fx": true,
+      "max_reshuffle_rate_valid": true,
+      "max_dead_board_rate_valid": true,
+      "max_no_progress_turn_rate_valid": true,
+      "max_luck_dependency_proxy_valid": true,
+      "difficulty_rhythm_has_pass_band": true
     },
     "errors": [],
     "warnings": []

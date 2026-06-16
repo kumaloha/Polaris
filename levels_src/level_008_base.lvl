@@ -182,6 +182,47 @@
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 8,
+      "arc_role": "blocker_pressure_variation"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "crystal_shell",
+        "phase": "enclosure_pressure",
+        "role": "primary",
+        "is_new": false
+      },
+      {
+        "mechanic": "target_mark",
+        "phase": "known_goal_as_vault",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.05,
+      "max_dead_board_rate": 0.05,
+      "max_no_progress_turn_rate": 0.36,
+      "max_luck_dependency_proxy": 0.42
+    },
+    "difficulty_rhythm": {
+      "shape": "short_pressure_peak",
+      "target_pass_band": [
+        0.65,
+        0.85
+      ],
+      "role": "variation"
+    }
+  },
   "level_design": {
     "id": "level_008",
     "thesis": {

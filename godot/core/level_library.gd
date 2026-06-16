@@ -64,13 +64,14 @@ static func to_board(d: Dictionary) -> Board:
 	var popcorn_layer := _int_grid(d.get("popcorn", [])) # 爆米花层(若库带)；非爆米花关为空。popcorn[y][x]=剩余命中数
 	var cake_layer := _int_grid(d.get("cake", []))       # 蛋糕层(若库带)；非蛋糕关为空。cake[y][x]=剩余血量
 	var mystery_layer := _int_grid(d.get("mystery", [])) # 神秘糖层(若库带)；非神秘糖关为空。mystery[y][x]=1神秘糖
+	var fx_layer := _int_grid(d.get("fx", []))           # 预置特殊宝石/奖励资源层；为空则运行时补空层
 	var init_grid := _int_grid(d.get("init_board", []))
 	# 从盘面提取墙掩码(WALL=-2)，让 start() 重开本关时也保留异形结构(否则 mask 空→重生成无墙盘，墙丢失)
 	var mask := _wall_mask_from(init_grid)
 	var b := Board.new(w, h, sp, int(d.get("target_score", 0)), int(d.get("move_limit", 25)), int(d.get("seed", 0)), mask, objs, jelly_layer, coat_layer, choco_layer, ing_layer, exit_cols, bomb_layer, cannon_layer, popcorn_layer, cake_layer, mystery_layer)
 	if not init_grid.is_empty():
 		b.grid = init_grid   # 用导出盘面覆盖随机生成的 make_board 结果
-		b.fx = b._blank_fx()
+		b.fx = fx_layer if not fx_layer.is_empty() else b._blank_fx()
 		ME.apply_blocker_occupancy(b.grid, b.fx, b.coat)
 		ME.apply_ingredient_occupancy(b.grid, b.fx, b.ing)
 	if bool(d.get("is_scrolling", false)):   # 滚动/挖矿关：补充从预设 feed 出，挖穿通关

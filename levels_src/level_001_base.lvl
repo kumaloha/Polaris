@@ -111,6 +111,41 @@
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 1,
+      "arc_role": "goal_reveal"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.02,
+      "max_dead_board_rate": 0.02,
+      "max_no_progress_turn_rate": 0.28,
+      "max_luck_dependency_proxy": 0.32
+    },
+    "difficulty_rhythm": {
+      "shape": "tutorial_floor",
+      "target_pass_band": [
+        0.92,
+        1.0
+      ],
+      "role": "teaching"
+    }
+  },
   "level_design": {
     "id": "level_001",
     "thesis": {

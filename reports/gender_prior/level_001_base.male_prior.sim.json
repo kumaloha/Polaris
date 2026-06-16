@@ -12,65 +12,101 @@
     "frustrated_retry": 0.08,
     "random_baseline": 0.05
   },
-  "runs_per_persona": 20,
+  "runs_per_persona": 5,
   "personas": {
     "visual_casual": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 12.85,
+      "avg_remaining_moves": 11.2,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 2.5,
+      "avg_cascade_score": 3.867,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.139,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.042,
       "fail_reason_distribution": {}
     },
     "goal_focused": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 12.75,
+      "avg_remaining_moves": 11.2,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 2.683,
+      "avg_cascade_score": 3.8,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.04,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.012,
       "fail_reason_distribution": {}
     },
     "bottom_cascade": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 12.05,
+      "avg_remaining_moves": 12.2,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 3.333,
+      "avg_cascade_score": 3.4,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.22,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.066,
       "fail_reason_distribution": {}
     },
     "special_builder": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 12.35,
+      "avg_remaining_moves": 12.4,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 3.25,
+      "avg_cascade_score": 3.0,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.12,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.036,
       "fail_reason_distribution": {}
     },
     "mechanism_aware": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 13.3,
+      "avg_remaining_moves": 13.8,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 2.417,
+      "avg_cascade_score": 2.2,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.0,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.0,
       "fail_reason_distribution": {}
     },
     "frustrated_retry": {
       "simulated_pass_rate_at_1": 1.0,
-      "avg_remaining_moves": 12.15,
+      "avg_remaining_moves": 13.0,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 3.133,
+      "avg_cascade_score": 2.267,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.05,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.015,
       "fail_reason_distribution": {}
     },
     "random_baseline": {
-      "simulated_pass_rate_at_1": 0.9,
-      "avg_remaining_moves": 10.33,
+      "simulated_pass_rate_at_1": 1.0,
+      "avg_remaining_moves": 8.4,
       "mechanism_activation_rate": 0.0,
-      "avg_cascade_score": 2.85,
-      "fail_reason_distribution": {
-        "too_many_leftovers": 0.1
-      }
+      "avg_cascade_score": 3.867,
+      "reshuffle_rate": 0.0,
+      "dead_board_rate": 0.0,
+      "no_progress_turn_rate": 0.438,
+      "luck_dependency_proxy": 0.0,
+      "annoyance_score": 0.132,
+      "fail_reason_distribution": {}
     }
   },
-  "aggregate_pass_rate_at_1": 0.995,
-  "aggregate_avg_remaining_moves": 12.57,
+  "aggregate_pass_rate_at_1": 1.0,
+  "aggregate_avg_remaining_moves": 12.21,
   "aggregate_mechanism_activation_rate": 0.0,
-  "aggregate_cascade_score": 2.83,
-  "aggregate_fail_reason_distribution": {
-    "too_many_leftovers": 0.005
-  }
+  "aggregate_cascade_score": 3.081,
+  "aggregate_reshuffle_rate": 0.0,
+  "aggregate_dead_board_rate": 0.0,
+  "aggregate_no_progress_turn_rate": 0.1,
+  "aggregate_luck_dependency_proxy": 0.0,
+  "aggregate_annoyance_score": 0.03,
+  "aggregate_fail_reason_distribution": {}
 }

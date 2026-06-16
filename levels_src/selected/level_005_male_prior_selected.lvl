@@ -1,10 +1,10 @@
 {
-  "id": "level_005_base_c00",
+  "id": "level_005_male_prior_c01",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
     "level_coordinate": 5,
-    "variant": "base",
+    "variant": "male_prior",
     "role": "pressure_lite",
     "complexity_tier": 2,
     "theme": "crystal_workshop",
@@ -13,9 +13,9 @@
       0.8
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 0,
+    "candidate_index": 1,
     "candidate_tuning": {
-      "moves_delta": 0,
+      "moves_delta": -1,
       "target_multiplier": 1.0,
       "shell_hp_delta": 0,
       "colors_delta": 0
@@ -23,8 +23,8 @@
   },
   "personalization": {
     "profile_band": "default_mid_skill",
-    "cold_start_prior": "unknown",
-    "prior_weight": 0.0,
+    "cold_start_prior": "male",
+    "prior_weight": 0.2,
     "target_pass_band": [
       0.58,
       0.8
@@ -40,11 +40,11 @@
     "target": "all"
   },
   "rules": {
-    "moves": 24,
+    "moves": 22,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
-    "seed": 1085
+    "seed": 2086
   },
   "map": {
     "width": 9,
@@ -163,11 +163,70 @@
         ]
       ],
       "layers": [
-        "crystal_shell"
+        {
+          "crystal_shell": {
+            "hp": 2
+          }
+        }
+      ]
+    },
+    {
+      "region": "gate_line_reward",
+      "cells": [
+        [
+          3,
+          4
+        ]
+      ],
+      "layers": [
+        "line_v_gem"
       ]
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 5,
+      "arc_role": "blocker_reveal_with_tool"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "crystal_shell",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      },
+      {
+        "mechanic": "target_mark",
+        "phase": "known_goal_as_payoff",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "line_v_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.06,
+      "max_dead_board_rate": 0.06,
+      "max_no_progress_turn_rate": 0.4,
+      "max_luck_dependency_proxy": 0.45
+    },
+    "difficulty_rhythm": {
+      "shape": "new_mechanic_safe_test",
+      "target_pass_band": [
+        0.58,
+        0.8
+      ],
+      "role": "pressure_lite"
+    }
+  },
   "level_design": {
     "id": "level_005",
     "thesis": {

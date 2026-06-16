@@ -38,6 +38,13 @@ UNSUPPORTED_MECHANISMS = {
 }
 SUPPORTED_TOPOLOGY = {"vertical_down", "split_columns"}
 FORBIDDEN_GENERATED_OBJECTIVES = {"collect", "order_color"}
+REWARD_LAYER_TO_FX = {
+    "line_h_gem": 1,
+    "line_v_gem": 2,
+    "burst_gem": 3,
+    "color_bomb_gem": 4,
+}
+NON_MECHANISM_LAYERS = {"drop_exit", *REWARD_LAYER_TO_FX.keys()}
 
 
 TERRAIN_TEMPLATES: dict[str, list[str]] = {
@@ -142,6 +149,7 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "eye": "cleanse_edge",
         "objective": {"type": "cleanse_marks", "target": "all"},
         "placements": ["edge_marks_7x7"],
+        "reward_placements": ["edge_line_reward_7x7"],
         "intent": "同目标换到边缘，训练目标位置变化。",
         "control": "edge_targeting",
     },
@@ -179,6 +187,7 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "eye": "crystal_shell_gate_practice",
         "objective": {"type": "cleanse_marks", "target": "all"},
         "placements": ["downstream_marks_9x9", "crystal_gate_9x9"],
+        "reward_placements": ["gate_line_reward_9x9"],
         "intent": "晶壳门首次正式改变水文：先开门再净化。",
         "control": "vertical_line_gem",
         "forbidden": ["creep_growth", "spawner", "timed_core", "drop_relic"],
@@ -246,9 +255,94 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "eye": "drop_bottleneck",
         "objective": {"type": "drop_relic", "target": 1},
         "placements": ["relic_bottleneck_9x9", "crystal_gate_9x9"],
+        "reward_placements": ["finale_burst_reward_9x9", "finale_line_reward_9x9"],
         "intent": "幼兽路径与晶壳门：先开路，再护送幼兽回巢。",
         "control": "vertical_line_gem",
     },
+}
+
+
+EARLY_LEVEL_PROGRESSION: dict[int, dict[str, Any]] = {
+    1: {
+        "arc_role": "goal_reveal",
+        "rhythm": "tutorial_floor",
+        "lifecycle": [{"mechanic": "target_mark", "phase": "reveal_safe", "role": "primary", "is_new": True}],
+        "rewards": [],
+    },
+    2: {
+        "arc_role": "reward_tool_intro",
+        "rhythm": "safe_reward_lift",
+        "lifecycle": [{"mechanic": "target_mark", "phase": "practice_with_reward", "role": "primary", "is_new": False}],
+        "rewards": ["line_h_gem"],
+    },
+    3: {
+        "arc_role": "spatial_reading",
+        "rhythm": "low_variation",
+        "lifecycle": [{"mechanic": "target_mark", "phase": "spatial_variation", "role": "primary", "is_new": False}],
+        "rewards": [],
+    },
+    4: {
+        "arc_role": "terrain_first_pressure",
+        "rhythm": "gentle_rise",
+        "lifecycle": [{"mechanic": "target_mark", "phase": "terrain_variation", "role": "primary", "is_new": False}],
+        "rewards": [],
+    },
+    5: {
+        "arc_role": "blocker_reveal_with_tool",
+        "rhythm": "new_mechanic_safe_test",
+        "lifecycle": [
+            {"mechanic": "crystal_shell", "phase": "reveal_safe", "role": "primary", "is_new": True},
+            {"mechanic": "target_mark", "phase": "known_goal_as_payoff", "role": "support", "is_new": False},
+        ],
+        "rewards": ["line_v_gem"],
+    },
+    6: {
+        "arc_role": "post_blocker_breather",
+        "rhythm": "breather_drop",
+        "lifecycle": [{"mechanic": "crystal_shell", "phase": "cleanup_breather", "role": "primary", "is_new": False}],
+        "rewards": [],
+    },
+    7: {
+        "arc_role": "supply_topology_variation",
+        "rhythm": "medium_reading_rise",
+        "lifecycle": [{"mechanic": "target_mark", "phase": "split_supply_variation", "role": "primary", "is_new": False}],
+        "rewards": [],
+    },
+    8: {
+        "arc_role": "blocker_pressure_variation",
+        "rhythm": "short_pressure_peak",
+        "lifecycle": [
+            {"mechanic": "crystal_shell", "phase": "enclosure_pressure", "role": "primary", "is_new": False},
+            {"mechanic": "target_mark", "phase": "known_goal_as_vault", "role": "support", "is_new": False},
+        ],
+        "rewards": [],
+    },
+    9: {
+        "arc_role": "transport_reveal",
+        "rhythm": "tutorial_floor",
+        "lifecycle": [{"mechanic": "drop_relic", "phase": "reveal_safe", "role": "primary", "is_new": True}],
+        "rewards": [],
+    },
+    10: {
+        "arc_role": "episode_finale_mix",
+        "rhythm": "first_act_finale",
+        "lifecycle": [
+            {"mechanic": "drop_relic", "phase": "combine_with_gate", "role": "primary", "is_new": False},
+            {"mechanic": "crystal_shell", "phase": "known_blocker_as_route_gate", "role": "support", "is_new": False},
+        ],
+        "rewards": ["burst_gem", "line_v_gem"],
+    },
+}
+
+
+ANNOYANCE_BUDGET_BY_ROLE: dict[str, dict[str, float]] = {
+    "teaching": {"max_reshuffle_rate": 0.02, "max_dead_board_rate": 0.02, "max_no_progress_turn_rate": 0.28, "max_luck_dependency_proxy": 0.32},
+    "teaching_breather": {"max_reshuffle_rate": 0.03, "max_dead_board_rate": 0.03, "max_no_progress_turn_rate": 0.30, "max_luck_dependency_proxy": 0.35},
+    "variation": {"max_reshuffle_rate": 0.05, "max_dead_board_rate": 0.05, "max_no_progress_turn_rate": 0.36, "max_luck_dependency_proxy": 0.42},
+    "breather": {"max_reshuffle_rate": 0.03, "max_dead_board_rate": 0.03, "max_no_progress_turn_rate": 0.30, "max_luck_dependency_proxy": 0.35},
+    "pressure_lite": {"max_reshuffle_rate": 0.06, "max_dead_board_rate": 0.06, "max_no_progress_turn_rate": 0.40, "max_luck_dependency_proxy": 0.45},
+    "pressure": {"max_reshuffle_rate": 0.08, "max_dead_board_rate": 0.08, "max_no_progress_turn_rate": 0.45, "max_luck_dependency_proxy": 0.50},
+    "peak": {"max_reshuffle_rate": 0.10, "max_dead_board_rate": 0.10, "max_no_progress_turn_rate": 0.50, "max_luck_dependency_proxy": 0.55},
 }
 
 
@@ -365,6 +459,9 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "edge_marks_7x7": [
             overlay("edge_marks", [[0, 1], [0, 5], [1, 0], [1, 6], [5, 0], [5, 6], [6, 1], [6, 5]], ["target_mark"])
         ],
+        "edge_line_reward_7x7": [
+            overlay("edge_line_reward", [[3, 3]], ["line_h_gem"])
+        ],
         "trail_marks_7x7": [
             overlay("trail_marks", [[1, 2], [1, 3], [2, 4], [3, 2], [3, 3], [3, 4], [4, 2], [5, 3]], ["target_mark"])
         ],
@@ -384,6 +481,9 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "crystal_gate_9x9": [
             overlay("crystal_gate", [[4, 3], [4, 4], [4, 5], [5, 3], [5, 4], [5, 5]], [shell_layer])
         ],
+        "gate_line_reward_9x9": [
+            overlay("gate_line_reward", [[3, 4]], ["line_v_gem"])
+        ],
         "vault_marks_9x9": [
             overlay("vault_marks", [[3, 3], [3, 4], [3, 5], [4, 3], [4, 4], [4, 5], [5, 3], [5, 4], [5, 5]], ["target_mark"])
         ],
@@ -398,6 +498,12 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
             overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
             overlay("nest_exit", [[8, 4]], ["drop_exit"]),
         ],
+        "finale_burst_reward_9x9": [
+            overlay("finale_burst_reward", [[2, 3]], ["burst_gem"])
+        ],
+        "finale_line_reward_9x9": [
+            overlay("finale_line_reward", [[2, 5]], ["line_v_gem"])
+        ],
     }
     return [dict(item) for item in presets.get(preset, [])]
 
@@ -407,6 +513,34 @@ def build_overlays(placements: list[str], shell_hp_delta: int = 0) -> list[dict[
     for preset in placements:
         out.extend(placement_overlays(preset, shell_hp_delta))
     return out
+
+
+def generated_progression(level: int, coord: dict[str, Any]) -> dict[str, Any]:
+    spec = EARLY_LEVEL_PROGRESSION.get(level)
+    if not spec:
+        raise ValueError(f"no progression grammar for level {level}")
+    role = str(coord["role"])
+    primitives = list(spec.get("rewards", []))
+    return {
+        "episode": {
+            "id": "first_spellbook_arc",
+            "slot": level,
+            "arc_role": spec["arc_role"],
+        },
+        "mechanic_lifecycle": [dict(item) for item in spec["lifecycle"]],
+        "reward_budget": {
+            "required": bool(primitives),
+            "primitives": primitives,
+            "delivery": "preseeded_fx_overlay" if primitives else "natural_cascade_only",
+            "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text" if primitives else "keep_attention_on_new_rule",
+        },
+        "annoyance_budget": dict(ANNOYANCE_BUDGET_BY_ROLE.get(role, ANNOYANCE_BUDGET_BY_ROLE["variation"])),
+        "difficulty_rhythm": {
+            "shape": spec["rhythm"],
+            "target_pass_band": list(coord["target_pass_band"]),
+            "role": role,
+        },
+    }
 
 
 def objective_with_variant(objective: dict[str, Any], target_multiplier: float) -> dict[str, Any]:
@@ -1194,6 +1328,8 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     seed = 1000 + level * 17 + list(VARIANT_RULES).index(variant) + (0 if candidate is None else candidate * 997)
     level_id = f"level_{level:03d}_{variant}" if candidate is None else f"level_{level:03d}_{variant}_c{candidate:02d}"
     level_design = generated_level_design(level, coord)
+    progression = generated_progression(level, coord)
+    placements = list(coord["placements"]) + list(coord.get("reward_placements", []))
 
     return {
         "id": level_id,
@@ -1238,8 +1374,9 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
             "intended_control": coord["control"],
         },
         "board": rows,
-        "overlays": build_overlays(coord["placements"], shell_hp_delta),
+        "overlays": build_overlays(placements, shell_hp_delta),
         "mechanisms": [],
+        "progression": progression,
         "level_design": level_design,
         "design_claim": design_claim_from_level_design(level_design),
         "director": director_from_level_design(level_design),
@@ -1512,6 +1649,7 @@ def compile_lvl(lvl: dict[str, Any]) -> tuple[dict[str, Any] | None, Diagnostics
     popcorn = blank(h, w)
     cake = blank(h, w)
     mystery = blank(h, w)
+    fx = blank(h, w)
     exits: list[int] = []
 
     for entry in lvl.get("overlays", []) or []:
@@ -1539,6 +1677,8 @@ def compile_lvl(lvl: dict[str, Any]) -> tuple[dict[str, Any] | None, Diagnostics
                     cannon[r][c] = int(params.get("kind", 1) or 1)
                 elif name in {"popcorn", "cake", "mystery"}:
                     {"popcorn": popcorn, "cake": cake, "mystery": mystery}[name][r][c] = hp
+                elif name in REWARD_LAYER_TO_FX:
+                    fx[r][c] = REWARD_LAYER_TO_FX[name]
                 else:
                     d.warn("W_IGNORED_LAYER", "overlays", f"ignored non-engine layer {name}")
 
@@ -1576,6 +1716,7 @@ def compile_lvl(lvl: dict[str, Any]) -> tuple[dict[str, Any] | None, Diagnostics
         "popcorn": popcorn,
         "cake": cake,
         "mystery": mystery,
+        "fx": fx,
         "difficulty": difficulty_for_role(lvl.get("meta", {}).get("role", "")),
     }
     return record, d
@@ -1707,7 +1848,7 @@ def has_legal_move(grid: list[list[int]]) -> bool:
 def active_layer_set(lvl: dict[str, Any]) -> set[str]:
     active: set[str] = set()
     for entry in lvl.get("overlays", []) or []:
-        active.update(layer_names(entry.get("layers", [])))
+        active.update(name for name in layer_names(entry.get("layers", [])) if name not in NON_MECHANISM_LAYERS)
     for mech in lvl.get("mechanisms", []) or []:
         mtype = mech.get("type")
         if isinstance(mtype, str):
@@ -1721,6 +1862,13 @@ def objective_layer_set(lvl: dict[str, Any]) -> set[str]:
         layer = OBJECTIVE_TO_LAYER.get(str(obj.get("type")))
         if layer:
             out.add(layer)
+    return out
+
+
+def reward_layer_set(lvl: dict[str, Any]) -> set[str]:
+    out: set[str] = set()
+    for entry in lvl.get("overlays", []) or []:
+        out.update(name for name in layer_names(entry.get("layers", [])) if name in REWARD_LAYER_TO_FX)
     return out
 
 
@@ -1974,6 +2122,112 @@ def taste_audit_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None)
     valid = not errors and score >= 80
     return {"valid": valid, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
 
+
+def progression_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate long-run progression grammar separately from single-level taste."""
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    checks: dict[str, Any] = {}
+    score = 100
+
+    def fail(code: str, path: str, message: str, penalty: int = 15) -> None:
+        nonlocal score
+        errors.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    def warn(code: str, path: str, message: str, penalty: int = 5) -> None:
+        nonlocal score
+        warnings.append({"code": code, "path": path, "message": message})
+        score = max(0, score - penalty)
+
+    progression = lvl.get("progression")
+    if not isinstance(progression, dict):
+        fail("E_PROGRESSION_MISSING", "progression", "progression grammar is required", 40)
+        return {"valid": False, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+    required = ["episode", "mechanic_lifecycle", "reward_budget", "annoyance_budget", "difficulty_rhythm"]
+    missing = [key for key in required if key not in progression]
+    checks["required_fields_present"] = not missing
+    if missing:
+        fail("E_PROGRESSION_FIELDS", "progression", f"missing progression fields: {missing}", 25)
+
+    episode = progression.get("episode") if isinstance(progression.get("episode"), dict) else {}
+    episode_ok = isinstance(episode.get("slot"), int) and meaningful_semantic_text(episode.get("arc_role"), 3)
+    checks["episode_slot_and_role_present"] = episode_ok
+    if not episode_ok:
+        fail("E_PROGRESSION_EPISODE", "progression.episode", "episode must declare numeric slot and arc_role", 15)
+
+    design = lvl.get("level_design") if isinstance(lvl.get("level_design"), dict) else {}
+    roles = design.get("roles") if isinstance(design.get("roles"), dict) else {}
+    protagonist = roles.get("protagonist") if isinstance(roles.get("protagonist"), dict) else {}
+    protagonist_mechanism = protagonist.get("mechanism")
+    support = roles.get("support", []) if isinstance(roles.get("support"), list) else []
+    declared_design_mechanics = ({str(protagonist_mechanism)} if isinstance(protagonist_mechanism, str) else set()) | {
+        str(item.get("mechanism")) for item in support if isinstance(item, dict) and item.get("mechanism")
+    }
+
+    lifecycle = progression.get("mechanic_lifecycle")
+    if not isinstance(lifecycle, list):
+        fail("E_PROGRESSION_LIFECYCLE_TYPE", "progression.mechanic_lifecycle", "mechanic_lifecycle must be a list", 20)
+        lifecycle = []
+    lifecycle_mechanics = {str(item.get("mechanic")) for item in lifecycle if isinstance(item, dict) and item.get("mechanic")}
+    primary_entries = [
+        item for item in lifecycle
+        if isinstance(item, dict) and item.get("role") == "primary" and item.get("mechanic") == protagonist_mechanism
+    ]
+    checks["primary_lifecycle_matches_protagonist"] = bool(primary_entries)
+    if not primary_entries:
+        fail("E_PROGRESSION_PRIMARY_MISSING", "progression.mechanic_lifecycle", f"primary lifecycle entry must match protagonist {protagonist_mechanism!r}", 25)
+    missing_mechanics = sorted(declared_design_mechanics - lifecycle_mechanics)
+    checks["design_mechanics_in_lifecycle"] = not missing_mechanics
+    if missing_mechanics:
+        fail("E_PROGRESSION_LIFECYCLE_GAP", "progression.mechanic_lifecycle", f"design mechanic(s) missing lifecycle entries: {missing_mechanics}", 20)
+    generic_phase = [item for item in lifecycle if isinstance(item, dict) and not meaningful_semantic_text(item.get("phase"), 4)]
+    checks["lifecycle_phases_specific"] = not generic_phase
+    if generic_phase:
+        fail("E_PROGRESSION_PHASE_GENERIC", "progression.mechanic_lifecycle", "each lifecycle entry needs a specific phase", 10)
+
+    reward_budget = progression.get("reward_budget") if isinstance(progression.get("reward_budget"), dict) else {}
+    primitives = [str(x) for x in reward_budget.get("primitives", []) if isinstance(x, str)]
+    unknown_primitives = sorted(set(primitives) - set(REWARD_LAYER_TO_FX))
+    checks["reward_primitives_known"] = not unknown_primitives
+    if unknown_primitives:
+        fail("E_REWARD_UNKNOWN", "progression.reward_budget.primitives", f"unknown reward primitives: {unknown_primitives}", 15)
+    reward_layers = reward_layer_set(lvl)
+    missing_reward_layers = sorted(set(primitives) - reward_layers)
+    checks["reward_primitives_present_on_board"] = not missing_reward_layers
+    if missing_reward_layers:
+        fail("E_REWARD_NOT_PLACED", "overlays", f"reward primitive(s) missing from overlays: {missing_reward_layers}", 20)
+    if bool(reward_budget.get("required")) and not primitives:
+        fail("E_REWARD_REQUIRED_EMPTY", "progression.reward_budget", "required reward budget needs at least one primitive", 15)
+    if compiled is not None and primitives:
+        fx_cells = sum(1 for row in compiled.get("fx", []) for value in row if int(value) > 0)
+        checks["reward_primitives_compile_to_fx"] = fx_cells > 0
+        if fx_cells <= 0:
+            fail("E_REWARD_NO_FX", "compile.fx", "reward primitives must compile into non-zero fx cells", 25)
+
+    annoyance = progression.get("annoyance_budget") if isinstance(progression.get("annoyance_budget"), dict) else {}
+    for key in ("max_reshuffle_rate", "max_dead_board_rate", "max_no_progress_turn_rate", "max_luck_dependency_proxy"):
+        value = annoyance.get(key)
+        ok = isinstance(value, (int, float)) and 0.0 <= float(value) <= 1.0
+        checks[f"{key}_valid"] = ok
+        if not ok:
+            fail("E_ANNOYANCE_BUDGET", f"progression.annoyance_budget.{key}", f"{key} must be a 0..1 number", 10)
+
+    rhythm = progression.get("difficulty_rhythm") if isinstance(progression.get("difficulty_rhythm"), dict) else {}
+    band = rhythm.get("target_pass_band")
+    band_ok = isinstance(band, list) and len(band) == 2 and all(isinstance(x, (int, float)) for x in band)
+    rhythm_ok = band_ok and meaningful_semantic_text(rhythm.get("shape"), 3)
+    checks["difficulty_rhythm_has_pass_band"] = rhythm_ok
+    if not rhythm_ok:
+        fail("E_DIFFICULTY_RHYTHM", "progression.difficulty_rhythm", "difficulty_rhythm must declare shape and target_pass_band", 15)
+    meta_band = lvl.get("meta", {}).get("target_pass_band")
+    if band_ok and isinstance(meta_band, list) and [float(x) for x in band] != [float(x) for x in meta_band]:
+        warn("W_DIFFICULTY_BAND_MISMATCH", "progression.difficulty_rhythm.target_pass_band", "progression band differs from meta target_pass_band", 5)
+
+    return {"valid": not errors and score >= 80, "score": score, "checks": checks, "errors": errors, "warnings": warnings}
+
+
 def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     compiled, diag = compile_lvl(lvl)
     out: dict[str, Any] = {
@@ -2010,6 +2264,7 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     structural_valid = playable >= 20 and legal and objective_ok and drop_path_ok
     semantic = semantic_validate_level_design(lvl)
     taste = taste_audit_lvl(lvl, compiled)
+    progression = progression_validate_lvl(lvl, compiled)
     out["structural"] = {
         "valid": structural_valid,
         "playable_cell_count": playable,
@@ -2020,12 +2275,15 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
     }
     out["semantic"] = semantic
     out["taste"] = taste
-    if structural_valid and semantic.get("valid") and taste.get("valid"):
+    out["progression"] = progression
+    if structural_valid and semantic.get("valid") and taste.get("valid") and progression.get("valid"):
         out["verdict"] = "approved"
     elif not structural_valid:
         out["verdict"] = "revise_major"
     elif not semantic.get("valid"):
         out["verdict"] = "revise_semantic"
+    elif not progression.get("valid"):
+        out["verdict"] = "revise_progression"
     else:
         out["verdict"] = "revise_taste"
     if initial_matches:
@@ -2042,6 +2300,10 @@ def validate_lvl(lvl: dict[str, Any]) -> dict[str, Any]:
         out["recommendations"].append(f"taste gate: {err.get('message')}")
     for warn_item in taste.get("warnings", []):
         out["recommendations"].append(f"taste warning: {warn_item.get('message')}")
+    for err in progression.get("errors", []):
+        out["recommendations"].append(f"progression gate: {err.get('message')}")
+    for warn_item in progression.get("warnings", []):
+        out["recommendations"].append(f"progression warning: {warn_item.get('message')}")
     return out
 
 
@@ -2284,12 +2546,13 @@ def run_one_attempt(compiled: dict[str, Any], persona: str, seed: int) -> dict[s
     moves = int(compiled["move_limit"])
     activation_turn = None
     cascade_score = 0.0
+    no_progress_turns = 0
     for turn in range(1, moves + 1):
         if is_sim_won(state, compiled["objectives"]):
-            return {"won": True, "turns": turn - 1, "moves_left": moves - turn + 1, "activation_turn": activation_turn, "cascade_score": cascade_score}
+            return {"won": True, "turns": turn - 1, "moves_left": moves - turn + 1, "activation_turn": activation_turn, "cascade_score": cascade_score, "no_progress_turns": no_progress_turns}
         moves_list = legal_moves_for_grid(state["grid"])
         if not moves_list:
-            return {"won": False, "turns": turn - 1, "moves_left": moves - turn + 1, "fail_reason": "no_legal_move_loop", "activation_turn": activation_turn, "cascade_score": cascade_score}
+            return {"won": False, "turns": turn - 1, "moves_left": moves - turn + 1, "fail_reason": "no_legal_move_loop", "activation_turn": activation_turn, "cascade_score": cascade_score, "no_progress_turns": no_progress_turns}
         scored = [score_move(compiled, state, mv, persona, rng) + (mv,) for mv in moves_list]
         scored.sort(key=lambda x: x[0], reverse=True)
         if rng.random() < 0.80 or len(scored) == 1:
@@ -2302,11 +2565,13 @@ def run_one_attempt(compiled: dict[str, Any], persona: str, seed: int) -> dict[s
         before_coat = layer_sum(state["coat"])
         simulate_apply_move(state, move, len(compiled["species"]), rng, compiled["objectives"])
         cascade_score += features.get("cascade", 0.0)
+        if features.get("target", 0.0) + features.get("blocker", 0.0) + features.get("mechanism", 0.0) <= 0.0:
+            no_progress_turns += 1
         if activation_turn is None and before_coat > layer_sum(state["coat"]):
             activation_turn = turn
     won = is_sim_won(state, compiled["objectives"])
     fail_reason = "too_many_leftovers" if objective_remaining(state, compiled["objectives"]) <= 3 else "low_target_progress"
-    return {"won": won, "turns": moves, "moves_left": 0, "fail_reason": None if won else fail_reason, "activation_turn": activation_turn, "cascade_score": cascade_score}
+    return {"won": won, "turns": moves, "moves_left": 0, "fail_reason": None if won else fail_reason, "activation_turn": activation_turn, "cascade_score": cascade_score, "no_progress_turns": no_progress_turns}
 
 
 def simulate_lvl(lvl: dict[str, Any], runs: int = 30, profile: str = "balanced") -> dict[str, Any]:
@@ -2330,6 +2595,11 @@ def simulate_lvl(lvl: dict[str, Any], runs: int = 30, profile: str = "balanced")
     weighted_remaining = 0.0
     weighted_activation = 0.0
     weighted_cascade = 0.0
+    weighted_dead_board = 0.0
+    weighted_reshuffle = 0.0
+    weighted_no_progress = 0.0
+    weighted_luck = 0.0
+    weighted_annoyance = 0.0
     weighted_fail_counts: dict[str, float] = {}
     for persona, profile_weight in profile_mix.items():
         persona_offset = sum(ord(ch) for ch in persona)
@@ -2343,24 +2613,44 @@ def simulate_lvl(lvl: dict[str, Any], runs: int = 30, profile: str = "balanced")
         avg_remaining = sum(r["moves_left"] for r in wins) / max(1, len(wins))
         activation_rate = sum(1 for r in results if r.get("activation_turn") is not None) / max(1, runs)
         avg_cascade = sum(float(r.get("cascade_score", 0.0)) for r in results) / max(1, runs)
+        dead_board_rate = sum(1 for r in results if r.get("fail_reason") == "no_legal_move_loop") / max(1, runs)
+        reshuffle_rate = dead_board_rate
+        no_progress_rate = sum(float(r.get("no_progress_turns", 0)) / max(1, int(r.get("turns", 1) or 1)) for r in results) / max(1, runs)
+        luck_dependency = min(1.0, max(0.0, 4.0 * pass_rate * (1.0 - pass_rate)))
+        annoyance_score = min(1.0, dead_board_rate * 0.35 + reshuffle_rate * 0.20 + no_progress_rate * 0.30 + luck_dependency * 0.15)
         fail_dist = {k: v / max(1, runs) for k, v in fail_counts.items()}
         summary["personas"][persona] = {
             "simulated_pass_rate_at_1": round(pass_rate, 3),
             "avg_remaining_moves": round(avg_remaining, 2),
             "mechanism_activation_rate": round(activation_rate, 3),
             "avg_cascade_score": round(avg_cascade, 3),
+            "reshuffle_rate": round(reshuffle_rate, 3),
+            "dead_board_rate": round(dead_board_rate, 3),
+            "no_progress_turn_rate": round(no_progress_rate, 3),
+            "luck_dependency_proxy": round(luck_dependency, 3),
+            "annoyance_score": round(annoyance_score, 3),
             "fail_reason_distribution": {k: round(v, 3) for k, v in fail_dist.items()},
         }
         weighted_pass += profile_weight * pass_rate
         weighted_remaining += profile_weight * avg_remaining
         weighted_activation += profile_weight * activation_rate
         weighted_cascade += profile_weight * avg_cascade
+        weighted_dead_board += profile_weight * dead_board_rate
+        weighted_reshuffle += profile_weight * reshuffle_rate
+        weighted_no_progress += profile_weight * no_progress_rate
+        weighted_luck += profile_weight * luck_dependency
+        weighted_annoyance += profile_weight * annoyance_score
         for reason, value in fail_dist.items():
             weighted_fail_counts[reason] = weighted_fail_counts.get(reason, 0.0) + profile_weight * value
     summary["aggregate_pass_rate_at_1"] = round(weighted_pass, 3)
     summary["aggregate_avg_remaining_moves"] = round(weighted_remaining, 2)
     summary["aggregate_mechanism_activation_rate"] = round(weighted_activation, 3)
     summary["aggregate_cascade_score"] = round(weighted_cascade, 3)
+    summary["aggregate_reshuffle_rate"] = round(weighted_reshuffle, 3)
+    summary["aggregate_dead_board_rate"] = round(weighted_dead_board, 3)
+    summary["aggregate_no_progress_turn_rate"] = round(weighted_no_progress, 3)
+    summary["aggregate_luck_dependency_proxy"] = round(weighted_luck, 3)
+    summary["aggregate_annoyance_score"] = round(weighted_annoyance, 3)
     summary["aggregate_fail_reason_distribution"] = {k: round(v, 3) for k, v in sorted(weighted_fail_counts.items())}
     return summary
 
@@ -2379,6 +2669,7 @@ def candidate_score(sim: dict[str, Any], band: tuple[float, float]) -> float:
     pass_rate = float(sim.get("aggregate_pass_rate_at_1", 0.0))
     activation = float(sim.get("aggregate_mechanism_activation_rate", 0.0))
     cascade = float(sim.get("aggregate_cascade_score", 0.0))
+    annoyance = float(sim.get("aggregate_annoyance_score", 0.0))
     low, high = band
     if pass_rate < low:
         return -100.0 - (low - pass_rate) * 100.0
@@ -2387,7 +2678,7 @@ def candidate_score(sim: dict[str, Any], band: tuple[float, float]) -> float:
     center = (low + high) / 2.0
     distance = abs(pass_rate - center)
     over_easy_penalty = max(0.0, pass_rate - high) * 20.0
-    return 100.0 - distance * 20.0 - over_easy_penalty + activation * 5.0 + min(5.0, cascade)
+    return 100.0 - distance * 20.0 - over_easy_penalty + activation * 5.0 + min(5.0, cascade) - annoyance * 12.0
 
 
 def generate_select(level: int, variant: str, profile: str, candidates: int, runs: int) -> dict[str, Any]:
@@ -2432,6 +2723,7 @@ def generate_select(level: int, variant: str, profile: str, candidates: int, run
             "target_pass_band": list(band),
             "profile": profile,
             "pass_rate": round(pass_rate, 3),
+            "annoyance_score": sim.get("aggregate_annoyance_score") if sim.get("valid") else None,
             "solve_pass": bool(solve_pass),
             "score": round(score, 3),
             "regenerate_reason": regenerate_reason,

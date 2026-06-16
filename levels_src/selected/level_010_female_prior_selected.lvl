@@ -1,10 +1,10 @@
 {
-  "id": "level_010_base_c07",
+  "id": "level_010_female_prior_c01",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
     "level_coordinate": 10,
-    "variant": "base",
+    "variant": "female_prior",
     "role": "pressure",
     "complexity_tier": 2,
     "theme": "crystal_workshop",
@@ -13,18 +13,18 @@
       0.75
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 7,
+    "candidate_index": 1,
     "candidate_tuning": {
-      "moves_delta": 2,
-      "target_multiplier": 0.9,
-      "shell_hp_delta": -1,
+      "moves_delta": -1,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
       "colors_delta": 0
     }
   },
   "personalization": {
     "profile_band": "default_mid_skill",
-    "cold_start_prior": "unknown",
-    "prior_weight": 0.0,
+    "cold_start_prior": "female",
+    "prior_weight": 0.2,
     "target_pass_band": [
       0.55,
       0.75
@@ -40,11 +40,11 @@
     "target": 1
   },
   "rules": {
-    "moves": 60,
+    "moves": 59,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
-    "seed": 8149
+    "seed": 2170
   },
   "map": {
     "width": 9,
@@ -141,9 +141,77 @@
       "layers": [
         "crystal_shell"
       ]
+    },
+    {
+      "region": "finale_burst_reward",
+      "cells": [
+        [
+          2,
+          3
+        ]
+      ],
+      "layers": [
+        "burst_gem"
+      ]
+    },
+    {
+      "region": "finale_line_reward",
+      "cells": [
+        [
+          2,
+          5
+        ]
+      ],
+      "layers": [
+        "line_v_gem"
+      ]
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 10,
+      "arc_role": "episode_finale_mix"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "drop_relic",
+        "phase": "combine_with_gate",
+        "role": "primary",
+        "is_new": false
+      },
+      {
+        "mechanic": "crystal_shell",
+        "phase": "known_blocker_as_route_gate",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "burst_gem",
+        "line_v_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.08,
+      "max_dead_board_rate": 0.08,
+      "max_no_progress_turn_rate": 0.45,
+      "max_luck_dependency_proxy": 0.5
+    },
+    "difficulty_rhythm": {
+      "shape": "first_act_finale",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "role": "pressure"
+    }
+  },
   "level_design": {
     "id": "level_010",
     "thesis": {

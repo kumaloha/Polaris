@@ -119,6 +119,41 @@
     }
   ],
   "mechanisms": [],
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 3,
+      "arc_role": "spatial_reading"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "spatial_variation",
+        "role": "primary",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.03,
+      "max_dead_board_rate": 0.03,
+      "max_no_progress_turn_rate": 0.3,
+      "max_luck_dependency_proxy": 0.35
+    },
+    "difficulty_rhythm": {
+      "shape": "low_variation",
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "role": "teaching_breather"
+    }
+  },
   "level_design": {
     "id": "level_003",
     "thesis": {

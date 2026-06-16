@@ -14,6 +14,7 @@
   → Lint Validator
   → Compile Validator
   → Semantic Design Language Gate
+  → Progression Rhythm Gate
   → Structural Validator
   → Taste Director Gate
   → Player Simulator Validator
@@ -21,13 +22,14 @@
   → Validation Report
 ```
 
-五类 verdict：
+六类 verdict：
 
 | verdict | 含义 |
 |---|---|
 | `approved` | 可以进入人工手感评审 |
 | `revise_minor` | 小改后可重跑 |
 | `revise_semantic` | 原则语言不成立；命题/主角/因果/负空间需要重写 |
+| `revise_progression` | 长期节奏契约不成立；机制生命周期/奖励资源/烦躁预算/难度带需要重写 |
 | `revise_taste` | 结构可玩，但导演品味契约不成立；重写题眼/主角/情绪弧 |
 | `revise_major` | 配方或布局错配，需要重做候选 |
 | `reject` | 不应继续投入 |
@@ -58,7 +60,10 @@ input:
   "verdict": "revise_minor",
   "lint": {},
   "compile": {},
+  "semantic": {},
+  "progression": {},
   "structural": {},
+  "taste": {},
   "player_simulator": {},
   "design_checklist": {},
   "recommendations": []
@@ -84,6 +89,7 @@ input:
 | objective/objectives 不冲突 | `E_OBJECTIVE_CONFLICT` |
 | design_claim.crack_path 存在 | `E_MISSING_CRACK_PATH` |
 | level_design 根字段存在 | `E_MISSING_FIELD` |
+| progression 根字段存在 | `E_MISSING_FIELD` |
 | director 根字段存在 | `E_MISSING_FIELD` |
 | playable 模式无 unsupported 机制 | `E_UNSUPPORTED_*` |
 
@@ -124,6 +130,7 @@ input:
 - `coat`
 - `choco`
 - `ing`
+- `fx`
 - `bomb`
 - `cannon`
 - `popcorn`
@@ -374,6 +381,11 @@ seed_policy: deterministic_sequence
   "avg_remaining_moves": 2.1,
   "mechanism_activation_rate": 0.74,
   "crack_path_completion_rate": 0.58,
+  "aggregate_reshuffle_rate": 0.02,
+  "aggregate_dead_board_rate": 0.01,
+  "aggregate_no_progress_turn_rate": 0.31,
+  "aggregate_luck_dependency_proxy": 0.94,
+  "aggregate_annoyance_score": 0.28,
   "fail_reason_distribution": {
     "low_target_progress": 0.22,
     "missed_mechanism": 0.18,
@@ -407,11 +419,53 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 8. Taste Director / Design Checklist Validator
+## 8. Progression Rhythm Gate
+
+`progression` 是“这关在长线运营里为什么存在”的机器契约。它不替代 `level_design`，而是检查：机制有没有生命周期位置、玩家有没有真实奖励资源、通过率之外是否控制烦躁、难度带是否服务前后节奏。
+
+### 8.1 机器必检 progression gate
+
+| check | pass 条件 |
+|---|---|
+| `required_fields_present` | `episode/mechanic_lifecycle/reward_budget/annoyance_budget/difficulty_rhythm` 全存在 |
+| `episode_slot_and_role_present` | 关卡在 episode 中有明确 slot 和 arc_role |
+| `primary_lifecycle_matches_protagonist` | `level_design.roles.protagonist.mechanism` 有对应 `role=primary` lifecycle 条目 |
+| `design_mechanics_in_lifecycle` | 所有主角/配角机制都被纳入 lifecycle，不允许只在棋盘上暗中出现 |
+| `lifecycle_phases_specific` | phase 是 `reveal_safe/practice_with_reward/spatial_variation/...` 这类具体设计阶段，不是泛泛而谈 |
+| `reward_primitives_known` | reward_budget 只使用 v0 已知奖励原语：`line_h_gem/line_v_gem/burst_gem/color_bomb_gem` |
+| `reward_primitives_present_on_board` | 要求的奖励原语真实出现在 `.lvl.overlays` |
+| `reward_primitives_compile_to_fx` | 要求的奖励原语编译为非零 `compile.fx`，Godot 读取后保留 |
+| `max_*_valid` | annoyance_budget 中 reshuffle/dead_board/no_progress/luck proxy 都是 `[0,1]` 数值 |
+| `difficulty_rhythm_has_pass_band` | difficulty_rhythm 同时声明 rhythm shape 和目标首局通过率带 |
+
+`progression.valid=false` 时，候选只能得到 `revise_progression`，不进入候选选择。
+
+### 8.2 Progression 输出示例
+
+```json
+{
+  "valid": false,
+  "score": 75,
+  "checks": {
+    "primary_lifecycle_matches_protagonist": true,
+    "reward_primitives_present_on_board": false,
+    "reward_primitives_compile_to_fx": false,
+    "difficulty_rhythm_has_pass_band": true
+  },
+  "errors": [
+    {"code": "E_REWARD_NOT_PLACED", "path": "overlays", "message": "reward primitive(s) missing from overlays: ['line_v_gem']"}
+  ],
+  "warnings": []
+}
+```
+
+---
+
+## 9. Taste Director / Design Checklist Validator
 
 `director` 是机器可读的品味契约，用来拦住“流程背熟但没有主角/记忆点/留白”的关卡。AI/人仍可执行 checklist，但 v0 的 `validate` 已经会输出 `taste` gate。
 
-### 8.1 机器必检 taste gate
+### 9.1 机器必检 taste gate
 
 | check | pass 条件 |
 |---|---|
@@ -428,7 +482,7 @@ seed_policy: deterministic_sequence
 
 `taste.valid=false` 时，结构再正确也只能得到 `revise_taste`。
 
-### 8.2 人/AI checklist
+### 9.2 人/AI checklist
 
 | check | pass 条件 |
 |---|---|
@@ -458,11 +512,11 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 9. Telemetry / Feedback Spec
+## 10. Telemetry / Feedback Spec
 
 上线后反馈系统最小事件。
 
-### 8.1 Level attempt event
+### 10.1 Level attempt event
 
 ```json
 {
@@ -492,7 +546,7 @@ seed_policy: deterministic_sequence
 }
 ```
 
-### 8.2 Feedback diagnosis
+### 10.2 Feedback diagnosis
 
 | signal | diagnosis | action |
 |---|---|---|
@@ -505,7 +559,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 10. Validation thresholds v0
+## 11. Validation thresholds v0
 
 默认阈值；20 关验证后再校准。
 
@@ -517,12 +571,13 @@ seed_policy: deterministic_sequence
 | `simulated_pass_rate_at_3` minimum | >= 0.95 | >= 0.80 | >= 0.60 | >= 0.50 |
 | `attempts_to_first_win_p90` | <= 2 | <= 4 | <= 6 | <= 8 |
 | `reshuffle_rate` | <= 0.05 | <= 0.08 | <= 0.10 | <= 0.12 |
+| `aggregate_annoyance_score` | <= 0.22 | <= 0.35 | <= 0.45 | <= 0.55 |
 | `mechanism_activation_rate` | >= 0.70 | >= 0.60 | >= 0.65 | >= 0.70 |
 | `crack_path_completion_rate` | >= 0.50 | >= 0.45 | >= 0.55 | >= 0.60 |
 
 ---
 
-## 11. 需要实现的工具
+## 12. 需要实现的工具
 
 | tool | 输入 | 输出 |
 |---|---|---|
@@ -538,7 +593,7 @@ seed_policy: deterministic_sequence
 
 ---
 
-## 12. 当前需你确认
+## 13. 当前需你确认
 
 无强制阻塞。默认采用：
 
