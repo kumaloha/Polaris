@@ -3964,6 +3964,395 @@ def pass_band_for_level(lvl: dict[str, Any]) -> tuple[float, float]:
     return ROLE_PASS_BANDS.get(role, ROLE_PASS_BANDS["variation"])
 
 
+PLAYER_CONTEXT_WINDOW = 5
+
+
+def _record_won(record: dict[str, Any]) -> bool:
+    if "won" in record:
+        return bool(record.get("won"))
+    status = str(record.get("status", record.get("result", ""))).lower()
+    return status in {"won", "win", "passed", "complete", "completed", "cleared"}
+
+
+def _record_coordinate(record: dict[str, Any]) -> int:
+    return int(record.get("level_coordinate", record.get("level", record.get("coordinate", 0))) or 0)
+
+
+def _level_has_new_mechanic(level: int) -> bool:
+    spec = EARLY_LEVEL_PROGRESSION.get(level, {})
+    lifecycle = spec.get("lifecycle", []) if isinstance(spec, dict) else []
+    return any(isinstance(item, dict) and bool(item.get("is_new")) for item in lifecycle)
+
+
+def _level_primary_lifecycle(level: int) -> dict[str, Any]:
+    spec = EARLY_LEVEL_PROGRESSION.get(level, {})
+    lifecycle = spec.get("lifecycle", []) if isinstance(spec, dict) else []
+    for item in lifecycle:
+        if isinstance(item, dict) and item.get("role") == "primary":
+            return dict(item)
+    for item in lifecycle:
+        if isinstance(item, dict):
+            return dict(item)
+    return {"mechanic": "target_mark", "phase": "practice", "role": "primary", "is_new": False}
+
+
+def _derive_profile_from_axes(axes: dict[str, Any], prior: str) -> tuple[str, str]:
+    challenge = float(axes.get("challenge_bias", 0.5) or 0.5)
+    strategy = float(axes.get("strategy_bias", 0.5) or 0.5)
+    reward = float(axes.get("reward_bias", 0.5) or 0.5)
+    cuteness = float(axes.get("cuteness_bias", 0.5) or 0.5)
+    annoyance = float(axes.get("annoyance_tolerance", 0.45) or 0.45)
+    # Once behavior exists, it beats demographic prior.  The thresholds are
+    # deliberately simple and auditable; real telemetry can replace them later.
+    if challenge >= 0.65 and strategy >= 0.65 and (challenge + strategy) >= (reward + cuteness + 0.35):
+        return "male_prior", "behavior_axes"
+    if (reward >= 0.62 or cuteness >= 0.65) and annoyance <= 0.48:
+        return "female_prior", "behavior_axes"
+    if prior == "female":
+        return "female_prior", "cold_start_prior"
+    if prior == "male":
+        return "male_prior", "cold_start_prior"
+    return "balanced", "balanced_default"
+
+
+def normalize_player_context(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize telemetry/cold-start input for next-level generation.
+
+    The schema is intentionally permissive because v0 has no production
+    telemetry yet.  A context may contain only cold-start prior, or richer
+    records with attempts, fail reasons, remaining moves, and mechanism hints.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError("player context must be a JSON object")
+    prior = str(raw.get("cold_start_prior", raw.get("gender_prior", "unknown")) or "unknown")
+    if prior not in PERSONA_AXES_BY_PRIOR:
+        prior = "unknown"
+    axes_raw = raw.get("persona_axes")
+    axes_from_behavior = isinstance(axes_raw, dict)
+    if axes_from_behavior:
+        axes = copy.deepcopy(PERSONA_AXES_BY_PRIOR["unknown"])
+        for key in axes:
+            if key in axes_raw:
+                axes[key] = max(0.0, min(1.0, float(axes_raw[key])))
+    else:
+        axes = copy.deepcopy(PERSONA_AXES_BY_PRIOR[prior])
+
+    explicit_profile = str(raw.get("simulation_profile", raw.get("target_profile", "")) or "")
+    if explicit_profile in PROFILE_MIXES:
+        target_profile = explicit_profile
+        profile_source = "explicit"
+    elif axes_from_behavior:
+        target_profile, profile_source = _derive_profile_from_axes(axes, prior)
+    elif prior == "female":
+        target_profile = "female_prior"
+        profile_source = "cold_start_prior"
+    elif prior == "male":
+        target_profile = "male_prior"
+        profile_source = "cold_start_prior"
+    else:
+        target_profile = "balanced"
+        profile_source = "balanced_default"
+
+    played: list[dict[str, Any]] = []
+    history = raw.get("played_levels", raw.get("history", []))
+    if not isinstance(history, list):
+        history = []
+    for idx, record in enumerate(history):
+        if not isinstance(record, dict):
+            continue
+        level = _record_coordinate(record)
+        if level <= 0:
+            continue
+        attempts = max(1, int(record.get("attempts", record.get("attempt_count", 1)) or 1))
+        won = _record_won(record)
+        moves_left_raw = record.get("moves_left", record.get("remaining_moves"))
+        moves_left = int(moves_left_raw) if isinstance(moves_left_raw, (int, float)) else None
+        fail_reasons = record.get("fail_reasons", record.get("fail_reason_distribution", {}))
+        if not isinstance(fail_reasons, dict):
+            fail_reasons = {str(fail_reasons): 1} if fail_reasons else {}
+        mechanics = record.get("mechanisms", record.get("active_mechanisms", []))
+        if not isinstance(mechanics, list):
+            mechanics = []
+        played.append({
+            "index": idx,
+            "level_coordinate": level,
+            "won": won,
+            "attempts": attempts,
+            "moves_left": moves_left,
+            "fail_reasons": {str(k): float(v) for k, v in fail_reasons.items()},
+            "mechanism_activation_rate": float(record.get("mechanism_activation_rate", 0.0) or 0.0),
+            "trouble_mechanisms": [str(x) for x in record.get("trouble_mechanisms", [])] if isinstance(record.get("trouble_mechanisms", []), list) else [],
+            "active_mechanisms": [str(x) for x in mechanics],
+            "had_new_mechanic": bool(record.get("had_new_mechanic", _level_has_new_mechanic(level))),
+            "had_reward": bool(record.get("had_reward", bool(EARLY_LEVEL_PROGRESSION.get(level, {}).get("rewards", [])))),
+        })
+
+    explicit_next = raw.get("next_level_coordinate", raw.get("next_coordinate"))
+    if isinstance(explicit_next, (int, float)) and int(explicit_next) > 0:
+        next_coordinate = int(explicit_next)
+    elif not played:
+        next_coordinate = 1
+    else:
+        latest = played[-1]
+        if not bool(latest["won"]):
+            next_coordinate = int(latest["level_coordinate"])
+        else:
+            won_levels = [int(item["level_coordinate"]) for item in played if bool(item["won"])]
+            next_coordinate = max(won_levels or [int(latest["level_coordinate"])]) + 1
+
+    return {
+        "player_id": str(raw.get("player_id", raw.get("id", "anonymous"))),
+        "cold_start_prior": prior,
+        "persona_axes": axes,
+        "target_profile": target_profile,
+        "profile_source": profile_source,
+        "played_levels": played,
+        "recent_levels": played[-PLAYER_CONTEXT_WINDOW:],
+        "next_level_coordinate": next_coordinate,
+        "raw_context_version": int(raw.get("version", 0) or 0),
+    }
+
+
+def derive_rhythm_state(context: dict[str, Any]) -> dict[str, Any]:
+    recent = list(context.get("recent_levels", []))
+    trailing_failures = 0
+    for item in reversed(recent):
+        if bool(item.get("won")):
+            break
+        trailing_failures += 1
+    wins = [item for item in recent if bool(item.get("won"))]
+    avg_attempts = sum(float(item.get("attempts", 1)) for item in recent) / max(1, len(recent))
+    win_rate = len(wins) / max(1, len(recent))
+    moves_values = [float(item["moves_left"]) for item in wins if item.get("moves_left") is not None]
+    avg_moves_left = sum(moves_values) / max(1, len(moves_values))
+    no_reward_streak = 0
+    for item in reversed(recent):
+        if bool(item.get("had_reward")):
+            break
+        no_reward_streak += 1
+    recent_new_mechanic_count = sum(1 for item in recent if bool(item.get("had_new_mechanic")))
+    next_coordinate = int(context.get("next_level_coordinate", 1))
+    next_primary = _level_primary_lifecycle(next_coordinate)
+    next_has_new = bool(next_primary.get("is_new"))
+
+    trouble: dict[str, float] = {}
+    for item in recent:
+        level_primary = str(_level_primary_lifecycle(int(item.get("level_coordinate", 0))).get("mechanic", "unknown"))
+        if not bool(item.get("won")):
+            trouble[level_primary] = trouble.get(level_primary, 0.0) + float(item.get("attempts", 1))
+        for mech in item.get("trouble_mechanisms", []):
+            trouble[str(mech)] = trouble.get(str(mech), 0.0) + 1.0
+        reasons = item.get("fail_reasons", {})
+        if isinstance(reasons, dict):
+            blob = " ".join(str(k) for k in reasons)
+            if "shell" in blob or "crystal" in blob:
+                trouble["crystal_shell"] = trouble.get("crystal_shell", 0.0) + 1.0
+            if "relic" in blob or "ingredient" in blob or "cub" in blob:
+                trouble["drop_relic"] = trouble.get("drop_relic", 0.0) + 1.0
+
+    profile = str(context.get("target_profile", "balanced"))
+    axes = context.get("persona_axes", {}) if isinstance(context.get("persona_axes"), dict) else {}
+    challenge = float(axes.get("challenge_bias", 0.5) or 0.5)
+    strategy = float(axes.get("strategy_bias", 0.5) or 0.5)
+
+    if trailing_failures >= 2 or avg_attempts >= 3.0:
+        rhythm_role = "breather_recovery"
+        reason = "recent_failures_or_many_attempts"
+    elif next_has_new:
+        rhythm_role = "new_mechanic_onboarding"
+        reason = "next_coordinate_reveals_new_mechanic"
+    elif no_reward_streak >= 2:
+        rhythm_role = "reward_lift"
+        reason = "recent_levels_lacked_board_rewards"
+    elif win_rate >= 0.80 and avg_moves_left >= 3.0 and (profile == "male_prior" or (challenge + strategy) >= 1.25):
+        rhythm_role = "pressure_step"
+        reason = "player_is_clearing_with_margin"
+    else:
+        rhythm_role = "canonical_progression"
+        reason = "follow_sequence_plan"
+
+    return {
+        "window": PLAYER_CONTEXT_WINDOW,
+        "recent_count": len(recent),
+        "trailing_failures": trailing_failures,
+        "recent_win_rate": round(win_rate, 3),
+        "recent_avg_attempts": round(avg_attempts, 2),
+        "recent_avg_moves_left": round(avg_moves_left, 2),
+        "recent_new_mechanic_count": recent_new_mechanic_count,
+        "no_reward_streak": no_reward_streak,
+        "next_coordinate_has_new_mechanic": next_has_new,
+        "next_primary_mechanic": str(next_primary.get("mechanic", "target_mark")),
+        "rhythm_role": rhythm_role,
+        "reason": reason,
+        "trouble_mechanisms": {k: round(v, 2) for k, v in sorted(trouble.items(), key=lambda item: (-item[1], item[0]))},
+    }
+
+
+def _adjust_pass_band(base: list[float], rhythm_role: str) -> list[float]:
+    low = float(base[0])
+    high = float(base[1])
+    if rhythm_role == "breather_recovery":
+        return [round(max(0.88, low), 2), 1.00]
+    if rhythm_role == "new_mechanic_onboarding":
+        return [round(max(0.90, low), 2), 1.00]
+    if rhythm_role == "reward_lift":
+        return [round(max(0.78, low), 2), round(max(high, 0.95), 2)]
+    if rhythm_role == "pressure_step":
+        return [round(max(0.35, low - 0.08), 2), round(min(0.90, max(low + 0.12, high - 0.04)), 2)]
+    return [round(low, 2), round(high, 2)]
+
+
+def build_next_level_brief(context: dict[str, Any], rhythm_state: dict[str, Any] | None = None) -> dict[str, Any]:
+    rhythm_state = rhythm_state or derive_rhythm_state(context)
+    level = int(context.get("next_level_coordinate", 1))
+    if level not in LEVEL_COORDINATES:
+        raise ValueError(f"no programmatic coordinate for next level {level}")
+    coord = LEVEL_COORDINATES[level]
+    progression = generated_progression(level, coord)
+    intent = generated_level_intent(level, coord)
+    primary = _level_primary_lifecycle(level)
+    rhythm_role = str(rhythm_state.get("rhythm_role", "canonical_progression"))
+    target_profile = str(context.get("target_profile", "balanced"))
+
+    if rhythm_role == "breather_recovery":
+        variant = "assisted"
+    elif rhythm_role == "pressure_step":
+        variant = "advanced" if target_profile != "female_prior" else "base"
+    elif target_profile == "female_prior":
+        variant = "female_prior"
+    elif target_profile == "male_prior":
+        variant = "male_prior"
+    else:
+        variant = "base"
+
+    base_band = list(coord["target_pass_band"])
+    target_band = _adjust_pass_band(base_band, rhythm_role)
+    rewards = list(progression["reward_budget"].get("primitives", []))
+    if rhythm_role in {"breather_recovery", "reward_lift"} and not rewards:
+        rewards = ["line_h_gem"]
+    reward_required = bool(rewards) or rhythm_role in {"breather_recovery", "reward_lift"}
+    annoyance = dict(progression["annoyance_budget"])
+    if rhythm_role in {"breather_recovery", "new_mechanic_onboarding", "reward_lift"}:
+        annoyance["max_no_progress_turn_rate"] = min(float(annoyance.get("max_no_progress_turn_rate", 0.35)), 0.30)
+        annoyance["max_luck_dependency_proxy"] = min(float(annoyance.get("max_luck_dependency_proxy", 0.40)), 0.35)
+    elif rhythm_role == "pressure_step":
+        annoyance["max_no_progress_turn_rate"] = min(0.50, float(annoyance.get("max_no_progress_turn_rate", 0.40)) + 0.05)
+
+    forbid = ["color_order_goal", "second_primary_mechanism"]
+    if rhythm_role == "breather_recovery":
+        forbid.extend(["avoid_new_mechanic_escalation", "extra_dynamic_obstacle"])
+    elif rhythm_role == "new_mechanic_onboarding":
+        forbid.extend(["second_new_mechanic", "large_problem_space"])
+
+    return {
+        "level_coordinate": level,
+        "source": "player_context_director_v0",
+        "target_profile": target_profile if target_profile in PROFILE_MIXES else "balanced",
+        "profile_source": context.get("profile_source", "unknown"),
+        "variant": variant,
+        "rhythm_role": rhythm_role,
+        "rhythm_reason": rhythm_state.get("reason", ""),
+        "canonical_arc_role": progression["episode"]["arc_role"],
+        "primary_mechanic": str(primary.get("mechanic", "target_mark")),
+        "mechanic_lifecycle_phase": str(primary.get("phase", "practice")),
+        "target_pass_band": target_band,
+        "reward_budget": {
+            "required": reward_required,
+            "primitives": rewards,
+            "purpose": "context_safety_valve_or_sequence_reward" if reward_required else progression["reward_budget"].get("purpose", "keep_focus"),
+        },
+        "annoyance_budget": annoyance,
+        "board_scale": copy.deepcopy(intent["board_scale"]),
+        "objective_verb": intent["objective_verb"],
+        "negative_space": {"forbid": forbid},
+        "context_summary": {
+            "recent_win_rate": rhythm_state.get("recent_win_rate"),
+            "trailing_failures": rhythm_state.get("trailing_failures"),
+            "recent_avg_attempts": rhythm_state.get("recent_avg_attempts"),
+            "no_reward_streak": rhythm_state.get("no_reward_streak"),
+            "trouble_mechanisms": rhythm_state.get("trouble_mechanisms", {}),
+        },
+    }
+
+
+def _all_overlay_cells(lvl: dict[str, Any]) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for entry in lvl.get("overlays", []) or []:
+        for r, c in overlay_cells(entry):
+            cells.add((r, c))
+    return cells
+
+
+def _best_reward_cell(lvl: dict[str, Any]) -> list[int]:
+    rows = board_rows(lvl, Diagnostics())
+    occupied = _all_overlay_cells(lvl)
+    h = len(rows)
+    w = len(rows[0]) if h else 0
+    candidates: list[tuple[int, int, int]] = []
+    center_r = h // 2
+    center_c = w // 2
+    for r, row in enumerate(rows):
+        for c, ch in enumerate(row):
+            if ch == "." or (r, c) in occupied:
+                continue
+            candidates.append((abs(r - center_r) + abs(c - center_c), r, c))
+    if not candidates:
+        return [0, 0]
+    _, r, c = sorted(candidates)[0]
+    return [r, c]
+
+
+def refresh_mechanism_specs_for_lvl(lvl: dict[str, Any]) -> None:
+    level = int(lvl.get("meta", {}).get("level_coordinate", 0) or 0)
+    coord = LEVEL_COORDINATES.get(level, {"role": lvl.get("meta", {}).get("role", "variation"), "eye": lvl.get("recipe", {}).get("eye", "unknown")})
+    specs: dict[str, dict[str, Any]] = {}
+    for atom in sorted(mechanism_atoms_for_lvl(lvl)):
+        if atom not in BASE_MECHANISM_SPECS:
+            continue
+        spec = copy.deepcopy(BASE_MECHANISM_SPECS[atom])
+        spec["level_role"] = coord.get("role", "variation")
+        spec["linked_eye"] = coord.get("eye", "unknown")
+        specs[atom] = spec
+    lvl["mechanism_specs"] = specs
+
+
+def apply_next_level_brief(lvl: dict[str, Any], context: dict[str, Any], rhythm_state: dict[str, Any], brief: dict[str, Any]) -> dict[str, Any]:
+    out = copy.deepcopy(lvl)
+    band = list(brief["target_pass_band"])
+    out.setdefault("meta", {})["target_pass_band"] = band
+    out["meta"]["generated_by"] = "tools/level_tool.py generate-next"
+    out["meta"]["context_rhythm_role"] = brief["rhythm_role"]
+    out.setdefault("personalization", {})["context_profile"] = brief["target_profile"]
+    out["personalization"]["profile_source"] = brief.get("profile_source", "unknown")
+    out["personalization"]["persona_axes"] = copy.deepcopy(context.get("persona_axes", out["personalization"].get("persona_axes", {})))
+    out["personalization"]["target_pass_band"] = band
+    out["personalization"]["player_context_id"] = context.get("player_id", "anonymous")
+    out["personalization"]["context_window_size"] = len(context.get("recent_levels", []))
+    progression = out.setdefault("progression", {})
+    progression.setdefault("difficulty_rhythm", {})["target_pass_band"] = band
+    progression["difficulty_rhythm"]["context_shape"] = brief["rhythm_role"]
+    progression["annoyance_budget"] = copy.deepcopy(brief["annoyance_budget"])
+    progression["reward_budget"] = {
+        "required": bool(brief["reward_budget"]["required"]),
+        "primitives": list(brief["reward_budget"]["primitives"]),
+        "delivery": "preseeded_fx_overlay" if brief["reward_budget"]["primitives"] else "natural_cascade_only",
+        "purpose": brief["reward_budget"].get("purpose", "context_directed_reward"),
+    }
+    existing_rewards = reward_layer_set(out)
+    for primitive in brief["reward_budget"]["primitives"]:
+        if primitive not in existing_rewards and primitive in REWARD_LAYER_TO_FX:
+            out.setdefault("overlays", []).append(overlay("context_reward_safety_valve", [_best_reward_cell(out)], [primitive]))
+            existing_rewards.add(primitive)
+    out["player_context_director"] = {
+        "context_summary": brief["context_summary"],
+        "rhythm_state": copy.deepcopy(rhythm_state),
+        "brief": copy.deepcopy(brief),
+        "assignment_policy": "same_coordinate_if_unwon_else_next_coordinate; behavior_axes_override_cold_start_prior",
+    }
+    refresh_mechanism_specs_for_lvl(out)
+    return out
+
+
 def candidate_score(sim: dict[str, Any], band: tuple[float, float]) -> float:
     if not sim.get("valid"):
         return -999.0
@@ -4048,6 +4437,89 @@ def generate_select(level: int, variant: str, profile: str, candidates: int, run
     }
 
 
+def generate_next(raw_context: dict[str, Any], candidates: int = 10, runs: int = 20) -> dict[str, Any]:
+    context = normalize_player_context(raw_context)
+    rhythm_state = derive_rhythm_state(context)
+    try:
+        brief = build_next_level_brief(context, rhythm_state)
+    except ValueError as exc:
+        return {
+            "valid": False,
+            "verdict": "no_coordinate",
+            "error": str(exc),
+            "context": context,
+            "rhythm_state": rhythm_state,
+        }
+
+    attempts: list[dict[str, Any]] = []
+    selected: dict[str, Any] | None = None
+    selected_sim: dict[str, Any] | None = None
+    selected_score = -9999.0
+    band = (float(brief["target_pass_band"][0]), float(brief["target_pass_band"][1]))
+    profile = str(brief["target_profile"]) if str(brief["target_profile"]) in PROFILE_MIXES else "balanced"
+    for idx in range(max(1, candidates)):
+        lvl = generate_level(int(brief["level_coordinate"]), str(brief["variant"]), candidate=idx)
+        lvl = apply_next_level_brief(lvl, context, rhythm_state, brief)
+        validation = validate_lvl(lvl)
+        if validation.get("verdict") == "approved":
+            sim = simulate_lvl(lvl, runs=runs, profile=profile)
+            score = candidate_score(sim, band)
+            pass_rate = float(sim.get("aggregate_pass_rate_at_1", 0.0)) if sim.get("valid") else 0.0
+            if not sim.get("valid"):
+                solve_pass = False
+                regenerate_reason = "solver_invalid"
+            elif pass_rate < band[0]:
+                solve_pass = False
+                regenerate_reason = "solver_below_context_band"
+            elif pass_rate > band[1]:
+                solve_pass = False
+                regenerate_reason = "solver_above_context_band"
+            else:
+                solve_pass = True
+                regenerate_reason = None
+        else:
+            sim = {"valid": False, "error": "validation failed"}
+            score = -9999.0
+            pass_rate = 0.0
+            solve_pass = False
+            regenerate_reason = str(validation.get("verdict", "validation_failed"))
+        attempts.append({
+            "candidate": idx,
+            "level_id": lvl["id"],
+            "seed": lvl["rules"]["seed"],
+            "validation_verdict": validation.get("verdict"),
+            "context_rhythm_role": brief["rhythm_role"],
+            "target_pass_band": list(band),
+            "profile": profile,
+            "pass_rate": round(pass_rate, 3),
+            "annoyance_score": sim.get("aggregate_annoyance_score") if sim.get("valid") else None,
+            "solve_pass": bool(solve_pass),
+            "score": round(score, 3),
+            "regenerate_reason": regenerate_reason,
+        })
+        if solve_pass and score > selected_score:
+            selected = lvl
+            selected_sim = sim
+            selected_score = score
+
+    return {
+        "valid": selected is not None,
+        "verdict": "selected" if selected else "regenerate_failed",
+        "context": {
+            "player_id": context["player_id"],
+            "next_level_coordinate": context["next_level_coordinate"],
+            "target_profile": context["target_profile"],
+            "profile_source": context["profile_source"],
+        },
+        "rhythm_state": rhythm_state,
+        "brief": brief,
+        "selected": selected,
+        "selected_sim": selected_sim,
+        "selected_score": round(selected_score, 3) if selected else None,
+        "attempts": attempts,
+    }
+
+
 def ascii_view(lvl: dict[str, Any]) -> str:
     rows = board_rows(lvl, Diagnostics())
     lines = [f"id: {lvl.get('id')}", f"objective: {normalize_objectives(lvl)}", "board:"]
@@ -4094,6 +4566,12 @@ def main(argv: list[str]) -> int:
     sel.add_argument("--runs", type=int, default=20)
     sel.add_argument("--output", type=Path, required=True, help="selected .lvl output path")
     sel.add_argument("--report", type=Path, help="selection report JSON path")
+    nxt = sub.add_parser("generate-next")
+    nxt.add_argument("--context", type=Path, required=True, help="player context JSON path")
+    nxt.add_argument("--candidates", type=int, default=10)
+    nxt.add_argument("--runs", type=int, default=20)
+    nxt.add_argument("--output", type=Path, required=True, help="selected personalized .lvl output path")
+    nxt.add_argument("--report", type=Path, help="selection report JSON path")
     args = parser.parse_args(argv)
 
     if args.cmd == "generate":
@@ -4118,6 +4596,28 @@ def main(argv: list[str]) -> int:
 
     if args.cmd == "generate-select":
         result = generate_select(args.level, args.variant, args.profile, args.candidates, args.runs)
+        selected = result.pop("selected")
+        if selected is None:
+            if args.report:
+                emit_json(result, args.report)
+            else:
+                emit_json(result, None)
+            return 1
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(selected, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        if args.report:
+            emit_json(result, args.report)
+        else:
+            emit_json(result, None)
+        return 0
+
+    if args.cmd == "generate-next":
+        try:
+            raw_context = json.loads(args.context.read_text(encoding="utf-8"))
+            result = generate_next(raw_context, args.candidates, args.runs)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            emit_json({"valid": False, "verdict": "context_invalid", "error": str(exc)}, args.report)
+            return 1
         selected = result.pop("selected")
         if selected is None:
             if args.report:

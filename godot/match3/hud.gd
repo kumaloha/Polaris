@@ -354,10 +354,18 @@ func _objectives_view() -> Array:
 			"CLEAR_JELLY":
 				if ResourceLoader.exists(JELLY_GOAL_ICON):
 					icon = JELLY_GOAL_ICON
+				else:
+					icon = ""
+				icon_texture = ObjectiveIcons.texture_for_mechanism("target_mark", int(TB_OBJ_ICON_MAX))
+				icon_asset_key = ObjectiveIcons.asset_key_for_mechanism("target_mark")
 				progress = board.jelly_cleared
 			"CLEAR_BLOCKER":
 				if ResourceLoader.exists(BARRIER_ICE_ICON):
 					icon = BARRIER_ICE_ICON
+				else:
+					icon = ""
+				icon_texture = ObjectiveIcons.texture_for_mechanism("crystal_shell", int(TB_OBJ_ICON_MAX))
+				icon_asset_key = ObjectiveIcons.asset_key_for_mechanism("crystal_shell")
 				progress = board.blocker_cleared
 			"CLEAR_CHOCO":
 				progress = board.choco_cleared

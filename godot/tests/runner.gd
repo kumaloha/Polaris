@@ -29,6 +29,7 @@ func _initialize() -> void:
 		preload("res://tests/test_popcorn.gd").new(),
 		preload("res://tests/test_cake.gd").new(),
 		preload("res://tests/test_mystery.gd").new(),
+		preload("res://tests/test_mechanism_icons.gd").new(),
 	]
 	# --only <子串>: 只跑脚本路径含该子串的 suite(调试用)。如:
 	#   godot --headless --path godot -s res://tests/runner.gd -- --only test_hud

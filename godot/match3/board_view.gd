@@ -22,6 +22,7 @@ const ClearVisuals := preload("res://match3/clear_visuals.gd")
 const LevelLayout := preload("res://match3/level_layout.gd")
 const LevelMotion := preload("res://match3/level_motion.gd")
 const OverlayRegistry := preload("res://match3/overlays/overlay_registry.gd")
+const ObjectiveIcons := preload("res://match3/objective_icons.gd")
 
 # ── 棋子/障碍渲染常量（迁自 level.gd 棋盘渲染簇）──
 const GEM_COLORS := {
@@ -109,6 +110,9 @@ const BARRIER_FILL := 1.26  # v0.02 冰块放大补偿(ob_ice实体仅占0.686, 
 const JELLY_MARKER_NAME := "JellyGoalSprite"
 const JELLY_FILL := 0.94
 const JELLY_TINT := Color(0.46, 0.82, 1.0, 0.26)
+const JELLY_ICON_MODULATE := Color(1.0, 1.0, 1.0, 0.84)
+const DROP_EXIT_MARKER_NAME := "DropExitSprite"
+const DROP_EXIT_FILL := 0.84
 const WALL_STONE_ICON := "res://assets/obstacles/ob_stone.png"
 const WALL_MARKER_NAME := "WallStoneSprite"
 const WALL_FILL := 0.90
@@ -148,6 +152,7 @@ var _gem_nodes: Array = []
 var _jelly_nodes: Array = []
 var _coat_nodes: Array = []
 var _wall_nodes: Array = []
+var _exit_nodes: Array = []
 var _overlay_nodes: Dictionary = {}   # 契约B: {[key,cell] -> OverlayBase}, board_view 持有
 
 # ── 选中态视觉(选中坐标/路由仍在 level; 这里只管视觉)──
@@ -353,6 +358,7 @@ func _render_board(opening_drop: bool = false) -> void:
 	_jelly_nodes = []
 	_coat_nodes = []
 	_wall_nodes = []
+	_exit_nodes = []
 	_clear_overlay_nodes()
 	_render_board_panel()
 	_gem_nodes = []
@@ -378,6 +384,7 @@ func _render_board(opening_drop: bool = false) -> void:
 				_apply_fx_overlay(gnode, board.fx[r][c])
 			node_row.append(gnode)
 		_gem_nodes.append(node_row)
+	_render_drop_exit_visuals()
 	_render_jelly_visuals()
 	if opening_drop:
 		_wall_nodes = _blank_visual_rows()
@@ -642,20 +649,68 @@ func _render_jelly_visuals() -> void:
 			row.append(_make_jelly_marker(r, c))
 		_jelly_nodes.append(row)
 
-func _make_jelly_marker(row: int, col: int) -> ColorRect:
+func _make_jelly_marker(row: int, col: int) -> Sprite2D:
 	if _layer_value(board.jelly, row, col) <= 0 or board.grid[row][col] == ME.WALL:
 		return null
-	var marker := ColorRect.new()
+	var tex := ObjectiveIcons.texture_for_mechanism("target_mark", maxi(52, int(cell_size * JELLY_FILL)))
+	if tex == null:
+		return null
+	var marker := Sprite2D.new()
 	marker.name = JELLY_MARKER_NAME
 	marker.add_to_group(JELLY_MARKER_NAME)
-	var size := Vector2(cell_size * JELLY_FILL, cell_size * JELLY_FILL)
-	marker.position = _cell_center(row, col) - size * 0.5
-	marker.size = size
-	marker.color = JELLY_TINT
-	marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	marker.texture = tex
+	marker.position = _cell_center(row, col)
+	marker.scale = _fit_scale(tex, cell_size * JELLY_FILL)
+	marker.modulate = JELLY_ICON_MODULATE
 	marker.z_index = 1
 	_board_layer().add_child(marker)
 	return marker
+
+func _render_drop_exit_visuals() -> void:
+	_exit_nodes = []
+	if board == null or _board_layer() == null:
+		return
+	if not _should_render_drop_exits():
+		return
+	var tex := ObjectiveIcons.texture_for_mechanism("drop_exit", maxi(52, int(cell_size * DROP_EXIT_FILL)))
+	if tex == null:
+		return
+	var exit_set := {}
+	for cx in board.exit_cols:
+		exit_set[int(cx)] = true
+	for r in range(board.height):
+		var row: Array = []
+		for c in range(board.width):
+			var marker: Sprite2D = null
+			if r == board.height - 1 and exit_set.has(c) and board.grid[r][c] != ME.WALL:
+				marker = Sprite2D.new()
+				marker.name = DROP_EXIT_MARKER_NAME
+				marker.add_to_group(DROP_EXIT_MARKER_NAME)
+				marker.texture = tex
+				marker.position = _cell_center(r, c) + Vector2(0.0, cell_size * 0.12)
+				marker.scale = _fit_scale(tex, cell_size * DROP_EXIT_FILL)
+				marker.z_index = 2
+				_board_layer().add_child(marker)
+			row.append(marker)
+		_exit_nodes.append(row)
+
+func _should_render_drop_exits() -> bool:
+	if board == null or board.exit_cols.is_empty():
+		return false
+	for o in board.objectives:
+		if String(o.get("type", "")) == "COLLECT_INGREDIENT":
+			return true
+	for row in board.ing:
+		if row is Array:
+			for value in row:
+				if int(value) > 0:
+					return true
+	if board.exit_cols.size() != board.width:
+		return true
+	for x in range(board.width):
+		if not board.exit_cols.has(x):
+			return true
+	return false
 
 func _render_wall_visuals() -> void:
 	_wall_nodes = []
@@ -684,9 +739,9 @@ func _make_wall_marker(row: int, col: int, tex: Texture2D) -> Sprite2D:
 
 func _render_coat_visuals() -> void:
 	_coat_nodes = []
-	if board == null or _gem_layer() == null or not ResourceLoader.exists(BARRIER_ICE_ICON):
+	if board == null or _gem_layer() == null:
 		return
-	var tex: Texture2D = load(BARRIER_ICE_ICON)
+	var tex: Texture2D = load(BARRIER_ICE_ICON) if ResourceLoader.exists(BARRIER_ICE_ICON) else ObjectiveIcons.texture_for_mechanism("crystal_shell", maxi(52, int(cell_size * BARRIER_FILL)))
 	for r in range(board.height):
 		var row: Array = []
 		for c in range(board.width):
@@ -695,9 +750,9 @@ func _render_coat_visuals() -> void:
 
 func _render_opening_coat_visuals() -> void:
 	_coat_nodes = []
-	if board == null or _gem_layer() == null or not ResourceLoader.exists(BARRIER_ICE_ICON):
+	if board == null or _gem_layer() == null:
 		return
-	var tex: Texture2D = load(BARRIER_ICE_ICON)
+	var tex: Texture2D = load(BARRIER_ICE_ICON) if ResourceLoader.exists(BARRIER_ICE_ICON) else ObjectiveIcons.texture_for_mechanism("crystal_shell", maxi(52, int(cell_size * BARRIER_FILL)))
 	for r in range(board.height):
 		var row: Array = []
 		for c in range(board.width):

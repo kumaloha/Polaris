@@ -551,6 +551,30 @@ required_design_claims:
 
 ---
 
+#### 4.3.1 玩家上下文导演补充
+
+`Personalized Level Brief` 的线上来源不应长期停留在 cold-start persona。完整闭环见 [`level-design-player-context-director.md`](level-design-player-context-director.md)：
+
+```text
+PlayerContext
+  → RhythmState(tutorial/practice/variation/pressure/breather/finale)
+  → NextLevelBrief
+  → generate N candidates
+  → validate
+  → simulate(persona mix + context profile)
+  → select
+  → record assigned instance
+```
+
+执行边界：
+
+- `level_coordinate` 是学习/运营坐标，不等于所有玩家同一棋盘。
+- `PlayerContext` 记录已玩关卡、attempts、pass/fail、剩余步、失败原因、机制触发率、最近 N 关节奏和画像轴。
+- `RhythmState` 负责避免连续新机制、连续卡关、连续无爽点。
+- `NextLevelBrief` 必须输出主角机制、机制 lifecycle phase、目标通过率区间、奖励预算、烦躁预算、棋盘大小和禁令。
+- `generate-select` 是当前最小候选闭环；后续需要读取 `NextLevelBrief` 并写入 assigned instance。
+- 玩家真实行为证据覆盖 `female_prior` / `male_prior` / `unknown` 冷启动先验；冷启动只决定第一批猜测权重。
+
 ### 4.4 Recipe：出题配方
 
 Recipe 是生成器真正消费的核心对象。它不是棋盘，而是“本关机制应该如何落到棋盘上”的约束集合。先写障碍/奖励机关，再写地形，因为地形服务机制。
