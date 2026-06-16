@@ -1,0 +1,352 @@
+{
+  "pack_id": "first_10_base_playtest_v1",
+  "source": "tools/level_tool.py programmatic_design_language",
+  "variant": "base",
+  "profile": "balanced",
+  "selection": {
+    "baseline_candidates_per_level": 6,
+    "baseline_runs_per_candidate": 6,
+    "exceptions": [
+      {
+        "level_coordinate": 8,
+        "candidates_per_level": 9,
+        "runs_per_candidate": 20,
+        "reason": "20-run verification of first selected candidate landed just below target band"
+      }
+    ]
+  },
+  "verification": {
+    "runs_per_selected_level": 20
+  },
+  "levels": [
+    {
+      "level_coordinate": 1,
+      "source_lvl": "levels_src/selected/level_001_base_selected.lvl",
+      "compiled_json": "out/levels/level_001_base.json",
+      "selected_candidate_id": "level_001_base_c01",
+      "role": "teaching",
+      "theme": "forest_ruins",
+      "eye": "cleanse_direct",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 15,
+      "colors": 4,
+      "target_pass_band": [
+        0.92,
+        1.0
+      ],
+      "candidate_pass_count": 4,
+      "selection_score": 102.06,
+      "selection_pass_rate": 0.992,
+      "verification_pass_rate": 0.993,
+      "verification_annoyance_score": 0.04,
+      "mechanisms": [
+        "target_mark"
+      ],
+      "progression_arc_role": "goal_reveal"
+    },
+    {
+      "level_coordinate": 2,
+      "source_lvl": "levels_src/selected/level_002_base_selected.lvl",
+      "compiled_json": "out/levels/level_002_base.json",
+      "selected_candidate_id": "level_002_base_c02",
+      "role": "variation",
+      "theme": "forest_ruins",
+      "eye": "cleanse_edge",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 20,
+      "colors": 4,
+      "target_pass_band": [
+        0.78,
+        0.92
+      ],
+      "candidate_pass_count": 1,
+      "selection_score": 101.788,
+      "selection_pass_rate": 0.792,
+      "verification_pass_rate": 0.792,
+      "verification_annoyance_score": 0.188,
+      "mechanisms": [
+        "line_h_gem",
+        "target_mark"
+      ],
+      "progression_arc_role": "reward_tool_intro"
+    },
+    {
+      "level_coordinate": 3,
+      "source_lvl": "levels_src/selected/level_003_base_selected.lvl",
+      "compiled_json": "out/levels/level_003_base.json",
+      "selected_candidate_id": "level_003_base_c00",
+      "role": "teaching_breather",
+      "theme": "crystal_workshop",
+      "eye": "cleanse_trail",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 18,
+      "colors": 4,
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "candidate_pass_count": 6,
+      "selection_score": 102.908,
+      "selection_pass_rate": 1.0,
+      "verification_pass_rate": 1.0,
+      "verification_annoyance_score": 0.048,
+      "mechanisms": [
+        "target_mark"
+      ],
+      "progression_arc_role": "spatial_reading"
+    },
+    {
+      "level_coordinate": 4,
+      "source_lvl": "levels_src/selected/level_004_base_selected.lvl",
+      "compiled_json": "out/levels/level_004_base.json",
+      "selected_candidate_id": "level_004_base_c00",
+      "role": "variation",
+      "theme": "hourglass_ruins",
+      "eye": "cleanse_expedition_weak",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        9,
+        9
+      ],
+      "moves": 36,
+      "colors": 5,
+      "target_pass_band": [
+        0.68,
+        0.85
+      ],
+      "candidate_pass_count": 2,
+      "selection_score": 101.244,
+      "selection_pass_rate": 0.792,
+      "verification_pass_rate": 0.762,
+      "verification_annoyance_score": 0.277,
+      "mechanisms": [
+        "target_mark"
+      ],
+      "progression_arc_role": "terrain_first_pressure"
+    },
+    {
+      "level_coordinate": 5,
+      "source_lvl": "levels_src/selected/level_005_base_selected.lvl",
+      "compiled_json": "out/levels/level_005_base.json",
+      "selected_candidate_id": "level_005_base_c03",
+      "role": "teaching",
+      "theme": "crystal_workshop",
+      "eye": "crystal_shell_gate_practice",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 19,
+      "colors": 4,
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "candidate_pass_count": 4,
+      "selection_score": 108.056,
+      "selection_pass_rate": 0.983,
+      "verification_pass_rate": 0.96,
+      "verification_annoyance_score": 0.129,
+      "mechanisms": [
+        "crystal_shell",
+        "line_v_gem",
+        "target_mark"
+      ],
+      "progression_arc_role": "blocker_reveal_with_tool"
+    },
+    {
+      "level_coordinate": 6,
+      "source_lvl": "levels_src/selected/level_006_base_selected.lvl",
+      "compiled_json": "out/levels/level_006_base.json",
+      "selected_candidate_id": "level_006_base_c05",
+      "role": "breather",
+      "theme": "forest_ruins",
+      "eye": "shell_cleanup_breather",
+      "objective": {
+        "type": "clear_shells",
+        "target": "all"
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 15,
+      "colors": 6,
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "candidate_pass_count": 6,
+      "selection_score": 105.927,
+      "selection_pass_rate": 0.95,
+      "verification_pass_rate": 0.96,
+      "verification_annoyance_score": 0.078,
+      "mechanisms": [
+        "crystal_shell"
+      ],
+      "progression_arc_role": "post_blocker_breather"
+    },
+    {
+      "level_coordinate": 7,
+      "source_lvl": "levels_src/selected/level_007_base_selected.lvl",
+      "compiled_json": "out/levels/level_007_base.json",
+      "selected_candidate_id": "level_007_base_c03",
+      "role": "variation",
+      "theme": "hourglass_ruins",
+      "eye": "split_supply_duet",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        9,
+        9
+      ],
+      "moves": 17,
+      "colors": 5,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "candidate_pass_count": 3,
+      "selection_score": 100.644,
+      "selection_pass_rate": 0.817,
+      "verification_pass_rate": 0.793,
+      "verification_annoyance_score": 0.194,
+      "mechanisms": [
+        "target_mark"
+      ],
+      "progression_arc_role": "supply_topology_variation"
+    },
+    {
+      "level_coordinate": 8,
+      "source_lvl": "levels_src/selected/level_008_base_selected.lvl",
+      "compiled_json": "out/levels/level_008_base.json",
+      "selected_candidate_id": "level_008_base_c08",
+      "role": "variation",
+      "theme": "crystal_mine",
+      "eye": "cleanse_siege",
+      "objective": {
+        "type": "cleanse_marks",
+        "target": "all"
+      },
+      "board_size": [
+        9,
+        9
+      ],
+      "moves": 14,
+      "colors": 6,
+      "target_pass_band": [
+        0.65,
+        0.85
+      ],
+      "candidate_pass_count": 6,
+      "selection_score": 107.688,
+      "selection_pass_rate": 0.74,
+      "verification_pass_rate": 0.74,
+      "verification_annoyance_score": 0.149,
+      "mechanisms": [
+        "crystal_shell",
+        "target_mark"
+      ],
+      "progression_arc_role": "blocker_pressure_variation"
+    },
+    {
+      "level_coordinate": 9,
+      "source_lvl": "levels_src/selected/level_009_base_selected.lvl",
+      "compiled_json": "out/levels/level_009_base.json",
+      "selected_candidate_id": "level_009_base_c01",
+      "role": "teaching",
+      "theme": "forest_ruins",
+      "eye": "drop_direct",
+      "objective": {
+        "type": "drop_relic",
+        "target": 1
+      },
+      "board_size": [
+        7,
+        7
+      ],
+      "moves": 23,
+      "colors": 4,
+      "target_pass_band": [
+        0.92,
+        1.0
+      ],
+      "candidate_pass_count": 3,
+      "selection_score": 101.644,
+      "selection_pass_rate": 0.967,
+      "verification_pass_rate": 0.923,
+      "verification_annoyance_score": 0.294,
+      "mechanisms": [
+        "drop_exit",
+        "drop_relic"
+      ],
+      "progression_arc_role": "transport_reveal"
+    },
+    {
+      "level_coordinate": 10,
+      "source_lvl": "levels_src/selected/level_010_base_selected.lvl",
+      "compiled_json": "out/levels/level_010_base.json",
+      "selected_candidate_id": "level_010_base_c00",
+      "role": "pressure",
+      "theme": "crystal_workshop",
+      "eye": "drop_bottleneck",
+      "objective": {
+        "type": "drop_relic",
+        "target": 1
+      },
+      "board_size": [
+        9,
+        9
+      ],
+      "moves": 58,
+      "colors": 5,
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "candidate_pass_count": 2,
+      "selection_score": 105.184,
+      "selection_pass_rate": 0.642,
+      "verification_pass_rate": 0.595,
+      "verification_annoyance_score": 0.414,
+      "mechanisms": [
+        "burst_gem",
+        "crystal_shell",
+        "drop_exit",
+        "drop_relic",
+        "line_v_gem"
+      ],
+      "progression_arc_role": "episode_finale_mix"
+    }
+  ]
+}

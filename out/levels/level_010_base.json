@@ -1,5 +1,5 @@
 {
-  "level_id": "level_010_base",
+  "level_id": "level_010_base_c00",
   "w": 9,
   "h": 9,
   "species": [
@@ -1133,5 +1133,17 @@
       0
     ]
   ],
-  "difficulty": "MEDIUM"
+  "difficulty": "MEDIUM",
+  "meta": {
+    "level_coordinate": 10,
+    "source_lvl": "levels_src/selected/level_010_base_selected.lvl",
+    "selected_candidate_id": "level_010_base_c00",
+    "design_eye": "drop_bottleneck",
+    "intent": null,
+    "role": "pressure",
+    "target_pass_band": [
+      0.55,
+      0.75
+    ]
+  }
 }

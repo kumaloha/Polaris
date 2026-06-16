@@ -1,0 +1,456 @@
+{
+  "id": "level_009_base_c01",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 9,
+    "variant": "base",
+    "role": "teaching",
+    "complexity_tier": 1,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 1,
+    "candidate_tuning": {
+      "moves_delta": -1,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "drop_relic",
+    "target": 1
+  },
+  "rules": {
+    "moves": 23,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 2150
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "drop_direct",
+    "obstacle_lane": {
+      "focus": "none",
+      "stage": "teaching",
+      "active": [
+        "drop_exit",
+        "drop_relic"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "clear_below_relic"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "lost_cub_start",
+      "cells": [
+        [
+          1,
+          3
+        ]
+      ],
+      "layers": [
+        "drop_relic"
+      ]
+    },
+    {
+      "region": "nest_exit",
+      "cells": [
+        [
+          6,
+          3
+        ]
+      ],
+      "layers": [
+        "drop_exit"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "drop_exit": {
+      "mechanic_id": "drop_exit",
+      "category": "routing",
+      "state_dynamics": "static",
+      "player_action": "route_actor_to_exit_column",
+      "board_effect": "collects_actor_when_it_reaches_bottom_exit",
+      "reward_effect": "transport_objective_completion",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "paired_with_actor_reveal",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_relic",
+          "crystal_shell"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "exit_columns",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "exits"
+      },
+      "level_role": "teaching",
+      "linked_eye": "drop_direct"
+    },
+    "drop_relic": {
+      "mechanic_id": "drop_relic",
+      "category": "actor",
+      "state_dynamics": "actor_moving",
+      "player_action": "clear_below_actor_to_move_down",
+      "board_effect": "actor_travels_toward_exit_after_supported_clears",
+      "reward_effect": "rescue_completion_feedback",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_exit",
+          "crystal_shell",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "ingredient_actor",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "ingredient"
+      },
+      "level_role": "teaching",
+      "linked_eye": "drop_direct"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "transport",
+    "skill_lesson": {
+      "skill": "clear_below_actor_to_move_down",
+      "proof_signal": "lost_cub_moves_down_at_least_three_rows"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "new_transport_mechanic_reveal_small_problem_space"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "drop_direct"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 9,
+      "arc_role": "transport_reveal"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "drop_relic",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.02,
+      "max_dead_board_rate": 0.02,
+      "max_no_progress_turn_rate": 0.28,
+      "max_luck_dependency_proxy": 0.32
+    },
+    "difficulty_rhythm": {
+      "shape": "tutorial_floor",
+      "target_pass_band": [
+        0.92,
+        1.0
+      ],
+      "role": "teaching"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_lost_cub_column_drop",
+    "archetype": "lane",
+    "primary_blocker": "none",
+    "focus_area": "center_lane",
+    "action_vector": "transport_down",
+    "read_order": [
+      "actor",
+      "lane",
+      "exit"
+    ],
+    "negative_space": {
+      "kind": "lane_play_area",
+      "min_ratio": 0.7
+    },
+    "density": "none",
+    "delete_test": "removing_cub_and_exit_removes_transport_lesson",
+    "theme_shape": "cub_path_to_nest",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching",
+    "linked_eye": "drop_direct",
+    "visual_grammar": {
+      "focal_alignment": "vertical_lane",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.02,
+        0.2
+      ],
+      "silhouette": "cub_path_to_nest",
+      "anchor_layers": [
+        "drop_relic"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_009",
+    "thesis": {
+      "key": "clear_path_rescues_lost_cub",
+      "sentence": "清开脚下道路，就是护送迷路幼兽回家。"
+    },
+    "fantasy": "清开脚下道路，把迷路幼兽送回底部巢门。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "drop_relic",
+        "as": "lost_cub"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "arrival",
+          "as": "cub_reaches_nest"
+        }
+      ]
+    },
+    "stage": {
+      "function": "rescue_route",
+      "shape": "open_9x9_vertical_axis",
+      "dramatic_axis": "top_to_bottom_rescue",
+      "focus": "lost_cub_start_to_nest_exit",
+      "friction_zone": "cells_below_cub",
+      "payoff_zone": "bottom_nest",
+      "operation_space": "around_cub_column",
+      "supply_logic": "actor_falls_with_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "lost_cub_reaches_nest",
+      "player_readable_goal": "清掉幼兽脚下路线，让它落到底部巢门。"
+    },
+    "arc": {
+      "opening": "幼兽在上、巢门在下，同列关系清楚。",
+      "friction": "幼兽占格，玩家要清它下方而不是消它。",
+      "turn": "幼兽第一次下落一格，护送规则成立。",
+      "payoff": "幼兽落入巢门，目标立刻完成。"
+    },
+    "payoff": {
+      "signature": "幼兽沿直线掉进巢门，顶部目标同步完成。"
+    },
+    "negative_space": {
+      "statement": "不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "preserve": [
+        "straight_route_readability"
+      ]
+    },
+    "four_in_one": {
+      "play": "运输目标教学，只考清下方路径。",
+      "visual": "幼兽与巢门垂直对齐，像救援绳。",
+      "readability": "上幼兽、下巢门，一眼说明通关条件。",
+      "theme": "森林小兽迷路回家。"
+    },
+    "solution": {
+      "intended_solution": [
+        "看清幼兽所在列和巢门",
+        "优先清幼兽下方路径",
+        "让幼兽落到底部巢门"
+      ],
+      "crack_path": [
+        "read_lost_cub_and_exit",
+        "access_drop_path",
+        "clear_below_cub",
+        "payoff_cub_falls",
+        "finish_drop_objective"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "清开脚下道路，就是护送迷路幼兽回家。",
+    "visual_focus": "lost_cub_start_to_nest_exit",
+    "intended_solution": [
+      "看清幼兽所在列和巢门",
+      "优先清幼兽下方路径",
+      "让幼兽落到底部巢门"
+    ],
+    "crack_path": [
+      "read_lost_cub_and_exit",
+      "access_drop_path",
+      "clear_below_cub",
+      "payoff_cub_falls",
+      "finish_drop_objective"
+    ],
+    "climax": "幼兽沿直线掉进巢门，顶部目标同步完成。"
+  },
+  "director": {
+    "intent": "清开脚下道路，就是护送迷路幼兽回家。",
+    "player_fantasy": "清开脚下道路，把迷路幼兽送回底部巢门。",
+    "protagonist": "drop_relic",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "幼兽在上、巢门在下，同列关系清楚。",
+      "friction": "幼兽占格，玩家要清它下方而不是消它。",
+      "turn": "幼兽第一次下落一格，护送规则成立。",
+      "payoff": "幼兽落入巢门，目标立刻完成。"
+    },
+    "signature_moment": "幼兽沿直线掉进巢门，顶部目标同步完成。",
+    "negative_space": "不放晶壳和侧向路线，避免首见运输目标被噪音淹没。",
+    "four_in_one": {
+      "play": "运输目标教学，只考清下方路径。",
+      "visual": "幼兽与巢门垂直对齐，像救援绳。",
+      "readability": "上幼兽、下巢门，一眼说明通关条件。",
+      "theme": "森林小兽迷路回家。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

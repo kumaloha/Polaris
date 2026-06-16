@@ -1,0 +1,244 @@
+{
+  "level_coordinate": 7,
+  "variant": "base",
+  "profile": "balanced",
+  "candidates_requested": 6,
+  "selected_sim": {
+    "level_id": "level_007_base_c03",
+    "valid": true,
+    "metric_mode": "stochastic",
+    "target_profile": "balanced",
+    "profile_mix": {
+      "visual_casual": 0.2,
+      "goal_focused": 0.2,
+      "bottom_cascade": 0.15,
+      "special_builder": 0.15,
+      "mechanism_aware": 0.15,
+      "frustrated_retry": 0.1,
+      "random_baseline": 0.05
+    },
+    "runs_per_persona": 6,
+    "personas": {
+      "visual_casual": {
+        "simulated_pass_rate_at_1": 0.833,
+        "avg_remaining_moves": 4.2,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 5.667,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.48,
+        "luck_dependency_proxy": 0.556,
+        "annoyance_score": 0.227,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.167
+        }
+      },
+      "goal_focused": {
+        "simulated_pass_rate_at_1": 1.0,
+        "avg_remaining_moves": 10.17,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 3.833,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.131,
+        "luck_dependency_proxy": 0.0,
+        "annoyance_score": 0.039,
+        "fail_reason_distribution": {}
+      },
+      "bottom_cascade": {
+        "simulated_pass_rate_at_1": 0.5,
+        "avg_remaining_moves": 4.0,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 7.444,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.573,
+        "luck_dependency_proxy": 1.0,
+        "annoyance_score": 0.322,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.5
+        }
+      },
+      "special_builder": {
+        "simulated_pass_rate_at_1": 1.0,
+        "avg_remaining_moves": 5.5,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 5.944,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.379,
+        "luck_dependency_proxy": 0.0,
+        "annoyance_score": 0.114,
+        "fail_reason_distribution": {}
+      },
+      "mechanism_aware": {
+        "simulated_pass_rate_at_1": 1.0,
+        "avg_remaining_moves": 9.67,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 3.722,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.15,
+        "luck_dependency_proxy": 0.0,
+        "annoyance_score": 0.045,
+        "fail_reason_distribution": {}
+      },
+      "frustrated_retry": {
+        "simulated_pass_rate_at_1": 0.667,
+        "avg_remaining_moves": 6.25,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 5.167,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.529,
+        "luck_dependency_proxy": 0.889,
+        "annoyance_score": 0.292,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.333
+        }
+      },
+      "random_baseline": {
+        "simulated_pass_rate_at_1": 0.167,
+        "avg_remaining_moves": 6.0,
+        "mechanism_activation_rate": 0.0,
+        "avg_cascade_score": 4.111,
+        "reshuffle_rate": 0.0,
+        "dead_board_rate": 0.0,
+        "no_progress_turn_rate": 0.611,
+        "luck_dependency_proxy": 0.556,
+        "annoyance_score": 0.266,
+        "fail_reason_distribution": {
+          "too_many_leftovers": 0.833
+        }
+      }
+    },
+    "aggregate_pass_rate_at_1": 0.817,
+    "aggregate_avg_remaining_moves": 6.67,
+    "aggregate_mechanism_activation_rate": 0.0,
+    "aggregate_cascade_score": 5.189,
+    "aggregate_reshuffle_rate": 0.0,
+    "aggregate_dead_board_rate": 0.0,
+    "aggregate_no_progress_turn_rate": 0.371,
+    "aggregate_luck_dependency_proxy": 0.378,
+    "aggregate_annoyance_score": 0.168,
+    "aggregate_fail_reason_distribution": {
+      "too_many_leftovers": 0.183
+    }
+  },
+  "selected_score": 100.644,
+  "target_pass_band": [
+    0.58,
+    0.82
+  ],
+  "attempts": [
+    {
+      "candidate": 0,
+      "level_id": "level_007_base_c00",
+      "seed": 1119,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.808,
+      "annoyance_score": 0.191,
+      "solve_pass": true,
+      "score": 100.548,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 1,
+      "level_id": "level_007_base_c01",
+      "seed": 2116,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.792,
+      "annoyance_score": 0.229,
+      "solve_pass": true,
+      "score": 100.412,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 2,
+      "level_id": "level_007_base_c02",
+      "seed": 3113,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.867,
+      "annoyance_score": 0.199,
+      "solve_pass": false,
+      "score": 98.332,
+      "regenerate_reason": "solver_above_band"
+    },
+    {
+      "candidate": 3,
+      "level_id": "level_007_base_c03",
+      "seed": 4110,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.817,
+      "annoyance_score": 0.168,
+      "solve_pass": true,
+      "score": 100.644,
+      "regenerate_reason": null
+    },
+    {
+      "candidate": 4,
+      "level_id": "level_007_base_c04",
+      "seed": 5107,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.258,
+      "annoyance_score": 0.348,
+      "solve_pass": false,
+      "score": -132.2,
+      "regenerate_reason": "solver_below_band"
+    },
+    {
+      "candidate": 5,
+      "level_id": "level_007_base_c05",
+      "seed": 6104,
+      "validation_verdict": "approved",
+      "semantic_score": 100,
+      "taste_score": 100,
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "profile": "balanced",
+      "pass_rate": 0.183,
+      "annoyance_score": 0.256,
+      "solve_pass": false,
+      "score": -139.7,
+      "regenerate_reason": "solver_below_band"
+    }
+  ],
+  "verdict": "selected"
+}

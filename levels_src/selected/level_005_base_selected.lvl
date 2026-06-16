@@ -1,0 +1,578 @@
+{
+  "id": "level_005_base_c03",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 5,
+    "variant": "base",
+    "role": "teaching",
+    "complexity_tier": 1,
+    "theme": "crystal_workshop",
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 3,
+    "candidate_tuning": {
+      "moves_delta": -3,
+      "target_multiplier": 1.1,
+      "shell_hp_delta": 1,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 19,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 4076
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "crystal_shell_gate_practice",
+    "obstacle_lane": {
+      "focus": "crystal_shell",
+      "stage": "teaching",
+      "active": [
+        "crystal_shell",
+        "target_mark"
+      ],
+      "forbidden": [
+        "creep_growth",
+        "spawner",
+        "timed_core",
+        "drop_relic"
+      ]
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "vertical_line_gem"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "downstream_marks",
+      "cells": [
+        [
+          5,
+          2
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          6,
+          2
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          6,
+          4
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "crystal_gate",
+      "cells": [
+        [
+          4,
+          2
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ]
+      ],
+      "layers": [
+        {
+          "crystal_shell": {
+            "hp": 2
+          }
+        }
+      ]
+    },
+    {
+      "region": "gate_line_reward",
+      "cells": [
+        [
+          3,
+          3
+        ]
+      ],
+      "layers": [
+        "line_v_gem"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "crystal_shell": {
+      "mechanic_id": "crystal_shell",
+      "category": "blocker",
+      "state_dynamics": "static",
+      "player_action": "clear_adjacent_or_hit_with_special",
+      "board_effect": "occupies_space_and_blocks_until_hp_zero",
+      "reward_effect": "opens_route_or_reveals_target_space",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 5,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "drop_relic",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "coat_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "coat"
+      },
+      "level_role": "teaching",
+      "linked_eye": "crystal_shell_gate_practice"
+    },
+    "line_v_gem": {
+      "mechanic_id": "line_v_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_vertical_line",
+      "reward_effect": "gate_or_route_sweep",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_line_v",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "teaching",
+      "linked_eye": "crystal_shell_gate_practice"
+    },
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "teaching",
+      "linked_eye": "crystal_shell_gate_practice"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_vertical_line_to_open_gate",
+      "proof_signal": "crystal_gate_damaged_before_downstream_targets_finish"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "new_blocker_reveal_small_problem_space"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "crystal_shell_gate_practice"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 5,
+      "arc_role": "blocker_reveal_with_tool"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "crystal_shell",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      },
+      {
+        "mechanic": "target_mark",
+        "phase": "known_goal_as_payoff",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "line_v_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.02,
+      "max_dead_board_rate": 0.02,
+      "max_no_progress_turn_rate": 0.28,
+      "max_luck_dependency_proxy": 0.32
+    },
+    "difficulty_rhythm": {
+      "shape": "new_mechanic_safe_test",
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "role": "teaching"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_vertical_line_opens_gate",
+    "archetype": "gate",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "center_column",
+    "action_vector": "vertical",
+    "read_order": [
+      "goal",
+      "blocker",
+      "solution"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.5
+    },
+    "density": "low",
+    "delete_test": "removing_crystal_gate_removes_level_thesis",
+    "theme_shape": "crystal_door",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching",
+    "linked_eye": "crystal_shell_gate_practice",
+    "visual_grammar": {
+      "focal_alignment": "center_column",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.03,
+        0.26
+      ],
+      "silhouette": "crystal_door",
+      "anchor_layers": [
+        "crystal_shell"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_005",
+    "thesis": {
+      "key": "open_gate_restores_flow",
+      "sentence": "打开晶壳门，水文才恢复。"
+    },
+    "fantasy": "敲开晶壳闸门，把魔法水流放进下游星尘池。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "crystal_shell",
+        "as": "gate"
+      },
+      "support": [
+        {
+          "mechanism": "target_mark",
+          "as": "downstream_payoff"
+        }
+      ],
+      "reward": [
+        {
+          "kind": "cascade",
+          "as": "released_flow"
+        }
+      ]
+    },
+    "stage": {
+      "function": "gate_release",
+      "shape": "bottleneck_gate",
+      "dramatic_axis": "top_to_bottom",
+      "focus": "crystal_gate",
+      "friction_zone": "center_gate",
+      "payoff_zone": "downstream_pool",
+      "operation_space": "upper_and_side_board",
+      "supply_logic": "gate_blocks_downstream_flow_but_not_full_row"
+    },
+    "objective": {
+      "world_state_change": "stardust_pool_cleansed_after_gate_opens",
+      "player_readable_goal": "先开门，再净化门后的星尘池。"
+    },
+    "arc": {
+      "opening": "中央晶壳门压住下游星尘池。",
+      "friction": "直接清下游效率低，必须先破门。",
+      "turn": "晶壳门破出缺口，补给穿过门洞。",
+      "payoff": "门后星尘被一波连锁净化。"
+    },
+    "payoff": {
+      "signature": "中央晶壳门裂开，宝石瀑布落入下游星尘池。"
+    },
+    "negative_space": {
+      "statement": "门外保留两侧操作空地，不堆第二种障碍。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "side_operation_space",
+        "readable_gate_path"
+      ]
+    },
+    "four_in_one": {
+      "play": "晶壳是主角，星尘是门后的收益。",
+      "visual": "晶壳门像横向闸坝压住下方目标区。",
+      "readability": "最硬最亮的门就是先处理点。",
+      "theme": "晶能工坊封印门被魔法敲开。"
+    },
+    "solution": {
+      "intended_solution": [
+        "在门附近制造消除",
+        "优先破中央晶壳",
+        "门开后让下游连锁净化星尘"
+      ],
+      "crack_path": [
+        "read_bottleneck_gate",
+        "access_gate_by_match_or_line",
+        "activate_gate_break",
+        "payoff_downstream_cascade",
+        "convert_to_target_mark_progress",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 2
+    }
+  },
+  "design_claim": {
+    "eye": "打开晶壳门，水文才恢复。",
+    "visual_focus": "crystal_gate",
+    "intended_solution": [
+      "在门附近制造消除",
+      "优先破中央晶壳",
+      "门开后让下游连锁净化星尘"
+    ],
+    "crack_path": [
+      "read_bottleneck_gate",
+      "access_gate_by_match_or_line",
+      "activate_gate_break",
+      "payoff_downstream_cascade",
+      "convert_to_target_mark_progress",
+      "finish_remaining_marks"
+    ],
+    "climax": "中央晶壳门裂开，宝石瀑布落入下游星尘池。"
+  },
+  "director": {
+    "intent": "打开晶壳门，水文才恢复。",
+    "player_fantasy": "敲开晶壳闸门，把魔法水流放进下游星尘池。",
+    "protagonist": "crystal_shell",
+    "supporting_roles": [
+      "target_mark"
+    ],
+    "emotional_arc": {
+      "opening": "中央晶壳门压住下游星尘池。",
+      "friction": "直接清下游效率低，必须先破门。",
+      "turn": "晶壳门破出缺口，补给穿过门洞。",
+      "payoff": "门后星尘被一波连锁净化。"
+    },
+    "signature_moment": "中央晶壳门裂开，宝石瀑布落入下游星尘池。",
+    "negative_space": "门外保留两侧操作空地，不堆第二种障碍。",
+    "four_in_one": {
+      "play": "晶壳是主角，星尘是门后的收益。",
+      "visual": "晶壳门像横向闸坝压住下方目标区。",
+      "readability": "最硬最亮的门就是先处理点。",
+      "theme": "晶能工坊封印门被魔法敲开。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 2,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

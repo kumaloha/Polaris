@@ -1,0 +1,417 @@
+{
+  "id": "level_001_base_c01",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 1,
+    "variant": "base",
+    "role": "teaching",
+    "complexity_tier": 0,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 1,
+    "candidate_tuning": {
+      "moves_delta": -1,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.92,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 15,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 2014
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_direct",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "teaching",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "direct_match"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "center_marks",
+      "cells": [
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          4
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "teaching",
+      "linked_eye": "cleanse_direct"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "match_on_target_cells",
+      "proof_signal": "target_mark_progress_after_local_match"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "first_target_reveal"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_direct"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 1,
+      "arc_role": "goal_reveal"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "reveal_safe",
+        "role": "primary",
+        "is_new": true
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.02,
+      "max_dead_board_rate": 0.02,
+      "max_no_progress_turn_rate": 0.28,
+      "max_luck_dependency_proxy": 0.32
+    },
+    "difficulty_rhythm": {
+      "shape": "tutorial_floor",
+      "target_pass_band": [
+        0.92,
+        1.0
+      ],
+      "role": "teaching"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_target_mark_clear",
+    "archetype": "no_blocker_focus",
+    "primary_blocker": "none",
+    "focus_area": "center_marks",
+    "action_vector": "local_match",
+    "read_order": [
+      "goal",
+      "solution"
+    ],
+    "negative_space": {
+      "kind": "whole_board_operation_space",
+      "min_ratio": 0.7
+    },
+    "density": "none",
+    "delete_test": "removing_target_marks_removes_level_thesis",
+    "theme_shape": "stardust_cluster",
+    "beauty_rules": [
+      "single_core_question",
+      "goal_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching",
+    "linked_eye": "cleanse_direct",
+    "visual_grammar": {
+      "focal_alignment": "center_cluster",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.02,
+        0.2
+      ],
+      "silhouette": "stardust_cluster",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_001",
+    "thesis": {
+      "key": "cleanse_first_stardust",
+      "sentence": "擦亮中央星尘，理解净化就是通关。"
+    },
+    "fantasy": "帮时兔点亮森林遗迹中央的第一枚星尘徽记。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "stardust_focus"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "small_cascade",
+          "as": "first_sparkle"
+        }
+      ]
+    },
+    "stage": {
+      "function": "open_practice",
+      "shape": "open_7x7_center",
+      "dramatic_axis": "center_focus",
+      "focus": "center_marks",
+      "friction_zone": "center_marks",
+      "payoff_zone": "center_marks",
+      "operation_space": "whole_board",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "center_stardust_cleansed",
+      "player_readable_goal": "在中央星尘上做消除，把它们全部净化。"
+    },
+    "arc": {
+      "opening": "中央星尘聚成小徽记，玩家一眼知道看哪里。",
+      "friction": "星尘不会自己消失，必须在目标格上形成消除。",
+      "turn": "第一组星尘被净化，玩家理解目标层规则。",
+      "payoff": "中央徽记被擦亮，棋盘给出第一口小爽感。"
+    },
+    "payoff": {
+      "signature": "中央星尘连续熄灭，像魔法书页被擦亮。"
+    },
+    "negative_space": {
+      "statement": "边缘不放任何次目标，所有注意力留给中央星尘。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "whole_board_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "只教目标印记，不引入障碍。",
+      "visual": "中心小花束构图，周围宝石做安静背景。",
+      "readability": "最亮的中央就是玩法优先级。",
+      "theme": "森林遗迹第一次被星尘点亮。"
+    },
+    "solution": {
+      "intended_solution": [
+        "在中央目标附近找三消",
+        "让消除覆盖星尘格",
+        "收掉剩余中央印记"
+      ],
+      "crack_path": [
+        "read_center_stardust",
+        "access_open_board",
+        "convert_matches_to_mark_progress",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "擦亮中央星尘，理解净化就是通关。",
+    "visual_focus": "center_marks",
+    "intended_solution": [
+      "在中央目标附近找三消",
+      "让消除覆盖星尘格",
+      "收掉剩余中央印记"
+    ],
+    "crack_path": [
+      "read_center_stardust",
+      "access_open_board",
+      "convert_matches_to_mark_progress",
+      "finish_remaining_marks"
+    ],
+    "climax": "中央星尘连续熄灭，像魔法书页被擦亮。"
+  },
+  "director": {
+    "intent": "擦亮中央星尘，理解净化就是通关。",
+    "player_fantasy": "帮时兔点亮森林遗迹中央的第一枚星尘徽记。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "中央星尘聚成小徽记，玩家一眼知道看哪里。",
+      "friction": "星尘不会自己消失，必须在目标格上形成消除。",
+      "turn": "第一组星尘被净化，玩家理解目标层规则。",
+      "payoff": "中央徽记被擦亮，棋盘给出第一口小爽感。"
+    },
+    "signature_moment": "中央星尘连续熄灭，像魔法书页被擦亮。",
+    "negative_space": "边缘不放任何次目标，所有注意力留给中央星尘。",
+    "four_in_one": {
+      "play": "只教目标印记，不引入障碍。",
+      "visual": "中心小花束构图，周围宝石做安静背景。",
+      "readability": "最亮的中央就是玩法优先级。",
+      "theme": "森林遗迹第一次被星尘点亮。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

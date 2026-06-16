@@ -1,5 +1,5 @@
 {
-  "level_id": "level_005_base",
+  "level_id": "level_005_base_c03",
   "w": 7,
   "h": 7,
   "species": [
@@ -10,28 +10,37 @@
   ],
   "init_board": [
     [
-      1,
-      2,
-      1,
       3,
       2,
+      2,
+      1,
+      1,
+      0,
+      2
+    ],
+    [
       3,
+      3,
+      0,
+      0,
+      1,
+      1,
       3
     ],
     [
       0,
-      3,
+      2,
       2,
       3,
-      3,
-      1,
-      1
+      0,
+      0,
+      2
     ],
     [
-      1,
+      3,
+      2,
       2,
       0,
-      2,
       3,
       0,
       0
@@ -41,41 +50,32 @@
       0,
       1,
       0,
-      2,
+      0,
       1,
       1
     ],
     [
+      1,
       0,
-      2,
-      2,
-      1,
       3,
-      1,
-      3
-    ],
-    [
-      1,
-      2,
-      2,
-      1,
-      2,
+      3,
+      0,
       0,
       3
     ],
     [
-      2,
-      0,
       0,
       3,
       3,
       1,
-      2
+      2,
+      0,
+      1
     ]
   ],
   "target_score": 0,
-  "move_limit": 22,
-  "seed": 1085,
+  "move_limit": 19,
+  "seed": 4076,
   "objectives": [
     {
       "type": "CLEAR_JELLY",
@@ -188,9 +188,9 @@
     [
       0,
       0,
-      1,
-      1,
-      1,
+      2,
+      2,
+      2,
       0,
       0
     ],
@@ -734,5 +734,17 @@
       0
     ]
   ],
-  "difficulty": "EASY"
+  "difficulty": "EASY",
+  "meta": {
+    "level_coordinate": 5,
+    "source_lvl": "levels_src/selected/level_005_base_selected.lvl",
+    "selected_candidate_id": "level_005_base_c03",
+    "design_eye": "crystal_shell_gate_practice",
+    "intent": null,
+    "role": "teaching",
+    "target_pass_band": [
+      0.9,
+      1.0
+    ]
+  }
 }

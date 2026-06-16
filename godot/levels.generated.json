@@ -1,7 +1,9 @@
 {
+  "pack_id": "first_10_base_playtest_v1",
+  "generated_at": "2026-06-17T00:00:00+09:00",
   "levels": [
     {
-      "level_id": "level_001_base",
+      "level_id": "level_001_base_c01",
       "w": 7,
       "h": 7,
       "species": [
@@ -14,50 +16,32 @@
         [
           0,
           2,
+          0,
           3,
           3,
-          0,
-          0,
+          2,
           1
         ],
         [
-          2,
-          0,
           3,
-          2,
-          1,
           0,
-          2
+          0,
+          2,
+          3,
+          1,
+          1
         ],
         [
           3,
-          1,
-          0,
-          0,
-          2,
-          1,
-          0
-        ],
-        [
           0,
           1,
-          0,
-          0,
           3,
+          2,
           1,
           3
         ],
         [
           2,
-          0,
-          1,
-          1,
-          0,
-          2,
-          2
-        ],
-        [
-          3,
           2,
           1,
           2,
@@ -66,18 +50,36 @@
           3
         ],
         [
-          3,
-          1,
-          3,
-          3,
           1,
           0,
+          0,
+          3,
+          0,
+          1,
           2
+        ],
+        [
+          2,
+          2,
+          3,
+          1,
+          2,
+          3,
+          2
+        ],
+        [
+          0,
+          1,
+          2,
+          0,
+          3,
+          0,
+          3
         ]
       ],
       "target_score": 0,
-      "move_limit": 16,
-      "seed": 1017,
+      "move_limit": 15,
+      "seed": 2014,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -736,10 +738,22 @@
           0
         ]
       ],
-      "difficulty": "EASY"
+      "difficulty": "EASY",
+      "meta": {
+        "level_coordinate": 1,
+        "source_lvl": "levels_src/selected/level_001_base_selected.lvl",
+        "selected_candidate_id": "level_001_base_c01",
+        "design_eye": "cleanse_direct",
+        "intent": null,
+        "role": "teaching",
+        "target_pass_band": [
+          0.92,
+          1.0
+        ]
+      }
     },
     {
-      "level_id": "level_002_base",
+      "level_id": "level_002_base_c02",
       "w": 7,
       "h": 7,
       "species": [
@@ -750,72 +764,72 @@
       ],
       "init_board": [
         [
-          1,
           2,
-          2,
+          0,
+          0,
           3,
-          1,
+          2,
           3,
           0
         ],
         [
-          3,
+          2,
           3,
           0,
+          3,
+          3,
           2,
-          2,
+          1
+        ],
+        [
           1,
-          3
+          0,
+          2,
+          0,
+          2,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          2,
+          0,
+          3,
+          2,
+          0
         ],
         [
           0,
-          0,
           2,
           3,
+          1,
           1,
           3,
           1
         ],
         [
-          2,
-          2,
           1,
-          0,
           1,
-          3,
-          1
-        ],
-        [
           2,
           2,
           0,
           3,
-          3,
-          0,
           2
         ],
         [
           3,
-          1,
-          2,
-          2,
           3,
           1,
-          3
-        ],
-        [
           1,
-          2,
-          3,
-          2,
           0,
-          3,
-          3
+          0,
+          1
         ]
       ],
       "target_score": 0,
-      "move_limit": 22,
-      "seed": 1034,
+      "move_limit": 20,
+      "seed": 3028,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -1474,10 +1488,22 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 2,
+        "source_lvl": "levels_src/selected/level_002_base_selected.lvl",
+        "selected_candidate_id": "level_002_base_c02",
+        "design_eye": "cleanse_edge",
+        "intent": null,
+        "role": "variation",
+        "target_pass_band": [
+          0.78,
+          0.92
+        ]
+      }
     },
     {
-      "level_id": "level_003_base",
+      "level_id": "level_003_base_c00",
       "w": 7,
       "h": 7,
       "species": [
@@ -2212,10 +2238,22 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 3,
+        "source_lvl": "levels_src/selected/level_003_base_selected.lvl",
+        "selected_candidate_id": "level_003_base_c00",
+        "design_eye": "cleanse_trail",
+        "intent": null,
+        "role": "teaching_breather",
+        "target_pass_band": [
+          0.9,
+          1.0
+        ]
+      }
     },
     {
-      "level_id": "level_004_base",
+      "level_id": "level_004_base_c00",
       "w": 9,
       "h": 9,
       "species": [
@@ -3347,10 +3385,22 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 4,
+        "source_lvl": "levels_src/selected/level_004_base_selected.lvl",
+        "selected_candidate_id": "level_004_base_c00",
+        "design_eye": "cleanse_expedition_weak",
+        "intent": null,
+        "role": "variation",
+        "target_pass_band": [
+          0.68,
+          0.85
+        ]
+      }
     },
     {
-      "level_id": "level_005_base",
+      "level_id": "level_005_base_c03",
       "w": 7,
       "h": 7,
       "species": [
@@ -3361,28 +3411,37 @@
       ],
       "init_board": [
         [
-          1,
-          2,
-          1,
           3,
           2,
+          2,
+          1,
+          1,
+          0,
+          2
+        ],
+        [
           3,
+          3,
+          0,
+          0,
+          1,
+          1,
           3
         ],
         [
           0,
-          3,
+          2,
           2,
           3,
-          3,
-          1,
-          1
+          0,
+          0,
+          2
         ],
         [
-          1,
+          3,
+          2,
           2,
           0,
-          2,
           3,
           0,
           0
@@ -3392,41 +3451,32 @@
           0,
           1,
           0,
-          2,
+          0,
           1,
           1
         ],
         [
+          1,
           0,
-          2,
-          2,
-          1,
           3,
-          1,
-          3
-        ],
-        [
-          1,
-          2,
-          2,
-          1,
-          2,
+          3,
+          0,
           0,
           3
         ],
         [
-          2,
-          0,
           0,
           3,
           3,
           1,
-          2
+          2,
+          0,
+          1
         ]
       ],
       "target_score": 0,
-      "move_limit": 22,
-      "seed": 1085,
+      "move_limit": 19,
+      "seed": 4076,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -3539,9 +3589,9 @@
         [
           0,
           0,
-          1,
-          1,
-          1,
+          2,
+          2,
+          2,
           0,
           0
         ],
@@ -4085,10 +4135,22 @@
           0
         ]
       ],
-      "difficulty": "EASY"
+      "difficulty": "EASY",
+      "meta": {
+        "level_coordinate": 5,
+        "source_lvl": "levels_src/selected/level_005_base_selected.lvl",
+        "selected_candidate_id": "level_005_base_c03",
+        "design_eye": "crystal_shell_gate_practice",
+        "intent": null,
+        "role": "teaching",
+        "target_pass_band": [
+          0.9,
+          1.0
+        ]
+      }
     },
     {
-      "level_id": "level_006_base",
+      "level_id": "level_006_base_c05",
       "w": 7,
       "h": 7,
       "species": [
@@ -4096,81 +4158,82 @@
         1,
         2,
         3,
-        4
+        4,
+        5
       ],
       "init_board": [
         [
+          1,
+          5,
+          1,
+          1,
           0,
           2,
-          0,
-          4,
-          1,
-          1,
-          0
-        ],
-        [
-          2,
-          1,
-          1,
-          3,
-          4,
-          2,
-          1
+          5
         ],
         [
           1,
-          4,
+          3,
+          3,
+          1,
+          0,
+          0,
+          4
+        ],
+        [
           3,
           3,
           0,
+          5,
+          5,
           3,
           4
         ],
         [
-          2,
-          2,
-          0,
-          2,
-          3,
-          2,
-          2
-        ],
-        [
-          3,
-          1,
-          1,
-          0,
-          0,
           4,
-          0
-        ],
-        [
-          3,
-          4,
-          3,
-          2,
-          0,
           1,
+          3,
+          5,
+          0,
+          5,
           1
         ],
         [
           0,
+          2,
+          2,
           1,
           3,
-          1,
+          5,
+          3
+        ],
+        [
+          5,
           2,
+          2,
+          0,
+          1,
           4,
           4
+        ],
+        [
+          5,
+          0,
+          3,
+          5,
+          3,
+          2,
+          1
         ]
       ],
       "target_score": 0,
-      "move_limit": 20,
-      "seed": 1102,
+      "move_limit": 15,
+      "seed": 6087,
       "objectives": [
         {
           "type": "CLEAR_BLOCKER",
           "species": -1,
-          "target": 5
+          "target": 15
         }
       ],
       "jelly": [
@@ -4260,27 +4323,27 @@
         [
           0,
           0,
-          1,
+          3,
           0,
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          1,
-          0,
+          3,
           0,
           0
         ],
         [
           0,
           0,
-          1,
           0,
-          1,
+          3,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          3,
+          0,
+          3,
           0,
           0
         ],
@@ -4824,10 +4887,22 @@
           0
         ]
       ],
-      "difficulty": "EASY"
+      "difficulty": "EASY",
+      "meta": {
+        "level_coordinate": 6,
+        "source_lvl": "levels_src/selected/level_006_base_selected.lvl",
+        "selected_candidate_id": "level_006_base_c05",
+        "design_eye": "shell_cleanup_breather",
+        "intent": null,
+        "role": "breather",
+        "target_pass_band": [
+          0.9,
+          1.0
+        ]
+      }
     },
     {
-      "level_id": "level_007_base",
+      "level_id": "level_007_base_c03",
       "w": 9,
       "h": 9,
       "species": [
@@ -4839,108 +4914,108 @@
       ],
       "init_board": [
         [
-          2,
-          2,
-          3,
+          1,
+          0,
+          1,
           0,
           -2,
+          4,
+          1,
+          3,
+          0
+        ],
+        [
+          1,
+          0,
+          3,
+          1,
+          -2,
+          1,
+          0,
+          0,
+          3
+        ],
+        [
+          2,
+          1,
+          2,
+          1,
+          -2,
+          3,
           3,
           4,
+          0
+        ],
+        [
+          4,
+          4,
+          0,
+          3,
+          -2,
+          4,
+          3,
+          4,
+          0
+        ],
+        [
+          3,
+          4,
+          0,
+          4,
+          -2,
+          2,
+          1,
+          0,
+          1
+        ],
+        [
+          2,
+          3,
+          3,
+          2,
+          -2,
+          4,
+          1,
           1,
           3
         ],
         [
-          4,
-          1,
-          2,
           3,
-          -2,
           4,
-          3,
-          1,
-          3
-        ],
-        [
           1,
           0,
+          -2,
+          1,
           2,
           1,
-          -2,
-          3,
-          3,
-          4,
           4
         ],
         [
+          2,
+          1,
           4,
-          2,
           0,
-          3,
           -2,
-          1,
-          0,
-          0,
-          4
-        ],
-        [
-          3,
           2,
-          1,
-          1,
-          -2,
-          1,
-          0,
-          3,
+          4,
+          4,
           2
         ],
         [
           2,
           3,
           4,
-          0,
-          -2,
           3,
+          -2,
           4,
+          2,
           3,
           3
-        ],
-        [
-          4,
-          0,
-          4,
-          4,
-          -2,
-          2,
-          3,
-          0,
-          1
-        ],
-        [
-          2,
-          4,
-          3,
-          3,
-          -2,
-          0,
-          3,
-          3,
-          1
-        ],
-        [
-          2,
-          1,
-          0,
-          4,
-          -2,
-          4,
-          2,
-          0,
-          4
         ]
       ],
       "target_score": 0,
-      "move_limit": 20,
-      "seed": 1119,
+      "move_limit": 17,
+      "seed": 4110,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -5959,10 +6034,22 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 7,
+        "source_lvl": "levels_src/selected/level_007_base_selected.lvl",
+        "selected_candidate_id": "level_007_base_c03",
+        "design_eye": "split_supply_duet",
+        "intent": null,
+        "role": "variation",
+        "target_pass_band": [
+          0.58,
+          0.82
+        ]
+      }
     },
     {
-      "level_id": "level_008_base",
+      "level_id": "level_008_base_c08",
       "w": 9,
       "h": 9,
       "species": [
@@ -5976,107 +6063,107 @@
       "init_board": [
         [
           4,
-          1,
           5,
-          4,
-          0,
-          5,
+          3,
           1,
-          1,
-          3
+          3,
+          2,
+          3,
+          3,
+          0
         ],
         [
           1,
-          4,
-          2,
+          1,
           5,
           2,
-          5,
-          4,
-          0,
-          1
-        ],
-        [
-          0,
-          5,
-          4,
-          5,
-          4,
-          0,
           2,
+          0,
+          4,
           3,
           0
         ],
         [
           2,
-          4,
-          4,
-          3,
           2,
-          3,
+          4,
+          4,
+          2,
+          4,
+          4,
           1,
-          0,
           4
         ],
         [
           0,
+          2,
+          5,
+          4,
+          1,
+          5,
+          1,
+          4,
+          0
+        ],
+        [
+          3,
+          1,
+          0,
+          0,
+          1,
+          1,
+          4,
+          3,
+          1
+        ],
+        [
+          0,
+          0,
+          2,
           3,
           3,
           4,
-          0,
           1,
-          5,
-          2,
+          3,
+          1
+        ],
+        [
+          3,
+          1,
+          4,
+          1,
+          4,
+          4,
+          0,
+          0,
           5
         ],
         [
-          3,
+          4,
           2,
+          2,
+          5,
+          4,
+          3,
+          5,
+          0,
+          4
+        ],
+        [
+          5,
+          3,
+          1,
+          2,
+          3,
           4,
           2,
           5,
-          3,
-          2,
-          3,
-          2
-        ],
-        [
-          2,
-          3,
-          2,
-          5,
-          5,
-          2,
-          2,
-          1,
-          5
-        ],
-        [
-          4,
-          1,
-          3,
-          3,
-          0,
-          2,
-          4,
-          1,
-          2
-        ],
-        [
-          2,
-          0,
-          1,
-          4,
-          2,
-          0,
-          3,
-          2,
           2
         ]
       ],
       "target_score": 0,
-      "move_limit": 16,
-      "seed": 1136,
+      "move_limit": 14,
+      "seed": 9112,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -6212,9 +6299,9 @@
           0,
           0,
           0,
-          1,
-          1,
-          1,
+          2,
+          2,
+          2,
           0,
           0,
           0
@@ -6222,33 +6309,33 @@
         [
           0,
           0,
-          1,
+          2,
           0,
           0,
           0,
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1,
-          0,
-          0,
-          0,
-          1,
+          2,
           0,
           0
         ],
         [
           0,
           0,
-          1,
+          2,
           0,
           0,
           0,
-          1,
+          2,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          2,
           0,
           0
         ],
@@ -6256,9 +6343,9 @@
           0,
           0,
           0,
-          1,
-          1,
-          1,
+          2,
+          2,
+          2,
           0,
           0,
           0
@@ -7095,10 +7182,22 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 8,
+        "source_lvl": "levels_src/selected/level_008_base_selected.lvl",
+        "selected_candidate_id": "level_008_base_c08",
+        "design_eye": "cleanse_siege",
+        "intent": null,
+        "role": "variation",
+        "target_pass_band": [
+          0.65,
+          0.85
+        ]
+      }
     },
     {
-      "level_id": "level_009_base",
+      "level_id": "level_009_base_c01",
       "w": 7,
       "h": 7,
       "species": [
@@ -7109,72 +7208,72 @@
       ],
       "init_board": [
         [
+          0,
+          1,
+          0,
           3,
-          2,
-          2,
-          0,
-          2,
-          0,
-          2
+          1,
+          3,
+          3
         ],
         [
-          0,
-          0,
+          2,
+          1,
           3,
           -1,
           2,
-          3,
-          0
-        ],
-        [
-          1,
           0,
-          1,
-          2,
-          0,
-          1,
-          0
+          1
         ],
         [
           3,
-          2,
-          3,
-          1,
-          2,
-          1,
-          3
-        ],
-        [
-          1,
           0,
           0,
-          3,
-          0,
-          3,
-          0
-        ],
-        [
-          0,
-          1,
-          1,
-          0,
-          3,
-          0,
-          3
-        ],
-        [
           2,
           0,
-          0,
           1,
-          3,
-          2,
           2
+        ],
+        [
+          1,
+          3,
+          2,
+          0,
+          1,
+          1,
+          3
+        ],
+        [
+          0,
+          1,
+          2,
+          0,
+          2,
+          2,
+          0
+        ],
+        [
+          2,
+          1,
+          0,
+          2,
+          3,
+          0,
+          1
+        ],
+        [
+          2,
+          3,
+          3,
+          0,
+          1,
+          1,
+          3
         ]
       ],
       "target_score": 0,
-      "move_limit": 24,
-      "seed": 1153,
+      "move_limit": 23,
+      "seed": 2150,
       "objectives": [
         {
           "type": "COLLECT_INGREDIENT",
@@ -7835,10 +7934,22 @@
           0
         ]
       ],
-      "difficulty": "EASY"
+      "difficulty": "EASY",
+      "meta": {
+        "level_coordinate": 9,
+        "source_lvl": "levels_src/selected/level_009_base_selected.lvl",
+        "selected_candidate_id": "level_009_base_c01",
+        "design_eye": "drop_direct",
+        "intent": null,
+        "role": "teaching",
+        "target_pass_band": [
+          0.92,
+          1.0
+        ]
+      }
     },
     {
-      "level_id": "level_010_base",
+      "level_id": "level_010_base_c00",
       "w": 9,
       "h": 9,
       "species": [
@@ -8972,7 +9083,19 @@
           0
         ]
       ],
-      "difficulty": "MEDIUM"
+      "difficulty": "MEDIUM",
+      "meta": {
+        "level_coordinate": 10,
+        "source_lvl": "levels_src/selected/level_010_base_selected.lvl",
+        "selected_candidate_id": "level_010_base_c00",
+        "design_eye": "drop_bottleneck",
+        "intent": null,
+        "role": "pressure",
+        "target_pass_band": [
+          0.55,
+          0.75
+        ]
+      }
     }
   ]
 }

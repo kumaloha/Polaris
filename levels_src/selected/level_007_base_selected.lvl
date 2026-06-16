@@ -1,0 +1,444 @@
+{
+  "id": "level_007_base_c03",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 7,
+    "variant": "base",
+    "role": "variation",
+    "complexity_tier": 2,
+    "theme": "hourglass_ruins",
+    "target_pass_band": [
+      0.58,
+      0.82
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 3,
+    "candidate_tuning": {
+      "moves_delta": -3,
+      "target_multiplier": 1.1,
+      "shell_hp_delta": 1,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.58,
+      0.82
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 17,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 4110
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "split_columns"
+    },
+    "supply_topology": {
+      "type": "split_columns"
+    }
+  },
+  "recipe": {
+    "eye": "split_supply_duet",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "variation",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "split_area_targeting"
+  },
+  "board": [
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo",
+    "oooo.oooo"
+  ],
+  "overlays": [
+    {
+      "region": "left_page_marks",
+      "cells": [
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          2
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "right_page_marks",
+      "cells": [
+        [
+          2,
+          7
+        ],
+        [
+          3,
+          6
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          5,
+          6
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "variation",
+      "linked_eye": "split_supply_duet"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "solve_split_areas_independently",
+      "proof_signal": "left_and_right_target_progress"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "split_regions_need_width"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "split_supply_duet"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 7,
+      "arc_role": "supply_topology_variation"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "split_supply_variation",
+        "role": "primary",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.05,
+      "max_dead_board_rate": 0.05,
+      "max_no_progress_turn_rate": 0.36,
+      "max_luck_dependency_proxy": 0.42
+    },
+    "difficulty_rhythm": {
+      "shape": "medium_reading_rise",
+      "target_pass_band": [
+        0.58,
+        0.82
+      ],
+      "role": "variation"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_split_area_control",
+    "archetype": "split_lock",
+    "primary_blocker": "none",
+    "focus_area": "left_right_pages",
+    "action_vector": "dual_area",
+    "read_order": [
+      "left_goal",
+      "divider",
+      "right_goal"
+    ],
+    "negative_space": {
+      "kind": "paired_play_areas",
+      "min_ratio": 0.55
+    },
+    "density": "low",
+    "delete_test": "removing_split_columns_removes_dual_page_lesson",
+    "theme_shape": "split_spellbook_pages",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "split_supply_duet",
+    "visual_grammar": {
+      "focal_alignment": "split_dual",
+      "symmetry": "bilateral",
+      "density_band": [
+        0.03,
+        0.26
+      ],
+      "silhouette": "split_spellbook_pages",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_007",
+    "thesis": {
+      "key": "two_pages_need_two_plans",
+      "sentence": "裂开的两页各自补给，左右星尘要分别照顾。"
+    },
+    "fantasy": "修复被裂缝分成左右两页的魔法书。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "split_page_stardust"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "side_by_side_cascade",
+          "as": "both_pages_light"
+        }
+      ]
+    },
+    "stage": {
+      "function": "split_supply_duet",
+      "shape": "split_columns",
+      "dramatic_axis": "left_right_duet",
+      "focus": "left_and_right_page_marks",
+      "friction_zone": "center_crack",
+      "payoff_zone": "two_page_marks",
+      "operation_space": "left_area_and_right_area",
+      "supply_logic": "two_independent_vertical_refill_areas"
+    },
+    "objective": {
+      "world_state_change": "both_pages_stardust_cleansed",
+      "player_readable_goal": "分别在左右两页净化星尘，不能指望中间裂缝互相帮忙。"
+    },
+    "arc": {
+      "opening": "中间裂缝把棋盘切成左右两页，星尘在两侧对称发光。",
+      "friction": "左右不互通，一边的好运不会自动救另一边。",
+      "turn": "玩家开始分别经营左右两边，而不是只盯一个区域。",
+      "payoff": "左右两页先后被点亮，像合上一本修好的魔法书。"
+    },
+    "payoff": {
+      "signature": "左页连锁后转到右页收尾，两边星尘依次亮灭。"
+    },
+    "negative_space": {
+      "statement": "不加入晶壳或幼兽，让双区补给本身成为题眼。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "left_area_operation_space",
+        "right_area_operation_space",
+        "center_crack_readability"
+      ]
+    },
+    "four_in_one": {
+      "play": "地图舞台第一次成为主角级问题：左右补给独立。",
+      "visual": "中间裂缝把书页切开，星尘在两侧呼应。",
+      "readability": "HUD 星尘与两侧目标一致，中缝明确告诉玩家不能跨区。",
+      "theme": "魔法书被裂缝分成两页，需要分别修复。"
+    },
+    "solution": {
+      "intended_solution": [
+        "先读出左右两区独立",
+        "在左区处理左页星尘",
+        "切换到右区处理右页星尘",
+        "避免只在一侧空转"
+      ],
+      "crack_path": [
+        "read_split_pages",
+        "access_left_area",
+        "convert_left_matches",
+        "access_right_area",
+        "convert_right_matches",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "裂开的两页各自补给，左右星尘要分别照顾。",
+    "visual_focus": "left_and_right_page_marks",
+    "intended_solution": [
+      "先读出左右两区独立",
+      "在左区处理左页星尘",
+      "切换到右区处理右页星尘",
+      "避免只在一侧空转"
+    ],
+    "crack_path": [
+      "read_split_pages",
+      "access_left_area",
+      "convert_left_matches",
+      "access_right_area",
+      "convert_right_matches",
+      "finish_remaining_marks"
+    ],
+    "climax": "左页连锁后转到右页收尾，两边星尘依次亮灭。"
+  },
+  "director": {
+    "intent": "裂开的两页各自补给，左右星尘要分别照顾。",
+    "player_fantasy": "修复被裂缝分成左右两页的魔法书。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "中间裂缝把棋盘切成左右两页，星尘在两侧对称发光。",
+      "friction": "左右不互通，一边的好运不会自动救另一边。",
+      "turn": "玩家开始分别经营左右两边，而不是只盯一个区域。",
+      "payoff": "左右两页先后被点亮，像合上一本修好的魔法书。"
+    },
+    "signature_moment": "左页连锁后转到右页收尾，两边星尘依次亮灭。",
+    "negative_space": "不加入晶壳或幼兽，让双区补给本身成为题眼。",
+    "four_in_one": {
+      "play": "地图舞台第一次成为主角级问题：左右补给独立。",
+      "visual": "中间裂缝把书页切开，星尘在两侧呼应。",
+      "readability": "HUD 星尘与两侧目标一致，中缝明确告诉玩家不能跨区。",
+      "theme": "魔法书被裂缝分成两页，需要分别修复。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

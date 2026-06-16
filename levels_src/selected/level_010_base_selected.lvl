@@ -1,0 +1,682 @@
+{
+  "id": "level_010_base_c00",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 10,
+    "variant": "base",
+    "role": "pressure",
+    "complexity_tier": 2,
+    "theme": "crystal_workshop",
+    "target_pass_band": [
+      0.55,
+      0.75
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 0,
+    "candidate_tuning": {
+      "moves_delta": 0,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.55,
+      0.75
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "drop_relic",
+    "target": 1
+  },
+  "rules": {
+    "moves": 58,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1170
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "bottleneck"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "drop_bottleneck",
+    "obstacle_lane": {
+      "focus": "none",
+      "stage": "pressure",
+      "active": [
+        "crystal_shell",
+        "drop_exit",
+        "drop_relic"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "vertical_line_gem"
+  },
+  "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
+    "..ooooo..",
+    "..ooooo..",
+    "...ooo...",
+    "...ooo...",
+    "...ooo..."
+  ],
+  "overlays": [
+    {
+      "region": "lost_cub_start",
+      "cells": [
+        [
+          1,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_relic"
+      ]
+    },
+    {
+      "region": "nest_exit",
+      "cells": [
+        [
+          8,
+          4
+        ]
+      ],
+      "layers": [
+        "drop_exit"
+      ]
+    },
+    {
+      "region": "crystal_gate",
+      "cells": [
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          5,
+          5
+        ]
+      ],
+      "layers": [
+        "crystal_shell"
+      ]
+    },
+    {
+      "region": "finale_burst_reward",
+      "cells": [
+        [
+          2,
+          3
+        ]
+      ],
+      "layers": [
+        "burst_gem"
+      ]
+    },
+    {
+      "region": "finale_line_reward",
+      "cells": [
+        [
+          2,
+          5
+        ]
+      ],
+      "layers": [
+        "line_v_gem"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "burst_gem": {
+      "mechanic_id": "burst_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_local_radius",
+      "reward_effect": "cracks_cluster_or_ring",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_burst",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "pressure",
+      "linked_eye": "drop_bottleneck"
+    },
+    "crystal_shell": {
+      "mechanic_id": "crystal_shell",
+      "category": "blocker",
+      "state_dynamics": "static",
+      "player_action": "clear_adjacent_or_hit_with_special",
+      "board_effect": "occupies_space_and_blocks_until_hp_zero",
+      "reward_effect": "opens_route_or_reveals_target_space",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 5,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "drop_relic",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "coat_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "coat"
+      },
+      "level_role": "pressure",
+      "linked_eye": "drop_bottleneck"
+    },
+    "drop_exit": {
+      "mechanic_id": "drop_exit",
+      "category": "routing",
+      "state_dynamics": "static",
+      "player_action": "route_actor_to_exit_column",
+      "board_effect": "collects_actor_when_it_reaches_bottom_exit",
+      "reward_effect": "transport_objective_completion",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "paired_with_actor_reveal",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_relic",
+          "crystal_shell"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "exit_columns",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "exits"
+      },
+      "level_role": "pressure",
+      "linked_eye": "drop_bottleneck"
+    },
+    "drop_relic": {
+      "mechanic_id": "drop_relic",
+      "category": "actor",
+      "state_dynamics": "actor_moving",
+      "player_action": "clear_below_actor_to_move_down",
+      "board_effect": "actor_travels_toward_exit_after_supported_clears",
+      "reward_effect": "rescue_completion_feedback",
+      "compatible_objective_verbs": [
+        "transport",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 9,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "drop_exit",
+          "crystal_shell",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "ingredient_actor",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "ingredient"
+      },
+      "level_role": "pressure",
+      "linked_eye": "drop_bottleneck"
+    },
+    "line_v_gem": {
+      "mechanic_id": "line_v_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_vertical_line",
+      "reward_effect": "gate_or_route_sweep",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_line_v",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "pressure",
+      "linked_eye": "drop_bottleneck"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "transport",
+    "skill_lesson": {
+      "skill": "open_route_gate_then_transport_actor",
+      "proof_signal": "crystal_gate_damaged_before_lost_cub_exits"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "post_reveal_transport_mix"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "drop_bottleneck"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 10,
+      "arc_role": "episode_finale_mix"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "drop_relic",
+        "phase": "combine_with_gate",
+        "role": "primary",
+        "is_new": false
+      },
+      {
+        "mechanic": "crystal_shell",
+        "phase": "known_blocker_as_route_gate",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "burst_gem",
+        "line_v_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.08,
+      "max_dead_board_rate": 0.08,
+      "max_no_progress_turn_rate": 0.45,
+      "max_luck_dependency_proxy": 0.5
+    },
+    "difficulty_rhythm": {
+      "shape": "first_act_finale",
+      "target_pass_band": [
+        0.55,
+        0.75
+      ],
+      "role": "pressure"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_open_route_gate_then_transport_cub",
+    "archetype": "lane",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "center_route_gate",
+    "action_vector": "transport_down",
+    "read_order": [
+      "actor",
+      "blocker",
+      "exit"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.48
+    },
+    "density": "medium",
+    "delete_test": "removing_route_gate_removes_finale_priority",
+    "theme_shape": "crystal_route_gate",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "pressure",
+    "linked_eye": "drop_bottleneck",
+    "visual_grammar": {
+      "focal_alignment": "vertical_lane",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.08,
+        0.32
+      ],
+      "silhouette": "crystal_route_gate",
+      "anchor_layers": [
+        "crystal_shell"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_010",
+    "thesis": {
+      "key": "open_gate_then_rescue_cub",
+      "sentence": "先开门，再护送幼兽回家。"
+    },
+    "fantasy": "打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "drop_relic",
+        "as": "lost_cub"
+      },
+      "support": [
+        {
+          "mechanism": "crystal_shell",
+          "as": "route_gate"
+        }
+      ],
+      "reward": [
+        {
+          "kind": "arrival",
+          "as": "cub_falls_through_gate"
+        }
+      ]
+    },
+    "stage": {
+      "function": "rescue_route_with_gate",
+      "shape": "bottleneck_gate_route",
+      "dramatic_axis": "top_to_bottom_rescue",
+      "focus": "cub_gate_nest_axis",
+      "friction_zone": "crystal_gate_on_route",
+      "payoff_zone": "bottom_nest",
+      "operation_space": "upper_and_side_board",
+      "supply_logic": "route_gate_blocks_actor_path_without_full_supply_seal"
+    },
+    "objective": {
+      "world_state_change": "lost_cub_reaches_nest_after_gate_opens",
+      "player_readable_goal": "先打开挡路晶壳门，再清路让幼兽回巢。"
+    },
+    "arc": {
+      "opening": "幼兽、晶壳门、巢门在同一视觉轴上。",
+      "friction": "幼兽下方路线被晶壳门卡住。",
+      "turn": "门被打开后，幼兽路线连通。",
+      "payoff": "幼兽穿过门洞落入巢门。"
+    },
+    "payoff": {
+      "signature": "晶壳门裂开后，幼兽连续下落穿过门洞回家。"
+    },
+    "negative_space": {
+      "statement": "只保留晶壳作为配角，不叠星尘目标。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "preserve": [
+        "cub_gate_nest_readability",
+        "side_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "运输目标是主角，晶壳只服务幼兽路线。",
+      "visual": "竖向救援轴穿过中央门，像一条升降井。",
+      "readability": "阻挡幼兽的门就是玩家必须先处理的点。",
+      "theme": "晶能工坊里的小兽救援。"
+    },
+    "solution": {
+      "intended_solution": [
+        "看清幼兽-门-巢门轴线",
+        "先破挡路晶壳",
+        "清幼兽下方路径",
+        "让幼兽穿过门洞回家"
+      ],
+      "crack_path": [
+        "read_cub_gate_nest_axis",
+        "access_gate",
+        "activate_gate_break",
+        "access_drop_path",
+        "payoff_cub_falls",
+        "finish_drop_objective"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 2
+    }
+  },
+  "design_claim": {
+    "eye": "先开门，再护送幼兽回家。",
+    "visual_focus": "cub_gate_nest_axis",
+    "intended_solution": [
+      "看清幼兽-门-巢门轴线",
+      "先破挡路晶壳",
+      "清幼兽下方路径",
+      "让幼兽穿过门洞回家"
+    ],
+    "crack_path": [
+      "read_cub_gate_nest_axis",
+      "access_gate",
+      "activate_gate_break",
+      "access_drop_path",
+      "payoff_cub_falls",
+      "finish_drop_objective"
+    ],
+    "climax": "晶壳门裂开后，幼兽连续下落穿过门洞回家。"
+  },
+  "director": {
+    "intent": "先开门，再护送幼兽回家。",
+    "player_fantasy": "打开晶壳门，护送迷路幼兽穿过工坊回到巢门。",
+    "protagonist": "drop_relic",
+    "supporting_roles": [
+      "crystal_shell"
+    ],
+    "emotional_arc": {
+      "opening": "幼兽、晶壳门、巢门在同一视觉轴上。",
+      "friction": "幼兽下方路线被晶壳门卡住。",
+      "turn": "门被打开后，幼兽路线连通。",
+      "payoff": "幼兽穿过门洞落入巢门。"
+    },
+    "signature_moment": "晶壳门裂开后，幼兽连续下落穿过门洞回家。",
+    "negative_space": "只保留晶壳作为配角，不叠星尘目标。",
+    "four_in_one": {
+      "play": "运输目标是主角，晶壳只服务幼兽路线。",
+      "visual": "竖向救援轴穿过中央门，像一条升降井。",
+      "readability": "阻挡幼兽的门就是玩家必须先处理的点。",
+      "theme": "晶能工坊里的小兽救援。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 2,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "order_color",
+        "spawner",
+        "target_mark",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

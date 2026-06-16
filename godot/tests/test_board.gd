@@ -475,7 +475,8 @@ func test_generated_level_library_loads() -> void:
 	assert_eq(lvls.size(), 10, "generated solver-gated library contains first ten levels")
 	if lvls.is_empty():
 		return
-	assert_eq(lvls[0].get("level_id", ""), "level_001_base", "generated library starts at level_001_base")
+	assert_true(String(lvls[0].get("level_id", "")).begins_with("level_001_base"), "generated library starts with a selected level_001_base candidate")
+	assert_eq(int(lvls[0].get("meta", {}).get("level_coordinate", 0)), 1, "generated first level keeps coordinate metadata")
 	assert_eq(int(lvls[0].get("w", 0)), 7, "generated first level width")
 	assert_eq(int(lvls[0].get("h", 0)), 7, "generated first level height")
 

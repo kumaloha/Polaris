@@ -1,5 +1,5 @@
 {
-  "level_id": "level_002_base",
+  "level_id": "level_002_base_c02",
   "w": 7,
   "h": 7,
   "species": [
@@ -10,72 +10,72 @@
   ],
   "init_board": [
     [
-      1,
       2,
-      2,
+      0,
+      0,
       3,
-      1,
+      2,
       3,
       0
     ],
     [
-      3,
+      2,
       3,
       0,
+      3,
+      3,
       2,
-      2,
+      1
+    ],
+    [
       1,
-      3
+      0,
+      2,
+      0,
+      2,
+      0,
+      1
+    ],
+    [
+      1,
+      0,
+      2,
+      0,
+      3,
+      2,
+      0
     ],
     [
       0,
-      0,
       2,
       3,
+      1,
       1,
       3,
       1
     ],
     [
-      2,
-      2,
       1,
-      0,
       1,
-      3,
-      1
-    ],
-    [
       2,
       2,
       0,
       3,
-      3,
-      0,
       2
     ],
     [
       3,
-      1,
-      2,
-      2,
       3,
       1,
-      3
-    ],
-    [
       1,
-      2,
-      3,
-      2,
       0,
-      3,
-      3
+      0,
+      1
     ]
   ],
   "target_score": 0,
-  "move_limit": 22,
-  "seed": 1034,
+  "move_limit": 20,
+  "seed": 3028,
   "objectives": [
     {
       "type": "CLEAR_JELLY",
@@ -734,5 +734,17 @@
       0
     ]
   ],
-  "difficulty": "MEDIUM"
+  "difficulty": "MEDIUM",
+  "meta": {
+    "level_coordinate": 2,
+    "source_lvl": "levels_src/selected/level_002_base_selected.lvl",
+    "selected_candidate_id": "level_002_base_c02",
+    "design_eye": "cleanse_edge",
+    "intent": null,
+    "role": "variation",
+    "target_pass_band": [
+      0.78,
+      0.92
+    ]
+  }
 }

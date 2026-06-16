@@ -1,0 +1,455 @@
+{
+  "id": "level_004_base_c00",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 4,
+    "variant": "base",
+    "role": "variation",
+    "complexity_tier": 1,
+    "theme": "hourglass_ruins",
+    "target_pass_band": [
+      0.68,
+      0.85
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 0,
+    "candidate_tuning": {
+      "moves_delta": 0,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.68,
+      0.85
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 36,
+    "colors": 5,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1068
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "bottleneck"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_expedition_weak",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "variation",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "vertical_line_gem"
+  },
+  "board": [
+    "ooooooooo",
+    "ooooooooo",
+    ".ooooooo.",
+    ".ooooooo.",
+    "..ooooo..",
+    "..ooooo..",
+    "...ooo...",
+    "...ooo...",
+    "...ooo..."
+  ],
+  "overlays": [
+    {
+      "region": "downstream_marks",
+      "cells": [
+        [
+          6,
+          3
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          7,
+          3
+        ],
+        [
+          7,
+          4
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          8,
+          3
+        ],
+        [
+          8,
+          4
+        ],
+        [
+          8,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "gate_hint_marks",
+      "cells": [
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_expedition_weak"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "read_downstream_goal_basin",
+      "proof_signal": "lower_targets_cleared_after_upper_moves"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "terrain_variation_needs_upper_middle_lower_read"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_expedition_weak"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 4,
+      "arc_role": "terrain_first_pressure"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "terrain_variation",
+        "role": "primary",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.05,
+      "max_dead_board_rate": 0.05,
+      "max_no_progress_turn_rate": 0.36,
+      "max_luck_dependency_proxy": 0.42
+    },
+    "difficulty_rhythm": {
+      "shape": "gentle_rise",
+      "target_pass_band": [
+        0.68,
+        0.85
+      ],
+      "role": "variation"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_downstream_funnel_reading",
+    "archetype": "funnel",
+    "primary_blocker": "none",
+    "focus_area": "downstream_pool",
+    "action_vector": "vertical",
+    "read_order": [
+      "upper_supply",
+      "funnel_throat",
+      "goal_basin"
+    ],
+    "negative_space": {
+      "kind": "upper_play_area",
+      "min_ratio": 0.55
+    },
+    "density": "low",
+    "delete_test": "removing_bottleneck_removes_downstream_lesson",
+    "theme_shape": "book_page_funnel",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "goal_blocker_solution_readable"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_expedition_weak",
+    "visual_grammar": {
+      "focal_alignment": "vertical_funnel",
+      "symmetry": "center_axis",
+      "density_band": [
+        0.03,
+        0.26
+      ],
+      "silhouette": "book_page_funnel",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_004",
+    "thesis": {
+      "key": "send_magic_downstream",
+      "sentence": "上游的控制力要穿过窄口，才能照亮下游星尘池。"
+    },
+    "fantasy": "把上游魔力送过遗迹窄口，唤醒下游星尘池。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "downstream_pool"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "downstream_cascade",
+          "as": "pool_lights_up"
+        }
+      ]
+    },
+    "stage": {
+      "function": "downstream_expedition_intro",
+      "shape": "safe_bottleneck",
+      "dramatic_axis": "top_to_bottom",
+      "focus": "downstream_marks",
+      "friction_zone": "narrow_waist",
+      "payoff_zone": "downstream_pool",
+      "operation_space": "upper_board",
+      "supply_logic": "narrow_vertical_flow_without_full_seal"
+    },
+    "objective": {
+      "world_state_change": "downstream_stardust_pool_cleansed",
+      "player_readable_goal": "从上游把消除机会送到下游星尘池。"
+    },
+    "arc": {
+      "opening": "上方空间宽，下方星尘池明显更远。",
+      "friction": "窄口让下游补给慢，乱消会在上游空转。",
+      "turn": "一次纵向机会穿过窄口，下游开始活起来。",
+      "payoff": "下游星尘池被连锁洗亮。"
+    },
+    "payoff": {
+      "signature": "魔力穿过窄腰后，底部三枚星尘连续净化。"
+    },
+    "negative_space": {
+      "statement": "不用晶壳封门，避免第一次水文关出现空白断供。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "upper_operation_space",
+        "readable_supply_path"
+      ]
+    },
+    "four_in_one": {
+      "play": "地形距离本身成为题眼。",
+      "visual": "上宽下收的安全瓶颈，焦点落在下游池。",
+      "readability": "窄腰自然提示力量要往下送。",
+      "theme": "遗迹河道把星尘带往低处。"
+    },
+    "solution": {
+      "intended_solution": [
+        "在上游制造纵向机会",
+        "让消除穿过窄口",
+        "收尾净化下游池"
+      ],
+      "crack_path": [
+        "read_downstream_pool",
+        "access_bottleneck",
+        "send_control_downstream",
+        "payoff_downstream_cascade",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "上游的控制力要穿过窄口，才能照亮下游星尘池。",
+    "visual_focus": "downstream_marks",
+    "intended_solution": [
+      "在上游制造纵向机会",
+      "让消除穿过窄口",
+      "收尾净化下游池"
+    ],
+    "crack_path": [
+      "read_downstream_pool",
+      "access_bottleneck",
+      "send_control_downstream",
+      "payoff_downstream_cascade",
+      "finish_remaining_marks"
+    ],
+    "climax": "魔力穿过窄腰后，底部三枚星尘连续净化。"
+  },
+  "director": {
+    "intent": "上游的控制力要穿过窄口，才能照亮下游星尘池。",
+    "player_fantasy": "把上游魔力送过遗迹窄口，唤醒下游星尘池。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "上方空间宽，下方星尘池明显更远。",
+      "friction": "窄口让下游补给慢，乱消会在上游空转。",
+      "turn": "一次纵向机会穿过窄口，下游开始活起来。",
+      "payoff": "下游星尘池被连锁洗亮。"
+    },
+    "signature_moment": "魔力穿过窄腰后，底部三枚星尘连续净化。",
+    "negative_space": "不用晶壳封门，避免第一次水文关出现空白断供。",
+    "four_in_one": {
+      "play": "地形距离本身成为题眼。",
+      "visual": "上宽下收的安全瓶颈，焦点落在下游池。",
+      "readability": "窄腰自然提示力量要往下送。",
+      "theme": "遗迹河道把星尘带往低处。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

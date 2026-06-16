@@ -1,0 +1,425 @@
+{
+  "id": "level_003_base_c00",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 3,
+    "variant": "base",
+    "role": "teaching_breather",
+    "complexity_tier": 1,
+    "theme": "crystal_workshop",
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 0,
+    "candidate_tuning": {
+      "moves_delta": 0,
+      "target_multiplier": 1.0,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.9,
+      1.0
+    ],
+    "target_attempts_to_first_win": [
+      1.0,
+      2.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 18,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 1051
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_trail",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "teaching_breather",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "target_path_reading"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "trail_marks",
+      "cells": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          5,
+          3
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "teaching_breather",
+      "linked_eye": "cleanse_trail"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "read_target_path",
+      "proof_signal": "multiple_target_regions_cleared_in_sequence"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "path_reading_without_new_blocker"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_trail"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 3,
+      "arc_role": "spatial_reading"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "spatial_variation",
+        "role": "primary",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.03,
+      "max_dead_board_rate": 0.03,
+      "max_no_progress_turn_rate": 0.3,
+      "max_luck_dependency_proxy": 0.35
+    },
+    "difficulty_rhythm": {
+      "shape": "low_variation",
+      "target_pass_band": [
+        0.9,
+        1.0
+      ],
+      "role": "teaching_breather"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_target_path_reading",
+    "archetype": "key_path",
+    "primary_blocker": "none",
+    "focus_area": "trail_marks",
+    "action_vector": "path",
+    "read_order": [
+      "goal_path",
+      "solution_sequence"
+    ],
+    "negative_space": {
+      "kind": "open_path_play_area",
+      "min_ratio": 0.65
+    },
+    "density": "none",
+    "delete_test": "removing_trail_removes_path_reading_lesson",
+    "theme_shape": "paw_stardust_trail",
+    "beauty_rules": [
+      "single_core_question",
+      "goal_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "teaching_breather",
+    "linked_eye": "cleanse_trail",
+    "visual_grammar": {
+      "focal_alignment": "path",
+      "symmetry": "none",
+      "density_band": [
+        0.02,
+        0.2
+      ],
+      "silhouette": "paw_stardust_trail",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_003",
+    "thesis": {
+      "key": "follow_the_stardust_tracks",
+      "sentence": "星尘不是清单，而是一条能追踪的脚印路线。"
+    },
+    "fantasy": "跟着迷路小兽留下的星尘脚印穿过林地。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "stardust_trail"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "trail_cascade",
+          "as": "footprints_fade"
+        }
+      ]
+    },
+    "stage": {
+      "function": "trail_reading",
+      "shape": "open_7x7_diagonal_trail",
+      "dramatic_axis": "upper_left_to_lower_center",
+      "focus": "trail_marks",
+      "friction_zone": "trail_turns",
+      "payoff_zone": "trail_marks",
+      "operation_space": "both_sides_of_trail",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "stardust_trail_cleansed",
+      "player_readable_goal": "沿脚印路线逐段净化星尘。"
+    },
+    "arc": {
+      "opening": "星尘排成路径而不是一坨目标。",
+      "friction": "路线拐点分散，玩家需要切换清理段落。",
+      "turn": "中段脚印被连锁净化，整条路线方向变清楚。",
+      "payoff": "最后几枚脚印熄灭，像把路线追到终点。"
+    },
+    "payoff": {
+      "signature": "拐弯处星尘一段段熄灭。"
+    },
+    "negative_space": {
+      "statement": "路径外不放第二机制，保留追踪感。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "trail_side_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "训练玩家读形状而非读数量。",
+      "visual": "斜向脚印构图让棋盘有方向。",
+      "readability": "玩家顺着星尘排列自然知道下一处。",
+      "theme": "森林里迷路小兽留下的星尘脚印。"
+    },
+    "solution": {
+      "intended_solution": [
+        "沿路径附近找消除",
+        "优先处理拐点",
+        "用自然连锁收掉末端"
+      ],
+      "crack_path": [
+        "read_mark_trail",
+        "access_trail_segments",
+        "convert_matches_to_mark_progress",
+        "finish_path_tail"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "星尘不是清单，而是一条能追踪的脚印路线。",
+    "visual_focus": "trail_marks",
+    "intended_solution": [
+      "沿路径附近找消除",
+      "优先处理拐点",
+      "用自然连锁收掉末端"
+    ],
+    "crack_path": [
+      "read_mark_trail",
+      "access_trail_segments",
+      "convert_matches_to_mark_progress",
+      "finish_path_tail"
+    ],
+    "climax": "拐弯处星尘一段段熄灭。"
+  },
+  "director": {
+    "intent": "星尘不是清单，而是一条能追踪的脚印路线。",
+    "player_fantasy": "跟着迷路小兽留下的星尘脚印穿过林地。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "星尘排成路径而不是一坨目标。",
+      "friction": "路线拐点分散，玩家需要切换清理段落。",
+      "turn": "中段脚印被连锁净化，整条路线方向变清楚。",
+      "payoff": "最后几枚脚印熄灭，像把路线追到终点。"
+    },
+    "signature_moment": "拐弯处星尘一段段熄灭。",
+    "negative_space": "路径外不放第二机制，保留追踪感。",
+    "four_in_one": {
+      "play": "训练玩家读形状而非读数量。",
+      "visual": "斜向脚印构图让棋盘有方向。",
+      "readability": "玩家顺着星尘排列自然知道下一处。",
+      "theme": "森林里迷路小兽留下的星尘脚印。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

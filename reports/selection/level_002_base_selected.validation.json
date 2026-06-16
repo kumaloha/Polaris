@@ -1,0 +1,199 @@
+{
+  "level_id": "level_002_base_c02",
+  "lint": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  "compile": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  },
+  "structural": {
+    "valid": true,
+    "playable_cell_count": 49,
+    "initial_match_count": 0,
+    "legal_move_exists": true,
+    "objective_ok": true,
+    "drop_path_ok": true
+  },
+  "verdict": "approved",
+  "recommendations": [],
+  "semantic": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "thesis_sentence_specific": true,
+      "one_protagonist_present": true,
+      "mechanisms_have_roles": true,
+      "objective_has_semantic_role": true,
+      "stage_function_complete": true,
+      "arc_turn_state_change": true,
+      "readable_world_state_goal": true,
+      "negative_space_enforced": true,
+      "validation_claims_complete": true,
+      "director_compiled_from_semantics": true,
+      "payoff_visible": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "level_intent_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "objective_verb_known": true,
+      "objective_verb_matches_objective": true,
+      "skill_lesson_has_proof_signal": true,
+      "board_scale_declared": true,
+      "board_scale_matches_map": true,
+      "new_mechanic_reveal": false,
+      "objective_verb_matches_archetype": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "mechanism_spec_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "active_atoms": [
+        "line_h_gem",
+        "target_mark"
+      ],
+      "active_atoms_have_specs": true,
+      "unused_specs": [],
+      "line_h_gem.id_matches_key": true,
+      "line_h_gem.category_known": true,
+      "line_h_gem.state_dynamics_known": true,
+      "line_h_gem.effect_text_present": true,
+      "line_h_gem.compatible_objective_verbs_declared": true,
+      "line_h_gem.compatible_terrain_declared": true,
+      "line_h_gem.intro_rule_declared": true,
+      "line_h_gem.mixing_rule_declared": true,
+      "line_h_gem.simulator_hook_declared": true,
+      "line_h_gem.godot_support_declared": true,
+      "target_mark.id_matches_key": true,
+      "target_mark.category_known": true,
+      "target_mark.state_dynamics_known": true,
+      "target_mark.effect_text_present": true,
+      "target_mark.compatible_objective_verbs_declared": true,
+      "target_mark.compatible_terrain_declared": true,
+      "target_mark.intro_rule_declared": true,
+      "target_mark.mixing_rule_declared": true,
+      "target_mark.simulator_hook_declared": true,
+      "target_mark.godot_support_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "personalization_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "prior_known": true,
+      "persona_axes_present": true,
+      "annoyance_tolerance_valid": true,
+      "challenge_bias_valid": true,
+      "cuteness_bias_valid": true,
+      "novelty_bias_valid": true,
+      "reward_bias_valid": true,
+      "strategy_bias_valid": true,
+      "prior_weight_valid": true,
+      "unknown_prior_balanced": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "taste": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "intent_specific": true,
+      "player_fantasy_specific": true,
+      "signature_moment_specific": true,
+      "negative_space_specific": true,
+      "emotional_arc_complete": true,
+      "four_in_one_complete": true,
+      "protagonist_present_on_board_or_objective": true,
+      "objective_covered_by_director_roles": true,
+      "active_layers_declared": true,
+      "mechanism_budget_ok": {
+        "valid": true,
+        "active": [
+          "target_mark"
+        ],
+        "max": 1
+      },
+      "forbidden_atoms_absent": true,
+      "no_color_order_goal": true,
+      "protagonist_language_aligned": true,
+      "pacing_context": {
+        "move_limit": 20,
+        "objective_target_total": 8
+      }
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "progression": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "episode_slot_and_role_present": true,
+      "primary_lifecycle_matches_protagonist": true,
+      "design_mechanics_in_lifecycle": true,
+      "lifecycle_phases_specific": true,
+      "reward_primitives_known": true,
+      "reward_primitives_present_on_board": true,
+      "reward_primitives_compile_to_fx": true,
+      "max_reshuffle_rate_valid": true,
+      "max_dead_board_rate_valid": true,
+      "max_no_progress_turn_rate_valid": true,
+      "max_luck_dependency_proxy_valid": true,
+      "difficulty_rhythm_has_pass_band": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "obstacle_composition_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "archetype_known": true,
+      "archetype_matches_purpose": true,
+      "primary_blocker_present": true,
+      "negative_space_declared": true,
+      "negative_space_ratio": 1.0,
+      "negative_space_ok": true,
+      "no_uniform_wall": true,
+      "read_order_declared": true,
+      "read_order_spatially_plausible": true,
+      "beauty_rules_declared": true,
+      "delete_test_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  },
+  "visual_grammar_gate": {
+    "valid": true,
+    "score": 100,
+    "checks": {
+      "required_fields_present": true,
+      "anchor_layers_present": true,
+      "density_band_declared": true,
+      "anchor_density": 0.163,
+      "anchor_density_in_band": true,
+      "focal_alignment_ok": true,
+      "symmetry_ok": true,
+      "silhouette_declared": true
+    },
+    "errors": [],
+    "warnings": []
+  }
+}

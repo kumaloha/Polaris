@@ -1,0 +1,560 @@
+{
+  "id": "level_008_base_c08",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 8,
+    "variant": "base",
+    "role": "variation",
+    "complexity_tier": 2,
+    "theme": "crystal_mine",
+    "target_pass_band": [
+      0.65,
+      0.85
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 8,
+    "candidate_tuning": {
+      "moves_delta": -2,
+      "target_multiplier": 1.08,
+      "shell_hp_delta": 1,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.65,
+      0.85
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 14,
+    "colors": 6,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 9112
+  },
+  "map": {
+    "width": 9,
+    "height": 9,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_siege",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "variation",
+      "active": [
+        "crystal_shell",
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "burst_gem"
+  },
+  "board": [
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo",
+    "ooooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "vault_marks",
+      "cells": [
+        [
+          3,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          4,
+          4
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          5,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "vault_shell_ring",
+      "cells": [
+        [
+          2,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          4,
+          2
+        ],
+        [
+          5,
+          2
+        ],
+        [
+          6,
+          3
+        ],
+        [
+          6,
+          4
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          3,
+          6
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          5,
+          6
+        ]
+      ],
+      "layers": [
+        {
+          "crystal_shell": {
+            "hp": 2
+          }
+        }
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "crystal_shell": {
+      "mechanic_id": "crystal_shell",
+      "category": "blocker",
+      "state_dynamics": "static",
+      "player_action": "clear_adjacent_or_hit_with_special",
+      "board_effect": "occupies_space_and_blocks_until_hp_zero",
+      "reward_effect": "opens_route_or_reveals_target_space",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 5,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "drop_relic",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "coat_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "coat"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_siege"
+    },
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_siege"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_burst_to_crack_ring",
+      "proof_signal": "shell_ring_damage_before_center_targets_finish"
+    },
+    "board_scale": {
+      "size": "9x9",
+      "effective_problem_space": "medium",
+      "reason": "ring_pressure_needs_outer_play_area"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_siege"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 8,
+      "arc_role": "blocker_pressure_variation"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "crystal_shell",
+        "phase": "enclosure_pressure",
+        "role": "primary",
+        "is_new": false
+      },
+      {
+        "mechanic": "target_mark",
+        "phase": "known_goal_as_vault",
+        "role": "support",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": false,
+      "primitives": [],
+      "delivery": "natural_cascade_only",
+      "purpose": "keep_attention_on_new_rule"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.05,
+      "max_dead_board_rate": 0.05,
+      "max_no_progress_turn_rate": 0.36,
+      "max_luck_dependency_proxy": 0.42
+    },
+    "difficulty_rhythm": {
+      "shape": "short_pressure_peak",
+      "target_pass_band": [
+        0.65,
+        0.85
+      ],
+      "role": "variation"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_burst_cracks_crystal_ring",
+    "archetype": "ring",
+    "primary_blocker": "crystal_shell",
+    "focus_area": "vault_center",
+    "action_vector": "burst",
+    "read_order": [
+      "center_goal",
+      "blocker_ring",
+      "burst_solution"
+    ],
+    "negative_space": {
+      "kind": "outer_play_area",
+      "min_ratio": 0.55
+    },
+    "density": "medium",
+    "delete_test": "removing_shell_ring_removes_vault_lesson",
+    "theme_shape": "crystal_vault_ring",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "no_uniform_wall",
+      "goal_blocker_solution_readable",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_siege",
+    "visual_grammar": {
+      "focal_alignment": "center_ring",
+      "symmetry": "radial_hint",
+      "density_band": [
+        0.08,
+        0.32
+      ],
+      "silhouette": "crystal_vault_ring",
+      "anchor_layers": [
+        "crystal_shell"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_008",
+    "thesis": {
+      "key": "break_the_ring_to_open_the_vault",
+      "sentence": "先破壳环，才能拿到中心星尘宝库。"
+    },
+    "fantasy": "破解晶壳环，打开矿洞中心的星尘宝库。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "crystal_shell",
+        "as": "vault_ring"
+      },
+      "support": [
+        {
+          "mechanism": "target_mark",
+          "as": "center_treasure"
+        }
+      ],
+      "reward": [
+        {
+          "kind": "burst_clear",
+          "as": "vault_opens"
+        }
+      ]
+    },
+    "stage": {
+      "function": "vault_siege",
+      "shape": "open_9x9_center_vault",
+      "dramatic_axis": "outside_to_center",
+      "focus": "vault_shell_ring",
+      "friction_zone": "shell_ring",
+      "payoff_zone": "center_vault_marks",
+      "operation_space": "outer_board",
+      "supply_logic": "open_refill_around_enclosure"
+    },
+    "objective": {
+      "world_state_change": "center_stardust_vault_cleansed_after_ring_breaks",
+      "player_readable_goal": "先破外圈晶壳，再净化中心星尘宝库。"
+    },
+    "arc": {
+      "opening": "中心星尘很诱人，但外圈晶壳挡住入口。",
+      "friction": "玩家能看见收益，却必须先拆外围。",
+      "turn": "晶壳环破开一侧，中心目标变得可触达。",
+      "payoff": "中心星尘被爆破或线消一口气收掉。"
+    },
+    "payoff": {
+      "signature": "晶壳环打开缺口，中心宝库被一次爆破点亮。"
+    },
+    "negative_space": {
+      "statement": "环外保留开阔操作区，让围城不是窒息。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "outer_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "围城题眼：先破壳环，再拿中心收益。",
+      "visual": "中心宝库和外圈护盾构图稳定。",
+      "readability": "壳环包住目标，天然说明先破外围。",
+      "theme": "水晶矿洞里的封存宝库。"
+    },
+    "solution": {
+      "intended_solution": [
+        "先破外圈晶壳",
+        "打开中心目标区",
+        "用爆破或线消收尾"
+      ],
+      "crack_path": [
+        "read_vault_shell",
+        "access_vault_ring",
+        "activate_shell_break",
+        "payoff_center_opens",
+        "convert_to_target_mark_progress",
+        "finish_remaining_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 2
+    }
+  },
+  "design_claim": {
+    "eye": "先破壳环，才能拿到中心星尘宝库。",
+    "visual_focus": "vault_shell_ring",
+    "intended_solution": [
+      "先破外圈晶壳",
+      "打开中心目标区",
+      "用爆破或线消收尾"
+    ],
+    "crack_path": [
+      "read_vault_shell",
+      "access_vault_ring",
+      "activate_shell_break",
+      "payoff_center_opens",
+      "convert_to_target_mark_progress",
+      "finish_remaining_marks"
+    ],
+    "climax": "晶壳环打开缺口，中心宝库被一次爆破点亮。"
+  },
+  "director": {
+    "intent": "先破壳环，才能拿到中心星尘宝库。",
+    "player_fantasy": "破解晶壳环，打开矿洞中心的星尘宝库。",
+    "protagonist": "crystal_shell",
+    "supporting_roles": [
+      "target_mark"
+    ],
+    "emotional_arc": {
+      "opening": "中心星尘很诱人，但外圈晶壳挡住入口。",
+      "friction": "玩家能看见收益，却必须先拆外围。",
+      "turn": "晶壳环破开一侧，中心目标变得可触达。",
+      "payoff": "中心星尘被爆破或线消一口气收掉。"
+    },
+    "signature_moment": "晶壳环打开缺口，中心宝库被一次爆破点亮。",
+    "negative_space": "环外保留开阔操作区，让围城不是窒息。",
+    "four_in_one": {
+      "play": "围城题眼：先破壳环，再拿中心收益。",
+      "visual": "中心宝库和外圈护盾构图稳定。",
+      "readability": "壳环包住目标，天然说明先破外围。",
+      "theme": "水晶矿洞里的封存宝库。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 2,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "level_id": "level_001_base",
+  "level_id": "level_001_base_c01",
   "w": 7,
   "h": 7,
   "species": [
@@ -12,50 +12,32 @@
     [
       0,
       2,
+      0,
       3,
       3,
-      0,
-      0,
+      2,
       1
     ],
     [
-      2,
-      0,
       3,
-      2,
-      1,
       0,
-      2
+      0,
+      2,
+      3,
+      1,
+      1
     ],
     [
       3,
-      1,
-      0,
-      0,
-      2,
-      1,
-      0
-    ],
-    [
       0,
       1,
-      0,
-      0,
       3,
+      2,
       1,
       3
     ],
     [
       2,
-      0,
-      1,
-      1,
-      0,
-      2,
-      2
-    ],
-    [
-      3,
       2,
       1,
       2,
@@ -64,18 +46,36 @@
       3
     ],
     [
-      3,
-      1,
-      3,
-      3,
       1,
       0,
+      0,
+      3,
+      0,
+      1,
       2
+    ],
+    [
+      2,
+      2,
+      3,
+      1,
+      2,
+      3,
+      2
+    ],
+    [
+      0,
+      1,
+      2,
+      0,
+      3,
+      0,
+      3
     ]
   ],
   "target_score": 0,
-  "move_limit": 16,
-  "seed": 1017,
+  "move_limit": 15,
+  "seed": 2014,
   "objectives": [
     {
       "type": "CLEAR_JELLY",
@@ -734,5 +734,17 @@
       0
     ]
   ],
-  "difficulty": "EASY"
+  "difficulty": "EASY",
+  "meta": {
+    "level_coordinate": 1,
+    "source_lvl": "levels_src/selected/level_001_base_selected.lvl",
+    "selected_candidate_id": "level_001_base_c01",
+    "design_eye": "cleanse_direct",
+    "intent": null,
+    "role": "teaching",
+    "target_pass_band": [
+      0.92,
+      1.0
+    ]
+  }
 }

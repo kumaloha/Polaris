@@ -1,0 +1,487 @@
+{
+  "id": "level_002_base_c02",
+  "version": 0,
+  "compile_mode": "playable",
+  "meta": {
+    "level_coordinate": 2,
+    "variant": "base",
+    "role": "variation",
+    "complexity_tier": 1,
+    "theme": "forest_ruins",
+    "target_pass_band": [
+      0.78,
+      0.92
+    ],
+    "generated_by": "tools/level_tool.py generate",
+    "candidate_index": 2,
+    "candidate_tuning": {
+      "moves_delta": -2,
+      "target_multiplier": 1.05,
+      "shell_hp_delta": 0,
+      "colors_delta": 0
+    }
+  },
+  "personalization": {
+    "profile_band": "default_mid_skill",
+    "cold_start_prior": "unknown",
+    "prior_weight": 0.0,
+    "persona_axes": {
+      "novelty_bias": 0.5,
+      "reward_bias": 0.5,
+      "challenge_bias": 0.5,
+      "strategy_bias": 0.5,
+      "cuteness_bias": 0.5,
+      "annoyance_tolerance": 0.45
+    },
+    "target_pass_band": [
+      0.78,
+      0.92
+    ],
+    "target_attempts_to_first_win": [
+      1.5,
+      3.0
+    ],
+    "pet_skill_context": "ignored_v0"
+  },
+  "objective": {
+    "type": "cleanse_marks",
+    "target": "all"
+  },
+  "rules": {
+    "moves": 20,
+    "colors": 4,
+    "refill": "random",
+    "gravity": "down",
+    "seed": 3028
+  },
+  "map": {
+    "width": 7,
+    "height": 7,
+    "terrain": {
+      "sample": "open"
+    },
+    "supply_topology": {
+      "type": "vertical_down"
+    }
+  },
+  "recipe": {
+    "eye": "cleanse_edge",
+    "obstacle_lane": {
+      "focus": "target_mark",
+      "stage": "variation",
+      "active": [
+        "target_mark"
+      ],
+      "forbidden": []
+    },
+    "mechanism_lane": {
+      "focus": "none",
+      "stage": "none"
+    },
+    "intended_control": "edge_targeting"
+  },
+  "board": [
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
+  ],
+  "overlays": [
+    {
+      "region": "edge_marks",
+      "cells": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          5
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          6
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          6,
+          5
+        ]
+      ],
+      "layers": [
+        "target_mark"
+      ]
+    },
+    {
+      "region": "edge_line_reward",
+      "cells": [
+        [
+          3,
+          3
+        ]
+      ],
+      "layers": [
+        "line_h_gem"
+      ]
+    }
+  ],
+  "mechanisms": [],
+  "mechanism_specs": {
+    "line_h_gem": {
+      "mechanic_id": "line_h_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_horizontal_line",
+      "reward_effect": "edge_or_row_sweep",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_line_h",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_edge"
+    },
+    "target_mark": {
+      "mechanic_id": "target_mark",
+      "category": "objective",
+      "state_dynamics": "static",
+      "player_action": "match_on_target_cell",
+      "board_effect": "clears_target_mark_layer",
+      "reward_effect": "objective_progress_feedback",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "craft",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": 1,
+        "first_reveal_phase": "reveal_safe",
+        "new_reveal_problem_space": "small"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "crystal_shell",
+          "line_h_gem",
+          "line_v_gem",
+          "burst_gem",
+          "color_bomb_gem"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "jelly_layer",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "jelly"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_edge"
+    }
+  },
+  "level_intent": {
+    "objective_verb": "cleanse",
+    "skill_lesson": {
+      "skill": "use_horizontal_line_for_edge_targets",
+      "proof_signal": "line_reward_hits_edge_target"
+    },
+    "board_scale": {
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "edge_sweep_lesson"
+    },
+    "source_principles": [
+      "new_mechanic_reveal_small_problem_space",
+      "objective_verb_drives_layout",
+      "skill_lesson_must_have_proof_signal"
+    ],
+    "linked_eye": "cleanse_edge"
+  },
+  "progression": {
+    "episode": {
+      "id": "first_spellbook_arc",
+      "slot": 2,
+      "arc_role": "reward_tool_intro"
+    },
+    "mechanic_lifecycle": [
+      {
+        "mechanic": "target_mark",
+        "phase": "practice_with_reward",
+        "role": "primary",
+        "is_new": false
+      }
+    ],
+    "reward_budget": {
+      "required": true,
+      "primitives": [
+        "line_h_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
+    },
+    "annoyance_budget": {
+      "max_reshuffle_rate": 0.05,
+      "max_dead_board_rate": 0.05,
+      "max_no_progress_turn_rate": 0.36,
+      "max_luck_dependency_proxy": 0.42
+    },
+    "difficulty_rhythm": {
+      "shape": "safe_reward_lift",
+      "target_pass_band": [
+        0.78,
+        0.92
+      ],
+      "role": "variation"
+    }
+  },
+  "obstacle_composition": {
+    "purpose": "teach_horizontal_line_reaches_edges",
+    "archetype": "no_blocker_focus",
+    "primary_blocker": "none",
+    "focus_area": "edge_marks",
+    "action_vector": "horizontal",
+    "read_order": [
+      "edge_goal",
+      "horizontal_solution"
+    ],
+    "negative_space": {
+      "kind": "center_play_area",
+      "min_ratio": 0.68
+    },
+    "density": "none",
+    "delete_test": "removing_edge_targets_removes_sweep_lesson",
+    "theme_shape": "edge_stardust",
+    "beauty_rules": [
+      "shape_implies_action_direction",
+      "single_core_question",
+      "theme_shape_serves_play_shape"
+    ],
+    "level_role": "variation",
+    "linked_eye": "cleanse_edge",
+    "visual_grammar": {
+      "focal_alignment": "edge_pairs",
+      "symmetry": "bilateral",
+      "density_band": [
+        0.02,
+        0.2
+      ],
+      "silhouette": "edge_stardust",
+      "anchor_layers": [
+        "target_mark"
+      ],
+      "max_centroid_offset": 1.25
+    }
+  },
+  "level_design": {
+    "id": "level_002",
+    "thesis": {
+      "key": "reach_the_glowing_border",
+      "sentence": "边框星尘也需要主动够到。"
+    },
+    "fantasy": "沿魔法书页边框拾起散落的星尘碎片。",
+    "roles": {
+      "protagonist": {
+        "mechanism": "target_mark",
+        "as": "edge_stardust"
+      },
+      "support": [],
+      "reward": [
+        {
+          "kind": "line_clear",
+          "as": "border_sweep"
+        }
+      ]
+    },
+    "stage": {
+      "function": "edge_reach",
+      "shape": "open_7x7_border",
+      "dramatic_axis": "center_to_edge",
+      "focus": "edge_marks",
+      "friction_zone": "board_edges",
+      "payoff_zone": "edge_marks",
+      "operation_space": "center_open_space",
+      "supply_logic": "open_vertical_refill"
+    },
+    "objective": {
+      "world_state_change": "border_stardust_cleansed",
+      "player_readable_goal": "把机会送到四周边框，净化边缘星尘。"
+    },
+    "arc": {
+      "opening": "中心很宽松，但星尘都在四周发光。",
+      "friction": "边缘交换方向少，普通乱消容易停在中心。",
+      "turn": "玩家把一次横向或纵向消除送到边缘。",
+      "payoff": "一侧边框被扫亮，玩家理解边缘可达性。"
+    },
+    "payoff": {
+      "signature": "整条边缘星尘被一次线性机会带走。"
+    },
+    "negative_space": {
+      "statement": "中央保持干净，不放中心目标抢走视线。",
+      "forbid": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "preserve": [
+        "center_operation_space"
+      ]
+    },
+    "four_in_one": {
+      "play": "同一星尘目标改成位置挑战。",
+      "visual": "发光边框像书页边饰。",
+      "readability": "HUD 星尘、边框星尘、玩法优先级三点一致。",
+      "theme": "修复魔法书页破损边框。"
+    },
+    "solution": {
+      "intended_solution": [
+        "从中心制造边缘可达机会",
+        "优先清四角和边缘",
+        "用横竖消除扫边"
+      ],
+      "crack_path": [
+        "read_edge_stardust",
+        "access_edge_from_center",
+        "convert_edge_matches_to_progress",
+        "finish_corner_marks"
+      ]
+    },
+    "validation": {
+      "must_have": [
+        "one_protagonist",
+        "causal_closure",
+        "visual_play_alignment",
+        "readable_world_state_goal",
+        "arc_turn_state_change"
+      ],
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ],
+      "max_primary_mechanisms": 1
+    }
+  },
+  "design_claim": {
+    "eye": "边框星尘也需要主动够到。",
+    "visual_focus": "edge_marks",
+    "intended_solution": [
+      "从中心制造边缘可达机会",
+      "优先清四角和边缘",
+      "用横竖消除扫边"
+    ],
+    "crack_path": [
+      "read_edge_stardust",
+      "access_edge_from_center",
+      "convert_edge_matches_to_progress",
+      "finish_corner_marks"
+    ],
+    "climax": "整条边缘星尘被一次线性机会带走。"
+  },
+  "director": {
+    "intent": "边框星尘也需要主动够到。",
+    "player_fantasy": "沿魔法书页边框拾起散落的星尘碎片。",
+    "protagonist": "target_mark",
+    "supporting_roles": [],
+    "emotional_arc": {
+      "opening": "中心很宽松，但星尘都在四周发光。",
+      "friction": "边缘交换方向少，普通乱消容易停在中心。",
+      "turn": "玩家把一次横向或纵向消除送到边缘。",
+      "payoff": "一侧边框被扫亮，玩家理解边缘可达性。"
+    },
+    "signature_moment": "整条边缘星尘被一次线性机会带走。",
+    "negative_space": "中央保持干净，不放中心目标抢走视线。",
+    "four_in_one": {
+      "play": "同一星尘目标改成位置挑战。",
+      "visual": "发光边框像书页边饰。",
+      "readability": "HUD 星尘、边框星尘、玩法优先级三点一致。",
+      "theme": "修复魔法书页破损边框。"
+    },
+    "anti_slop": {
+      "max_primary_mechanisms": 1,
+      "forbidden": [
+        "collect",
+        "creep_growth",
+        "crystal_shell",
+        "drop_relic",
+        "order_color",
+        "spawner",
+        "timed_core"
+      ],
+      "no_color_order_goal": true,
+      "reject_if": [
+        "generic_counter_goal",
+        "mechanism_without_role",
+        "payoff_disconnected_from_objective",
+        "visual_play_mismatch",
+        "undeclared_noise"
+      ]
+    }
+  }
+}
