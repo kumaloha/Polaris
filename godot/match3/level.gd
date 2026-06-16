@@ -574,7 +574,78 @@ func _session_result(win: bool) -> Dictionary:
 	var result: Dictionary = board.result() if board != null else {"won": win}
 	result["collected"] = board.collected.duplicate() if board != null else {}
 	result["level_index"] = _level_idx
+	result["level_coordinate"] = _display_level_number(_level_idx)
+	result["assigned_instance_id"] = _current_instance_id()
+	result["levels_path"] = _levels_path
+	if board != null:
+		result["move_limit"] = int(board.move_limit) + _session_extra_moves
+		result["moves_used"] = max(0, int(result["move_limit"]) - int(board.moves_left))
+		result["board_size"] = {"w": board.width, "h": board.height}
+		result["colors"] = board.species.size()
+		result["objectives"] = board.objectives.duplicate(true)
+		result["objective_progress"] = _objective_progress_snapshot()
+		result["mechanism_activation_rate"] = _objective_completion_rate(result["objective_progress"])
 	return result
+
+func _current_level_record() -> Dictionary:
+	if not _levels.is_empty() and _level_idx >= 0 and _level_idx < _levels.size() and _levels[_level_idx] is Dictionary:
+		return _levels[_level_idx]
+	return {}
+
+func _current_instance_id() -> String:
+	var rec := _current_level_record()
+	var direct := String(rec.get("level_id", rec.get("id", "")))
+	if not direct.is_empty():
+		return direct
+	return "level_%03d_library_%d" % [_display_level_number(_level_idx), _level_idx]
+
+func _objective_progress_snapshot() -> Array:
+	var out: Array = []
+	if board == null:
+		return out
+	for obj in board.objectives:
+		if not (obj is Dictionary):
+			continue
+		var typ := String(obj.get("type", ""))
+		var sp := int(obj.get("species", -1))
+		var target := int(obj.get("target", 0))
+		var current := 0
+		match typ:
+			"COLLECT":
+				current = int(board.collected.get(sp, 0))
+			"CLEAR_JELLY":
+				current = int(board.jelly_cleared)
+			"CLEAR_BLOCKER":
+				current = int(board.blocker_cleared)
+			"CLEAR_CHOCO":
+				current = int(board.choco_cleared)
+			"COLLECT_INGREDIENT":
+				current = int(board.ingredient_collected)
+			"DEFUSE_BOMB":
+				current = int(board.bomb_defused)
+			"POP_POPCORN":
+				current = int(board.popcorn_hit)
+			"DESTROY_CAKE":
+				current = int(board.cake_destroyed)
+			"REVEAL_MYSTERY":
+				current = int(board.mystery_revealed)
+			"SCORE":
+				current = int(board.score)
+			_:
+				current = 0
+		out.append({"type": typ, "species": sp, "current": current, "target": target})
+	return out
+
+func _objective_completion_rate(progress: Array) -> float:
+	var current := 0.0
+	var target := 0.0
+	for item in progress:
+		if item is Dictionary:
+			current += float(item.get("current", 0.0))
+			target += max(0.0, float(item.get("target", 0.0)))
+	if target <= 0.0:
+		return 1.0
+	return clampf(current / target, 0.0, 1.0)
 
 # 契约D(P9): game_root 鸭子调用注入开局配置。读 loadout.extra_moves 加步数、pets 交 skills(无则默认)。
 # main_scene 不切——Level.tscn 仍可独立运行(无 config 时走现行为)。

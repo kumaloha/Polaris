@@ -5,6 +5,7 @@ extends RefCounted
 
 # 当前固定出战宠物注册表 key（未来可按 loadout 配）。
 const DEFAULT_PETS := ["timerewind", "raccoon", "dragon", "ladybug"]
+const PlaytestRecorder := preload("res://app/playtest_recorder.gd")
 
 # ── 开局组装 ──────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ func build_config(meta_state: Object, level_index: int) -> Dictionary:
 # level_index : 对应关卡库索引，用于 record_clear。
 # 返回入账摘要（金币/碎片/水晶增量——用于结算页显示）：
 #   { "coins_delta": int, "fragments_delta": int, "crystals_delta": int }
-func bank(meta_state: Object, result: Dictionary, level_index: int) -> Dictionary:
+func bank(meta_state: Object, result: Dictionary, level_index: int, level_record: Dictionary = {}) -> Dictionary:
 	# 快照入账前数值
 	var coins_before    := int(meta_state.coins)
 	var fragments_before := int(meta_state.fragments)
@@ -42,12 +43,16 @@ func bank(meta_state: Object, result: Dictionary, level_index: int) -> Dictionar
 
 	# 持久化
 	meta_state.save()
+	var playtest_event := {}
+	if result.has("level_coordinate") or not level_record.is_empty():
+		playtest_event = PlaytestRecorder.record(result, level_index, level_record)
 
 	# 返回增量摘要
 	return {
 		"coins_delta":     int(meta_state.coins)     - coins_before,
 		"fragments_delta": int(meta_state.fragments) - fragments_before,
 		"crystals_delta":  int(meta_state.crystals)  - crystals_before,
+		"playtest_event_id": str(playtest_event.get("event_id", "")),
 	}
 
 # ── 推关 ─────────────────────────────────────────────────────────────────────

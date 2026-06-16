@@ -172,7 +172,10 @@ func _clear_level() -> void:
 
 # ── Result ────────────────────────────────────────────────────────────────────
 func _on_session_ended(result: Dictionary) -> void:
-	_last_summary = _session.bank(_meta, result, _current_index)
+	var level_record: Dictionary = {}
+	if _current_index >= 0 and _current_index < _library.size() and _library[_current_index] is Dictionary:
+		level_record = _library[_current_index]
+	_last_summary = _session.bank(_meta, result, _current_index, level_record)
 	_last_stars = int(result.get("stars", 0))
 	_played_set[_current_index] = true
 	_enter_result()

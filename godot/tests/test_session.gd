@@ -6,6 +6,7 @@ extends "res://tests/test_lib.gd"
 const MetaState := preload("res://meta/meta_state.gd")
 const Enchants  := preload("res://meta/enchants.gd")
 const Session   := preload("res://app/session.gd")
+const PlaytestRecorder := preload("res://app/playtest_recorder.gd")
 
 # ── build_config 字段完整性 ───────────────────────────────────────────────────
 
@@ -113,6 +114,80 @@ func test_bank_appends_history() -> void:
 	assert_eq(ms.history[1].get("stars"), 0,       "history[1].stars 正确")
 	assert_eq(ms.history[1].get("kind"), "scroll", "is_scrolling → kind=scroll")
 
+func test_playtest_recorder_writes_jsonl_and_player_context() -> void:
+	var old_log := PlaytestRecorder.LOG_PATH
+	var old_context := PlaytestRecorder.CONTEXT_PATH
+	PlaytestRecorder.LOG_PATH = "user://test_playtest_sessions.jsonl"
+	PlaytestRecorder.CONTEXT_PATH = "user://test_player_context.json"
+	PlaytestRecorder.clear_test_files()
+
+	var event := PlaytestRecorder.record({
+		"won": false,
+		"lost": true,
+		"stars": 0,
+		"score": 120,
+		"moves_left": 0,
+		"move_limit": 22,
+		"level_coordinate": 5,
+		"assigned_instance_id": "level_005_assisted_c01",
+		"objectives": [{"type": "CLEAR_JELLY", "target": 6}],
+		"objective_progress": [{"type": "CLEAR_JELLY", "current": 3, "target": 6}],
+	}, 4, {"level_id": "level_005_assisted_c01"})
+
+	assert_true(FileAccess.file_exists(PlaytestRecorder.LOG_PATH), "playtest JSONL is written")
+	assert_true(FileAccess.file_exists(PlaytestRecorder.CONTEXT_PATH), "generate-next PlayerContext snapshot is written")
+	assert_eq(event.get("level_coordinate"), 5, "event keeps the playable coordinate")
+	assert_eq(event.get("assigned_instance_id"), "level_005_assisted_c01", "event keeps assigned instance id")
+	assert_eq(event.get("fail_reasons", {}).get("out_of_moves"), 1, "out-of-moves loss is machine readable")
+
+	var f := FileAccess.open(PlaytestRecorder.CONTEXT_PATH, FileAccess.READ)
+	var ctx = JSON.parse_string(f.get_as_text())
+	f.close()
+	assert_true(ctx is Dictionary, "context file is JSON object")
+	assert_eq(ctx.get("played_levels", []).size(), 1, "context gets one played level record")
+	var played: Dictionary = ctx["played_levels"][0]
+	assert_eq(played.get("level_coordinate"), 5, "context record keeps coordinate")
+	assert_eq(played.get("won"), false, "context record keeps win/loss")
+	assert_eq(played.get("attempts"), 1, "each playtest event is one attempt")
+
+	PlaytestRecorder.clear_test_files()
+	PlaytestRecorder.LOG_PATH = old_log
+	PlaytestRecorder.CONTEXT_PATH = old_context
+
+func test_bank_records_playtest_event_for_generate_next_context() -> void:
+	var old_log := PlaytestRecorder.LOG_PATH
+	var old_context := PlaytestRecorder.CONTEXT_PATH
+	PlaytestRecorder.LOG_PATH = "user://test_bank_playtest_sessions.jsonl"
+	PlaytestRecorder.CONTEXT_PATH = "user://test_bank_player_context.json"
+	PlaytestRecorder.clear_test_files()
+
+	var ms := MetaState.new()
+	var sess := Session.new()
+	var summary := sess.bank(ms, {
+		"won": true,
+		"stars": 2,
+		"score": 500,
+		"fragments": 0,
+		"is_scrolling": false,
+		"moves_left": 4,
+		"move_limit": 20,
+		"level_coordinate": 9,
+		"assigned_instance_id": "level_009_base_c00",
+		"objectives": [{"type": "COLLECT_INGREDIENT", "target": 1}],
+		"objective_progress": [{"type": "COLLECT_INGREDIENT", "current": 1, "target": 1}],
+	}, 8, {"level_id": "level_009_base_c00"})
+
+	assert_true(String(summary.get("playtest_event_id", "")).begins_with("playtest_"), "bank returns the recorded playtest event id")
+	var f := FileAccess.open(PlaytestRecorder.CONTEXT_PATH, FileAccess.READ)
+	var ctx = JSON.parse_string(f.get_as_text())
+	f.close()
+	assert_eq(ctx.get("played_levels", [])[0].get("level_coordinate"), 9, "bank writes the context coordinate for generate-next")
+	assert_eq(ctx.get("played_levels", [])[0].get("moves_left"), 4, "bank writes remaining moves")
+
+	PlaytestRecorder.clear_test_files()
+	PlaytestRecorder.LOG_PATH = old_log
+	PlaytestRecorder.CONTEXT_PATH = old_context
+
 # ── 依赖纪律：match3/ 禁 import meta/，meta/ 禁 import match3/ ────────────────
 
 func test_dependency_discipline_match3_no_meta() -> void:
@@ -145,6 +220,9 @@ const GameRoot := preload("res://app/game_root.gd")
 
 func _make_root_with_library(lib: Array) -> Node:
 	# 构造 game_root 实例并手动初始化——跳过 _ready() 的磁盘 IO 和 _enter_boot()
+	PlaytestRecorder.LOG_PATH = "user://test_game_root_playtest_sessions.jsonl"
+	PlaytestRecorder.CONTEXT_PATH = "user://test_game_root_player_context.json"
+	PlaytestRecorder.clear_test_files()
 	var gr := GameRoot.new()
 	gr._meta    = MetaState.new()
 	gr._session = Session.new()

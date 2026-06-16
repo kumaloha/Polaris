@@ -65,6 +65,39 @@ python3 tools/level_tool.py generate-select \
 
 `PlayerContext` 是下一关导演的唯一玩家输入。它不是人口标签表，而是“最近玩得怎么样、懂哪些机制、需要什么节奏”的状态快照。
 
+### 2.0 Godot 本地 playtest 记录
+
+本地测试阶段先不需要后端。Godot 结算时会写两个本地文件：
+
+```text
+user://playtest_sessions.jsonl   # 每局一行，保留完整测试事件流
+user://player_context.json       # generate-next 可直接消费的最近上下文快照
+```
+
+记录时机：
+
+```text
+Level 结算
+  → session_ended(result)
+  → Session.bank(...)
+  → PlaytestRecorder.record(...)
+  → append playtest_sessions.jsonl
+  → update player_context.json
+```
+
+最小用途：
+
+```bash
+python3 tools/level_tool.py generate-next \
+  --context <Godot user://player_context.json 的实际路径> \
+  --candidates 10 \
+  --runs 20 \
+  --output levels_src/selected/next.lvl \
+  --report reports/selection/next.selection.json
+```
+
+`playtest_sessions.jsonl` 是审计账本；`player_context.json` 是下一关导演输入。
+
 ```json
 {
   "player_id": "p_anon_42",
