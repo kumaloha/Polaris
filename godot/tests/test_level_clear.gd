@@ -447,28 +447,30 @@ func test_double_bomb_fusion_plays_both_burst_centers() -> void:
 	assert_true(helper_body.count("Fx.spawn_local_burst") >= 2, "double cross fusion must emit two local burst effects")
 
 
-func test_cascade_fall_tweens_land_linearly_before_next_match() -> void:
-	# 钉源码理由: 级联下落必须线性(TRANS_LINEAR)落地、禁止 EASE_OUT 末段减速 —— 缓出会让宝石在落点前"飘一下"拖慢下一次自动匹配的节奏, 这是已拍板的下落手感决策, headless 无法量化 tween 缓动故锁文本
+func test_cascade_fall_tweens_use_light_acceleration_without_end_slowdown() -> void:
+	# 钉源码理由: 玩家反馈匀速下落没有重力感，但 QUAD 长距离加速体感过重；级联下落使用更轻的 SINE EASE_IN，禁止 EASE_OUT 末段减速。headless 无法量化手感，故锁文本。
 	var src := FileAccess.get_file_as_string("res://match3/board_view.gd")
 	var helper_start: int = src.find("func _queue_cascade_fall_tween")
 	var helper_end: int = src.find("func _sync_collapse_segment", helper_start)
 	assert_true(helper_start >= 0 and helper_end > helper_start, "cascade fall movement is centralized in an inspectable helper")
 	if helper_start >= 0 and helper_end > helper_start:
 		var helper_body: String = src.substr(helper_start, helper_end - helper_start)
-		assert_true(helper_body.contains(".set_trans(Tween.TRANS_LINEAR)"), "ordinary cascade drops should not ease out and linger in the last few pixels")
+		assert_true(helper_body.contains(".set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)"), "ordinary cascade drops should accelerate gently instead of using an over-strong long-distance curve")
+		assert_false(helper_body.contains(".set_trans(Tween.TRANS_LINEAR)"), "ordinary cascade drops must not regress to uniform-speed motion")
+		assert_false(helper_body.contains(".set_trans(Tween.TRANS_QUAD)"), "ordinary cascade drops must not use the heavier quadratic long-distance acceleration")
 	var sync_start: int = src.find("func _sync_collapse_segment")
 	var sync_end: int = src.find("func _sync_fixed_cell_visual", sync_start)
 	assert_true(sync_start >= 0 and sync_end > sync_start, "_sync_collapse_segment can be inspected")
 	if sync_start >= 0 and sync_end > sync_start:
 		var sync_body: String = src.substr(sync_start, sync_end - sync_start)
-		# 钉源码理由: 新生成补位与已有节点都必须走同一个 _queue_cascade_fall_tween(同一无减速时长), 否则两类宝石下落速度不一致
-		assert_true(sync_body.contains("_queue_cascade_fall_tween(tween, node, center,") and sync_body.contains("_queue_cascade_fall_tween(tween, node, target,"), "spawned refill and existing nodes use the same no-settle-slowdown fall tween")
+		# 钉源码理由: 新生成补位与已有节点都必须走同一个 _queue_cascade_fall_tween(同一加速曲线/时长), 否则两类宝石下落速度不一致
+		assert_true(sync_body.contains("_queue_cascade_fall_tween(tween, node, center,") and sync_body.contains("_queue_cascade_fall_tween(tween, node, target,"), "spawned refill and existing nodes use the same accelerated fall tween")
 	var wall_start: int = src.find("func _tween_wall_slide_node")
 	var wall_end: int = src.find("func _source_none", wall_start)
 	assert_true(wall_start >= 0 and wall_end > wall_start, "_tween_wall_slide_node can be inspected")
 	if wall_start >= 0 and wall_end > wall_start:
 		var wall_body: String = src.substr(wall_start, wall_end - wall_start)
-		assert_true(wall_body.contains(".set_trans(Tween.TRANS_LINEAR)"), "wall-assisted cascade drops should keep the same apparent speed through landing")
+		assert_true(wall_body.contains(".set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)"), "wall-assisted cascade drops should share the same gentle acceleration curve")
 		assert_false(wall_body.contains(".set_ease(Tween.EASE_OUT)"), "wall-assisted cascade drops must not decelerate before the next auto match")
 
 

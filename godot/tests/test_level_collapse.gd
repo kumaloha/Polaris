@@ -281,8 +281,8 @@ func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
 	for idx in range(10):
 		points.append(Vector2(0, float(idx) * 70.0))
 	var duration: float = level.board_view.call("_wall_slide_duration_for_points", points)
-	assert_true(duration >= 0.39, "ten cell-steps still read as movement, not a teleport")
-	assert_true(duration <= 0.43, "ten cell-steps use the same brisk cap as ordinary falls so blocker levels do not feel slower")
+	assert_true(duration >= 0.44, "ten cell-steps still read as movement, not a teleport")
+	assert_true(duration <= 0.46, "ten cell-steps use the lighter global curve so long-distance easing does not feel overdone")
 	level.free()
 
 
@@ -311,7 +311,7 @@ func test_all_real_playable_levels_share_fall_timing_caps() -> void:
 		var label := "playable level %d raw %d %dx%d" % [level.call("_display_level_number", raw_idx), raw_idx, level.board.width, level.board.height]
 		var long_cells: int = maxi(10, level.board.width + level.board.height)
 		var ordinary_duration: float = level.board_view.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * float(long_cells)))
-		assert_true(ordinary_duration <= 0.43, "%s ordinary long fall stays globally capped" % label)
+		assert_true(ordinary_duration <= 0.55, "%s ordinary long fall stays under the lighter global motion ceiling" % label)
 		var wall_points := []
 		for idx in range(long_cells):
 			wall_points.append(Vector2(0.0, level.cell_size * float(idx)))
@@ -320,7 +320,7 @@ func test_all_real_playable_levels_share_fall_timing_caps() -> void:
 		var refill_start: Vector2 = level.board_view.call("_ordinary_refill_start_position", level.board.height - 1, 0, 0, level.board.height)
 		var refill_target: Vector2 = level.board_view.call("_cell_center", level.board.height - 1, 0)
 		var refill_duration: float = level.board_view.call("_ordinary_refill_duration_for_positions", refill_start, refill_target)
-		assert_true(refill_duration <= 0.39, "%s spawned refill stays under its global cap" % label)
+		assert_true(refill_duration <= 0.49, "%s spawned refill stays under its lighter global cap" % label)
 	level.free()
 
 
@@ -381,8 +381,8 @@ func test_ordinary_long_falls_keep_per_cell_pacing() -> void:
 	level.cell_size = 70.0
 	level.board_view.cell_size = level.cell_size
 	var duration: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	assert_true(duration >= 0.39, "ordinary ten-cell fall still reads as movement, not a teleport")
-	assert_true(duration <= 0.44, "ordinary ten-cell fall is capped so tall or blocker-heavy levels do not feel slower")
+	assert_true(duration >= 0.44, "ordinary ten-cell fall still reads as movement, not a teleport")
+	assert_true(duration <= 0.46, "ordinary ten-cell fall follows the lighter global curve so long-distance easing is less pronounced")
 	level.free()
 
 
@@ -420,26 +420,30 @@ func test_ordinary_refill_nodes_start_above_board() -> void:
 	level.free()
 
 
-func test_fall_durations_scale_with_each_cell_step() -> void:
+func test_fall_durations_use_one_global_sublinear_motion_curve() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	level.cell_size = 70.0
 	level.board_view.cell_size = level.cell_size
 	var one_cell: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 70))
 	var two_cells: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 140))
+	var four_cells: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 280))
 	var ten_cells: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
-	assert_true(one_cell >= 0.16, "one-cell fall should not feel instant")
-	assert_true(one_cell <= 0.17, "one-cell fall should be brisk")
+	assert_true(one_cell >= 0.17 and one_cell <= 0.19, "one-cell fall should be a touch quicker while still readable")
 	assert_true(two_cells > one_cell, "a two-cell fall still reads as a longer fall")
-	assert_true(two_cells < one_cell * 1.6, "fall timing accelerates instead of adding a full duration per cell")
-	assert_true(ten_cells >= 0.39, "long falls should remain readable")
-	assert_true(ten_cells <= 0.44, "long falls must not feel sluggish during auto cascades")
+	assert_true(four_cells > two_cells and ten_cells > four_cells, "longer falls continue to get more time instead of flattening into a uniform cap")
+	assert_true((four_cells - two_cells) < (two_cells - one_cell) * 1.1, "fall timing is sublinear: each extra span adds less time than the first extra cell")
+	assert_true(ten_cells >= 0.44, "ten-cell falls should still read as a long fall")
+	assert_true(ten_cells <= 0.46, "ten-cell falls use the lighter long-distance curve instead of the previous heavy slowdown")
 	var very_long: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 1400))
-	assert_true(very_long <= 0.43, "very long falls share the same brisk cap instead of making tall levels feel different")
+	assert_true(very_long > ten_cells, "very long falls still read as longer than ordinary long falls")
+	assert_true(very_long <= 0.55, "very long falls share a lighter global ceiling instead of making tall levels feel different")
+	var small_board_ten: float = LevelMotion.fall_duration_for_positions(Vector2(0, 0), Vector2(0, 900), 90.0)
+	assert_eq(small_board_ten, ten_cells, "fall timing depends on cell count, not pixel size, so small boards do not get their own speed")
 	var wall_one: float = level.board_view.call("_wall_slide_duration_for_points", [Vector2(0, 70)])
-	var wall_three: float = level.board_view.call("_wall_slide_duration_for_points", [Vector2(0, 70), Vector2(0, 140), Vector2(70, 210)])
-	assert_true(wall_three > wall_one, "multi-step wall slide still takes longer than one step")
-	assert_true(wall_three < wall_one * 2.5, "multi-step wall slide also accelerates")
+	var wall_four: float = level.board_view.call("_wall_slide_duration_for_points", [Vector2(0, 70), Vector2(0, 140), Vector2(0, 210), Vector2(0, 280)])
+	assert_true(wall_four > wall_one, "multi-step wall slide still takes longer than one step")
+	assert_true(wall_four <= four_cells + 0.01, "wall slide uses the same global motion curve as ordinary falling")
 	level.free()
 
 
@@ -450,19 +454,19 @@ func test_refill_duration_cap_stays_near_long_fall_speed() -> void:
 	level.board_view.cell_size = level.cell_size
 	var long_fall: float = level.board_view.call("_fall_duration_for_positions", Vector2(0, 0), Vector2(0, 700))
 	var long_refill: float = level.board_view.call("_ordinary_refill_duration_for_positions", Vector2(0, -735), Vector2(0, 0))
-	assert_true(long_refill >= long_fall - 0.07, "long refill should stay visually connected to an equally long existing-gem fall")
-	assert_true(long_refill <= long_fall - 0.02, "long refill should finish a little sooner so automatic cascades do not feel late")
+	assert_true(long_refill >= long_fall - 0.03, "long refill should stay visually connected to an equally long existing-gem fall")
+	assert_true(long_refill <= long_fall + 0.02, "long refill should not lag behind automatic cascades")
 	level.free()
 
 
 func test_level_fall_animation_timing_is_slightly_slower() -> void:
 	# 直接读 level_motion 真实常量值, 并锁住墙滑与普通下落共享同一加速/上限的关系契约
 	const LM := preload("res://match3/level_motion.gd")
-	assert_eq(LM.FALL_TIME, 0.16, "ordinary one-cell falling is readable without dragging")
-	assert_eq(LM.FALL_EXTRA_CELL_TIME, 0.030, "longer falls add only a small accelerated increment per extra cell")
-	assert_eq(LM.FALL_MAX_TIME, 0.42, "long ordinary falls have a global cap so levels do not feel differently paced")
-	assert_eq(LM.ORDINARY_REFILL_MAX_TIME, 0.38, "spawned refill stays brisk without collapsing into a paint effect")
-	assert_eq(LM.WALL_SLIDE_STEP_TIME, LM.FALL_EXTRA_CELL_TIME, "wall slide uses the same per-step acceleration as ordinary falls")
+	assert_eq(LM.FALL_MIN_TIME, 0.18, "ordinary one-cell falling is a touch quicker while still readable")
+	assert_eq(LM.FALL_CURVE_TIME, 0.10, "longer falls use one lighter sublinear curve instead of per-level patches")
+	assert_eq(LM.FALL_DISTANCE_EXPONENT, 0.45, "long-distance growth is gentler than sqrt so the front/back speed contrast is reduced")
+	assert_eq(LM.FALL_MAX_TIME, 0.54, "very long falls have a lighter global ceiling so levels do not feel differently paced")
+	assert_eq(LM.ORDINARY_REFILL_MAX_TIME, 0.48, "spawned refill stays near the same lighter curve without lagging cascades")
 	assert_eq(LM.WALL_SLIDE_MAX_TIME, LM.FALL_MAX_TIME, "wall slide wait cap matches ordinary falls so blocker lanes do not feel slower")
 
 

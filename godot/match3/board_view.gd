@@ -849,7 +849,7 @@ func _sync_ingredient_overlay_motion(before_ing: Array, after_ing: Array, fallba
 					node.on_cleared()
 				continue
 			var t := create_tween()
-			t.tween_property(node, "position", target_pos, duration).set_trans(Tween.TRANS_LINEAR)
+			t.tween_property(node, "position", target_pos, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 			if not has_final_cell:
 				t.tween_callback(Callable(node, "on_cleared"))
 			max_time = maxf(max_time, duration)
@@ -1354,7 +1354,7 @@ func _ordinary_refill_duration_for_positions(start_pos: Vector2, target: Vector2
 	return LevelMotion.ordinary_refill_duration_for_positions(start_pos, target, cell_size)
 
 func _queue_cascade_fall_tween(tween: Tween, node: Node2D, target: Vector2, duration: float) -> void:
-	tween.tween_property(node, "position", target, duration).set_trans(Tween.TRANS_LINEAR)
+	tween.tween_property(node, "position", target, duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 func _sync_collapse_segment(grid_snapshot: Array, old_nodes: Array, new_nodes: Array, col: int, seg_start: int, seg_end: int, tween: Tween) -> bool:
 	var moved := false
@@ -1440,7 +1440,7 @@ func _tween_wall_slide_node(node: Sprite2D, target: Vector2, cell_path: Array = 
 	var apply_position := func(progress: float) -> void:
 		if node != null and is_instance_valid(node):
 			node.position = _wall_slide_position_at(start_pos, points, progress)
-	t.tween_method(apply_position, 0.0, 1.0, total_time).set_trans(Tween.TRANS_LINEAR)
+	t.tween_method(apply_position, 0.0, 1.0, total_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	return total_time
 
 func _source_none() -> Vector2i:

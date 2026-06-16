@@ -3,12 +3,14 @@ extends RefCounted
 const ME := preload("res://core/match_engine.gd")
 const LevelLayout := preload("res://match3/level_layout.gd")
 
-const FALL_TIME := 0.16
-const FALL_EXTRA_CELL_TIME := 0.030
-const FALL_MAX_TIME := 0.42
-const ORDINARY_REFILL_MAX_TIME := 0.38
+const FALL_MIN_TIME := 0.18
+const FALL_CURVE_TIME := 0.10
+const FALL_DISTANCE_EXPONENT := 0.45
+const FALL_MAX_TIME := 0.54
+const ORDINARY_REFILL_MAX_TIME := 0.48
 const ORDINARY_REFILL_TOP_POUR := 2.5
-const WALL_SLIDE_STEP_TIME := FALL_EXTRA_CELL_TIME
+# Back-compat alias for tests/tools that only need the wall-slide pacing knob to exist.
+const WALL_SLIDE_STEP_TIME := FALL_CURVE_TIME
 const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME
 
 
@@ -38,7 +40,12 @@ static func ordinary_refill_duration_for_positions(start_pos: Vector2, target: V
 static func fall_duration_for_positions(start_pos: Vector2, target: Vector2, cell_size: float) -> float:
 	var size := maxf(1.0, cell_size)
 	var cells := maxf(1.0, start_pos.distance_to(target) / size)
-	return minf(FALL_TIME + maxf(0.0, cells - 1.0) * FALL_EXTRA_CELL_TIME, FALL_MAX_TIME)
+	return _fall_duration_for_cells(cells)
+
+
+static func _fall_duration_for_cells(cells: float) -> float:
+	var extra_cells := maxf(0.0, cells - 1.0)
+	return minf(FALL_MIN_TIME + FALL_CURVE_TIME * pow(extra_cells, FALL_DISTANCE_EXPONENT), FALL_MAX_TIME)
 
 
 static func wall_refill_start_position(row: int, col: int, source_map: Array, board_origin: Vector2, cell_size: float) -> Vector2:
@@ -185,7 +192,7 @@ static func wall_slide_duration_for_points(points: Array) -> float:
 	if points.is_empty():
 		return 0.0
 	var steps := maxf(1.0, float(points.size()))
-	return minf(FALL_TIME + maxf(0.0, steps - 1.0) * WALL_SLIDE_STEP_TIME, WALL_SLIDE_MAX_TIME)
+	return minf(_fall_duration_for_cells(steps), WALL_SLIDE_MAX_TIME)
 
 
 static func wall_slide_duration_for_target(points: Array, duration_override: float = -1.0) -> float:
