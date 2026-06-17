@@ -17,6 +17,7 @@ func _initialize() -> void:
 		preload("res://tests/test_hud.gd").new(),
 		preload("res://tests/test_skills.gd").new(),
 		preload("res://tests/test_raccoon_miner.gd").new(),
+		preload("res://tests/test_dragon_breath.gd").new(),
 		preload("res://tests/test_overlays.gd").new(),
 		preload("res://tests/test_session.gd").new(),
 		preload("res://tests/test_level_motion.gd").new(),

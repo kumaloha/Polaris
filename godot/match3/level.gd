@@ -19,6 +19,7 @@ const LevelLayout := preload("res://match3/level_layout.gd")
 const LevelMotion := preload("res://match3/level_motion.gd")
 const PetCast := preload("res://match3/pets/pet_cast.gd")
 const PetRegistry := preload("res://match3/pets/pet_registry.gd")
+const DragonBreathVisual := preload("res://match3/pets/dragon_breath_visual.gd")
 const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
@@ -64,6 +65,7 @@ const COLORBOMB_ABSORB_TARGET_BUDGET := 18
 const COLORBOMB_FINE_CLEAR_BUDGET := 12
 const COLORBOMB_CLEAR_FX_BATCH_SIZE := 6
 const LINE_CLEAR_STAGGER := 0.026  # 横/竖炸路径碎裂按触发点向外错峰, 0.02s * 1.3
+const BOARD_INPUT_BOTTOM_PAD_CELLS := 0.62  # 底行棋子/阴影可见下缘仍算底行点击, 防止落到宠物技能按钮
 
 # ── 布局锚点（对齐参考图；截图后微调） ──
 
@@ -301,6 +303,31 @@ func _cell_center(row: int, col: int) -> Vector2:
 func _pos_to_cell(p: Vector2) -> Vector2i:
 	return LevelLayout.pos_to_cell(p, board.width, board.height, cell_size, board_origin)
 
+func _board_input_rect() -> Rect2:
+	if board == null or cell_size <= 0.0:
+		return Rect2()
+	return Rect2(
+		board_origin,
+		Vector2(float(board.width) * cell_size, float(board.height) * cell_size + cell_size * BOARD_INPUT_BOTTOM_PAD_CELLS)
+	)
+
+func _board_pointer_hit_cell(position: Vector2) -> Vector2i:
+	if board == null or cell_size <= 0.0:
+		return Vector2i(-1, -1)
+	var strict_cell: Vector2i = _pos_to_cell(position)
+	if strict_cell.x >= 0:
+		return strict_cell
+	if not _board_input_rect().has_point(position):
+		return Vector2i(-1, -1)
+	var col: int = int(floor((position.x - board_origin.x) / cell_size))
+	if col < 0 or col >= board.width:
+		return Vector2i(-1, -1)
+	var board_bottom: float = board_origin.y + float(board.height) * cell_size
+	var bottom_pad: float = cell_size * BOARD_INPUT_BOTTOM_PAD_CELLS
+	if position.y < board_bottom or position.y > board_bottom + bottom_pad:
+		return Vector2i(-1, -1)
+	return Vector2i(col, board.height - 1)
+
 # ───────── 背景 / 棋盘 ─────────
 
 func _render_background() -> void:
@@ -496,6 +523,7 @@ func _skill_dragon() -> bool:
 	if cells.is_empty():
 		return false
 	_busy = true
+	_start_dragon_breath_animation()
 	# 龙息: 盘顶 → 盘中央一道光束 + 多点爆炸 + 强震
 	var top: Vector2 = _cell_center(0, board.width / 2) - Vector2(0, cell_size)
 	Fx.spawn_beam(top, _cell_center(mid, board.width / 2), _fx_color(best_sp))
@@ -509,6 +537,28 @@ func _skill_dragon() -> bool:
 	await _resolve_cascades()
 	_busy = false
 	return true
+
+func _start_dragon_breath_animation() -> void:
+	if skill_bar == null:
+		return
+	var old := skill_bar.get_node_or_null(DragonBreathVisual.CAST_NODE)
+	if old != null:
+		var old_parent := old.get_parent()
+		if old_parent != null:
+			old_parent.remove_child(old)
+		if old.is_inside_tree():
+			old.queue_free()
+		else:
+			old.free()
+	var visual := DragonBreathVisual.new()
+	visual.setup({
+		"skill_bar": skill_bar,
+		"board": board,
+		"cell_size": cell_size,
+		"board_origin": board_origin,
+	})
+	skill_bar.add_child(visual)
+	visual.play_and_retire()
 
 # ── idx3 瓢虫/幸运祝福: 随机一普通格埋炸弹(fx=SP_BOMB, 阶段5渲染显示 shine), 金色庆祝特效。不清盘。 ──
 func _skill_blessing() -> bool:
@@ -750,6 +800,11 @@ func _clear_layer(layer: CanvasLayer) -> void:
 
 # ───────── 交互（阶段2） ─────────
 
+func _input(event: InputEvent) -> void:
+	if _handle_board_pointer_event(event):
+		get_viewport().set_input_as_handled()
+
+
 # 翻到相对当前的第 step 关(+1下一关/-1上一关), 在可玩关列表里循环。
 # _levels 为空(回退)时改用 LevelConfig 下标循环。
 func _goto_relative(step: int) -> void:
@@ -774,10 +829,25 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _busy or _settled or _time_rewind_cast_pending:
 		return   # 结算遮罩/施法演出中 → 棋盘交互锁死(只接结算面板按钮)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var cell: Vector2i = _pos_to_cell(event.position)
-		if cell.x < 0:
-			return
-		_on_cell_clicked(cell)
+		_handle_board_pointer_press(event.position)
+
+func _handle_board_pointer_event(event: InputEvent) -> bool:
+	if _busy or _settled or _time_rewind_cast_pending:
+		return false
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		return _handle_board_pointer_press(event.position)
+	if event is InputEventScreenTouch and event.pressed:
+		return _handle_board_pointer_press(event.position)
+	return false
+
+func _handle_board_pointer_press(position: Vector2) -> bool:
+	if board == null or cell_size <= 0.0:
+		return false
+	var cell: Vector2i = _board_pointer_hit_cell(position)
+	if cell.x < 0:
+		return false
+	_on_cell_clicked(cell)
+	return true
 
 func _on_cell_clicked(cell: Vector2i) -> void:
 	if board_view.node_at(cell) == null:

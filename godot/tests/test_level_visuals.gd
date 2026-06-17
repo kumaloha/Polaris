@@ -29,6 +29,95 @@ func _prepare_level_scene_with_real_levels() -> Node:
 	return level
 
 
+func test_bottom_row_pointer_press_is_claimed_by_board_before_skillbar() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.board = Board.new(8, 8, [0, 1, 2, 3, 4, 5], 0, 25, 7)
+	level.cell_size = 70.0
+	level.board_origin = Vector2(80.0, 420.0)
+	level.board_view.board = level.board
+	level.board_view.cell_size = level.cell_size
+	level.board_view.board_origin = level.board_origin
+	var nodes := []
+	for y in range(level.board.height):
+		var row := []
+		for x in range(level.board.width):
+			var node := Sprite2D.new()
+			level.add_child(node)
+			row.append(node)
+		nodes.append(row)
+	level.board_view.set("_gem_nodes", nodes)
+	assert_true(level.has_method("_handle_board_pointer_press"), "Level exposes a board-first pointer handler so GUI controls cannot steal board taps")
+	if not level.has_method("_handle_board_pointer_press"):
+		level.free()
+		return
+	var bottom_cell := Vector2i(level.board.width / 2, level.board.height - 1)
+	var bottom_center: Vector2 = level.call("_cell_center", bottom_cell.y, bottom_cell.x)
+	var handled: bool = bool(level.call("_handle_board_pointer_press", bottom_center))
+	assert_true(handled, "bottom-row taps inside the board are claimed before skill buttons can see them")
+	assert_eq(level.get("_sel"), bottom_cell, "bottom-row tap selects the intended board cell")
+	level.free()
+
+
+func test_bottom_row_visible_tail_still_maps_to_bottom_cell() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.board = Board.new(8, 8, [0, 1, 2, 3, 4, 5], 0, 25, 7)
+	level.cell_size = 70.0
+	level.board_origin = Vector2(80.0, 420.0)
+	level.board_view.board = level.board
+	level.board_view.cell_size = level.cell_size
+	level.board_view.board_origin = level.board_origin
+	var nodes := []
+	for y in range(level.board.height):
+		var row := []
+		for x in range(level.board.width):
+			var node := Sprite2D.new()
+			level.add_child(node)
+			row.append(node)
+		nodes.append(row)
+	level.board_view.set("_gem_nodes", nodes)
+	assert_true(level.has_method("_board_pointer_hit_cell"), "Level maps the full visible bottom-row hit area, not just the strict board rectangle")
+	if not level.has_method("_board_pointer_hit_cell"):
+		level.free()
+		return
+	var bottom_cell := Vector2i(level.board.width / 2, level.board.height - 1)
+	var bottom_center: Vector2 = level.call("_cell_center", bottom_cell.y, bottom_cell.x)
+	var visual_tail_point := bottom_center + Vector2(0.0, level.cell_size * 0.56)
+	assert_eq(level.call("_board_pointer_hit_cell", visual_tail_point), bottom_cell, "taps on the visible lower tail of bottom-row gems still select the bottom cell")
+	var handled: bool = bool(level.call("_handle_board_pointer_press", visual_tail_point))
+	assert_true(handled, "bottom-row visible tail taps are handled by the board instead of falling through to skills")
+	assert_eq(level.get("_sel"), bottom_cell, "bottom-row visible tail tap selects the intended board cell")
+	level.free()
+
+
+func test_board_input_guard_covers_bottom_row_tail_above_skillbar() -> void:
+	var scene: PackedScene = load("res://Level.tscn")
+	var level := scene.instantiate()
+	level.board = Board.new(8, 8, [0, 1, 2, 3, 4, 5], 0, 25, 7)
+	level.cell_size = 70.0
+	level.board_origin = Vector2(80.0, 420.0)
+	assert_true(level.has_method("_board_input_rect"), "Level exposes the board input guard rect used by the top-layer click shield")
+	if not level.has_method("_board_input_rect"):
+		level.free()
+		return
+	var rect: Rect2 = level.call("_board_input_rect")
+	var bottom_center: Vector2 = level.call("_cell_center", level.board.height - 1, level.board.width / 2)
+	assert_true(rect.has_point(bottom_center), "board input guard covers strict bottom-row cell centers")
+	assert_true(rect.has_point(bottom_center + Vector2(0.0, level.cell_size * 0.56)), "board input guard extends over the visible bottom-row tail before the skillbar can catch it")
+	level.free()
+
+
+func test_board_input_marks_board_pointer_events_handled_before_gui() -> void:
+	var src := FileAccess.get_file_as_string("res://match3/level.gd")
+	var input_start: int = src.find("func _input(event: InputEvent)")
+	var input_end: int = src.find("func _unhandled_input", input_start)
+	assert_true(input_start >= 0 and input_end > input_start, "Level handles board pointer events in _input before GUI/skill buttons")
+	if input_start >= 0 and input_end > input_start:
+		var body: String = src.substr(input_start, input_end - input_start)
+		assert_true(body.contains("_handle_board_pointer_event(event)"), "_input routes mouse/touch through the board-first pointer handler")
+		assert_true(body.contains("get_viewport().set_input_as_handled()"), "board pointer events are marked handled so overlapped skill buttons cannot fire")
+
 
 func test_colorbomb_idle_does_not_tween_board_position() -> void:
 	var scene: PackedScene = load("res://Level.tscn")

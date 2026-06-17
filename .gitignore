@@ -37,3 +37,7 @@ godot/art/**/*.png
 godot/art/**/*.import
 !godot/art/gems/**/*.png
 !godot/art/vfx/**/*.png
+# 原始/导出美术源文件体量大，避免直接入 Git；运行时资产放 godot/assets 或 godot/art。
+resources/**/*.mp4
+resources/**/*.zip
+resources/**/*.tgz

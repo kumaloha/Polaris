@@ -20,7 +20,7 @@ const SKILLS := [
 	# gem: 该萌宠对应的宝石颜色(消该色宝石→给该萌宠加进度条), 决定冷却条颜色
 	{"av": "res://assets/pets/timerewind/rabbit_avatar.png", "name": "时兔", "skill": "时间回退", "gem": "purple"},
 	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障", "gem": "blue"},
-	{"av": "res://assets/avatars/av_dragon_red.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
+	{"av": "res://assets/pets/dragon_baby/frames/dragon_00.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
 	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
 ]
 
