@@ -2,6 +2,8 @@
 
 > 这是续篇。上一篇（`design-dialogue-full.md`）我们把关卡设计从"没有设计感"想透、写成了文档、提交进仓库——但全程一行实现代码都没写。
 > 这一篇，是我们第一次动手，把那套设计学变成**能跑的代码、能看见的画面**。从"开干"到屏幕上真的出现一张沙漏关，全过程、含技术细节、原汁原味。
+>
+> **当前实现覆盖说明（2026-06）**：本文记录的是早期工具链实验。当前运行时默认读取 `res://levels.generated.json`；旧 `levels.json` 不再作为临时写回目标或当前入口。
 
 ---
 
@@ -32,14 +34,14 @@ exits:  [x,...]                  出口列
 seed
 ```
 
-读 `match3/level.gd` 的加载路径 —— `_ready()` 读 `res://levels.json` → 构建可玩关索引 → `load_level(idx)`：`board = LevelLibrary.from_json_level(spec)` → `_compute_layout()` → `board_view.rebuild(board, cell_size, board_origin)`。
+读 `match3/level.gd` 的加载路径 —— `_ready()` 通过 `LevelLibrary.DEFAULT_LEVELS_PATH` 读 `res://levels.generated.json`（也可用 `--levels` / `--level-library` 指向临时包）→ 构建可玩关索引 → `load_level(idx)`：`board = LevelLibrary.from_json_level(spec)` → `_compute_layout()` → `board_view.rebuild(board, cell_size, board_origin)`。
 
-**落地策略定了：零改动游戏代码。** 写一个 `.lvl` 解析器把 ASCII 编译成那个 spec，渲染时**临时把它写进 `levels.json`、截完图还原**。这样绝不会碰坏你 564 个测试。
+**落地策略定了：零改动游戏代码。** 写一个 `.lvl` 解析器把 ASCII 编译成那个 spec，渲染时生成临时 JSON 包并通过 `--levels` 指向它，截完图删除临时包。这样不会污染当前生成包，也不会碰坏测试。
 
 我写了三个文件：
 
 - `tools/lvl.gd` —— `.lvl` ASCII 源 → spec 的编译器。token 映射：`.`孔洞 `o`普通宝石 `J`果冻 `I`冰 `C`巧克力 `N`糖果炮 `B3`炸弹 `G`原料；头部写 colors/moves/seed/objectives。
-- `tools/render_lvl.gd` —— SceneTree 脚本，抄 `shot_gem_burst.gd` 的模式：备份 levels.json → 写入临时关 → 实例化 Level.tscn → 等 200 帧让开局演出落定 → `get_root().get_texture().get_image().save_png()` → 还原 levels.json。
+- `tools/render_lvl.gd` —— SceneTree 脚本，抄 `shot_gem_burst.gd` 的模式：生成临时关卡包 → 用 `--levels` 指向临时包 → 实例化 Level.tscn → 等 200 帧让开局演出落定 → `get_root().get_texture().get_image().save_png()` → 删除临时包。
 - `levels_src/L35_loushar.lvl` —— 第一个关卡源，9 列沙漏，下方铺果冻：
 
 ```
@@ -67,7 +69,7 @@ o o o o o o o o o
 
 ### 第 4 轮 · 装配链自检（不碰 levels.json）
 
-**AI：** 在渲染之前，先做一个 **headless 自检**——确认 `.lvl → spec → Board` 这条装配链真的成立，纯逻辑、不碰 levels.json。写了个临时 `_probe_lvl.gd`，headless 跑：
+**AI：** 在渲染之前，先做一个 **headless 自检**——确认 `.lvl → spec → Board` 这条装配链真的成立，纯逻辑、不碰当前生成包。写了个临时 `_probe_lvl.gd`，headless 跑：
 
 ```
 --- spec ---
@@ -98,10 +100,10 @@ godot --path godot -s res://tools/render_lvl.gd -- res://levels_src/L35_loushar.
 Metal 4.0 - Apple M5
 render_lvl: L35_loushar  9x9 colors=5 moves=22 jelly=19
 saved: res://_lvl_shots/L35_loushar.png
-restored levels.json
+removed temporary level package
 ```
 
-**Metal 渲染跑通**（Apple M5），PNG 已存（521k），`levels.json` 已还原（`git diff` 为空，零污染）。
+**Metal 渲染跑通**（Apple M5），PNG 已存（521k），临时关卡包已清理（`git diff` 为空，零污染）。
 
 ---
 
@@ -127,7 +129,7 @@ restored levels.json
 
 一个诚实的小出入：HUD 步数 25 而不是 22——这是 `level.gd` 的 session 层（契约 D）自动 +3 的开局奖励步，不是 bug，是引擎既有行为。
 
-清理：删掉临时自检脚本，`git status` 确认 —— 新工具文件就位，`levels.json` 未改动 ✓，零污染。
+清理：删掉临时自检脚本，`git status` 确认 —— 新工具文件就位，当前生成包未改动，零污染。
 
 ---
 
@@ -148,7 +150,7 @@ restored levels.json
 从"開幹"到屏幕上出现沙漏，中间没有奇迹，全是手艺活：
 
 - **先读懂引擎，再动手** —— `level_library` 的字段契约就是现成的 schema，`level.gd` 的加载路径就是现成的渲染管线。我们不造引擎，只包一层薄壳。
-- **零改动游戏代码** —— 临时换 `levels.json`、截完还原。一行游戏逻辑没碰，564 个测试一个没动。
+- **零改动游戏代码** —— 使用临时关卡包和 `--levels` 注入，截完清理。一行游戏逻辑没碰，测试一个没动。
 - **先自检、再渲染** —— headless 验证装配链（数据对），再上 GPU 渲染（画面对）。不跳步。
 - **不靠肉眼，靠量化** —— 图太小看不清，就用 PIL 裁出来放大；步数对不上就查清楚是 session 注入，不含糊。
 - **守纪律** —— `--import` 编译检查、临时文件用完即删、产物不入库。

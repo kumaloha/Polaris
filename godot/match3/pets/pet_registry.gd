@@ -7,10 +7,12 @@ extends RefCounted
 
 const TimeRabbitCast := preload("res://match3/pets/time_rabbit.gd")
 const RaccoonMinerCast := preload("res://match3/pets/raccoon_miner.gd")
+const DragonBreathCast := preload("res://match3/pets/dragon_breath_cast.gd")
 
 const PETS := {
 	"时间回退": TimeRabbitCast,
 	"破障": RaccoonMinerCast,
+	"龙息大招": DragonBreathCast,
 }
 
 ## 按 SKILLS[idx].skill 字符串查对应宠物施法类。无映射返回 null。

@@ -58,7 +58,7 @@ func bank(meta_state: Object, result: Dictionary, level_index: int, level_record
 # ── 推关 ─────────────────────────────────────────────────────────────────────
 
 # 薄透传至 meta_state.recommend_next，供 game_root Map 状态调用。
-# library : 关卡库 Array（来自 levels.json）
+# library : 关卡库 Array（来自当前生成关卡包）
 # played  : 已玩关卡索引集 Dictionary（{ int: bool }）
 # 返回推荐关卡库索引（int）
 func recommend_next(meta_state: Object, library: Array, played: Dictionary = {}) -> int:

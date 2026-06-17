@@ -2,7 +2,7 @@ class_name DragonBreathVisual
 extends Node2D
 ## 龙宝宝「龙息大招」的大龙演出层。
 ##
-## 这里只管视觉：清盘/坍塌/连锁仍保留在 level._skill_dragon() 的旧结算流程中。
+## 这里只管视觉：清盘/坍塌/连锁由 DragonBreathCast 施法控制器结算。
 ## 摆位使用“可见内容左边 + 脚底基线”，不使用 1440×1440 透明画布中心，
 ## 避免大龙和小龙/底栏支点看起来错位。
 

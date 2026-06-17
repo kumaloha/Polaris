@@ -21,7 +21,7 @@ func _prepare_level_scene() -> Node:
 	level.character_layer = level.get_node("CharacterLayer")
 	level.ui_layer = level.get_node("UILayer")
 	level.skill_bar = level.get_node("SkillBar")
-	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._levels = LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	level._playable = []
 	for i in range(level._levels.size()):
 		var objs = level._levels[i].get("objectives", [])

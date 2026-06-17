@@ -20,7 +20,7 @@ const SKILLS := [
 	# gem: 该萌宠对应的宝石颜色(消该色宝石→给该萌宠加进度条), 决定冷却条颜色
 	{"av": "res://assets/pets/timerewind/rabbit_avatar.png", "name": "时兔", "skill": "时间回退", "gem": "purple"},
 	{"av": "res://assets/avatars/av_raccoon_miner.png", "name": "矿工程", "skill": "破障", "gem": "blue"},
-	{"av": "res://assets/pets/dragon_baby/frames/dragon_00.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red"},
+	{"av": "res://assets/pets/dragon_baby/frames/dragon_00.png", "name": "龙宝宝", "skill": "龙息大招", "gem": "red", "feedback_when_uncharged": true},
 	{"av": "res://assets/avatars/av_ladybug.png", "name": "瓢虫", "skill": "幸运祝福", "gem": "red"},
 ]
 
@@ -272,6 +272,8 @@ func _skill_clickable(idx: int) -> bool:
 		"时间回退":
 			return board != null and board.skill == "timerewind" and not board.rewind_used and not _level._time_rewind_cast_pending and not board.is_over()
 		_:
+			if bool(SKILLS[idx].get("feedback_when_uncharged", false)):
+				return board != null and not board.is_over()
 			return _skill_ready(idx)
 
 func _skill_ready(idx: int) -> bool:

@@ -10,17 +10,13 @@ extends Node2D
 # game_root 鸭子调用 receive_session_config(config) 注入开局 + 连 session_ended 收结算。
 signal session_ended(result: Dictionary)
 
-const CoreBoard := preload("res://core/board.gd")
 const ME := preload("res://core/match_engine.gd")
-const LevelConfig := preload("res://match3/level_config.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 const ClearVisuals := preload("res://match3/clear_visuals.gd")
 const LevelLayout := preload("res://match3/level_layout.gd")
 const LevelMotion := preload("res://match3/level_motion.gd")
 const PetCast := preload("res://match3/pets/pet_cast.gd")
 const PetRegistry := preload("res://match3/pets/pet_registry.gd")
-const DragonBreathVisual := preload("res://match3/pets/dragon_breath_visual.gd")
-const LEVELS_PATH := "res://levels.json"
 
 const GEM_COLORS := {
 	# 从宝石贴图实采的主体色(高饱和中亮像素均值), 与宝石一致
@@ -72,11 +68,11 @@ const BOARD_INPUT_BOTTOM_PAD_CELLS := 0.62  # 底行棋子/阴影可见下缘仍
 var board
 var board_origin: Vector2
 var cell_size: float = 0.0
-var _levels_path: String = LEVELS_PATH
-var _levels: Array = []          # 真实关卡库(levels.json 的 levels 数组), 空=回退 LevelConfig
+var _levels_path: String = LevelLibrary.DEFAULT_LEVELS_PATH
+var _levels: Array = []          # 当前生成关卡库的 levels 数组
 var _playable: Array = []        # 可玩关索引(跳过 objectives 为空的关), 元素是 _levels 的下标
 var _play_pos: int = 0           # 当前在 _playable 列表中的位置(翻关用)
-var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos]); _levels 空时复用为 LevelConfig 下标
+var _level_idx: int = 0          # 当前 _levels 下标(=_playable[_play_pos])
 var _settled := false            # 本关已结算(通关/失败), 锁输入直到点击下一关/重试
 var _cur_cfg: Dictionary = {}    # 当前关顶部显示用 cfg(只含 id), HUD 刷新重画 ui_layer 时复用
 # 棋子节点所有权迁至 board_view(契约 E)。外界经 board_view.node_at(cell) 访问。
@@ -142,25 +138,24 @@ func _ready() -> void:
 	gem_layer.layer = 3
 	$FXLayer.layer = 4
 	Fx.attach($FXLayer, gem_layer)  # 特效挂 FXLayer, 震动抖棋子层
-	# 阶段6: 接真实关卡库。默认读 levels.json；可用 --levels 指向新生成关卡库。
-	# 构建"可玩关索引"(跳过 18 个空 objectives 关,
-	# 否则空目标 → is_won 退化为 score>=target_score(=0) → 进关即赢)。json 缺失则回退 LevelConfig。
+	# 接当前生成关卡库。可用 --levels/--level-library 指向指定生成包。
+	# 构建"可玩关索引"(跳过空 objectives 关, 避免空目标关进关即赢)。
 	_levels_path = _levels_path_from_args(OS.get_cmdline_user_args())
 	_levels = LevelLibrary.load_file(_levels_path)
+	if _levels.is_empty():
+		push_error("Level: generated level library is missing or empty: %s" % _levels_path)
+		return
 	_playable = []
 	for i in range(_levels.size()):
 		var objs = _levels[i].get("objectives", [])
 		if objs is Array and not objs.is_empty():
 			_playable.append(i)
-	var launch_level_idx := _launch_level_idx_from_args(OS.get_cmdline_user_args(), _levels.size() if not _levels.is_empty() else LevelConfig.count())
+	var launch_level_idx := _launch_level_idx_from_args(OS.get_cmdline_user_args(), _levels.size())
 	_play_pos = 0
-	if not _levels.is_empty():
-		_level_idx = _playable[0] if not _playable.is_empty() else 0
-		if launch_level_idx >= 0 and _playable.has(launch_level_idx):
-			_level_idx = launch_level_idx
-			_play_pos = _playable.find(launch_level_idx)
-	else:
-		_level_idx = launch_level_idx if launch_level_idx >= 0 else 0
+	_level_idx = _playable[0] if not _playable.is_empty() else 0
+	if launch_level_idx >= 0 and (_playable.has(launch_level_idx) or _playable.is_empty()):
+		_level_idx = launch_level_idx
+		_play_pos = _playable.find(launch_level_idx) if not _playable.is_empty() else launch_level_idx
 	load_level(_level_idx)
 
 func _exit_tree() -> void:
@@ -190,7 +185,7 @@ func _launch_level_idx_from_args(args: Array, level_count: int) -> int:
 	return -1
 
 func _levels_path_from_args(args: Array) -> String:
-	return LevelLibrary.levels_path_from_args(args, LEVELS_PATH)
+	return LevelLibrary.levels_path_from_args(args)
 
 func _player_level_to_raw_idx(level_number: int, level_count: int) -> int:
 	var player_idx := level_number - 1
@@ -256,21 +251,16 @@ func load_level(idx: int) -> void:
 	_cancel_active_cast()
 	_level_generation += 1
 	var generation := _level_generation
-	# cfg 仅用于顶部标题"第 N 关"显示(levels.json 无数字 id → 用关序号)。
+	# cfg 仅用于顶部标题"第 N 关"显示(生成库 level_id 不是展示序号 → 用关序号)。
 	var cfg: Dictionary
-	if not _levels.is_empty() and idx >= 0 and idx < _levels.size():
-		# 阶段6: 用现成的"JSON一关→可玩Board"工厂(配齐 objectives/move_limit/障碍/盘面)。
-		board = LevelLibrary.to_board(_levels[idx])
-		cfg = {"id": _display_level_number(idx)}
-	else:
-		# 回退: levels.json 缺失时仍能跑旧 LevelConfig 占位关(防 json 缺失白屏)。
-		var lc: Dictionary = LevelConfig.get_level(idx)
-		var ncolors: int = int(lc.get("colors", 6))
-		var species: Array = []
-		for i in range(ncolors):
-			species.append(i)
-		board = CoreBoard.new(lc["cols"], lc["rows"], species, 999999, 999, 12345 + idx)
-		cfg = {"id": lc["id"]}
+	if _levels.is_empty():
+		push_error("Level: cannot load level %d because the generated level library is empty: %s" % [idx, _levels_path])
+		return
+	if idx < 0 or idx >= _levels.size():
+		push_error("Level: level index %d is outside generated library size %d" % [idx, _levels.size()])
+		return
+	board = LevelLibrary.to_board(_levels[idx])
+	cfg = {"id": _display_level_number(idx)}
 	board.skill = "timerewind"
 	if _session_extra_moves > 0:
 		board.moves_left += _session_extra_moves   # 契约D(P9): loadout.extra_moves 加进步数
@@ -416,16 +406,18 @@ func _on_skill_pressed(idx: int) -> void:
 	if PetRegistry.has_pet(skill_name):
 		did = _cast_pet(idx, true)   # 宠物施法经控制器接管: 锁/落地/解锁走信号(契约 C)
 	else:
-		# 仅剩未宠物化的技能走旧分支; 宠物化一个迁出一个(破障已由 RaccoonMinerCast 接管)。
-		match skill_name:
-			"龙息大招":
-				did = await _skill_dragon()
-			"幸运祝福":
-				did = await _skill_blessing()
+		did = await _run_direct_skill(skill_name)
 	if did:
 		if skills.uses_charge(idx):
 			skills.clear_charge(idx)   # 放完清零重攒
 		skills.refresh_visual()
+
+func _run_direct_skill(skill_name: String) -> bool:
+	# 还没有独立 PetCast 控制器的当前技能集中在这里；迁出一个就删一项。
+	match skill_name:
+		"幸运祝福":
+			return await _skill_blessing()
+	return false
 
 # ── 宠物施法接线(契约 C, docs/11 §4.3)。经 PetRegistry 实例化施法控制器, 连三信号, start_cast。──
 # 锁的读写只在 level.gd: cast_started→上锁, cast_committed→同步棋盘, cast_finished→解锁。
@@ -442,12 +434,15 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 	cast.setup({
 		"skill_bar": skill_bar,
 		"board": board,
+		"board_view": board_view,
 		"cell_size": cell_size,
 		"board_origin": board_origin,
 		"cast_effect": cast_effect,
 		"load_texture": Callable(self, "_load_texture"),
 		"set_avatar_casting": Callable(skills, "_set_time_rabbit_avatar_casting"),
 		"refresh_skill_ui": Callable(skills, "refresh_visual"),
+		"resolve_cascades": Callable(self, "_resolve_cascades"),
+		"fx_color": Callable(self, "_fx_color"),
 	})
 	cast.cast_started.connect(_on_pet_cast_started)
 	cast.cast_committed.connect(_on_pet_cast_committed)
@@ -499,66 +494,6 @@ func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> Packe
 		var a: float = TAU * float(i) / float(n)
 		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
 	return pts
-
-# ── idx2 龙宝宝/龙息大招: 清盘上最多色的全部 + 中间一整行非空格 + beam/爆炸/强震。 ──
-func _skill_dragon() -> bool:
-	# 找数量最多的 species
-	var best_sp: int = -1
-	var best_n: int = 0
-	for sp in board.species:
-		var cnt: int = ME.cells_of_species(board.grid, sp).size()
-		if cnt > best_n:
-			best_n = cnt
-			best_sp = sp
-	if best_sp < 0:
-		return false
-	var cell_set := {}   # 去重(同色 ∪ 中间行)
-	for p in ME.cells_of_species(board.grid, best_sp):
-		cell_set[p] = true
-	var mid: int = board.height / 2
-	for c in range(board.width):
-		if board.grid[mid][c] >= 0:
-			cell_set[Vector2i(c, mid)] = true
-	var cells: Array = cell_set.keys()
-	if cells.is_empty():
-		return false
-	_busy = true
-	_start_dragon_breath_animation()
-	# 龙息: 盘顶 → 盘中央一道光束 + 多点爆炸 + 强震
-	var top: Vector2 = _cell_center(0, board.width / 2) - Vector2(0, cell_size)
-	Fx.spawn_beam(top, _cell_center(mid, board.width / 2), _fx_color(best_sp))
-	for p in cells:
-		Fx.spawn_explosion(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]), 1.4)
-	Fx.shake(14.0)
-	ME._apply_clears(board.grid, board.fx, cells, [])
-	for p in cells:
-		board_view.clear_node_at(p)
-	await board_view.collapse_and_refill()
-	await _resolve_cascades()
-	_busy = false
-	return true
-
-func _start_dragon_breath_animation() -> void:
-	if skill_bar == null:
-		return
-	var old := skill_bar.get_node_or_null(DragonBreathVisual.CAST_NODE)
-	if old != null:
-		var old_parent := old.get_parent()
-		if old_parent != null:
-			old_parent.remove_child(old)
-		if old.is_inside_tree():
-			old.queue_free()
-		else:
-			old.free()
-	var visual := DragonBreathVisual.new()
-	visual.setup({
-		"skill_bar": skill_bar,
-		"board": board,
-		"cell_size": cell_size,
-		"board_origin": board_origin,
-	})
-	skill_bar.add_child(visual)
-	visual.play_and_retire()
 
 # ── idx3 瓢虫/幸运祝福: 随机一普通格埋炸弹(fx=SP_BOMB, 阶段5渲染显示 shine), 金色庆祝特效。不清盘。 ──
 func _skill_blessing() -> bool:
@@ -704,8 +639,6 @@ func receive_session_config(config: Dictionary) -> void:
 	_session_extra_moves = int(loadout.get("extra_moves", 0))
 	var pets = config.get("pets", [])
 	_session_pets = pets.duplicate() if pets is Array else []
-	if skills.has_method("set_pets"):
-		skills.set_pets(_session_pets)   # 未来宠物可配; 现 skills 用固定 SKILLS, 无 set_pets 则 no-op
 	var idx: int = int(config.get("level_index", _level_idx))
 	load_level(idx)   # 重新载入指定关(load_level 据 _session_extra_moves 补步数)
 
@@ -769,31 +702,6 @@ func _scale_to_width(tex: Texture2D, width: float) -> Vector2:
 		return Vector2.ONE
 	return Vector2.ONE * (width / w)
 
-# 圆角胶囊进度条：深槽 + 亮色填充(ratio 0..1)。
-func _rounded_bar(layer: CanvasLayer, center: Vector2, w: float, h: float, ratio: float, fill_color: Color, bg_color: Color) -> void:
-	var r: int = int(h * 0.5)
-	var bg := Panel.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg_color
-	sb.set_corner_radius_all(r)
-	sb.set_border_width_all(2)
-	sb.border_color = Color(0.95, 0.8, 0.42)  # 金色边框
-	bg.add_theme_stylebox_override("panel", sb)
-	bg.size = Vector2(w, h)
-	bg.position = center - Vector2(w, h) * 0.5
-	layer.add_child(bg)
-	if ratio > 0.0:
-		var inset := 2.0
-		var ih: float = h - inset * 2.0
-		var fl := Panel.new()
-		var sbf := StyleBoxFlat.new()
-		sbf.bg_color = fill_color
-		sbf.set_corner_radius_all(int(ih * 0.5))
-		fl.add_theme_stylebox_override("panel", sbf)
-		fl.size = Vector2(maxf((w - inset * 2.0) * clampf(ratio, 0.0, 1.0), ih), ih)
-		fl.position = center - Vector2(w, h) * 0.5 + Vector2(inset, inset)
-		layer.add_child(fl)
-
 func _clear_layer(layer: CanvasLayer) -> void:
 	for ch in layer.get_children():
 		ch.queue_free()
@@ -806,13 +714,15 @@ func _input(event: InputEvent) -> void:
 
 
 # 翻到相对当前的第 step 关(+1下一关/-1上一关), 在可玩关列表里循环。
-# _levels 为空(回退)时改用 LevelConfig 下标循环。
 func _goto_relative(step: int) -> void:
 	if not _playable.is_empty():
 		_play_pos = (_play_pos + step + _playable.size()) % _playable.size()
 		_level_idx = _playable[_play_pos]
 	else:
-		var n: int = LevelConfig.count()
+		var n: int = _levels.size()
+		if n <= 0:
+			push_error("Level: cannot switch levels because the generated level library is empty")
+			return
 		_level_idx = (_level_idx + step + n) % n
 	load_level(_level_idx)
 
@@ -927,6 +837,27 @@ func _remember_time_rewind_snapshot() -> void:
 	board._push_history()
 	skills.refresh_visual()
 
+
+func _account_resolution_clears(cells: Array) -> Dictionary:
+	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
+	board._accumulate(acc.get("by_species", {}))
+	board._accumulate_progress(acc)
+	return acc
+
+
+func _filtered_clear_cells(cells: Array, acc: Dictionary) -> Array:
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var to_clear := []
+	for p in cells:
+		if not locked.has(p):
+			to_clear.append(p)
+	for bp in acc.get("cake_blast", []):
+		to_clear.append(bp)
+	return to_clear
+
+
 ## 问题2: 彩球激活组合。cb_pos/partner 为【交换前】坐标(引擎 colorbomb_clear_plan 读交换前 fx/grid)。
 ## 彩球+普通=该色全消; 彩球+条纹=全场该色变条纹引爆; 彩球+十字=全场该色变十字引爆; 双彩球=全盘消。
 func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
@@ -944,20 +875,10 @@ func _resolve_colorbomb(cb_pos: Vector2i, partner: Vector2i) -> void:
 		return
 	_remember_time_rewind_snapshot()
 	# 算账(在清空前读 species/fx): 目标计数 + 计分 + 技能充能。复用 board 累加逻辑。
-	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
-	board._accumulate(acc.get("by_species", {}))
-	board._accumulate_progress(acc)
+	var acc: Dictionary = _account_resolution_clears(cells)
 	board_view.refresh_jelly_coat_visuals()
 	skills.charge(acc.get("by_species", {}))
-	var locked := {}
-	for p in acc.get("locked", []):
-		locked[p] = true
-	var to_clear := []
-	for p in cells:
-		if not locked.has(p):
-			to_clear.append(p)
-	for bp in acc.get("cake_blast", []):
-		to_clear.append(bp)
+	var to_clear: Array = _filtered_clear_cells(cells, acc)
 	board._gain(ME.score_for_clear(to_clear.size(), 1))
 	# 表现: 彩球吸收预览 + 对清除格放特效(限量精细, 避免一次太多卡顿)。
 	await _play_colorbomb_absorb_preview(cb_pos, cells, virtual_fx.keys())
@@ -1204,20 +1125,10 @@ func _resolve_fusion(a: Vector2i, b: Vector2i) -> void:
 		return
 	var fusion_special_fx_cells = _special_fx_cells_for_clear_visuals(cells)
 	var fusion_clear_timing := _clear_visual_timing_for_triggers(seeds, {}, fusion_fx)
-	var acc: Dictionary = ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
-	board._accumulate(acc.get("by_species", {}))
-	board._accumulate_progress(acc)
+	var acc: Dictionary = _account_resolution_clears(cells)
 	board_view.refresh_jelly_coat_visuals()
 	skills.charge(acc.get("by_species", {}))
-	var locked := {}
-	for p in acc.get("locked", []):
-		locked[p] = true
-	var to_clear := []
-	for p in cells:
-		if not locked.has(p):
-			to_clear.append(p)
-	for bp in acc.get("cake_blast", []):
-		to_clear.append(bp)
+	var to_clear: Array = _filtered_clear_cells(cells, acc)
 	board._gain(ME.score_for_clear(to_clear.size(), 1))
 	_play_fusion_fx_after_swap(a, b, ka, kb)
 	board.fx[a.y][a.x] = ME.SP_NONE
@@ -1313,24 +1224,13 @@ func _resolve_cascades(preferred_spawn: Vector2i = Vector2i(-1, -1), force_prefe
 		# 阶段6: 目标计数(路线A 手动累加)。account_clears 须在 _apply_clears 之前调(要读未清空的 species),
 		# 它会原地递减 board 的障碍层数组(经 _layers() 引用), 与 board.try_swap 路径同口径。
 		# 严格复用 board 内部累加逻辑(_accumulate / _accumulate_progress), 字段名/key 类型完全一致, 杜绝分叉。
-		var acc: Dictionary = ME.account_clears(board.grid, to_clear, board.fx, board.rng, board.species, board._layers())
-		board._accumulate(acc.get("by_species", {}))   # collected[species] 累加(key=int)
-		board._accumulate_progress(acc)                # 果冻/涂层/巧克力/炸弹/爆米花/蛋糕/神秘糖累加
+		var acc: Dictionary = _account_resolution_clears(to_clear)
 		step_choco += int(acc.get("choco_cleared", 0))
 		# 障碍底片(果冻/冰锁)视觉刷新不能早于 play_step：
 		# account_clears 已把刚破掉的冰格置 EMPTY；若此处先删冰层，collapse/refill 前会露出裸空洞。
 		# board_view.play_step 的 collapse/refill 收口会在补位后刷新 jelly/coat。
 		# 计分: 锁住格(coat/choco/popcorn/mystery)不计入清除数, 与 board 直清路径同口径。
-		var locked := {}
-		for p in acc.get("locked", []):
-			locked[p] = true
-		var filtered_clear := []
-		for p in to_clear:
-			if not locked.has(p):
-				filtered_clear.append(p)
-		for bp in acc.get("cake_blast", []):
-			filtered_clear.append(bp)
-		to_clear = filtered_clear
+		to_clear = _filtered_clear_cells(to_clear, acc)
 		var score_gained: int = ME.score_for_clear(to_clear.size(), cascade_level)
 		board._gain(score_gained)
 		for s in spawns:

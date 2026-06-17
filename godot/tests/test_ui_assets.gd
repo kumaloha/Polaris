@@ -183,7 +183,7 @@ func _prepare_level_scene() -> Node:
 	level.character_layer = level.get_node("CharacterLayer")
 	level.ui_layer = level.get_node("UILayer")
 	level.skill_bar = level.get_node("SkillBar")
-	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._levels = LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	level._playable = []
 	for i in range(level._levels.size()):
 		var objs = level._levels[i].get("objectives", [])
@@ -702,12 +702,12 @@ func test_book_ribbons_render_full_width_under_frame() -> void:
 	level.free()
 
 
-func test_third_level_book_frame_still_touches_screen_sides() -> void:
+func test_generated_wide_level_book_frame_still_touches_screen_sides() -> void:
 	var level := _prepare_level_scene()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "3"], level._levels.size())
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "7"], level._levels.size())
 	level.load_level(raw_idx)
-	assert_eq(level.board.width, 8, "third playable level keeps the narrow eight-column board")
-	assert_eq(level.board.height, 10, "third playable level is height-limited by ten rows")
+	assert_eq(level.board.width, 9, "generated level 7 keeps the wider nine-column board")
+	assert_eq(level.board.height, 9, "generated level 7 is the square wide-board case")
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.board_layer = layer
@@ -716,8 +716,8 @@ func test_third_level_book_frame_still_touches_screen_sides() -> void:
 	assert_true(rib != null, "book ribbons render for the third level")
 	if rib != null:
 		var expected_w := 726.0
-		assert_eq(int(roundf(rib.size.x)), int(expected_w), "third level book keeps the same full-bleed width as wider boards")
-		assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "third level book left edge bleeds to the screen side")
+		assert_eq(int(roundf(rib.size.x)), int(expected_w), "wide generated level book keeps the same full-bleed width as compact boards")
+		assert_eq(int(roundf(rib.position.x)), int(roundf(360.0 - expected_w * 0.5)), "wide generated level book left edge bleeds to the screen side")
 		assert_eq(int(roundf(rib.position.x + rib.size.x)), int(roundf(360.0 + expected_w * 0.5)), "third level book right edge bleeds to the screen side")
 	level.free()
 
@@ -855,17 +855,17 @@ func test_level_scene_launch_level_arg_is_one_based() -> void:
 	if not level.has_method("_launch_level_idx_from_args"):
 		level.free()
 		return
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "5"], level._levels.size()), 5, "--level 5 opens the fifth playable level, raw exported level 6")
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], level._levels.size()), 5, "--level=5 opens the fifth playable level, raw exported level 6")
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "0"], 126), -1, "Level.tscn level numbers are one-based")
-	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "127"], 126), -1, "out of range Level.tscn levels are ignored")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "5"], level._levels.size()), 4, "--level 5 opens the fifth generated playable level")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level=5"], level._levels.size()), 4, "--level=5 opens the fifth generated playable level")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "0"], level._levels.size()), -1, "Level.tscn level numbers are one-based")
+	assert_eq(level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size()), -1, "out of range Level.tscn levels are ignored")
 	level.free()
 
 
 func test_level_scene_displays_playable_level_number() -> void:
 	var level := _prepare_level_scene()
-	level.load_level(5)
-	assert_eq(level._cur_cfg.get("id", -1), 5, "raw exported level 6 is player-facing level 5")
+	level.load_level(4)
+	assert_eq(level._cur_cfg.get("id", -1), 5, "raw generated level 5 is player-facing level 5")
 	level.free()
 
 
@@ -901,13 +901,13 @@ func test_topbar_objective_render_uses_remaining_count_from_progress() -> void:
 	var level := _prepare_level_scene()
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
 	level.load_level(raw_idx)
-	level.board.collected[5] = 5
+	level.board.blocker_cleared = 3
 	var layer := CanvasLayer.new()
 	level.add_child(layer)
 	level.ui_layer = layer
 	level.hud.call("_render_topbar_v2", level._cur_cfg)
-	assert_true(_count_label_text(layer, "37") > 0, "topbar renders remaining objective count after progress")
-	assert_eq(_count_label_text(layer, "42"), 0, "topbar no longer renders the total target after progress exists")
+	assert_true(_count_label_text(layer, "5") > 0, "topbar renders remaining objective count after progress")
+	assert_eq(_count_label_text(layer, "8"), 0, "topbar no longer renders the total target after progress exists")
 	level.free()
 
 
@@ -1020,25 +1020,25 @@ func test_topbar_objective_icons_use_consistent_max_dimension() -> void:
 	level.free()
 
 
-func test_twelfth_playable_level_shows_jelly_goal_and_board_markers() -> void:
+func test_first_generated_level_shows_jelly_goal_and_board_markers() -> void:
 	assert_true(FileAccess.file_exists(JELLY_GOAL_ICON), "jelly goal icon exists")
 	var level := _prepare_level_scene()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "12"], level._levels.size())
-	assert_eq(raw_idx, 17, "player level 12 maps to raw exported lvl_17 after score-only gaps are skipped")
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "1"], level._levels.size())
+	assert_eq(raw_idx, 0, "player level 1 maps to the first generated level")
 	level.load_level(raw_idx)
 	var view: Array = level.hud.call("_objectives_view")
-	assert_eq(view.size(), 1, "twelfth playable level has one objective card")
-	assert_eq(view[0].get("label", ""), "清果冻", "twelfth playable level explicitly asks the player to clear jelly tiles")
-	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "twelfth playable level uses the jelly goal icon")
-	assert_eq(view[0].get("target", -1), 63, "twelfth playable level target count is shown")
+	assert_eq(view.size(), 1, "first generated level has one objective card")
+	assert_eq(view[0].get("label", ""), "清果冻", "first generated level explicitly asks the player to clear jelly tiles")
+	assert_eq(view[0].get("icon", ""), JELLY_GOAL_ICON, "first generated level uses the jelly goal icon")
+	assert_eq(view[0].get("target", -1), 6, "first generated level target count is shown")
 	var expected := _count_positive_layer(level.board.jelly)
-	assert_true(expected > 0, "twelfth playable level has jelly cells")
+	assert_true(expected > 0, "first generated level has jelly cells")
 	assert_eq(_count_group_nodes(level, JELLY_MARKER_NAME), expected, "every remaining jelly cell renders a visible board marker")
 	level.free()
 
 func test_jelly_board_markers_do_not_use_round_goal_icon() -> void:
 	var level := _prepare_level_scene()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "12"], level._levels.size())
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "1"], level._levels.size())
 	level.load_level(raw_idx)
 	var marker := _find_named_node(level, JELLY_MARKER_NAME)
 	assert_true(marker != null, "jelly board marker exists")
@@ -1048,16 +1048,16 @@ func test_jelly_board_markers_do_not_use_round_goal_icon() -> void:
 	level.free()
 
 
-func test_sixth_playable_level_objective_view_shows_collect_goal() -> void:
+func test_sixth_generated_level_objective_view_shows_blocker_goal() -> void:
 	var level := _prepare_level_scene()
 	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
-	assert_eq(raw_idx, 7, "player level 6 maps to raw exported lvl_7 after score-only gaps are skipped")
+	assert_eq(raw_idx, 5, "player level 6 maps directly to the sixth generated level")
 	level.load_level(raw_idx)
 	var view: Array = level.hud.call("_objectives_view")
-	assert_eq(view.size(), 1, "sixth playable level has one objective card")
-	assert_eq(view[0].get("label", ""), "收集", "sixth playable level is a collect goal")
-	assert_eq(view[0].get("icon", ""), PINK_GEM_SYNCED, "sixth playable level collects the heart jelly 3 pink gem")
-	assert_eq(view[0].get("target", -1), 42, "sixth playable level target is shown")
+	assert_eq(view.size(), 1, "sixth generated level has one objective card")
+	assert_eq(view[0].get("label", ""), "涂层", "sixth generated level is a blocker goal")
+	assert_eq(view[0].get("icon", ""), BARRIER_ICE_SYNCED, "sixth generated level uses the blocker icon")
+	assert_eq(view[0].get("target", -1), 8, "sixth generated level target is shown")
 	level.free()
 
 
@@ -1138,9 +1138,9 @@ func test_generated_level_six_keeps_visible_gems() -> void:
 func test_level_scene_renders_wall_cells_as_stone_sprites() -> void:
 	assert_true(FileAccess.file_exists(WALL_STONE_SYNCED), "wall stone art exists")
 	var level := _prepare_level_scene()
-	level.load_level(13)
+	level.load_level(3)
 	var expected := _count_grid_value(level.board.grid, ME.WALL)
-	assert_true(expected > 0, "raw level 9 contains wall cells")
+	assert_true(expected > 0, "generated level 4 contains wall cells")
 	assert_eq(_count_group_nodes(level, WALL_MARKER_NAME), expected, "every wall cell renders one visible stone sprite")
 	var marker := _find_named_node(level, WALL_MARKER_NAME)
 	assert_true(marker is Sprite2D, "wall marker is a sprite")

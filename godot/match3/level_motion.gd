@@ -9,9 +9,6 @@ const FALL_DISTANCE_EXPONENT := 0.45
 const FALL_MAX_TIME := 0.54
 const ORDINARY_REFILL_MAX_TIME := 0.48
 const ORDINARY_REFILL_TOP_POUR := 2.5
-# Back-compat alias for tests/tools that only need the wall-slide pacing knob to exist.
-const WALL_SLIDE_STEP_TIME := FALL_CURVE_TIME
-const WALL_SLIDE_MAX_TIME := FALL_MAX_TIME
 
 
 static func fall_barrier_in_grid(grid_snapshot: Array, coat: Array, choco: Array, row: int, col: int, ing: Array = []) -> bool:
@@ -115,37 +112,6 @@ static func wall_slide_cell_path_points(start_pos: Vector2, cell_path: Array, ta
 	return points
 
 
-## @deprecated: 每帧重算弧长（两遍循环）。迁移 board_view 调用点后改用
-## wall_slide_position_at_table(start_pos, points, wall_slide_arclength_table(start_pos, points), progress)。
-static func wall_slide_position_at(start_pos: Vector2, points: Array, progress: float) -> Vector2:
-	if points.is_empty():
-		return start_pos
-	var clamped := clampf(progress, 0.0, 1.0)
-	var total := 0.0
-	var prev := start_pos
-	for raw_point in points:
-		var point: Vector2 = raw_point
-		total += prev.distance_to(point)
-		prev = point
-	if total <= 0.001:
-		return points[points.size() - 1]
-	var target_distance := total * clamped
-	var traveled := 0.0
-	prev = start_pos
-	for raw_point in points:
-		var point: Vector2 = raw_point
-		var segment := prev.distance_to(point)
-		if segment <= 0.001:
-			prev = point
-			continue
-		if traveled + segment >= target_distance:
-			var local_progress := clampf((target_distance - traveled) / segment, 0.0, 1.0)
-			return prev.lerp(point, local_progress)
-		traveled += segment
-		prev = point
-	return points[points.size() - 1]
-
-
 ## 前缀和弧长表: 元素 i 存从 start_pos 到 points[i] 的累计弧长。
 ## 调用方在 tween 外预计算一次, 传给 wall_slide_position_at_table 反复使用。
 static func wall_slide_arclength_table(start_pos: Vector2, points: Array) -> Array:
@@ -192,7 +158,7 @@ static func wall_slide_duration_for_points(points: Array) -> float:
 	if points.is_empty():
 		return 0.0
 	var steps := maxf(1.0, float(points.size()))
-	return minf(_fall_duration_for_cells(steps), WALL_SLIDE_MAX_TIME)
+	return minf(_fall_duration_for_cells(steps), FALL_MAX_TIME)
 
 
 static func wall_slide_duration_for_target(points: Array, duration_override: float = -1.0) -> float:

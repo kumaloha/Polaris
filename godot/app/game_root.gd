@@ -9,17 +9,14 @@ const MetaState := preload("res://meta/meta_state.gd")
 const Session   := preload("res://app/session.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
 
-# 加载关卡配置（默认 levels.json；可用 --levels 指向生成关卡包）
-const LEVELS_PATH := "res://levels.json"
-
 # ── 状态枚举 ─────────────────────────────────────────────────────────────────
 enum State { BOOT, MAP, LEVEL, RESULT }
 
 var _state: State = State.BOOT
 var _meta: MetaState
 var _session: Session
-var _levels_path: String = LEVELS_PATH
-var _library: Array         # levels.json 全量
+var _levels_path: String = LevelLibrary.DEFAULT_LEVELS_PATH
+var _library: Array         # 当前生成关卡库
 var _current_index: int = 0 # 当前进入关卡的库索引
 var _last_summary: Dictionary = {}  # bank() 返回的入账摘要，供 Result 页显示
 var _last_stars: int = 0            # 本局星级，供 Result 页显示
@@ -33,7 +30,7 @@ var _result_panel: Control     # Result 结算面板
 func _ready() -> void:
 	_meta    = MetaState.new()
 	_session = Session.new()
-	_levels_path = LevelLibrary.levels_path_from_args(OS.get_cmdline_user_args(), LEVELS_PATH)
+	_levels_path = LevelLibrary.levels_path_from_args(OS.get_cmdline_user_args())
 	_library = _load_library()
 	_build_ui()
 	_enter_boot()

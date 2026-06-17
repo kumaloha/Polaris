@@ -464,17 +464,25 @@ func test_level_library_clears_hidden_tile_under_ingredient_actor() -> void:
 	assert_eq(b.grid[0][1], ME.EMPTY, "loaded ingredient actor does not keep a hidden normal gem underneath")
 
 func test_level_library_resolves_levels_path_from_args() -> void:
-	assert_eq(LevelLibrary.levels_path_from_args([]), "res://levels.json", "default level library path")
+	assert_eq(LevelLibrary.levels_path_from_args([]), "res://levels.generated.json", "default level library path")
 	assert_eq(LevelLibrary.levels_path_from_args(["--levels", "res://levels.generated.json"]), "res://levels.generated.json", "--levels value selects generated library")
 	assert_eq(LevelLibrary.levels_path_from_args(["--levels=res://levels.generated.json"]), "res://levels.generated.json", "--levels=value selects generated library")
 	assert_eq(LevelLibrary.levels_path_from_args(["--level-library", "res://custom.json"]), "res://custom.json", "--level-library alias works")
-	assert_eq(LevelLibrary.levels_path_from_args(["--levels"]), "res://levels.json", "missing --levels value falls back safely")
+	assert_eq(LevelLibrary.levels_path_from_args(["--levels"]), "res://levels.generated.json", "missing --levels value falls back safely")
 
 func test_generated_level_library_loads() -> void:
-	var lvls := LevelLibrary.load_file("res://levels.generated.json")
+	assert_eq(LevelLibrary.DEFAULT_LEVELS_PATH, "res://levels.generated.json", "runtime default points at the generated level pack")
+	assert_true(FileAccess.file_exists(LevelLibrary.DEFAULT_LEVELS_PATH), "default generated level pack is packaged with the project")
+	var lvls := LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	assert_eq(lvls.size(), 10, "generated solver-gated library contains first ten levels")
 	if lvls.is_empty():
 		return
+	var playable_count := 0
+	for lvl in lvls:
+		var objs = lvl.get("objectives", [])
+		if objs is Array and not objs.is_empty():
+			playable_count += 1
+	assert_true(playable_count > 0, "default generated pack contains playable objective levels")
 	assert_true(String(lvls[0].get("level_id", "")).begins_with("level_001_base"), "generated library starts with a selected level_001_base candidate")
 	assert_eq(int(lvls[0].get("meta", {}).get("level_coordinate", 0)), 1, "generated first level keeps coordinate metadata")
 	assert_eq(int(lvls[0].get("w", 0)), 7, "generated first level width")

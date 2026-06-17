@@ -14,7 +14,7 @@ var rng: RandomNumberGenerator
 var grid: Array
 var fx: Array = []   # 特效层（与 grid 同维），SP_NONE=普通
 var wall_mask: Array = []  # 异形棋盘掩码（可选）
-var objectives: Array = []  # [{type:"SCORE"/"COLLECT"/"CLEAR_JELLY", species:int, target:int}]；空=旧式按 target_score
+var objectives: Array = []  # [{type:"SCORE"/"COLLECT"/"CLEAR_JELLY", species:int, target:int}]；空=调试/兼容关按 target_score
 var collected: Dictionary = {}  # species -> 累计消除数
 var init_jelly: Array = []  # 初始果冻层（底层目标，可选）
 var jelly: Array = []       # 当前果冻层（随消除递减）
@@ -229,7 +229,7 @@ func is_won() -> bool:
 	if is_scrolling:
 		return _dug_through  # 滚动关：挖穿(清到一页70%且储备已空)= 过关
 	if objectives.is_empty():
-		return score >= target_score  # 旧式
+		return score >= target_score  # 调试/兼容关：无 objectives 时按分数目标判定
 	for o in objectives:
 		if o["type"] == "SCORE":
 			if score < o["target"]:

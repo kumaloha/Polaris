@@ -20,7 +20,7 @@ func _none_fx(w: int, h: int) -> Array:
 func _prepare_level_scene_with_real_levels() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._levels = LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	level._playable = []
 	for i in range(level._levels.size()):
 		var objs = level._levels[i].get("objectives", [])
@@ -525,14 +525,12 @@ func test_all_real_playable_levels_share_opening_timing_caps() -> void:
 		level.free()
 		return
 	var saw_level_ten := false
-	var saw_level_eleven := false
 	for raw_idx in level._playable:
 		level.board = LevelLibrary.to_board(level._levels[raw_idx])
 		level.board_view.board = level.board
 		level.call("_compute_layout")
 		var display_level: int = level.call("_display_level_number", raw_idx)
 		saw_level_ten = saw_level_ten or display_level == 10
-		saw_level_eleven = saw_level_eleven or display_level == 11
 		var label := "playable level %d raw %d %dx%d" % [display_level, raw_idx, level.board.width, level.board.height]
 		var drop_window: float = level.opening.call("_opening_drop_window", level.board.height)
 		assert_true(drop_window <= 0.861, "%s opening gems do not fall slower just because the board is tall (%.3fs)" % [label, drop_window])
@@ -548,7 +546,7 @@ func test_all_real_playable_levels_share_opening_timing_caps() -> void:
 			var last_delay: float = level.opening.call("_opening_freeze_delay", wall_count - 1, wall_count)
 			assert_true(last_delay > first_delay, "%s still staggers wall casts visually" % label)
 			assert_true(last_delay <= 0.18, "%s wall-cast stagger does not scale with wall count" % label)
-	assert_true(saw_level_ten and saw_level_eleven, "opening cap regression includes the player-facing levels 10 and 11 that exposed the slow path")
+	assert_true(saw_level_ten, "opening cap regression includes the last generated first-ten level")
 	level.free()
 
 

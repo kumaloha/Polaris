@@ -8,6 +8,7 @@
 # Godot 导入缓存 / 临时渲染产物（不入库）
 .godot/
 godot/_*shot*.png
+godot/_*shot*.png.import
 
 # 动画/调试导出临时产物
 godot/_burst_frames/

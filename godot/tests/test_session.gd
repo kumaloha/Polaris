@@ -7,6 +7,7 @@ const MetaState := preload("res://meta/meta_state.gd")
 const Enchants  := preload("res://meta/enchants.gd")
 const Session   := preload("res://app/session.gd")
 const PlaytestRecorder := preload("res://app/playtest_recorder.gd")
+const LevelLibrary := preload("res://core/level_library.gd")
 
 # ── build_config 字段完整性 ───────────────────────────────────────────────────
 
@@ -243,6 +244,16 @@ func test_game_root_boot_enters_map_state() -> void:
 	var gr := _make_root_with_library([])
 	gr._enter_boot()
 	assert_eq(gr._state, GameRoot.State.MAP, "Boot 直通 MAP 状态")
+	gr.free()
+
+func test_game_root_ready_loads_generated_library_by_default() -> void:
+	# 真实启动冒烟：_ready() 自己解析默认路径、读磁盘关卡包并进入地图。
+	var gr := GameRoot.new()
+	gr._ready()
+	assert_eq(gr._levels_path, LevelLibrary.DEFAULT_LEVELS_PATH, "GameRoot 默认使用生成关卡包")
+	assert_true(gr._library.size() > 0, "默认生成关卡包可被 GameRoot 读到")
+	assert_eq(gr._state, GameRoot.State.MAP, "_ready 后进入地图状态")
+	assert_true(gr._map_container.get_child_count() > 0, "地图由默认生成关卡包构建按钮")
 	gr.free()
 
 func test_game_root_map_builds_button_per_level() -> void:

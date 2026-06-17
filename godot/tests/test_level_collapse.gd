@@ -20,7 +20,7 @@ func _none_fx(w: int, h: int) -> Array:
 func _prepare_level_scene_with_real_levels() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._levels = LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	level._playable = []
 	for i in range(level._levels.size()):
 		var objs = level._levels[i].get("objectives", [])
@@ -187,10 +187,8 @@ func test_wall_slide_tracking_waits_for_vertical_chain_before_diagonal() -> void
 func test_level_wall_slide_visuals_tween_cell_steps() -> void:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	const LM := preload("res://match3/level_motion.gd")
-	assert_true(LM.WALL_SLIDE_STEP_TIME != null, "wall slide animation has a per-cell step duration")
 	assert_true(level.board_view.has_method("_wall_slide_path_points"), "Level exposes a path builder for wall slide visuals")
-	assert_true(level.board_view.has_method("_wall_slide_position_at"), "Level samples wall slide paths continuously")
+	assert_true(level.board_view.has_method("_wall_slide_position_at_table"), "Level samples wall slide paths through the precomputed arclength table")
 	assert_true(level.board_view.has_method("_tween_wall_slide_node"), "Level tweens wall slide nodes through path steps")
 	# 直接调真函数: 沿路径采样, progress=0 落在起点附近、progress=1 落在终点附近, 证明是连续采样的滑落而非一跳到位
 	level.board = Board.new(3, 3, [0, 1, 2], 0, 25, 1)
@@ -200,8 +198,9 @@ func test_level_wall_slide_visuals_tween_cell_steps() -> void:
 	var sp := Vector2(0.0, 0.0)
 	var tp := Vector2(200.0, 300.0)
 	var pts: Array = level.board_view.call("_wall_slide_path_points", sp, tp)
-	var at0: Vector2 = level.board_view.call("_wall_slide_position_at", sp, pts, 0.0)
-	var at1: Vector2 = level.board_view.call("_wall_slide_position_at", sp, pts, 1.0)
+	var table: Array = LevelMotion.wall_slide_arclength_table(sp, pts)
+	var at0: Vector2 = level.board_view.call("_wall_slide_position_at_table", sp, pts, table, 0.0)
+	var at1: Vector2 = level.board_view.call("_wall_slide_position_at_table", sp, pts, table, 1.0)
 	assert_true(at0.distance_to(sp) < 1.0, "wall slide sampling starts at the source position")
 	assert_true(at1.distance_to(tp) < 1.0, "wall slide sampling ends at the target position")
 	level.free()
@@ -286,10 +285,10 @@ func test_wall_slide_long_paths_keep_per_cell_pacing() -> void:
 	level.free()
 
 
-func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
+func test_generated_blocker_level_falls_use_global_fall_cap() -> void:
 	var level := _prepare_level_scene_with_real_levels()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
-	assert_eq(raw_idx, 15, "player-facing level 11 maps to the blocker-heavy exported level that exposed the slow branch")
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
+	assert_eq(raw_idx, 5, "player-facing level 6 maps directly to the generated blocker level")
 	level.board = LevelLibrary.to_board(level._levels[raw_idx])
 	level.board_view.board = level.board
 	level.call("_compute_layout")
@@ -298,7 +297,7 @@ func test_player_level_eleven_blocker_falls_use_global_fall_cap() -> void:
 		points.append(Vector2(0, float(idx) * level.cell_size))
 	var blocker_branch_duration: float = level.board_view.call("_wall_slide_duration_for_points", points)
 	var ordinary_duration: float = level.board_view.call("_fall_duration_for_positions", Vector2.ZERO, Vector2(0.0, level.cell_size * 10.0))
-	assert_true(blocker_branch_duration <= ordinary_duration + 0.01, "level 11's obstacle visual branch must not fall slower than ordinary levels")
+	assert_true(blocker_branch_duration <= ordinary_duration + 0.01, "generated blocker level's obstacle visual branch must not fall slower than ordinary levels")
 	level.free()
 
 
@@ -326,7 +325,7 @@ func test_all_real_playable_levels_share_fall_timing_caps() -> void:
 
 func test_level_motion_module_matches_level_fall_helpers() -> void:
 	var level := _prepare_level_scene_with_real_levels()
-	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "11"], level._levels.size())
+	var raw_idx: int = level.call("_launch_level_idx_from_args", ["--level", "6"], level._levels.size())
 	level.board = LevelLibrary.to_board(level._levels[raw_idx])
 	level.board_view.board = level.board
 	level.call("_compute_layout")
@@ -467,7 +466,10 @@ func test_level_fall_animation_timing_is_slightly_slower() -> void:
 	assert_eq(LM.FALL_DISTANCE_EXPONENT, 0.45, "long-distance growth is gentler than sqrt so the front/back speed contrast is reduced")
 	assert_eq(LM.FALL_MAX_TIME, 0.54, "very long falls have a lighter global ceiling so levels do not feel differently paced")
 	assert_eq(LM.ORDINARY_REFILL_MAX_TIME, 0.48, "spawned refill stays near the same lighter curve without lagging cascades")
-	assert_eq(LM.WALL_SLIDE_MAX_TIME, LM.FALL_MAX_TIME, "wall slide wait cap matches ordinary falls so blocker lanes do not feel slower")
+	var long_path := []
+	for i in range(12):
+		long_path.append(Vector2(0.0, float(i) * 88.0))
+	assert_true(LM.wall_slide_duration_for_points(long_path) <= LM.FALL_MAX_TIME, "wall slide wait cap matches ordinary falls so blocker lanes do not feel slower")
 
 
 func test_level_wall_slide_visuals_only_cross_columns_under_fall_obstacles() -> void:

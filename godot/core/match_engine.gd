@@ -1,15 +1,13 @@
 extends RefCounted
-# 纯逻辑消除引擎（无渲染依赖）——日后 C++ 求解器逐行镜像它。
+# 纯逻辑消除引擎（无渲染依赖）；当前 Godot/GDScript 唯一逻辑核。
 # grid 约定：grid[y][x] = species(int >= 0) 或 EMPTY。坐标用 Vector2i(x, y)。
 #
-# 【层组织约定 — GDScript 与 C++ 的差异】
+# 【层组织约定】
 # 障碍/目标层在 GDScript 侧统一收进一个 Layers Dictionary 传递，键名固定：
 #   "jelly" / "coat" / "choco" / "ing" / "bomb" / "popcorn" / "cake" / "mystery" / "exit_cols"。
 #   函数内用 layers.get("coat", []) 取出，缺省 []（只装需要的层，其余省略）。
 #   fx（特效层）保留为独立参数——它与 grid 同等核心、几乎所有函数直接用它，不并入 layers。
-# C++ 基准侧仍用【参数列表】逐个传层（无 Dictionary）。两端【逻辑完全一致】，只是参数的组织方式不同：
-#   GDScript=Layers Dictionary（防参数爆炸） / C++=显式参数列表（静态类型、零哈希开销）。
-# 镜像时把这里的 layers.get("xxx", []) 一一对应到 C++ 的 xxx 形参即可。
+# `layers` 是当前核心 API，用于避免障碍层参数爆炸；旧 C++ 镜像管线已退役。
 
 const EMPTY := -1
 const WALL := -2  # 战场切割/异形棋盘：不可消、不可动、不补充；分隔区域
@@ -75,7 +73,7 @@ static func find_matches(grid: Array, layers: Dictionary = {}) -> Array:
 # choco 可选：巧克力格(choco>0)与锁住格(coat>0)一样原地固定、把列切段（巧克力不下落）。
 # ing 可选：迷路幼兽/原料 actor(ing>0)是【会移动的占位障碍】：
 #   其 grid/fx 必为空，由 ing 层单独占格；它随重力移动，但普通棋子不能落进同格，也不能从它身上穿过去。
-#   含实际 ing>0 的盘面走 moving-ingredient 重力分支；只有空 ing 层时才走下方旧式层同步兜底。
+#   含实际 ing>0 的盘面走 moving-ingredient 重力分支；只有空 ing 层时才走下方标记层同步兼容路径。
 # bomb 可选：炸弹倒计时标记。炸弹格的 grid 是【普通棋子】(可消可换)，bomb 只是叠加的倒计时——
 #   故 bomb 既不切段也不阻断匹配/交换，仅作为标记【随 grid 同步搬运】。
 # popcorn 可选：爆米花剩余命中数。爆米花格 grid 是普通 species(占位)、不可消，但【随重力下落】——
@@ -325,7 +323,7 @@ static func apply_gravity(grid: Array, fx: Array = [], up: bool = false, layers:
 			if y == h or grid[y][x] == WALL or (has_coat and coat[y][x] > 0) or (has_choco and choco[y][x] > 0):
 				var stack := []     # 段内非空 species（段内无墙）
 				var fx_stack := []
-				var ing_stack := []   # 兼容空 ing 层的旧式同步数组；实际 ing>0 不会进入本分支。
+				var ing_stack := []   # 兼容空 ing 层的同步数组；实际 ing>0 不会进入本分支。
 				var bomb_stack := []  # 段内每个可动格的炸弹倒计时，随 stack 同序搬运（炸弹随棋子一起落）
 				var pop_stack := []   # 段内每个可动格的爆米花命中数，随 stack 同序搬运（爆米花随棋子一起落）
 				var mys_stack := []   # 段内每个可动格的神秘糖标记，随 stack 同序搬运（神秘糖随棋子一起落）
@@ -1622,7 +1620,7 @@ static func count_chocolate(choco: Array) -> int:
 
 
 # ───────────── 运原料（Ingredients）：从顶部下落、落到底部出口被收集 ─────────────
-# 原料语义（与 C++ 镜像一一对应）：
+# 原料语义：
 #   占格、不参与 match（find_matches/classify 跳过）、不可交换（is_legal_swap 拦）、
 #   【随重力下落】（apply_gravity 把它当可动格搬运，这是与 choco 最大不同）、
 #   落到底部出口列后被收集移除（grid→EMPTY, ing→0, ingredient_collected++）。

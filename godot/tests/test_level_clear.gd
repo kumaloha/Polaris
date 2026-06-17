@@ -20,7 +20,7 @@ func _none_fx(w: int, h: int) -> Array:
 func _prepare_level_scene_with_real_levels() -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
-	level._levels = LevelLibrary.load_file("res://levels.json")
+	level._levels = LevelLibrary.load_file(LevelLibrary.DEFAULT_LEVELS_PATH)
 	level._playable = []
 	for i in range(level._levels.size()):
 		var objs = level._levels[i].get("objectives", [])
@@ -28,6 +28,38 @@ func _prepare_level_scene_with_real_levels() -> Node:
 			level._playable.append(i)
 	return level
 
+
+func test_level_resolution_helpers_account_and_filter_by_behavior() -> void:
+	var level := _prepare_level_scene_with_real_levels()
+	level.board = Board.new(
+		3, 3, [0, 1, 2], 999, 20, 5,
+		[],
+		[
+			{"type": "COLLECT", "species": 0, "target": 1},
+			{"type": "CLEAR_JELLY", "species": -1, "target": 1},
+			{"type": "CLEAR_BLOCKER", "species": -1, "target": 1},
+		],
+		[[1, 1, 0], [0, 0, 0], [0, 0, 0]],
+		[[0, 1, 0], [0, 0, 0], [0, 0, 0]]
+	)
+	level.board.grid = [[0, 1, 2], [2, 2, 1], [1, 0, 2]]
+	level.board.fx = _none_fx(3, 3)
+
+	var clear_cells := [Vector2i(0, 0), Vector2i(1, 0)]
+	var acc: Dictionary = level._account_resolution_clears(clear_cells)
+	assert_eq(acc.get("by_species", {}).get(0, 0), 1, "accounting counts the unlocked species before clearing")
+	assert_false(acc.get("by_species", {}).has(1), "locked blocker cell is not collected as a species clear")
+	assert_eq(level.board.collected.get(0, 0), 1, "accounting helper accumulates collected species on the board")
+	assert_eq(level.board.jelly_cleared, 1, "accounting helper accumulates unlocked jelly progress")
+	assert_true(level.board.blocker_cleared >= 1, "accounting helper accumulates blocker progress")
+	assert_true(acc.get("locked", []).has(Vector2i(1, 0)), "accounting reports locked cells for filtering")
+
+	var filtered: Array = level._filtered_clear_cells(clear_cells, {
+		"locked": [Vector2i(1, 0)],
+		"cake_blast": [Vector2i(2, 2)],
+	})
+	assert_eq(filtered, [Vector2i(0, 0), Vector2i(2, 2)], "filter removes locked direct clears and appends cake blast cells")
+	level.free()
 
 
 func test_bomb_blast_cells_use_trigger_gem_species() -> void:
