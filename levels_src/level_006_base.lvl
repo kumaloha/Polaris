@@ -9,7 +9,7 @@
     "complexity_tier": 1,
     "theme": "forest_ruins",
     "target_pass_band": [
-      0.9,
+      0.94,
       1.0
     ],
     "generated_by": "tools/level_tool.py generate",
@@ -29,7 +29,7 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.9,
+      0.94,
       1.0
     ],
     "target_attempts_to_first_win": [
@@ -43,7 +43,7 @@
     "target": "all"
   },
   "rules": {
-    "moves": 20,
+    "moves": 18,
     "colors": 4,
     "refill": "random",
     "gravity": "down",
@@ -112,6 +112,18 @@
       "layers": [
         "crystal_shell"
       ]
+    },
+    {
+      "region": "cleanup_line_reward",
+      "cells": [
+        [
+          3,
+          1
+        ]
+      ],
+      "layers": [
+        "line_h_gem"
+      ]
     }
   ],
   "mechanisms": [],
@@ -132,6 +144,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -162,6 +175,55 @@
       "godot_support": {
         "playable_v0": true,
         "compile_layer": "coat"
+      },
+      "level_role": "breather",
+      "linked_eye": "shell_cleanup_breather"
+    },
+    "line_h_gem": {
+      "mechanic_id": "line_h_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_horizontal_line",
+      "reward_effect": "edge_or_row_sweep",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "funnel",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_line_h",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
       },
       "level_role": "breather",
       "linked_eye": "shell_cleanup_breather"
@@ -200,10 +262,12 @@
       }
     ],
     "reward_budget": {
-      "required": false,
-      "primitives": [],
-      "delivery": "natural_cascade_only",
-      "purpose": "keep_attention_on_new_rule"
+      "required": true,
+      "primitives": [
+        "line_h_gem"
+      ],
+      "delivery": "preseeded_fx_overlay",
+      "purpose": "give_the_player_a_real_board_resource_not_just_payoff_text"
     },
     "annoyance_budget": {
       "max_reshuffle_rate": 0.03,
@@ -214,7 +278,7 @@
     "difficulty_rhythm": {
       "shape": "breather_drop",
       "target_pass_band": [
-        0.9,
+        0.94,
         1.0
       ],
       "role": "breather"

@@ -1,5 +1,5 @@
 {
-  "level_id": "level_010_base_c00",
+  "level_id": "level_010_base_c06",
   "lint": {
     "valid": true,
     "errors": [],
@@ -12,7 +12,7 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 50,
+    "playable_cell_count": 62,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,
@@ -166,7 +166,7 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 58,
+        "move_limit": 35,
         "objective_target_total": 1
       }
     },
@@ -203,7 +203,7 @@
       "archetype_matches_purpose": true,
       "primary_blocker_present": true,
       "negative_space_declared": true,
-      "negative_space_ratio": 0.882,
+      "negative_space_ratio": 0.921,
       "negative_space_ok": true,
       "no_uniform_wall": true,
       "read_order_declared": true,
@@ -221,7 +221,7 @@
       "required_fields_present": true,
       "anchor_layers_present": true,
       "density_band_declared": true,
-      "anchor_density": 0.118,
+      "anchor_density": 0.079,
       "anchor_density_in_band": true,
       "focal_alignment_ok": true,
       "symmetry_ok": true,

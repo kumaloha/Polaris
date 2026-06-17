@@ -121,7 +121,7 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 20,
+        "move_limit": 24,
         "objective_target_total": 8
       }
     },

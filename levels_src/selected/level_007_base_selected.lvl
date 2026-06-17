@@ -1,5 +1,5 @@
 {
-  "id": "level_007_base_c03",
+  "id": "level_007_base_c05",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -9,16 +9,16 @@
     "complexity_tier": 2,
     "theme": "hourglass_ruins",
     "target_pass_band": [
-      0.58,
-      0.82
+      0.86,
+      1.0
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 3,
+    "candidate_index": 5,
     "candidate_tuning": {
-      "moves_delta": -3,
-      "target_multiplier": 1.1,
-      "shell_hp_delta": 1,
-      "colors_delta": 0
+      "moves_delta": -5,
+      "target_multiplier": 1.2,
+      "shell_hp_delta": 2,
+      "colors_delta": 1
     }
   },
   "personalization": {
@@ -34,8 +34,8 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.58,
-      0.82
+      0.86,
+      1.0
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -48,11 +48,11 @@
     "target": "all"
   },
   "rules": {
-    "moves": 17,
-    "colors": 5,
+    "moves": 20,
+    "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 4110
+    "seed": 6104
   },
   "map": {
     "width": 9,
@@ -157,6 +157,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -237,8 +238,8 @@
     "difficulty_rhythm": {
       "shape": "medium_reading_rise",
       "target_pass_band": [
-        0.58,
-        0.82
+        0.86,
+        1.0
       ],
       "role": "variation"
     }

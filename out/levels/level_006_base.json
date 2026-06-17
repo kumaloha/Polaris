@@ -1,87 +1,86 @@
 {
-  "level_id": "level_006_base_c05",
+  "level_id": "level_006_base",
   "w": 7,
   "h": 7,
   "species": [
     0,
     1,
     2,
-    3,
-    4
+    3
   ],
   "init_board": [
     [
-      1,
-      4,
-      1,
-      1,
-      0,
-      2,
-      2
-    ],
-    [
-      1,
-      1,
-      3,
       3,
       1,
-      2,
-      0
-    ],
-    [
+      1,
       0,
       3,
       1,
-      3,
-      3,
-      0,
-      4
-    ],
-    [
-      0,
-      0,
-      3,
-      4,
-      4,
-      1,
-      0
-    ],
-    [
-      2,
-      0,
-      4,
-      4,
-      0,
-      0,
       1
     ],
     [
-      4,
+      1,
       3,
-      1,
-      1,
       2,
+      2,
+      0,
       1,
+      1
+    ],
+    [
+      3,
+      3,
+      2,
+      0,
+      2,
+      2,
+      0
+    ],
+    [
+      3,
+      0,
+      3,
+      0,
+      3,
+      3,
+      1
+    ],
+    [
+      2,
+      2,
+      0,
+      1,
+      1,
+      0,
       2
     ],
     [
-      4,
+      3,
+      1,
+      3,
+      0,
+      1,
+      3,
+      2
+    ],
+    [
+      0,
+      0,
       2,
       0,
-      0,
-      4,
-      1,
-      2
+      3,
+      3,
+      1
     ]
   ],
   "target_score": 0,
-  "move_limit": 15,
-  "seed": 6087,
+  "move_limit": 18,
+  "seed": 1102,
   "objectives": [
     {
       "type": "CLEAR_BLOCKER",
       "species": -1,
-      "target": 15
+      "target": 5
     }
   ],
   "jelly": [
@@ -171,27 +170,27 @@
     [
       0,
       0,
-      3,
+      1,
       0,
-      3,
-      0,
-      0
-    ],
-    [
-      0,
-      0,
-      0,
-      3,
-      0,
+      1,
       0,
       0
     ],
     [
       0,
       0,
-      3,
       0,
-      3,
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      1,
+      0,
+      1,
       0,
       0
     ],
@@ -700,7 +699,7 @@
     ],
     [
       0,
-      0,
+      1,
       0,
       0,
       0,
@@ -735,17 +734,5 @@
       0
     ]
   ],
-  "difficulty": "EASY",
-  "meta": {
-    "level_coordinate": 6,
-    "source_lvl": "levels_src/selected/level_006_base_selected.lvl",
-    "selected_candidate_id": "level_006_base_c05",
-    "design_eye": "shell_cleanup_breather",
-    "intent": null,
-    "role": "breather",
-    "target_pass_band": [
-      0.9,
-      1.0
-    ]
-  }
+  "difficulty": "EASY"
 }

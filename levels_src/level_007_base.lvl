@@ -9,8 +9,8 @@
     "complexity_tier": 2,
     "theme": "hourglass_ruins",
     "target_pass_band": [
-      0.58,
-      0.82
+      0.86,
+      1.0
     ],
     "generated_by": "tools/level_tool.py generate",
     "candidate_index": null,
@@ -29,8 +29,8 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.58,
-      0.82
+      0.86,
+      1.0
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -43,8 +43,8 @@
     "target": "all"
   },
   "rules": {
-    "moves": 20,
-    "colors": 5,
+    "moves": 24,
+    "colors": 4,
     "refill": "random",
     "gravity": "down",
     "seed": 1119
@@ -152,6 +152,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -232,8 +233,8 @@
     "difficulty_rhythm": {
       "shape": "medium_reading_rise",
       "target_pass_band": [
-        0.58,
-        0.82
+        0.86,
+        1.0
       ],
       "role": "variation"
     }

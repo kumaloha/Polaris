@@ -1,5 +1,5 @@
 {
-  "level_id": "level_008_base_c08",
+  "level_id": "level_008_base_c09",
   "lint": {
     "valid": true,
     "errors": [],
@@ -60,11 +60,22 @@
     "score": 100,
     "checks": {
       "active_atoms": [
+        "burst_gem",
         "crystal_shell",
         "target_mark"
       ],
       "active_atoms_have_specs": true,
       "unused_specs": [],
+      "burst_gem.id_matches_key": true,
+      "burst_gem.category_known": true,
+      "burst_gem.state_dynamics_known": true,
+      "burst_gem.effect_text_present": true,
+      "burst_gem.compatible_objective_verbs_declared": true,
+      "burst_gem.compatible_terrain_declared": true,
+      "burst_gem.intro_rule_declared": true,
+      "burst_gem.mixing_rule_declared": true,
+      "burst_gem.simulator_hook_declared": true,
+      "burst_gem.godot_support_declared": true,
       "crystal_shell.id_matches_key": true,
       "crystal_shell.category_known": true,
       "crystal_shell.state_dynamics_known": true,

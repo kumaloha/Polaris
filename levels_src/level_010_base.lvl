@@ -9,8 +9,8 @@
     "complexity_tier": 2,
     "theme": "crystal_workshop",
     "target_pass_band": [
-      0.55,
-      0.75
+      0.58,
+      0.78
     ],
     "generated_by": "tools/level_tool.py generate",
     "candidate_index": null,
@@ -29,8 +29,8 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.55,
-      0.75
+      0.58,
+      0.78
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -43,17 +43,17 @@
     "target": 1
   },
   "rules": {
-    "moves": 58,
+    "moves": 34,
     "colors": 5,
     "refill": "random",
     "gravity": "down",
     "seed": 1170
   },
   "map": {
-    "width": 9,
+    "width": 7,
     "height": 9,
     "terrain": {
-      "sample": "bottleneck"
+      "sample": "open"
     },
     "supply_topology": {
       "type": "vertical_down"
@@ -78,15 +78,15 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
-    "ooooooooo",
-    "ooooooooo",
-    ".ooooooo.",
-    ".ooooooo.",
-    "..ooooo..",
-    "..ooooo..",
-    "...ooo...",
-    "...ooo...",
-    "...ooo..."
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo"
   ],
   "overlays": [
     {
@@ -94,7 +94,7 @@
       "cells": [
         [
           1,
-          4
+          3
         ]
       ],
       "layers": [
@@ -106,7 +106,7 @@
       "cells": [
         [
           8,
-          4
+          3
         ]
       ],
       "layers": [
@@ -114,10 +114,14 @@
       ]
     },
     {
-      "region": "crystal_gate",
+      "region": "crystal_route_gate",
       "cells": [
         [
           4,
+          2
+        ],
+        [
+          4,
           3
         ],
         [
@@ -125,20 +129,12 @@
           4
         ],
         [
-          4,
-          5
-        ],
-        [
           5,
-          3
+          2
         ],
         [
           5,
           4
-        ],
-        [
-          5,
-          5
         ]
       ],
       "layers": [
@@ -150,7 +146,7 @@
       "cells": [
         [
           2,
-          3
+          2
         ]
       ],
       "layers": [
@@ -162,7 +158,7 @@
       "cells": [
         [
           2,
-          5
+          4
         ]
       ],
       "layers": [
@@ -189,6 +185,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -236,6 +233,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -284,6 +282,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -327,6 +326,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -376,6 +376,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -415,9 +416,9 @@
       "proof_signal": "crystal_gate_damaged_before_lost_cub_exits"
     },
     "board_scale": {
-      "size": "9x9",
+      "size": "7x9",
       "effective_problem_space": "medium",
-      "reason": "post_reveal_transport_mix"
+      "reason": "finale_needs_route_depth_without_58_move_drag"
     },
     "source_principles": [
       "new_mechanic_reveal_small_problem_space",
@@ -464,8 +465,8 @@
     "difficulty_rhythm": {
       "shape": "first_act_finale",
       "target_pass_band": [
-        0.55,
-        0.75
+        0.58,
+        0.78
       ],
       "role": "pressure"
     }
@@ -485,7 +486,7 @@
       "kind": "upper_play_area",
       "min_ratio": 0.48
     },
-    "density": "medium",
+    "density": "low",
     "delete_test": "removing_route_gate_removes_finale_priority",
     "theme_shape": "crystal_route_gate",
     "beauty_rules": [
@@ -501,8 +502,8 @@
       "focal_alignment": "vertical_lane",
       "symmetry": "center_axis",
       "density_band": [
-        0.08,
-        0.32
+        0.03,
+        0.26
       ],
       "silhouette": "crystal_route_gate",
       "anchor_layers": [

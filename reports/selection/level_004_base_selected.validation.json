@@ -1,5 +1,5 @@
 {
-  "level_id": "level_004_base_c00",
+  "level_id": "level_004_base_c02",
   "lint": {
     "valid": true,
     "errors": [],
@@ -12,7 +12,7 @@
   },
   "structural": {
     "valid": true,
-    "playable_cell_count": 51,
+    "playable_cell_count": 41,
     "initial_match_count": 0,
     "legal_move_exists": true,
     "objective_ok": true,
@@ -121,8 +121,8 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 36,
-        "objective_target_total": 12
+        "move_limit": 18,
+        "objective_target_total": 9
       }
     },
     "errors": [],
@@ -175,7 +175,7 @@
       "required_fields_present": true,
       "anchor_layers_present": true,
       "density_band_declared": true,
-      "anchor_density": 0.235,
+      "anchor_density": 0.22,
       "anchor_density_in_band": true,
       "focal_alignment_ok": true,
       "symmetry_ok": true,

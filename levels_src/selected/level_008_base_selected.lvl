@@ -1,5 +1,5 @@
 {
-  "id": "level_008_base_c08",
+  "id": "level_008_base_c09",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -9,13 +9,13 @@
     "complexity_tier": 2,
     "theme": "crystal_mine",
     "target_pass_band": [
-      0.65,
-      0.85
+      0.8,
+      0.94
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 8,
+    "candidate_index": 9,
     "candidate_tuning": {
-      "moves_delta": -2,
+      "moves_delta": -3,
       "target_multiplier": 1.08,
       "shell_hp_delta": 1,
       "colors_delta": 0
@@ -34,8 +34,8 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.65,
-      0.85
+      0.8,
+      0.94
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -49,10 +49,10 @@
   },
   "rules": {
     "moves": 14,
-    "colors": 6,
+    "colors": 5,
     "refill": "random",
     "gravity": "down",
-    "seed": 9112
+    "seed": 10109
   },
   "map": {
     "width": 9,
@@ -196,10 +196,71 @@
           }
         }
       ]
+    },
+    {
+      "region": "vault_burst_reward",
+      "cells": [
+        [
+          1,
+          4
+        ]
+      ],
+      "layers": [
+        "burst_gem"
+      ]
     }
   ],
   "mechanisms": [],
   "mechanism_specs": {
+    "burst_gem": {
+      "mechanic_id": "burst_gem",
+      "category": "reward",
+      "state_dynamics": "static",
+      "player_action": "trigger_or_swap_special_reward",
+      "board_effect": "clears_local_radius",
+      "reward_effect": "cracks_cluster_or_ring",
+      "compatible_objective_verbs": [
+        "cleanse",
+        "transport",
+        "craft",
+        "connect",
+        "rescue",
+        "mixed"
+      ],
+      "compatible_terrain": [
+        "open",
+        "funnel",
+        "bottleneck",
+        "island",
+        "fork",
+        "split_columns"
+      ],
+      "intro_rule": {
+        "first_reveal_level": null,
+        "first_reveal_phase": "reward_tool",
+        "new_reveal_problem_space": "n/a"
+      },
+      "mixing_rule": {
+        "can_pair_with": [
+          "target_mark",
+          "crystal_shell",
+          "drop_relic",
+          "drop_exit"
+        ],
+        "forbidden_with": [],
+        "max_support_mechanisms_early": 1
+      },
+      "simulator_hook": {
+        "kind": "fx_burst",
+        "supported": true
+      },
+      "godot_support": {
+        "playable_v0": true,
+        "compile_layer": "fx"
+      },
+      "level_role": "variation",
+      "linked_eye": "cleanse_siege"
+    },
     "crystal_shell": {
       "mechanic_id": "crystal_shell",
       "category": "blocker",
@@ -216,6 +277,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -264,6 +326,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -306,7 +369,7 @@
     "board_scale": {
       "size": "9x9",
       "effective_problem_space": "medium",
-      "reason": "ring_pressure_needs_outer_play_area"
+      "reason": "mini_peak_after_split_topology_uses_rewarded_outer_play_area"
     },
     "source_principles": [
       "new_mechanic_reveal_small_problem_space",
@@ -350,8 +413,8 @@
     "difficulty_rhythm": {
       "shape": "short_pressure_peak",
       "target_pass_band": [
-        0.65,
-        0.85
+        0.8,
+        0.94
       ],
       "role": "variation"
     }

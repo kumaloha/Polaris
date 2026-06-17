@@ -1,5 +1,5 @@
 {
-  "level_id": "level_003_base_c00",
+  "level_id": "level_003_base",
   "w": 7,
   "h": 7,
   "species": [
@@ -734,17 +734,5 @@
       0
     ]
   ],
-  "difficulty": "MEDIUM",
-  "meta": {
-    "level_coordinate": 3,
-    "source_lvl": "levels_src/selected/level_003_base_selected.lvl",
-    "selected_candidate_id": "level_003_base_c00",
-    "design_eye": "cleanse_trail",
-    "intent": null,
-    "role": "teaching_breather",
-    "target_pass_band": [
-      0.9,
-      1.0
-    ]
-  }
+  "difficulty": "MEDIUM"
 }

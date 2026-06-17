@@ -1,5 +1,5 @@
 {
-  "level_id": "level_006_base_c05",
+  "level_id": "level_006_base_c04",
   "lint": {
     "valid": true,
     "errors": [],
@@ -60,7 +60,8 @@
     "score": 100,
     "checks": {
       "active_atoms": [
-        "crystal_shell"
+        "crystal_shell",
+        "line_h_gem"
       ],
       "active_atoms_have_specs": true,
       "unused_specs": [],
@@ -73,7 +74,17 @@
       "crystal_shell.intro_rule_declared": true,
       "crystal_shell.mixing_rule_declared": true,
       "crystal_shell.simulator_hook_declared": true,
-      "crystal_shell.godot_support_declared": true
+      "crystal_shell.godot_support_declared": true,
+      "line_h_gem.id_matches_key": true,
+      "line_h_gem.category_known": true,
+      "line_h_gem.state_dynamics_known": true,
+      "line_h_gem.effect_text_present": true,
+      "line_h_gem.compatible_objective_verbs_declared": true,
+      "line_h_gem.compatible_terrain_declared": true,
+      "line_h_gem.intro_rule_declared": true,
+      "line_h_gem.mixing_rule_declared": true,
+      "line_h_gem.simulator_hook_declared": true,
+      "line_h_gem.godot_support_declared": true
     },
     "errors": [],
     "warnings": []
@@ -121,8 +132,8 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 15,
-        "objective_target_total": 15
+        "move_limit": 16,
+        "objective_target_total": 5
       }
     },
     "errors": [],
@@ -139,6 +150,7 @@
       "lifecycle_phases_specific": true,
       "reward_primitives_known": true,
       "reward_primitives_present_on_board": true,
+      "reward_primitives_compile_to_fx": true,
       "max_reshuffle_rate_valid": true,
       "max_dead_board_rate_valid": true,
       "max_no_progress_turn_rate_valid": true,

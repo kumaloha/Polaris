@@ -69,6 +69,37 @@ TERRAIN_TEMPLATES: dict[str, list[str]] = {
         "ooooooooo",
         "ooooooooo",
     ],
+    "open_7x9": [
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+    ],
+    "funnel_7x7": [
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        ".ooooo.",
+        ".ooooo.",
+        "..ooo..",
+    ],
+    "bottleneck_7x9": [
+        "ooooooo",
+        "ooooooo",
+        "ooooooo",
+        ".ooooo.",
+        ".ooooo.",
+        "..ooo..",
+        "..ooo..",
+        "..ooo..",
+        "..ooo..",
+    ],
     "bottleneck_9x9": [
         "ooooooooo",
         "ooooooooo",
@@ -170,13 +201,15 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "role": "variation",
         "complexity_tier": 1,
         "theme": "hourglass_ruins",
-        "terrain": "bottleneck_9x9",
-        "moves": 36,
-        "target_pass_band": [0.68, 0.85],
+        "terrain": "funnel_7x7",
+        "colors": 4,
+        "moves": 20,
+        "min_moves": 18,
+        "target_pass_band": [0.82, 0.95],
         "eye": "cleanse_expedition_weak",
         "objective": {"type": "cleanse_marks", "target": "all"},
-        "placements": ["downstream_marks_9x9", "gate_hint_marks_9x9"],
-        "intent": "下游目标池，弱瓶颈，无晶壳。",
+        "placements": ["downstream_marks_7x7", "gate_hint_marks_7x7"],
+        "intent": "先让玩家读懂下游目标池和轻漏斗，不急着把棋盘放大。",
         "control": "vertical_line_gem",
     },
     5: {
@@ -185,6 +218,9 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "theme": "crystal_workshop",
         "terrain": "open_7x7",
         "moves": 22,
+        "min_moves": 18,
+        "max_colors": 4,
+        "max_shell_hp": 1,
         "target_pass_band": [0.90, 1.00],
         "eye": "crystal_shell_gate_practice",
         "objective": {"type": "cleanse_marks", "target": "all"},
@@ -200,10 +236,15 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "theme": "forest_ruins",
         "terrain": "open_7x7",
         "colors": 4,
-        "target_pass_band": [0.90, 1.00],
+        "moves": 18,
+        "min_moves": 16,
+        "max_colors": 4,
+        "max_shell_hp": 1,
+        "target_pass_band": [0.94, 1.00],
         "eye": "shell_cleanup_breather",
         "objective": {"type": "clear_shells", "target": "all"},
         "placements": ["soft_shell_clusters_7x7"],
+        "reward_placements": ["cleanup_line_reward_7x7"],
         "intent": "晶壳后喘息爽关：在开阔盘面清掉少量散落晶壳。",
         "control": "adjacent_shell_cleanup",
     },
@@ -213,8 +254,11 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "theme": "hourglass_ruins",
         "terrain": "split_columns_9x9",
         "topology": "split_columns",
-        "moves": 20,
-        "target_pass_band": [0.58, 0.82],
+        "colors": 4,
+        "moves": 24,
+        "min_moves": 20,
+        "max_colors": 4,
+        "target_pass_band": [0.86, 1.00],
         "eye": "split_supply_duet",
         "objective": {"type": "cleanse_marks", "target": "all"},
         "placements": ["split_duet_marks_9x9"],
@@ -226,12 +270,16 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "complexity_tier": 2,
         "theme": "crystal_mine",
         "terrain": "open_9x9",
-        "colors": 6,
+        "colors": 5,
         "moves": 16,
-        "target_pass_band": [0.65, 0.85],
+        "min_moves": 14,
+        "max_colors": 5,
+        "max_shell_hp": 2,
+        "target_pass_band": [0.80, 0.94],
         "eye": "cleanse_siege",
         "objective": {"type": "cleanse_marks", "target": "all"},
         "placements": ["vault_marks_9x9", "vault_shell_ring_9x9"],
+        "reward_placements": ["vault_burst_reward_9x9"],
         "intent": "孤岛围城：先破外圈晶壳，再净化中心。",
         "control": "burst_gem",
     },
@@ -252,13 +300,17 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "role": "pressure",
         "complexity_tier": 2,
         "theme": "crystal_workshop",
-        "terrain": "bottleneck_9x9",
-        "moves": 58,
-        "target_pass_band": [0.55, 0.75],
+        "terrain": "open_7x9",
+        "colors": 5,
+        "moves": 34,
+        "min_moves": 30,
+        "max_moves": 36,
+        "max_shell_hp": 2,
+        "target_pass_band": [0.58, 0.78],
         "eye": "drop_bottleneck",
         "objective": {"type": "drop_relic", "target": 1},
-        "placements": ["relic_bottleneck_9x9", "crystal_gate_9x9"],
-        "reward_placements": ["finale_burst_reward_9x9", "finale_line_reward_9x9"],
+        "placements": ["relic_bottleneck_7x9", "crystal_gate_7x9_route"],
+        "reward_placements": ["finale_burst_reward_7x9", "finale_line_reward_7x9"],
         "intent": "幼兽路径与晶壳门：先开路，再护送幼兽回巢。",
         "control": "vertical_line_gem",
     },
@@ -303,7 +355,7 @@ EARLY_LEVEL_PROGRESSION: dict[int, dict[str, Any]] = {
         "arc_role": "post_blocker_breather",
         "rhythm": "breather_drop",
         "lifecycle": [{"mechanic": "crystal_shell", "phase": "cleanup_breather", "role": "primary", "is_new": False}],
-        "rewards": [],
+        "rewards": ["line_h_gem"],
     },
     7: {
         "arc_role": "supply_topology_variation",
@@ -464,7 +516,7 @@ EARLY_LEVEL_OBSTACLE_COMPOSITION: dict[int, dict[str, Any]] = {
         "action_vector": "transport_down",
         "read_order": ["actor", "blocker", "exit"],
         "negative_space": {"kind": "upper_play_area", "min_ratio": 0.48},
-        "density": "medium",
+        "density": "low",
         "delete_test": "removing_route_gate_removes_finale_priority",
         "theme_shape": "crystal_route_gate",
         "beauty_rules": ["shape_implies_action_direction", "single_core_question", "no_uniform_wall", "goal_blocker_solution_readable", "theme_shape_serves_play_shape"],
@@ -491,7 +543,7 @@ EARLY_LEVEL_INTENT: dict[int, dict[str, Any]] = {
     4: {
         "objective_verb": "cleanse",
         "skill_lesson": {"skill": "read_downstream_goal_basin", "proof_signal": "lower_targets_cleared_after_upper_moves"},
-        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "terrain_variation_needs_upper_middle_lower_read"},
+        "board_scale": {"size": "7x7", "effective_problem_space": "small", "reason": "first_terrain_variation_should_not_compete_with_later_blocker_reveal"},
     },
     5: {
         "objective_verb": "cleanse",
@@ -511,7 +563,7 @@ EARLY_LEVEL_INTENT: dict[int, dict[str, Any]] = {
     8: {
         "objective_verb": "cleanse",
         "skill_lesson": {"skill": "use_burst_to_crack_ring", "proof_signal": "shell_ring_damage_before_center_targets_finish"},
-        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "ring_pressure_needs_outer_play_area"},
+        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "mini_peak_after_split_topology_uses_rewarded_outer_play_area"},
     },
     9: {
         "objective_verb": "transport",
@@ -521,7 +573,7 @@ EARLY_LEVEL_INTENT: dict[int, dict[str, Any]] = {
     10: {
         "objective_verb": "transport",
         "skill_lesson": {"skill": "open_route_gate_then_transport_actor", "proof_signal": "crystal_gate_damaged_before_lost_cub_exits"},
-        "board_scale": {"size": "9x9", "effective_problem_space": "medium", "reason": "post_reveal_transport_mix"},
+        "board_scale": {"size": "7x9", "effective_problem_space": "medium", "reason": "finale_needs_route_depth_without_58_move_drag"},
     },
 }
 
@@ -601,7 +653,7 @@ MECHANISM_SPEC_REQUIRED_FIELDS = {
 }
 MECHANISM_STATE_DYNAMICS = {"static", "self_evolving", "actor_moving"}
 MECHANISM_CATEGORIES = {"objective", "blocker", "actor", "routing", "reward"}
-MECHANISM_COMPATIBLE_TERRAIN = ["open", "bottleneck", "island", "fork", "split_columns"]
+MECHANISM_COMPATIBLE_TERRAIN = ["open", "funnel", "bottleneck", "island", "fork", "split_columns"]
 
 
 def mechanism_spec_record(
@@ -887,6 +939,12 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "gate_line_reward_7x7": [
             overlay("gate_line_reward", [[3, 3]], ["line_v_gem"])
         ],
+        "gate_hint_marks_7x7": [
+            overlay("gate_hint_marks", [[4, 2], [4, 3], [4, 4]], ["target_mark"])
+        ],
+        "cleanup_line_reward_7x7": [
+            overlay("cleanup_line_reward", [[3, 1]], ["line_h_gem"])
+        ],
         "downstream_marks_9x9": [
             overlay("downstream_marks", [[6, 3], [6, 4], [6, 5], [7, 3], [7, 4], [7, 5], [8, 3], [8, 4], [8, 5]], ["target_mark"])
         ],
@@ -909,6 +967,9 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "vault_shell_ring_9x9": [
             overlay("vault_shell_ring", [[2, 3], [2, 4], [2, 5], [3, 2], [4, 2], [5, 2], [6, 3], [6, 4], [6, 5], [3, 6], [4, 6], [5, 6]], [shell_layer])
         ],
+        "vault_burst_reward_9x9": [
+            overlay("vault_burst_reward", [[1, 4]], ["burst_gem"])
+        ],
         "relic_direct_9x9": [
             overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
             overlay("nest_exit", [[8, 4]], ["drop_exit"]),
@@ -920,6 +981,19 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
         "relic_bottleneck_9x9": [
             overlay("lost_cub_start", [[1, 4]], ["drop_relic"]),
             overlay("nest_exit", [[8, 4]], ["drop_exit"]),
+        ],
+        "relic_bottleneck_7x9": [
+            overlay("lost_cub_start", [[1, 3]], ["drop_relic"]),
+            overlay("nest_exit", [[8, 3]], ["drop_exit"]),
+        ],
+        "crystal_gate_7x9_route": [
+            overlay("crystal_route_gate", [[4, 2], [4, 3], [4, 4], [5, 2], [5, 4]], [shell_layer])
+        ],
+        "finale_burst_reward_7x9": [
+            overlay("finale_burst_reward", [[2, 2]], ["burst_gem"])
+        ],
+        "finale_line_reward_7x9": [
+            overlay("finale_line_reward", [[2, 4]], ["line_v_gem"])
         ],
         "finale_burst_reward_9x9": [
             overlay("finale_burst_reward", [[2, 3]], ["burst_gem"])
@@ -1831,9 +1905,21 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
     rows = TERRAIN_TEMPLATES[coord["terrain"]]
     width, height = board_size(rows)
     moves = max(8, int(coord.get("moves", role_defaults["moves"])) + int(variant_rule["moves_delta"]) + int(tuning["moves_delta"]))
+    if "min_moves" in coord:
+        moves = max(int(coord["min_moves"]), moves)
+    if "max_moves" in coord:
+        moves = min(int(coord["max_moves"]), moves)
     colors = max(4, min(6, int(coord.get("colors", role_defaults["colors"])) + int(tuning["colors_delta"])))
+    if "min_colors" in coord:
+        colors = max(int(coord["min_colors"]), colors)
+    if "max_colors" in coord:
+        colors = min(int(coord["max_colors"]), colors)
     target_multiplier = float(variant_rule["target_multiplier"]) * float(tuning["target_multiplier"])
     shell_hp_delta = int(variant_rule["shell_hp_delta"]) + int(tuning["shell_hp_delta"])
+    if "max_shell_hp" in coord:
+        shell_hp_delta = min(shell_hp_delta, max(0, int(coord["max_shell_hp"]) - 1))
+    if "min_shell_hp" in coord:
+        shell_hp_delta = max(shell_hp_delta, max(0, int(coord["min_shell_hp"]) - 1))
     seed = 1000 + level * 17 + list(VARIANT_RULES).index(variant) + (0 if candidate is None else candidate * 997)
     level_id = f"level_{level:03d}_{variant}" if candidate is None else f"level_{level:03d}_{variant}_c{candidate:02d}"
     level_design = generated_level_design(level, coord)
@@ -1879,7 +1965,7 @@ def generate_level(level: int, variant: str = "base", candidate: int | None = No
         "map": {
             "width": width,
             "height": height,
-            "terrain": {"sample": coord["terrain"].replace("_7x7", "").replace("_9x9", "")},
+            "terrain": {"sample": coord["terrain"].replace("_7x7", "").replace("_7x9", "").replace("_9x9", "")},
             "supply_topology": {"type": coord.get("topology", "vertical_down")},
         },
         "recipe": {
@@ -2853,7 +2939,7 @@ def level_intent_validate_lvl(lvl: dict[str, Any], compiled: dict[str, Any] | No
     scale_size = str(board_scale.get("size", ""))
     problem_space = str(board_scale.get("effective_problem_space", ""))
     reason_ok = meaningful_semantic_text(board_scale.get("reason"), 6)
-    checks["board_scale_declared"] = scale_size in {"7x7", "9x9"} and problem_space in {"small", "medium", "large"} and reason_ok
+    checks["board_scale_declared"] = scale_size in {"7x7", "7x9", "9x9"} and problem_space in {"small", "medium", "large"} and reason_ok
     if not checks["board_scale_declared"]:
         fail("E_BOARD_SCALE_INCOMPLETE", "level_intent.board_scale", "board_scale must declare size, effective_problem_space, and reason", 15)
 

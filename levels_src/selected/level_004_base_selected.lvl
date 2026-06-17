@@ -1,5 +1,5 @@
 {
-  "id": "level_004_base_c00",
+  "id": "level_004_base_c02",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -9,14 +9,14 @@
     "complexity_tier": 1,
     "theme": "hourglass_ruins",
     "target_pass_band": [
-      0.68,
-      0.85
+      0.82,
+      0.95
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 0,
+    "candidate_index": 2,
     "candidate_tuning": {
-      "moves_delta": 0,
-      "target_multiplier": 1.0,
+      "moves_delta": -2,
+      "target_multiplier": 1.05,
       "shell_hp_delta": 0,
       "colors_delta": 0
     }
@@ -34,8 +34,8 @@
       "annoyance_tolerance": 0.45
     },
     "target_pass_band": [
-      0.68,
-      0.85
+      0.82,
+      0.95
     ],
     "target_attempts_to_first_win": [
       1.5,
@@ -48,17 +48,17 @@
     "target": "all"
   },
   "rules": {
-    "moves": 36,
-    "colors": 5,
+    "moves": 18,
+    "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 1068
+    "seed": 3062
   },
   "map": {
-    "width": 9,
-    "height": 9,
+    "width": 7,
+    "height": 7,
     "terrain": {
-      "sample": "bottleneck"
+      "sample": "funnel"
     },
     "supply_topology": {
       "type": "vertical_down"
@@ -81,55 +81,41 @@
     "intended_control": "vertical_line_gem"
   },
   "board": [
-    "ooooooooo",
-    "ooooooooo",
-    ".ooooooo.",
-    ".ooooooo.",
-    "..ooooo..",
-    "..ooooo..",
-    "...ooo...",
-    "...ooo...",
-    "...ooo..."
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    "ooooooo",
+    ".ooooo.",
+    ".ooooo.",
+    "..ooo.."
   ],
   "overlays": [
     {
       "region": "downstream_marks",
       "cells": [
         [
+          5,
+          2
+        ],
+        [
+          5,
+          3
+        ],
+        [
+          5,
+          4
+        ],
+        [
+          6,
+          2
+        ],
+        [
           6,
           3
         ],
         [
           6,
           4
-        ],
-        [
-          6,
-          5
-        ],
-        [
-          7,
-          3
-        ],
-        [
-          7,
-          4
-        ],
-        [
-          7,
-          5
-        ],
-        [
-          8,
-          3
-        ],
-        [
-          8,
-          4
-        ],
-        [
-          8,
-          5
         ]
       ],
       "layers": [
@@ -141,15 +127,15 @@
       "cells": [
         [
           4,
+          2
+        ],
+        [
+          4,
           3
         ],
         [
           4,
           4
-        ],
-        [
-          4,
-          5
         ]
       ],
       "layers": [
@@ -173,6 +159,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -213,9 +200,9 @@
       "proof_signal": "lower_targets_cleared_after_upper_moves"
     },
     "board_scale": {
-      "size": "9x9",
-      "effective_problem_space": "medium",
-      "reason": "terrain_variation_needs_upper_middle_lower_read"
+      "size": "7x7",
+      "effective_problem_space": "small",
+      "reason": "first_terrain_variation_should_not_compete_with_later_blocker_reveal"
     },
     "source_principles": [
       "new_mechanic_reveal_small_problem_space",
@@ -253,8 +240,8 @@
     "difficulty_rhythm": {
       "shape": "gentle_rise",
       "target_pass_band": [
-        0.68,
-        0.85
+        0.82,
+        0.95
       ],
       "role": "variation"
     }

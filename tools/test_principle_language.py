@@ -83,6 +83,23 @@ class PrincipleLanguageTests(unittest.TestCase):
         self.assertFalse(rhythm["valid"])
         self.assertIn("E_EPISODE_NEW_REVEAL_TOO_CLOSE", [e["code"] for e in rhythm["errors"]])
 
+    def test_first_ten_rhythm_curve_has_no_size_hp_or_move_cliff(self) -> None:
+        levels = [level_tool.generate_level(level, "base") for level in range(1, 11)]
+        moves = [lvl["rules"]["moves"] for lvl in levels]
+        areas = [lvl["map"]["width"] * lvl["map"]["height"] for lvl in levels]
+        self.assertLessEqual(areas[3], 49, "level 4 should not jump to a 9x9 long board before the blocker reveal")
+        self.assertLessEqual(moves[9], 34, "level 10 finale should be a compact route puzzle, not a 58-move drag")
+        for prev, curr in zip(moves, moves[1:]):
+            self.assertLessEqual(abs(curr - prev), 14, f"move budget cliff is too large: {moves}")
+
+        for level in (5, 6):
+            lvl = level_tool.generate_level(level, "base", candidate=5)
+            compiled, diag = level_tool.compile_lvl(lvl)
+            self.assertTrue(diag.ok, diag.to_json())
+            max_hp = max((value for row in compiled["coat"] for value in row), default=0)
+            self.assertLessEqual(max_hp, 1, f"level {level} intro/breather shells must stay one-hit even under hard candidate tuning")
+            self.assertLessEqual(lvl["rules"]["colors"], 4, f"level {level} should keep the first blocker loop readable")
+
 
 if __name__ == "__main__":
     unittest.main()

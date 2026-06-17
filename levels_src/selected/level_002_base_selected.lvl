@@ -1,5 +1,5 @@
 {
-  "id": "level_002_base_c02",
+  "id": "level_002_base_c06",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,10 +13,10 @@
       0.92
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 2,
+    "candidate_index": 6,
     "candidate_tuning": {
-      "moves_delta": -2,
-      "target_multiplier": 1.05,
+      "moves_delta": 1,
+      "target_multiplier": 0.95,
       "shell_hp_delta": 0,
       "colors_delta": 0
     }
@@ -48,11 +48,11 @@
     "target": "all"
   },
   "rules": {
-    "moves": 20,
+    "moves": 23,
     "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 3028
+    "seed": 7016
   },
   "map": {
     "width": 7,
@@ -162,6 +162,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
@@ -207,6 +208,7 @@
       ],
       "compatible_terrain": [
         "open",
+        "funnel",
         "bottleneck",
         "island",
         "fork",
