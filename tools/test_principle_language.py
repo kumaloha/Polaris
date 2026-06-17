@@ -106,6 +106,23 @@ class PrincipleLanguageTests(unittest.TestCase):
         self.assertEqual(result["attempts"][0]["candidate"], 18)
         self.assertEqual(result["attempts"][0]["level_id"], "level_001_base_c18")
 
+    def test_crystal_shell_after_reveal_has_visible_stage_density(self) -> None:
+        minimum_shell_cells = {
+            5: 6,
+            6: 8,
+            8: 12,
+            10: 8,
+        }
+        for level, minimum in minimum_shell_cells.items():
+            with self.subTest(level=level):
+                lvl = level_tool.generate_level(level, "base", candidate=10)
+                shell_cells = level_tool.crystal_shell_cells(lvl)
+                self.assertGreaterEqual(
+                    len(shell_cells),
+                    minimum,
+                    f"level {level} needs enough ice blocks to read as a designed stage, not sparse decoration",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3218,9 +3218,9 @@
         [
           0,
           0,
-          0,
-          0,
-          0,
+          1,
+          1,
+          1,
           0,
           0
         ],
@@ -3767,8 +3767,8 @@
           0.9,
           1.0
         ],
-        "simulated_pass_rate_at_1": 0.979,
-        "avg_remaining_moves": 11.19,
+        "simulated_pass_rate_at_1": 0.975,
+        "avg_remaining_moves": 11.76,
         "candidate_start": 10,
         "candidates_requested": 10
       }
@@ -3855,7 +3855,7 @@
         {
           "type": "CLEAR_BLOCKER",
           "species": -1,
-          "target": 5
+          "target": 8
         }
       ],
       "jelly": [
@@ -3936,8 +3936,26 @@
         [
           0,
           0,
+          1,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
           0,
           0,
+          1,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          1,
           0,
           0,
           0
@@ -3956,24 +3974,6 @@
           0,
           0,
           1,
-          0,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          1,
-          0,
-          1,
-          0,
-          0
-        ],
-        [
-          0,
-          0,
-          0,
-          0,
           0,
           0,
           0
@@ -4522,7 +4522,7 @@
           1.0
         ],
         "simulated_pass_rate_at_1": 1.0,
-        "avg_remaining_moves": 13.86,
+        "avg_remaining_moves": 13.38,
         "candidate_start": 10,
         "candidates_requested": 10
       }
@@ -7802,9 +7802,9 @@
         [
           0,
           0,
-          0,
-          0,
-          0,
+          1,
+          1,
+          1,
           0,
           0
         ],
@@ -8533,8 +8533,8 @@
           0.58,
           0.78
         ],
-        "simulated_pass_rate_at_1": 0.642,
-        "avg_remaining_moves": 11.91,
+        "simulated_pass_rate_at_1": 0.662,
+        "avg_remaining_moves": 11.16,
         "candidate_start": 10,
         "candidates_requested": 10
       }

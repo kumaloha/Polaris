@@ -245,7 +245,7 @@ LEVEL_COORDINATES: dict[int, dict[str, Any]] = {
         "objective": {"type": "clear_shells", "target": "all"},
         "placements": ["soft_shell_clusters_7x7"],
         "reward_placements": ["cleanup_line_reward_7x7"],
-        "intent": "晶壳后喘息爽关：在开阔盘面清掉少量散落晶壳。",
+        "intent": "晶壳后喘息爽关：在开阔盘面清掉一组看得见的散落晶壳。",
         "control": "adjacent_shell_cleanup",
     },
     7: {
@@ -928,13 +928,13 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
             overlay("trail_marks", [[1, 2], [1, 3], [2, 4], [3, 2], [3, 3], [3, 4], [4, 2], [5, 3]], ["target_mark"])
         ],
         "soft_shell_clusters_7x7": [
-            overlay("soft_shell_clusters", [[2, 2], [2, 4], [3, 3], [4, 2], [4, 4]], [shell_layer])
+            overlay("soft_shell_clusters", [[1, 2], [1, 4], [2, 2], [2, 4], [3, 3], [4, 2], [4, 4], [5, 3]], [shell_layer])
         ],
         "downstream_marks_7x7": [
             overlay("downstream_marks", [[5, 2], [5, 3], [5, 4], [6, 2], [6, 3], [6, 4]], ["target_mark"])
         ],
         "crystal_gate_7x7": [
-            overlay("crystal_gate", [[4, 2], [4, 3], [4, 4]], [shell_layer])
+            overlay("crystal_gate", [[4, 2], [4, 3], [4, 4], [5, 2], [5, 3], [5, 4]], [shell_layer])
         ],
         "gate_line_reward_7x7": [
             overlay("gate_line_reward", [[3, 3]], ["line_v_gem"])
@@ -987,7 +987,7 @@ def placement_overlays(preset: str, shell_hp_delta: int = 0) -> list[dict[str, A
             overlay("nest_exit", [[8, 3]], ["drop_exit"]),
         ],
         "crystal_gate_7x9_route": [
-            overlay("crystal_route_gate", [[4, 2], [4, 3], [4, 4], [5, 2], [5, 4]], [shell_layer])
+            overlay("crystal_route_gate", [[3, 2], [3, 3], [3, 4], [4, 2], [4, 3], [4, 4], [5, 2], [5, 4]], [shell_layer])
         ],
         "finale_burst_reward_7x9": [
             overlay("finale_burst_reward", [[2, 2]], ["burst_gem"])

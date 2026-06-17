@@ -133,7 +133,7 @@
       "protagonist_language_aligned": true,
       "pacing_context": {
         "move_limit": 16,
-        "objective_target_total": 5
+        "objective_target_total": 8
       }
     },
     "errors": [],
@@ -169,7 +169,7 @@
       "archetype_matches_purpose": true,
       "primary_blocker_present": true,
       "negative_space_declared": true,
-      "negative_space_ratio": 0.898,
+      "negative_space_ratio": 0.837,
       "negative_space_ok": true,
       "no_uniform_wall": true,
       "read_order_declared": true,
@@ -187,7 +187,7 @@
       "required_fields_present": true,
       "anchor_layers_present": true,
       "density_band_declared": true,
-      "anchor_density": 0.102,
+      "anchor_density": 0.163,
       "anchor_density_in_band": true,
       "focal_alignment_ok": true,
       "symmetry_ok": true,
