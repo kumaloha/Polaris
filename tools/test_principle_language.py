@@ -100,6 +100,12 @@ class PrincipleLanguageTests(unittest.TestCase):
             self.assertLessEqual(max_hp, 1, f"level {level} intro/breather shells must stay one-hit even under hard candidate tuning")
             self.assertLessEqual(lvl["rules"]["colors"], 4, f"level {level} should keep the first blocker loop readable")
 
+    def test_generate_select_can_start_a_fresh_candidate_batch(self) -> None:
+        result = level_tool.generate_select(1, "base", "balanced", candidates=1, runs=1, candidate_start=18)
+        self.assertEqual(result["candidate_start"], 18)
+        self.assertEqual(result["attempts"][0]["candidate"], 18)
+        self.assertEqual(result["attempts"][0]["level_id"], "level_001_base_c18")
+
 
 if __name__ == "__main__":
     unittest.main()

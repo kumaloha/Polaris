@@ -1,5 +1,5 @@
 {
-  "id": "level_007_base_c05",
+  "id": "level_007_base_c13",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,11 +13,11 @@
       1.0
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 5,
+    "candidate_index": 13,
     "candidate_tuning": {
-      "moves_delta": -5,
-      "target_multiplier": 1.2,
-      "shell_hp_delta": 2,
+      "moves_delta": -7,
+      "target_multiplier": 1.28,
+      "shell_hp_delta": 3,
       "colors_delta": 1
     }
   },
@@ -52,7 +52,7 @@
     "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 6104
+    "seed": 14080
   },
   "map": {
     "width": 9,

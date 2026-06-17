@@ -4458,13 +4458,13 @@ def candidate_score(sim: dict[str, Any], band: tuple[float, float]) -> float:
     return 100.0 - distance * 20.0 - over_easy_penalty + activation * 5.0 + min(5.0, cascade) - annoyance * 12.0
 
 
-def generate_select(level: int, variant: str, profile: str, candidates: int, runs: int) -> dict[str, Any]:
+def generate_select(level: int, variant: str, profile: str, candidates: int, runs: int, candidate_start: int = 0) -> dict[str, Any]:
     attempts: list[dict[str, Any]] = []
     selected: dict[str, Any] | None = None
     selected_sim: dict[str, Any] | None = None
     selected_score = -9999.0
     selected_band: tuple[float, float] | None = None
-    for idx in range(candidates):
+    for idx in range(candidate_start, candidate_start + candidates):
         lvl = generate_level(level, variant, candidate=idx)
         validation = validate_lvl(lvl)
         band = pass_band_for_level(lvl)
@@ -4515,6 +4515,7 @@ def generate_select(level: int, variant: str, profile: str, candidates: int, run
         "variant": variant,
         "profile": profile,
         "candidates_requested": candidates,
+        "candidate_start": candidate_start,
         "selected": selected,
         "selected_sim": selected_sim,
         "selected_score": round(selected_score, 3) if selected else None,
@@ -4650,6 +4651,7 @@ def main(argv: list[str]) -> int:
     sel.add_argument("--variant", default="base", choices=sorted(VARIANT_RULES.keys()))
     sel.add_argument("--profile", default="balanced", choices=sorted(PROFILE_MIXES.keys()))
     sel.add_argument("--candidates", type=int, default=10)
+    sel.add_argument("--candidate-start", type=int, default=0, help="first deterministic candidate index for a fresh generation batch")
     sel.add_argument("--runs", type=int, default=20)
     sel.add_argument("--output", type=Path, required=True, help="selected .lvl output path")
     sel.add_argument("--report", type=Path, help="selection report JSON path")
@@ -4682,7 +4684,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     if args.cmd == "generate-select":
-        result = generate_select(args.level, args.variant, args.profile, args.candidates, args.runs)
+        result = generate_select(args.level, args.variant, args.profile, args.candidates, args.runs, args.candidate_start)
         selected = result.pop("selected")
         if selected is None:
             if args.report:

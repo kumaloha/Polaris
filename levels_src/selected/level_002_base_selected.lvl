@@ -1,5 +1,5 @@
 {
-  "id": "level_002_base_c06",
+  "id": "level_002_base_c10",
   "version": 0,
   "compile_mode": "playable",
   "meta": {
@@ -13,11 +13,11 @@
       0.92
     ],
     "generated_by": "tools/level_tool.py generate",
-    "candidate_index": 6,
+    "candidate_index": 10,
     "candidate_tuning": {
-      "moves_delta": 1,
-      "target_multiplier": 0.95,
-      "shell_hp_delta": 0,
+      "moves_delta": -4,
+      "target_multiplier": 1.1300000000000001,
+      "shell_hp_delta": 1,
       "colors_delta": 0
     }
   },
@@ -48,11 +48,11 @@
     "target": "all"
   },
   "rules": {
-    "moves": 23,
+    "moves": 18,
     "colors": 4,
     "refill": "random",
     "gravity": "down",
-    "seed": 7016
+    "seed": 11004
   },
   "map": {
     "width": 7,

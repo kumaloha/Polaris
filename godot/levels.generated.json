@@ -1,9 +1,10 @@
 {
   "pack_id": "generated_first_ten_v0",
   "generated_at": "2026-06-17T00:00:00+09:00",
+  "candidate_start": 10,
   "levels": [
     {
-      "level_id": "level_001_base_c01",
+      "level_id": "level_001_base_c18",
       "w": 7,
       "h": 7,
       "species": [
@@ -15,71 +16,71 @@
       "init_board": [
         [
           0,
-          2,
-          0,
           3,
-          3,
-          2,
-          1
-        ],
-        [
-          3,
-          0,
           0,
           2,
-          3,
-          1,
-          1
-        ],
-        [
-          3,
-          0,
-          1,
-          3,
           2,
           1,
           3
         ],
         [
-          2,
-          2,
-          1,
-          2,
-          2,
-          0,
-          3
-        ],
-        [
           1,
           0,
-          0,
-          3,
-          0,
           1,
-          2
-        ],
-        [
-          2,
           2,
           3,
-          1,
-          2,
           3,
           2
         ],
         [
           0,
+          3,
+          2,
           1,
           2,
+          1,
+          2
+        ],
+        [
+          1,
+          0,
+          2,
+          3,
+          3,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          3,
+          1,
+          2,
+          3,
+          0
+        ],
+        [
+          3,
+          1,
+          0,
           0,
           3,
           0,
           3
+        ],
+        [
+          3,
+          0,
+          1,
+          0,
+          0,
+          2,
+          1
         ]
       ],
       "target_score": 0,
-      "move_limit": 15,
-      "seed": 2014,
+      "move_limit": 10,
+      "seed": 18963,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -742,7 +743,7 @@
       "meta": {
         "level_coordinate": 1,
         "source_lvl": "levels_src/selected/level_001_base_selected.lvl",
-        "selected_candidate_id": "level_001_base_c01",
+        "selected_candidate_id": "level_001_base_c18",
         "design_eye": "cleanse_direct",
         "intent": "擦亮中央星尘，理解净化就是通关。",
         "role": "teaching",
@@ -750,12 +751,14 @@
           0.92,
           1.0
         ],
-        "simulated_pass_rate_at_1": 0.993,
-        "avg_remaining_moves": 10.52
+        "simulated_pass_rate_at_1": 0.992,
+        "avg_remaining_moves": 5.68,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_002_base_c06",
+      "level_id": "level_002_base_c10",
       "w": 7,
       "h": 7,
       "species": [
@@ -766,72 +769,72 @@
       ],
       "init_board": [
         [
-          1,
-          0,
           2,
+          2,
+          1,
+          1,
           3,
-          1,
-          2,
+          0,
           1
         ],
         [
-          3,
-          1,
-          1,
-          0,
-          2,
-          0,
-          2
-        ],
-        [
-          1,
-          3,
           2,
           1,
+          3,
+          3,
           0,
-          1,
+          0,
           1
         ],
         [
+          0,
           1,
           0,
           1,
           1,
-          3,
-          1,
+          2,
           0
         ],
         [
           3,
-          1,
-          1,
-          0,
-          1,
-          0,
-          2
-        ],
-        [
-          1,
-          2,
-          0,
-          0,
           3,
           1,
-          2
-        ],
-        [
-          1,
           2,
-          0,
-          1,
           2,
           3,
           1
+        ],
+        [
+          2,
+          1,
+          3,
+          1,
+          2,
+          2,
+          0
+        ],
+        [
+          0,
+          2,
+          0,
+          2,
+          1,
+          0,
+          0
+        ],
+        [
+          2,
+          2,
+          1,
+          2,
+          1,
+          1,
+          3
         ]
       ],
       "target_score": 0,
-      "move_limit": 23,
-      "seed": 7016,
+      "move_limit": 18,
+      "seed": 11004,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -1494,7 +1497,7 @@
       "meta": {
         "level_coordinate": 2,
         "source_lvl": "levels_src/selected/level_002_base_selected.lvl",
-        "selected_candidate_id": "level_002_base_c06",
+        "selected_candidate_id": "level_002_base_c10",
         "design_eye": "cleanse_edge",
         "intent": "边框星尘也需要主动够到。",
         "role": "variation",
@@ -1502,12 +1505,14 @@
           0.78,
           0.92
         ],
-        "simulated_pass_rate_at_1": 0.825,
-        "avg_remaining_moves": 9.02
+        "simulated_pass_rate_at_1": 0.854,
+        "avg_remaining_moves": 8.89,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_003_base_c00",
+      "level_id": "level_003_base_c16",
       "w": 7,
       "h": 7,
       "species": [
@@ -1518,72 +1523,72 @@
       ],
       "init_board": [
         [
-          1,
-          3,
-          3,
-          1,
           3,
           0,
-          0
-        ],
-        [
-          2,
-          2,
-          3,
-          3,
-          0,
-          3,
-          1
-        ],
-        [
-          0,
-          3,
+          1,
           1,
           2,
-          2,
-          3,
+          1,
           2
         ],
         [
+          0,
+          1,
+          3,
+          3,
+          0,
           2,
+          1
+        ],
+        [
+          2,
+          1,
           2,
           0,
+          1,
+          2,
+          3
+        ],
+        [
+          2,
           3,
           2,
+          1,
+          2,
+          3,
+          3
+        ],
+        [
+          3,
+          1,
+          3,
+          2,
+          0,
           1,
           1
         ],
         [
-          1,
-          3,
           3,
           1,
-          3,
-          1,
-          0
-        ],
-        [
           0,
-          3,
+          1,
           2,
           0,
-          3,
-          3,
           1
         ],
         [
-          3,
-          2,
-          2,
-          3,
           1,
-          1,
+          2,
+          0,
+          3,
+          0,
+          2,
           0
         ]
       ],
       "target_score": 0,
-      "move_limit": 18,
-      "seed": 1051,
+      "move_limit": 14,
+      "seed": 17003,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -2246,7 +2251,7 @@
       "meta": {
         "level_coordinate": 3,
         "source_lvl": "levels_src/selected/level_003_base_selected.lvl",
-        "selected_candidate_id": "level_003_base_c00",
+        "selected_candidate_id": "level_003_base_c16",
         "design_eye": "cleanse_trail",
         "intent": "星尘不是清单，而是一条能追踪的脚印路线。",
         "role": "teaching_breather",
@@ -2254,12 +2259,14 @@
           0.9,
           1.0
         ],
-        "simulated_pass_rate_at_1": 1.0,
-        "avg_remaining_moves": 12.13
+        "simulated_pass_rate_at_1": 0.979,
+        "avg_remaining_moves": 8.42,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_004_base_c02",
+      "level_id": "level_004_base_c14",
       "w": 7,
       "h": 7,
       "species": [
@@ -2270,55 +2277,55 @@
       ],
       "init_board": [
         [
-          0,
+          1,
+          1,
           3,
+          3,
+          0,
+          2,
+          0
+        ],
+        [
+          2,
           2,
           0,
+          2,
+          0,
+          2,
+          1
+        ],
+        [
+          1,
+          3,
+          0,
+          2,
           3,
           1,
           3
         ],
         [
           2,
-          0,
-          2,
-          2,
-          0,
-          1,
-          0
-        ],
-        [
-          1,
           2,
           3,
-          2,
-          2,
+          0,
+          0,
           3,
-          3
-        ],
-        [
-          2,
-          0,
-          2,
-          0,
-          0,
-          1,
           0
         ],
         [
           -2,
           1,
+          0,
           3,
           1,
           2,
-          3,
           -2
         ],
         [
           -2,
-          1,
-          2,
           3,
+          2,
+          1,
           2,
           0,
           -2
@@ -2327,15 +2334,15 @@
           -2,
           -2,
           0,
-          2,
-          0,
+          3,
+          1,
           -2,
           -2
         ]
       ],
       "target_score": 0,
-      "move_limit": 18,
-      "seed": 3062,
+      "move_limit": 19,
+      "seed": 15026,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -2998,7 +3005,7 @@
       "meta": {
         "level_coordinate": 4,
         "source_lvl": "levels_src/selected/level_004_base_selected.lvl",
-        "selected_candidate_id": "level_004_base_c02",
+        "selected_candidate_id": "level_004_base_c14",
         "design_eye": "cleanse_expedition_weak",
         "intent": "上游的控制力要穿过窄口，才能照亮下游星尘池。",
         "role": "variation",
@@ -3006,12 +3013,14 @@
           0.82,
           0.95
         ],
-        "simulated_pass_rate_at_1": 0.922,
-        "avg_remaining_moves": 11.26
+        "simulated_pass_rate_at_1": 0.892,
+        "avg_remaining_moves": 12.56,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_005_base_c03",
+      "level_id": "level_005_base_c17",
       "w": 7,
       "h": 7,
       "species": [
@@ -3022,72 +3031,72 @@
       ],
       "init_board": [
         [
+          0,
+          1,
+          3,
           3,
           2,
-          2,
+          3,
+          2
+        ],
+        [
           1,
+          0,
+          1,
+          3,
           1,
           0,
           2
         ],
         [
+          1,
+          2,
+          1,
+          1,
+          2,
           3,
+          1
+        ],
+        [
+          2,
+          1,
+          0,
           3,
           0,
-          0,
+          2,
+          1
+        ],
+        [
+          3,
+          3,
+          2,
+          3,
           1,
           1,
           3
         ],
         [
-          0,
-          2,
-          2,
-          3,
-          0,
-          0,
-          2
-        ],
-        [
-          3,
-          2,
-          2,
-          0,
-          3,
-          0,
-          0
-        ],
-        [
-          2,
-          0,
           1,
           0,
+          1,
+          2,
           0,
           1,
           1
         ],
         [
           1,
-          0,
-          3,
-          3,
-          0,
-          0,
-          3
-        ],
-        [
-          0,
-          3,
           3,
           1,
           2,
-          0,
+          3,
+          2,
           1
         ]
       ],
       "target_score": 0,
-      "move_limit": 19,
-      "seed": 4076,
+      "move_limit": 18,
+      "seed": 18034,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -3750,7 +3759,7 @@
       "meta": {
         "level_coordinate": 5,
         "source_lvl": "levels_src/selected/level_005_base_selected.lvl",
-        "selected_candidate_id": "level_005_base_c03",
+        "selected_candidate_id": "level_005_base_c17",
         "design_eye": "crystal_shell_gate_practice",
         "intent": "打开晶壳门，水文才恢复。",
         "role": "teaching",
@@ -3758,12 +3767,14 @@
           0.9,
           1.0
         ],
-        "simulated_pass_rate_at_1": 0.965,
-        "avg_remaining_moves": 12.22
+        "simulated_pass_rate_at_1": 0.979,
+        "avg_remaining_moves": 11.19,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_006_base_c04",
+      "level_id": "level_006_base_c13",
       "w": 7,
       "h": 7,
       "species": [
@@ -3774,72 +3785,72 @@
       ],
       "init_board": [
         [
-          3,
-          2,
-          0,
-          2,
-          2,
-          1,
-          0
-        ],
-        [
-          2,
-          3,
-          0,
-          0,
-          3,
-          3,
-          0
-        ],
-        [
-          3,
-          3,
-          1,
-          3,
-          1,
-          1,
-          3
-        ],
-        [
-          1,
           2,
           0,
           0,
+          3,
           3,
           1,
           2
         ],
         [
-          3,
+          2,
           3,
           0,
-          1,
-          1,
+          0,
+          2,
           2,
           3
         ],
         [
           3,
-          0,
           1,
-          0,
+          3,
+          2,
+          1,
+          2,
+          2
+        ],
+        [
+          3,
           2,
           3,
-          0
+          2,
+          2,
+          1,
+          2
         ],
         [
           2,
-          1,
           2,
+          1,
           0,
           3,
+          3,
+          1
+        ],
+        [
           0,
-          3
+          0,
+          1,
+          3,
+          2,
+          0,
+          2
+        ],
+        [
+          1,
+          3,
+          3,
+          0,
+          0,
+          1,
+          1
         ]
       ],
       "target_score": 0,
       "move_limit": 16,
-      "seed": 5090,
+      "seed": 14063,
       "objectives": [
         {
           "type": "CLEAR_BLOCKER",
@@ -4502,7 +4513,7 @@
       "meta": {
         "level_coordinate": 6,
         "source_lvl": "levels_src/selected/level_006_base_selected.lvl",
-        "selected_candidate_id": "level_006_base_c04",
+        "selected_candidate_id": "level_006_base_c13",
         "design_eye": "shell_cleanup_breather",
         "intent": "晶壳也可以是轻爽清理，而不总是硬门。",
         "role": "breather",
@@ -4511,11 +4522,13 @@
           1.0
         ],
         "simulated_pass_rate_at_1": 1.0,
-        "avg_remaining_moves": 14.16
+        "avg_remaining_moves": 13.86,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_007_base_c05",
+      "level_id": "level_007_base_c13",
       "w": 9,
       "h": 9,
       "species": [
@@ -4526,108 +4539,108 @@
       ],
       "init_board": [
         [
+          0,
           2,
-          1,
-          1,
-          2,
+          0,
+          0,
           -2,
-          1,
-          1,
-          2,
-          3
+          0,
+          3,
+          3,
+          2
         ],
         [
-          2,
           3,
           2,
-          3,
+          0,
+          2,
           -2,
-          1,
+          3,
           2,
           3,
           1
         ],
         [
+          0,
           1,
-          1,
-          0,
-          3,
-          -2,
-          3,
-          1,
-          1,
-          0
-        ],
-        [
-          0,
-          3,
-          2,
-          0,
-          -2,
-          2,
-          0,
-          0,
-          2
-        ],
-        [
-          0,
-          0,
           3,
           2,
           -2,
-          2,
-          2,
-          1,
-          2
-        ],
-        [
-          2,
           0,
           3,
-          0,
-          -2,
           1,
-          3,
-          3,
-          0
-        ],
-        [
-          2,
-          3,
-          2,
-          0,
-          -2,
-          2,
-          1,
-          2,
           3
         ],
         [
           0,
-          1,
-          3,
-          1,
-          -2,
           0,
           2,
+          0,
+          -2,
+          3,
+          1,
+          1,
+          2
+        ],
+        [
+          1,
+          1,
           2,
-          0
+          0,
+          -2,
+          3,
+          0,
+          0,
+          2
         ],
         [
           3,
           2,
-          1,
           0,
-          -2,
           3,
+          -2,
           2,
           0,
+          3,
+          3
+        ],
+        [
+          3,
+          0,
+          3,
+          1,
+          -2,
+          2,
+          3,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          2,
+          0,
+          -2,
+          0,
+          1,
+          2,
           2
+        ],
+        [
+          0,
+          1,
+          0,
+          1,
+          -2,
+          0,
+          0,
+          2,
+          0
         ]
       ],
       "target_score": 0,
       "move_limit": 20,
-      "seed": 6104,
+      "seed": 14080,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -5650,7 +5663,7 @@
       "meta": {
         "level_coordinate": 7,
         "source_lvl": "levels_src/selected/level_007_base_selected.lvl",
-        "selected_candidate_id": "level_007_base_c05",
+        "selected_candidate_id": "level_007_base_c13",
         "design_eye": "split_supply_duet",
         "intent": "裂开的两页各自补给，左右星尘要分别照顾。",
         "role": "variation",
@@ -5658,12 +5671,14 @@
           0.86,
           1.0
         ],
-        "simulated_pass_rate_at_1": 0.955,
-        "avg_remaining_moves": 10.53
+        "simulated_pass_rate_at_1": 0.929,
+        "avg_remaining_moves": 10.68,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_008_base_c09",
+      "level_id": "level_008_base_c18",
       "w": 9,
       "h": 9,
       "species": [
@@ -5675,108 +5690,108 @@
       ],
       "init_board": [
         [
-          0,
-          4,
-          2,
-          3,
-          3,
           1,
           0,
-          4,
-          3
-        ],
-        [
           2,
           0,
-          2,
-          2,
-          3,
-          3,
-          4,
-          2,
-          2
-        ],
-        [
-          1,
-          3,
-          1,
           1,
           2,
-          4,
-          0,
-          3,
-          3
-        ],
-        [
-          0,
-          2,
-          2,
-          3,
-          0,
-          4,
-          0,
-          1,
-          1
-        ],
-        [
-          1,
           3,
           1,
-          2,
-          1,
-          3,
-          1,
-          3,
           2
         ],
         [
           3,
           0,
+          3,
+          3,
+          0,
+          0,
+          3,
+          3,
+          2
+        ],
+        [
+          3,
+          2,
+          1,
           1,
           0,
+          3,
           4,
+          0,
+          0
+        ],
+        [
+          4,
+          0,
           2,
+          1,
+          3,
+          1,
+          2,
+          0,
+          3
+        ],
+        [
+          0,
+          1,
+          2,
+          0,
+          2,
+          2,
+          0,
+          3,
+          0
+        ],
+        [
+          4,
+          0,
+          3,
+          2,
+          1,
+          2,
+          2,
+          1,
+          0
+        ],
+        [
+          2,
+          4,
+          3,
+          1,
+          2,
+          1,
+          3,
+          3,
+          1
+        ],
+        [
+          4,
+          3,
+          2,
+          0,
+          2,
+          1,
           3,
           2,
           4
         ],
         [
-          3,
           4,
-          4,
-          1,
-          1,
-          4,
-          0,
-          4,
-          1
-        ],
-        [
-          2,
-          3,
-          2,
           2,
           1,
-          4,
-          3,
-          4,
-          1
-        ],
-        [
           1,
-          1,
-          3,
           4,
-          0,
           2,
-          3,
           2,
-          4
+          4,
+          3
         ]
       ],
       "target_score": 0,
       "move_limit": 14,
-      "seed": 10109,
+      "seed": 19082,
       "objectives": [
         {
           "type": "CLEAR_JELLY",
@@ -6799,7 +6814,7 @@
       "meta": {
         "level_coordinate": 8,
         "source_lvl": "levels_src/selected/level_008_base_selected.lvl",
-        "selected_candidate_id": "level_008_base_c09",
+        "selected_candidate_id": "level_008_base_c18",
         "design_eye": "cleanse_siege",
         "intent": "先破壳环，才能拿到中心星尘宝库。",
         "role": "variation",
@@ -6807,12 +6822,14 @@
           0.8,
           0.94
         ],
-        "simulated_pass_rate_at_1": 0.9,
-        "avg_remaining_moves": 6.68
+        "simulated_pass_rate_at_1": 0.883,
+        "avg_remaining_moves": 6.65,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_009_base_c02",
+      "level_id": "level_009_base_c14",
       "w": 7,
       "h": 7,
       "species": [
@@ -6823,72 +6840,72 @@
       ],
       "init_board": [
         [
-          3,
           2,
-          3,
-          3,
+          1,
+          0,
           2,
+          0,
           3,
           0
         ],
         [
-          2,
-          1,
+          3,
+          3,
           0,
           -1,
-          0,
-          2,
-          3
-        ],
-        [
-          2,
-          2,
           1,
-          1,
-          0,
           2,
           0
         ],
         [
-          3,
-          1,
-          1,
-          3,
-          1,
           0,
-          1
-        ],
-        [
-          3,
+          2,
           1,
           2,
-          3,
           1,
-          3,
-          1
-        ],
-        [
-          1,
-          2,
-          2,
-          0,
-          0,
           3,
           3
         ],
         [
+          3,
+          3,
+          2,
+          0,
+          0,
+          3,
+          0
+        ],
+        [
           1,
           2,
+          2,
+          0,
+          0,
+          2,
+          2
+        ],
+        [
+          3,
+          0,
+          3,
           3,
           1,
+          2,
+          2
+        ],
+        [
+          3,
+          0,
+          3,
           1,
           0,
+          3,
           3
         ]
       ],
       "target_score": 0,
-      "move_limit": 22,
-      "seed": 3147,
+      "move_limit": 23,
+      "seed": 15111,
       "objectives": [
         {
           "type": "COLLECT_INGREDIENT",
@@ -7553,7 +7570,7 @@
       "meta": {
         "level_coordinate": 9,
         "source_lvl": "levels_src/selected/level_009_base_selected.lvl",
-        "selected_candidate_id": "level_009_base_c02",
+        "selected_candidate_id": "level_009_base_c14",
         "design_eye": "drop_direct",
         "intent": "清开脚下道路，就是护送迷路幼兽回家。",
         "role": "teaching",
@@ -7561,12 +7578,14 @@
           0.92,
           1.0
         ],
-        "simulated_pass_rate_at_1": 0.971,
-        "avg_remaining_moves": 12.54
+        "simulated_pass_rate_at_1": 0.954,
+        "avg_remaining_moves": 11.77,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     },
     {
-      "level_id": "level_010_base_c06",
+      "level_id": "level_010_base_c15",
       "w": 7,
       "h": 9,
       "species": [
@@ -7579,89 +7598,89 @@
       "init_board": [
         [
           3,
-          1,
+          4,
           2,
-          2,
+          4,
           1,
-          3,
-          1
+          1,
+          2
         ],
         [
-          3,
-          2,
           1,
+          2,
+          4,
           -1,
           0,
-          4,
-          3
-        ],
-        [
-          0,
           2,
-          2,
-          3,
-          0,
-          4,
           3
         ],
         [
           0,
           4,
-          0,
           1,
+          4,
           3,
-          0,
+          1,
           1
         ],
         [
           4,
-          3,
-          3,
           1,
           4,
+          3,
+          2,
+          1,
+          0
+        ],
+        [
+          1,
+          4,
+          3,
+          3,
+          0,
+          3,
+          1
+        ],
+        [
+          2,
+          1,
+          0,
+          0,
+          2,
+          3,
+          1
+        ],
+        [
+          0,
+          4,
+          1,
+          2,
+          1,
           4,
           2
         ],
         [
-          0,
-          4,
-          0,
-          2,
-          2,
-          3,
-          3
-        ],
-        [
-          2,
-          4,
-          2,
-          3,
-          2,
           1,
-          3
+          4,
+          3,
+          1,
+          4,
+          4,
+          1
         ],
         [
+          3,
           2,
-          0,
           4,
           2,
           3,
           0,
-          4
-        ],
-        [
-          1,
-          1,
-          3,
-          0,
-          3,
-          0,
-          4
+          0
         ]
       ],
       "target_score": 0,
-      "move_limit": 35,
-      "seed": 7152,
+      "move_limit": 34,
+      "seed": 16125,
       "objectives": [
         {
           "type": "COLLECT_INGREDIENT",
@@ -8506,7 +8525,7 @@
       "meta": {
         "level_coordinate": 10,
         "source_lvl": "levels_src/selected/level_010_base_selected.lvl",
-        "selected_candidate_id": "level_010_base_c06",
+        "selected_candidate_id": "level_010_base_c15",
         "design_eye": "drop_bottleneck",
         "intent": "先开门，再护送幼兽回家。",
         "role": "pressure",
@@ -8514,8 +8533,10 @@
           0.58,
           0.78
         ],
-        "simulated_pass_rate_at_1": 0.683,
-        "avg_remaining_moves": 10.62
+        "simulated_pass_rate_at_1": 0.642,
+        "avg_remaining_moves": 11.91,
+        "candidate_start": 10,
+        "candidates_requested": 10
       }
     }
   ]

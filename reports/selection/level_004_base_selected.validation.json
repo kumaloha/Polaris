@@ -1,5 +1,5 @@
 {
-  "level_id": "level_004_base_c02",
+  "level_id": "level_004_base_c14",
   "lint": {
     "valid": true,
     "errors": [],
@@ -121,7 +121,7 @@
       "no_color_order_goal": true,
       "protagonist_language_aligned": true,
       "pacing_context": {
-        "move_limit": 18,
+        "move_limit": 19,
         "objective_target_total": 9
       }
     },
