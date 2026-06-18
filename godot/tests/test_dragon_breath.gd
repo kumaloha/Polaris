@@ -11,6 +11,7 @@ const DRAGON_BABY_AVATAR := "res://assets/pets/dragon_baby/frames/dragon_00.png"
 const DRAGON_BABY_LAST_FRAME := "res://assets/pets/dragon_baby/frames/dragon_63.png"
 const DRAGON_YOUTH_FIRST_FRAME := "res://assets/pets/dragon_youth/frames/frame_001.png"
 const DRAGON_YOUTH_LAST_FRAME := "res://assets/pets/dragon_youth/frames/frame_280.png"
+const DRAGON_YOUTH_FRAME_PATTERN := "res://assets/pets/dragon_youth/frames/frame_%03d.png"
 const DRAGON_YOUTH_ZOOM_ANCHOR_FRAME := "res://assets/pets/dragon_youth/frames/frame_064.png"
 const DRAGON_YOUTH_ZOOM_SETTLED_FRAME := "res://assets/pets/dragon_youth/frames/frame_082.png"
 const DRAGON_VISUAL_SCRIPT := "res://match3/pets/dragon_breath_visual.gd"
@@ -168,6 +169,14 @@ func _used_alpha_width(path: String) -> int:
 	return image.get_used_rect().size.x
 
 
+func _used_alpha_bottom(path: String) -> int:
+	var image := Image.load_from_file(ProjectSettings.globalize_path(path))
+	assert_true(image != null, "%s can be inspected as an image" % path)
+	if image == null:
+		return 0
+	return image.get_used_rect().end.y
+
+
 func test_dragon_skill_registry_owns_cast_controller() -> void:
 	assert_true(PetRegistry.has_pet("龙息大招"), "dragon breath is registry-owned, not level.gd direct-dispatch owned")
 	var cast_script: Script = PetRegistry.cast_for("龙息大招")
@@ -261,6 +270,19 @@ func test_youth_dragon_zoom_out_is_baked_into_source_frames() -> void:
 	var settled_w := _used_alpha_width(DRAGON_YOUTH_ZOOM_SETTLED_FRAME)
 	assert_true(anchor_w >= 1100, "frame 064 remains the authored pre-zoom size")
 	assert_true(settled_w >= int(float(anchor_w) * 0.95), "frame 082 should be postprocessed back near frame 064 size; got %d vs %d" % [settled_w, anchor_w])
+
+
+func test_youth_dragon_preflight_frames_keep_foot_baseline_after_zoom_bake() -> void:
+	var anchor_bottom := _used_alpha_bottom(DRAGON_YOUTH_ZOOM_ANCHOR_FRAME)
+	var max_delta := 0
+	var worst_frame := 0
+	for frame_number in range(65, DragonBreathVisual.YOUTH_FLIGHT_RISE_START_FRAME + 1):
+		var bottom := _used_alpha_bottom(DRAGON_YOUTH_FRAME_PATTERN % frame_number)
+		var delta := absi(bottom - anchor_bottom)
+		if delta > max_delta:
+			max_delta = delta
+			worst_frame = frame_number
+	assert_true(max_delta <= 8, "preflight dragon feet must keep a stable support baseline through the frame 100 takeoff start; worst frame %03d drifted %d px from frame 064 bottom %d" % [worst_frame, max_delta, anchor_bottom])
 
 
 func test_youth_dragon_flight_lifts_body_to_board_center_without_rescaling() -> void:
