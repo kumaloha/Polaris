@@ -13,6 +13,7 @@ const DRAGON_YOUTH_FIRST_FRAME := "res://assets/pets/dragon_youth/frames/frame_0
 const DRAGON_YOUTH_LAST_FRAME := "res://assets/pets/dragon_youth/frames/frame_280.png"
 const DRAGON_VISUAL_SCRIPT := "res://match3/pets/dragon_breath_visual.gd"
 const DRAGON_CAST_SCRIPT := "res://match3/pets/dragon_breath_cast.gd"
+const LEVEL_SCRIPT := "res://match3/level.gd"
 const DRAGON_CAST_NODE := "DragonBreathCast"
 const DRAGON_FRAME_NODE := "DragonBreathFrame"
 const DRAGON_BABY_TEXTURE_SIZE := Vector2(512.0, 512.0)
@@ -138,6 +139,19 @@ func _clear_dragon_frame_cache() -> void:
 	probe.free()
 
 
+func _function_body(path: String, func_name: String) -> String:
+	var src := FileAccess.get_file_as_string(path)
+	assert_true(src != "", "%s can be inspected" % path)
+	var start: int = src.find("func %s" % func_name)
+	assert_true(start >= 0, "%s exists in %s" % [func_name, path])
+	if start < 0:
+		return ""
+	var end: int = src.find("\nfunc ", start + 1)
+	if end < 0:
+		end = src.length()
+	return src.substr(start, end - start)
+
+
 func test_dragon_skill_registry_owns_cast_controller() -> void:
 	assert_true(PetRegistry.has_pet("龙息大招"), "dragon breath is registry-owned, not level.gd direct-dispatch owned")
 	var cast_script: Script = PetRegistry.cast_for("龙息大招")
@@ -230,6 +244,28 @@ func test_level_build_requests_dragon_frame_prewarm_before_click() -> void:
 		assert_true(bool(probe.call("is_variant_preload_requested", "youth")), "level build requests youth dragon frame preload before the first click")
 	_free_live_level(level)
 	probe.free()
+
+
+func test_dragon_breath_direct_clear_accounts_objectives_before_mutation() -> void:
+	var body := _function_body(DRAGON_CAST_SCRIPT, "_apply_dragon_effect_async")
+	if body == "":
+		return
+	var account_idx: int = body.find("_account_dragon_clears(cells)")
+	var filter_idx: int = body.find("_filtered_dragon_clear_cells(cells, acc)")
+	var apply_idx: int = body.find("ME._apply_clears")
+	assert_true(account_idx >= 0, "dragon breath direct clears must use the level account path so objective counters update")
+	assert_true(filter_idx > account_idx, "dragon breath filters locked/objective-only cells after accounting")
+	assert_true(apply_idx > filter_idx, "dragon breath applies board mutation only after objective accounting and filtering")
+
+
+func test_pet_cast_finish_checks_settlement_before_unlock() -> void:
+	var body := _function_body(LEVEL_SCRIPT, "_on_pet_cast_finished")
+	if body == "":
+		return
+	var settle_idx: int = body.find("await _check_settlement()")
+	var unlock_idx: int = body.find("_busy = false")
+	assert_true(settle_idx >= 0, "pet skill completion must check win/loss settlement after the effect lands")
+	assert_true(unlock_idx < 0 or settle_idx < unlock_idx, "pet skill completion checks settlement before releasing input")
 
 
 func test_dragon_breath_visual_uses_foot_baseline() -> void:

@@ -14,6 +14,7 @@ var board_view = null
 var cell_size: float = 0.0
 var board_origin: Vector2 = Vector2.ZERO
 var _cast_effect: bool = true
+var _account_clears_cb: Callable = Callable()
 var _resolve_cascades_cb: Callable = Callable()
 var _fx_color_cb: Callable = Callable()
 var _variant: String = "youth"
@@ -32,6 +33,7 @@ func setup(ctx: Dictionary) -> void:
 	cell_size = float(ctx.get("cell_size", 0.0))
 	board_origin = ctx.get("board_origin", Vector2.ZERO)
 	_cast_effect = bool(ctx.get("cast_effect", true))
+	_account_clears_cb = ctx.get("account_clears", Callable())
 	_resolve_cascades_cb = ctx.get("resolve_cascades", Callable())
 	_fx_color_cb = ctx.get("fx_color", Callable())
 	_variant = String(ctx.get("variant", "youth"))
@@ -115,13 +117,46 @@ func _apply_dragon_effect_async() -> bool:
 		for p in cells:
 			fx_node.spawn_explosion(_cell_center(p.y, p.x), _fx_color(board.grid[p.y][p.x]), 1.4)
 		fx_node.shake(14.0)
-	ME._apply_clears(board.grid, board.fx, cells, [])
-	for p in cells:
+	var acc := _account_dragon_clears(cells)
+	var to_clear := _filtered_dragon_clear_cells(cells, acc)
+	var gained := ME.score_for_clear(to_clear.size(), 1)
+	if gained > 0:
+		board._gain(gained)
+	ME._apply_clears(board.grid, board.fx, to_clear, [])
+	for p in to_clear:
 		board_view.clear_node_at(p)
 	await board_view.collapse_and_refill()
 	if not _resolve_cascades_cb.is_null():
 		await _resolve_cascades_cb.call()
 	return true
+
+
+func _account_dragon_clears(cells: Array) -> Dictionary:
+	if not _account_clears_cb.is_null():
+		return _account_clears_cb.call(cells)
+	var acc := ME.account_clears(board.grid, cells, board.fx, board.rng, board.species, board._layers())
+	board._accumulate(acc.get("by_species", {}))
+	board._accumulate_progress(acc)
+	return acc
+
+
+func _filtered_dragon_clear_cells(cells: Array, acc: Dictionary) -> Array:
+	var locked := {}
+	for p in acc.get("locked", []):
+		locked[p] = true
+	var seen := {}
+	var out := []
+	for p in cells:
+		if locked.has(p) or seen.has(p):
+			continue
+		seen[p] = true
+		out.append(p)
+	for p in acc.get("cake_blast", []):
+		if seen.has(p):
+			continue
+		seen[p] = true
+		out.append(p)
+	return out
 
 
 func _best_species() -> int:

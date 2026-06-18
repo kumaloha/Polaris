@@ -437,6 +437,7 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 		"slot_index": int(skill_cfg.get("slot_index", idx)),
 		"flip_h": bool(skill_cfg.get("flip_h", false)),
 		"load_texture": Callable(self, "_load_texture"),
+		"account_clears": Callable(self, "_account_resolution_clears"),
 		"refresh_skill_ui": Callable(skills, "refresh_visual"),
 		"resolve_cascades": Callable(self, "_resolve_cascades"),
 		"fx_color": Callable(self, "_fx_color"),
@@ -469,16 +470,22 @@ func _on_pet_cast_committed() -> void:
 func _on_pet_cast_finished(cast: PetCast) -> void:
 	# 演出全部结束(含归位/取消) → 释放锁。
 	# 技能栏静态头像显隐由 level 统一配对管理: start 前隐藏, finish/cancel 后恢复。
+	var was_active := cast != null and cast == _active_cast
 	_time_rewind_cast_pending = false
-	_busy = false
 	if cast != null and is_instance_valid(cast):
 		var slot_idx := int(cast.get_meta("skill_slot_index", -1))
 		if slot_idx >= 0:
 			skills.set_slot_casting(slot_idx, false)
-	if cast == _active_cast:
+	if was_active:
 		_active_cast = null
 	if cast != null and is_instance_valid(cast):
 		cast.queue_free()
+	if was_active:
+		var settled_now: bool = await _check_settlement()
+		if not settled_now:
+			_busy = false
+	else:
+		_busy = false
 
 # 取消在途施法并回收控制器(换关/退场)。幂等: 无在途施法时 no-op。
 func _cancel_active_cast() -> void:
