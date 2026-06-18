@@ -45,6 +45,12 @@ const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
 const SLOT_COUNT := 2
 
+static var _frame_cache: Dictionary = {}
+static var _preload_requests: Dictionary = {}
+static var _preload_paths: Dictionary = {}
+static var _preload_indices: Dictionary = {}
+static var _preload_frames: Dictionary = {}
+
 var skill_bar: CanvasLayer = null
 var board = null
 var cell_size: float = 0.0
@@ -120,19 +126,94 @@ func _build_visuals() -> void:
 
 
 func _build_sprite_frames() -> SpriteFrames:
-	var cfg := variant_config(variant)
+	var key := _normalized_variant(variant)
+	if _frame_cache.has(key):
+		return _frame_cache[key]
+	if _preload_paths.has(key):
+		process_preload_budget(99999)
+		if _frame_cache.has(key):
+			return _frame_cache[key]
+	var cfg := variant_config(key)
 	var frames := SpriteFrames.new()
 	frames.add_animation("cast")
 	frames.set_animation_loop("cast", false)
 	frames.set_animation_speed("cast", FPS)
 	for i in range(int(cfg["first"]), int(cfg["last"]) + 1):
 		var path := String(cfg["pattern"]) % [String(cfg["dir"]), i]
-		var tex := _load_texture(path)
+		var tex := _load_texture_static(path)
 		if tex != null:
 			frames.add_frame("cast", tex)
 	if frames.get_frame_count("cast") == 0:
 		return null
+	_frame_cache[key] = frames
 	return frames
+
+
+static func request_variant_preload(raw_variant: String) -> void:
+	var key := _normalized_variant(raw_variant)
+	if _frame_cache.has(key) or _preload_requests.has(key):
+		return
+	var cfg := variant_config(key)
+	var paths := []
+	for i in range(int(cfg["first"]), int(cfg["last"]) + 1):
+		var path := String(cfg["pattern"]) % [String(cfg["dir"]), i]
+		paths.append(path)
+	_preload_paths[key] = paths
+	_preload_indices[key] = 0
+	_preload_requests[key] = true
+
+
+static func process_preload_budget(frame_budget: int = 3) -> void:
+	var remaining := maxi(1, frame_budget)
+	for key in _preload_paths.keys():
+		if remaining <= 0:
+			return
+		if _frame_cache.has(key):
+			_clear_preload_work(key)
+			continue
+		var paths: Array = _preload_paths[key]
+		var frames: SpriteFrames = _preload_frames.get(key, null)
+		if frames == null:
+			frames = SpriteFrames.new()
+			frames.add_animation("cast")
+			frames.set_animation_loop("cast", false)
+			frames.set_animation_speed("cast", FPS)
+			_preload_frames[key] = frames
+		var idx := int(_preload_indices.get(key, 0))
+		while idx < paths.size() and remaining > 0:
+			var tex := _load_texture_static(String(paths[idx]))
+			if tex != null:
+				frames.add_frame("cast", tex)
+			idx += 1
+			remaining -= 1
+		_preload_indices[key] = idx
+		if idx >= paths.size():
+			if frames.get_frame_count("cast") > 0:
+				_frame_cache[key] = frames
+			_clear_preload_work(key)
+
+
+static func release_frame_cache() -> void:
+	_frame_cache.clear()
+	_preload_requests.clear()
+	_preload_paths.clear()
+	_preload_indices.clear()
+	_preload_frames.clear()
+
+
+func is_variant_preload_requested(raw_variant: String) -> bool:
+	var key := _normalized_variant(raw_variant)
+	return _preload_requests.has(key) or _frame_cache.has(key)
+
+
+func clear_frame_cache_for_tests() -> void:
+	release_frame_cache()
+
+
+static func _clear_preload_work(key: String) -> void:
+	_preload_paths.erase(key)
+	_preload_indices.erase(key)
+	_preload_frames.erase(key)
 
 
 func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
@@ -228,6 +309,10 @@ func _book_frame_rect() -> Rect2:
 
 
 func _load_texture(path: String) -> Texture2D:
+	return _load_texture_static(path)
+
+
+static func _load_texture_static(path: String) -> Texture2D:
 	if ResourceLoader.exists(path):
 		return load(path) as Texture2D
 	if not FileAccess.file_exists(path):

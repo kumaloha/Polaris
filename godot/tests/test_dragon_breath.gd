@@ -5,6 +5,7 @@ const LevelLibrary := preload("res://core/level_library.gd")
 const LevelLayout := preload("res://match3/level_layout.gd")
 const LevelSkills := preload("res://match3/skills.gd")
 const PetRegistry := preload("res://match3/pets/pet_registry.gd")
+const DragonBreathVisual := preload("res://match3/pets/dragon_breath_visual.gd")
 
 const DRAGON_BABY_AVATAR := "res://assets/pets/dragon_baby/frames/dragon_00.png"
 const DRAGON_BABY_LAST_FRAME := "res://assets/pets/dragon_baby/frames/dragon_63.png"
@@ -130,6 +131,13 @@ func _expected_dragon_visible_width(level: Node, variant: String) -> float:
 	return clampf(board_w * 0.68, 360.0, 430.0)
 
 
+func _clear_dragon_frame_cache() -> void:
+	var probe := DragonBreathVisual.new()
+	if probe.has_method("clear_frame_cache_for_tests"):
+		probe.call("clear_frame_cache_for_tests")
+	probe.free()
+
+
 func test_dragon_skill_registry_owns_cast_controller() -> void:
 	assert_true(PetRegistry.has_pet("龙息大招"), "dragon breath is registry-owned, not level.gd direct-dispatch owned")
 	var cast_script: Script = PetRegistry.cast_for("龙息大招")
@@ -188,6 +196,40 @@ func test_dragon_breath_visual_uses_youth_frames_from_first_to_last() -> void:
 		assert_eq(String(sprite.get_meta("variant", "")), "youth", "youth cast records its frame variant")
 		assert_true(sprite.scale.x < 0.0, "right-side youth dragon cast is mirrored")
 	cast.free()
+
+
+func test_dragon_visual_reuses_cached_sprite_frames_between_casts() -> void:
+	var first := _configured_dragon_visual(null, "youth", 1, true)
+	var second := _configured_dragon_visual(null, "youth", 1, true)
+	if first == null or second == null:
+		if first != null:
+			first.free()
+		if second != null:
+			second.free()
+		return
+	var first_sprite := first.get_node_or_null(DRAGON_FRAME_NODE) as AnimatedSprite2D
+	var second_sprite := second.get_node_or_null(DRAGON_FRAME_NODE) as AnimatedSprite2D
+	assert_true(first_sprite != null and second_sprite != null, "both dragon casts build animation sprites")
+	if first_sprite != null and second_sprite != null:
+		assert_eq(second_sprite.sprite_frames, first_sprite.sprite_frames, "dragon casts reuse one cached SpriteFrames resource instead of rebuilding every click")
+	first.free()
+	second.free()
+
+
+func test_level_build_requests_dragon_frame_prewarm_before_click() -> void:
+	var probe := DragonBreathVisual.new()
+	if probe.has_method("clear_frame_cache_for_tests"):
+		probe.call("clear_frame_cache_for_tests")
+	var level := _prepare_live_level_for_dragon()
+	if level == null:
+		probe.free()
+		return
+	assert_true(probe.has_method("is_variant_preload_requested"), "dragon visual exposes frame preload status")
+	if probe.has_method("is_variant_preload_requested"):
+		assert_true(bool(probe.call("is_variant_preload_requested", "baby")), "level build requests baby dragon frame preload before the first click")
+		assert_true(bool(probe.call("is_variant_preload_requested", "youth")), "level build requests youth dragon frame preload before the first click")
+	_free_live_level(level)
+	probe.free()
 
 
 func test_dragon_breath_visual_uses_foot_baseline() -> void:
@@ -370,3 +412,4 @@ func test_uncharged_dragons_are_disabled_and_do_not_spawn_feedback() -> void:
 	assert_true(_find_node_with_script_path(level, DRAGON_CAST_SCRIPT) == null, "uncharged dragon taps do not spawn a cast controller")
 	assert_true(level.skill_bar.get_node_or_null(DRAGON_CAST_NODE) == null, "uncharged dragon taps do not spawn feedback visuals")
 	_free_live_level(level)
+	_clear_dragon_frame_cache()

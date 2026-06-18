@@ -50,6 +50,15 @@ var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 
 func setup(level) -> void:
 	_level = level
 
+func _exit_tree() -> void:
+	release_frame_cache()
+
+func release_frame_cache() -> void:
+	DragonBreathVisual.release_frame_cache()
+
+func _process(_delta: float) -> void:
+	DragonBreathVisual.process_preload_budget(3)
+
 # ───────── 对外接口 ─────────
 
 ## 渲染技能栏(换关/重试)。在 skill_bar 上重建 2 个龙头像 + 冷却条 + 名字。
@@ -131,6 +140,7 @@ func _render_skillbar() -> void:
 		var sk: Dictionary = SKILLS[i]
 		var cx: float = DESIGN_W * (float(i) + 0.5) / float(n)
 		_skill_button(String(sk["av"]), Vector2(cx, SKILL_AV_Y), SKILL_AV_W, i)
+		DragonBreathVisual.request_variant_preload(String(sk.get("variant", "")))
 		# 充能条(圆角胶囊): 颜色 = 该萌宠对应宝石色, 槽为其暗化版; 初始 ratio 按当前充能数。
 		var gem_col: Color = GEM_COLORS.get(sk.get("gem", "purple"), Color(0.82, 0.45, 1.0))
 		var track_col: Color = gem_col.darkened(0.72)

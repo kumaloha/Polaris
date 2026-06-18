@@ -162,6 +162,8 @@ func _exit_tree() -> void:
 	_level_generation += 1
 	opening.kill_drop_tween()
 	_cancel_active_cast()
+	if skills != null:
+		skills.release_frame_cache()
 
 # P6: 开局演出收尾 → 释放输入锁(状态闸门只住 level, 铁律1)。
 func _on_opening_finished() -> void:
