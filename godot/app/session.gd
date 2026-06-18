@@ -4,7 +4,7 @@ extends RefCounted
 # 本文件无 Node 依赖，纯逻辑可 headless 单测。
 
 # 当前固定出战宠物注册表 key（未来可按 loadout 配）。
-const DEFAULT_PETS := ["timerewind", "raccoon", "dragon", "ladybug"]
+const DEFAULT_PETS := ["dragon_baby", "dragon_youth"]
 const PlaytestRecorder := preload("res://app/playtest_recorder.gd")
 
 # ── 开局组装 ──────────────────────────────────────────────────────────────────

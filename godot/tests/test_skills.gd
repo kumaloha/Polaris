@@ -5,10 +5,10 @@ extends "res://tests/test_lib.gd"
 
 const Board := preload("res://core/board.gd")
 const LevelLibrary := preload("res://core/level_library.gd")
+const LevelSkills := preload("res://match3/skills.gd")
 
-const RABBIT_AVATAR := "res://assets/pets/timerewind/rabbit_avatar.png"
-const RABBIT_AVATAR_FRAME_NODE := "TimeRabbitAvatarFrame"
-const RABBIT_AVATAR_FRAME_BG_NODE := "TimeRabbitAvatarFrameBg"
+const DRAGON_BABY_IDLE := "res://assets/pets/dragon_baby/frames/dragon_00.png"
+const DRAGON_YOUTH_IDLE := "res://assets/pets/dragon_youth/frames/frame_001.png"
 
 
 func _prepare_level_scene() -> Node:
@@ -57,14 +57,17 @@ func test_level_owns_a_skills_child_controller() -> void:
 	level.free()
 
 
-# build() 在 skill_bar 上渲染 4 头像按钮 + 时兔相框(slot 0)。
-func test_build_renders_four_avatar_buttons_and_time_rabbit_frame() -> void:
+# build() 在 skill_bar 上只渲染两只龙：左小龙、右大龙镜像。
+func test_build_renders_two_dragon_avatar_buttons() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	assert_eq(_count_texture_buttons(level.skill_bar), 4, "four pet avatar buttons are rendered on the skill bar")
-	assert_true(_find_named_node(level.skill_bar, RABBIT_AVATAR_FRAME_NODE) != null, "time rabbit avatar frame is rendered on the skill bar")
-	# 时兔头像隐藏/恢复要用到的空框背景 frame_bg, 时兔施法控制器按名查它。
-	assert_true(_find_named_node(level.skill_bar, RABBIT_AVATAR_FRAME_BG_NODE) != null, "time rabbit frame background is on the skill bar where the cast controller looks it up by name")
+	assert_eq(_count_texture_buttons(level.skill_bar), 2, "only two dragon avatar buttons are rendered on the skill bar")
+	assert_eq(String(LevelSkills.SKILLS[0].get("av", "")), DRAGON_BABY_IDLE, "left slot idles on the baby dragon first frame")
+	assert_eq(String(LevelSkills.SKILLS[1].get("av", "")), DRAGON_YOUTH_IDLE, "right slot idles on the youth dragon first frame")
+	var right_btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(right_btn != null, "right dragon slot button exists")
+	if right_btn != null:
+		assert_true(right_btn.scale.x < 0.0, "right dragon avatar is mirrored horizontally")
 	level.free()
 
 
@@ -73,9 +76,10 @@ func test_on_step_charges_skill_from_by_species() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
 	level.skills.reset_charge()
-	# 时兔(slot 0) gem=purple → species 4。
-	level.skills.on_step({"account": {"by_species": {4: 5}}})
-	assert_eq(level.skills._skill_charge[0], 5.0, "purple clears charge the time rabbit slot via the StepReport account")
+	# 两只龙都绑定 red → species 0。
+	level.skills.on_step({"account": {"by_species": {0: 5}}})
+	assert_eq(level.skills._skill_charge[0], 5.0, "red clears charge the baby dragon slot via the StepReport account")
+	assert_eq(level.skills._skill_charge[1], 5.0, "red clears charge the youth dragon slot via the StepReport account")
 	level.free()
 
 
@@ -91,8 +95,9 @@ func test_charge_clamps_to_requirement() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
 	level.skills.reset_charge()
-	level.skills.charge({4: 999})
-	assert_eq(level.skills._skill_charge[0], 10.0, "charge clamps at the full requirement and does not overflow")
+	level.skills.charge({0: 999})
+	assert_eq(level.skills._skill_charge[0], 10.0, "baby dragon charge clamps at the full requirement and does not overflow")
+	assert_eq(level.skills._skill_charge[1], 10.0, "youth dragon charge clamps at the full requirement and does not overflow")
 	level.free()
 
 
@@ -102,25 +107,8 @@ func test_button_press_emits_skill_pressed_signal() -> void:
 	level.load_level(1)
 	var got := {"idx": -1}
 	level.skills.skill_pressed.connect(func(i: int): got["idx"] = i)
-	level.skills.call("_on_skill_button_pressed", 2)
-	assert_eq(got["idx"], 2, "skills emits skill_pressed with the slot index for level to dispatch")
-	level.free()
-
-
-# 时兔头像施法显隐: casting=true 时清贴图(让活体兔子顶替), false 时复原。
-func test_time_rabbit_avatar_casting_hides_and_restores_texture() -> void:
-	var level := _prepare_level_scene()
-	level.load_level(1)
-	var btn: TextureButton = level.skills._skill_btns[0]
-	assert_true(btn != null, "time rabbit slot button exists")
-	if btn == null:
-		level.free()
-		return
-	assert_true(btn.texture_normal != null, "time rabbit button starts with its avatar texture")
-	level.skills.set_time_rabbit_avatar_casting(true)
-	assert_eq(btn.texture_normal, null, "casting hides the static avatar so the live rabbit takes over")
-	level.skills.set_time_rabbit_avatar_casting(false)
-	assert_true(btn.texture_normal != null, "finishing the cast restores the static avatar texture")
+	level.skills.call("_on_skill_button_pressed", 1)
+	assert_eq(got["idx"], 1, "skills emits skill_pressed with the two-dragon slot index for level to dispatch")
 	level.free()
 
 
@@ -128,10 +116,9 @@ func test_time_rabbit_avatar_casting_hides_and_restores_texture() -> void:
 func test_refresh_visual_enables_button_when_charged() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
-	# slot 2(龙宝宝, 充能型技能)充满 → 应可点、满亮。
-	level.skills._skill_charge[2] = 10.0
+	level.skills._skill_charge[1] = 10.0
 	level.skills.refresh_visual()
-	var btn: TextureButton = level.skills._skill_btns[2]
+	var btn: TextureButton = level.skills._skill_btns[1]
 	assert_true(btn != null, "charge skill button exists")
 	if btn != null:
 		assert_false(btn.disabled, "a fully charged skill button is enabled")
@@ -139,13 +126,16 @@ func test_refresh_visual_enables_button_when_charged() -> void:
 	level.free()
 
 
-# 时兔可点性: 有历史时 is_ready, 无历史但仍 is_clickable(可点给 peek 反馈)。
-func test_time_rabbit_ready_follows_history_not_charge() -> void:
+# 两只龙都走充能门槛；未充能不可点，满充能可点。
+func test_dragon_buttons_require_charge() -> void:
 	var level := _prepare_level_scene()
 	level.load_level(1)
 	level.skills._skill_charge[0] = 0.0
-	assert_true(level.skills.is_clickable(0), "time rabbit stays clickable before history so taps can give feedback")
-	assert_false(level.skills.is_ready(0), "time rabbit is not ready to actually rewind before there is history")
-	level.board._push_history()
-	assert_true(level.skills.is_ready(0), "time rabbit becomes ready once the board has rewind history, regardless of gem charge")
+	level.skills._skill_charge[1] = 0.0
+	assert_false(level.skills.is_clickable(0), "baby dragon cannot cast before it is charged")
+	assert_false(level.skills.is_clickable(1), "youth dragon cannot cast before it is charged")
+	level.skills._skill_charge[0] = LevelSkills.SKILL_CHARGE_REQ
+	level.skills._skill_charge[1] = LevelSkills.SKILL_CHARGE_REQ
+	assert_true(level.skills.is_clickable(0), "baby dragon can cast once charged")
+	assert_true(level.skills.is_clickable(1), "youth dragon can cast once charged")
 	level.free()

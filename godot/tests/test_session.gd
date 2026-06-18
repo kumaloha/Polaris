@@ -29,11 +29,12 @@ func test_build_config_pets_list() -> void:
 	var sess := Session.new()
 	var cfg := sess.build_config(ms, 0)
 	var pets: Array = cfg.get("pets", [])
-	assert_eq(pets.size(), 4, "默认4只宠物")
-	assert_true("timerewind" in pets, "时兔在列表")
-	assert_true("raccoon"    in pets, "浣熊在列表")
-	assert_true("dragon"     in pets, "龙在列表")
-	assert_true("ladybug"    in pets, "瓢虫在列表")
+	assert_eq(pets.size(), 2, "默认只带两只龙宠物")
+	assert_true("dragon_baby" in pets, "小龙在列表")
+	assert_true("dragon_youth" in pets, "大龙在列表")
+	assert_false("timerewind" in pets, "时兔不再进入默认底栏")
+	assert_false("raccoon" in pets, "浣熊不再进入默认底栏")
+	assert_false("ladybug" in pets, "瓢虫不再进入默认底栏")
 
 func test_build_config_pets_is_copy() -> void:
 	# pets 是 duplicate，改外部不影响 DEFAULT_PETS
@@ -42,7 +43,7 @@ func test_build_config_pets_is_copy() -> void:
 	var cfg1 := sess.build_config(ms, 0)
 	cfg1["pets"].append("extra")
 	var cfg2 := sess.build_config(ms, 0)
-	assert_eq(cfg2["pets"].size(), 4, "duplicate 隔离，外部 append 不污染")
+	assert_eq(cfg2["pets"].size(), 2, "duplicate 隔离，外部 append 不污染")
 
 # ── bank 基础入账 ─────────────────────────────────────────────────────────────
 

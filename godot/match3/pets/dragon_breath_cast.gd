@@ -16,6 +16,11 @@ var board_origin: Vector2 = Vector2.ZERO
 var _cast_effect: bool = true
 var _resolve_cascades_cb: Callable = Callable()
 var _fx_color_cb: Callable = Callable()
+var _variant: String = "youth"
+var _slot_index: int = 1
+var _flip_h: bool = false
+
+const EFFECT_COMMIT_RATIO := 0.70
 
 
 func setup(ctx: Dictionary) -> void:
@@ -27,6 +32,9 @@ func setup(ctx: Dictionary) -> void:
 	_cast_effect = bool(ctx.get("cast_effect", true))
 	_resolve_cascades_cb = ctx.get("resolve_cascades", Callable())
 	_fx_color_cb = ctx.get("fx_color", Callable())
+	_variant = String(ctx.get("variant", "youth"))
+	_slot_index = int(ctx.get("slot_index", 1))
+	_flip_h = bool(ctx.get("flip_h", false))
 
 
 func _can_cast() -> bool:
@@ -49,6 +57,9 @@ func _build_visuals() -> void:
 		"board": board,
 		"cell_size": cell_size,
 		"board_origin": board_origin,
+		"variant": _variant,
+		"slot_index": _slot_index,
+		"flip_h": _flip_h,
 	})
 	skill_bar.add_child(visual)
 	visual.play_and_retire()
@@ -59,7 +70,7 @@ func _run_cast(t: Tween) -> void:
 		t.tween_interval(0.32)
 		t.tween_callback(Callable(self, "_finish"))
 		return
-	t.tween_interval(0.05)
+	t.tween_interval(_commit_delay())
 	t.tween_callback(Callable(self, "_commit_dragon_async"))
 
 
@@ -76,6 +87,10 @@ func _commit_dragon_async() -> void:
 		emit_signal("cast_committed")
 	_state = State.COMMITTED
 	_finish()
+
+
+func _commit_delay() -> float:
+	return maxf(0.05, DragonBreathVisual.duration_for_variant(_variant) * EFFECT_COMMIT_RATIO)
 
 
 func _apply_dragon_effect_async() -> bool:

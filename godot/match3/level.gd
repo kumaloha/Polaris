@@ -4,7 +4,7 @@ extends Node2D
 # 当前布局：
 #   顶部：透明源图裁剪后的关卡/步数/目标/星级 HUD。
 #   中部：魔法书棋盘，可变尺寸，障碍和棋子按数据层增量同步。
-#   底部：4 个萌宠技能头像 + 充能条。
+#   底部：2 个龙宠技能头像 + 充能条。
 
 # 契约D(P9) app 接线：有外部连接者(game_root)时结算交回壳层, 无连接者保持现行为(直接翻关)。
 # game_root 鸭子调用 receive_session_config(config) 注入开局 + 连 session_ended 收结算。
@@ -371,7 +371,7 @@ func _render_chrome(cfg: Dictionary) -> void:
 	# v0.02: 设计稿为纯三消, 移除 Boss 对战区(狐狸/Boss/道具书)。score 计分逻辑不受影响。
 	_clear_layer(skill_bar)
 	hud.render_chrome(cfg)   # 清角色层 + ui_layer, 渲染顶栏
-	skills.build()           # 技能栏(4 头像 + 冷却条 + 时兔相框)
+	skills.build()           # 技能栏(2 个龙头像 + 冷却条)
 
 # 阶段6: 每步 resolve/swap 后刷新 HUD(目标卡进度 + 步数徽章)——只重画 ui_layer。
 func _refresh_hud() -> void:
@@ -405,19 +405,10 @@ func _on_skill_pressed(idx: int) -> void:
 	var skill_name := String(LevelSkills.SKILLS[idx].get("skill", ""))
 	if PetRegistry.has_pet(skill_name):
 		did = _cast_pet(idx, true)   # 宠物施法经控制器接管: 锁/落地/解锁走信号(契约 C)
-	else:
-		did = await _run_direct_skill(skill_name)
 	if did:
 		if skills.uses_charge(idx):
 			skills.clear_charge(idx)   # 放完清零重攒
 		skills.refresh_visual()
-
-func _run_direct_skill(skill_name: String) -> bool:
-	# 还没有独立 PetCast 控制器的当前技能集中在这里；迁出一个就删一项。
-	match skill_name:
-		"幸运祝福":
-			return await _skill_blessing()
-	return false
 
 # ── 宠物施法接线(契约 C, docs/11 §4.3)。经 PetRegistry 实例化施法控制器, 连三信号, start_cast。──
 # 锁的读写只在 level.gd: cast_started→上锁, cast_committed→同步棋盘, cast_finished→解锁。
@@ -430,6 +421,7 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 	_cancel_active_cast()   # 同一时刻只允许一个在途施法
 	var cast: PetCast = cast_script.new()
 	add_child(cast)
+	var skill_cfg: Dictionary = LevelSkills.SKILLS[idx]
 	# 头像显隐/相框置顶 + 冷却刷新经 skills 子控制器(§4.7); 锁的读写仍只在 level 侧(铁律1)。
 	cast.setup({
 		"skill_bar": skill_bar,
@@ -438,8 +430,10 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 		"cell_size": cell_size,
 		"board_origin": board_origin,
 		"cast_effect": cast_effect,
+		"variant": String(skill_cfg.get("variant", "youth")),
+		"slot_index": int(skill_cfg.get("slot_index", idx)),
+		"flip_h": bool(skill_cfg.get("flip_h", false)),
 		"load_texture": Callable(self, "_load_texture"),
-		"set_avatar_casting": Callable(skills, "_set_time_rabbit_avatar_casting"),
 		"refresh_skill_ui": Callable(skills, "refresh_visual"),
 		"resolve_cascades": Callable(self, "_resolve_cascades"),
 		"fx_color": Callable(self, "_fx_color"),
@@ -486,32 +480,6 @@ func _cancel_active_cast() -> void:
 	if cast != null and is_instance_valid(cast):
 		cast.cancel()
 		cast.queue_free()
-
-func _ellipse_points(center: Vector2, rx: float, ry: float, steps: int) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	var n: int = maxi(8, steps)
-	for i in range(n):
-		var a: float = TAU * float(i) / float(n)
-		pts.append(center + Vector2(cos(a) * rx, sin(a) * ry))
-	return pts
-
-# ── idx3 瓢虫/幸运祝福: 随机一普通格埋炸弹(fx=SP_BOMB, 阶段5渲染显示 shine), 金色庆祝特效。不清盘。 ──
-func _skill_blessing() -> bool:
-	# 选项A(本实现): 埋个炸弹给玩家下步引爆——不清盘, 留策略空间。
-	var cands: Array = []
-	for r in range(board.height):
-		for c in range(board.width):
-			if board.grid[r][c] >= 0 and board.fx[r][c] == ME.SP_NONE:
-				cands.append(Vector2i(c, r))
-	if cands.is_empty():
-		return false
-	var p: Vector2i = cands[board.rng.randi() % cands.size()]
-	board.fx[p.y][p.x] = ME.SP_BOMB
-	var node: Sprite2D = board_view.node_at(p)
-	if node != null and is_instance_valid(node):
-		board_view.apply_fx_overlay(node, ME.SP_BOMB)
-	Fx.spawn_explosion(_cell_center(p.y, p.x), Color(1.0, 0.85, 0.3), 1.5)
-	return true
 
 # ───────── 阶段6: 结算(通关/失败) ─────────
 

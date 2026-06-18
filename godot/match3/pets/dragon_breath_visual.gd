@@ -1,6 +1,6 @@
 class_name DragonBreathVisual
 extends Node2D
-## 龙宝宝「龙息大招」的大龙演出层。
+## 龙宠「龙息大招」演出层。
 ##
 ## 这里只管视觉：清盘/坍塌/连锁由 DragonBreathCast 施法控制器结算。
 ## 摆位使用“可见内容左边 + 脚底基线”，不使用 1440×1440 透明画布中心，
@@ -10,31 +10,46 @@ const LevelLayout := preload("res://match3/level_layout.gd")
 
 const CAST_NODE := "DragonBreathCast"
 const FRAME_NODE := "DragonBreathFrame"
-const FRAME_DIR := "res://assets/pets/dragon_youth/frames"
-const FRAME_PATTERN := "%s/frame_%03d.png"
-const FRAME_FIRST := 1
-const FRAME_LAST := 36
 const FPS := 24.0
 const CAST_Z := 245
 
+const BABY_FRAME_DIR := "res://assets/pets/dragon_baby/frames"
+const BABY_FRAME_PATTERN := "%s/dragon_%02d.png"
+const BABY_FRAME_FIRST := 0
+const BABY_FRAME_LAST := 63
+
+const YOUTH_FRAME_DIR := "res://assets/pets/dragon_youth/frames"
+const YOUTH_FRAME_PATTERN := "%s/frame_%03d.png"
+const YOUTH_FRAME_FIRST := 1
+const YOUTH_FRAME_LAST := 280
+
 # frame_001 清理后非透明像素可见包围盒(PNG 仍保留完整 1440 画布)。
+const FRAME_DIR := YOUTH_FRAME_DIR
+const FRAME_PATTERN := YOUTH_FRAME_PATTERN
+const FRAME_FIRST := YOUTH_FRAME_FIRST
+const FRAME_LAST := YOUTH_FRAME_LAST
 const FRAME_VISIBLE_BBOX := Rect2(Vector2(279.0, 434.0), Vector2(883.0, 571.0))
-const TARGET_VISIBLE_W := 430.0
-const TARGET_VISIBLE_W_MIN := 360.0
-const TARGET_VISIBLE_W_MAX := 430.0
+const YOUTH_TARGET_VISIBLE_W := 430.0
+const YOUTH_TARGET_VISIBLE_W_MIN := 360.0
+const YOUTH_TARGET_VISIBLE_W_MAX := 430.0
 const BABY_TEXTURE_SIZE := Vector2(512.0, 512.0)
 const BABY_VISIBLE_BBOX := Rect2(Vector2(44.0, 41.0), Vector2(387.0, 418.0))
+const BABY_TARGET_VISIBLE_W := 250.0
+const BABY_TARGET_VISIBLE_W_MIN := 220.0
+const BABY_TARGET_VISIBLE_W_MAX := 300.0
 
 const DESIGN_W := LevelLayout.DESIGN_W
 const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
-const DRAGON_SLOT_INDEX := 2
-const SLOT_COUNT := 4
+const SLOT_COUNT := 2
 
 var skill_bar: CanvasLayer = null
 var board = null
 var cell_size: float = 0.0
 var board_origin: Vector2 = Vector2.ZERO
+var variant: String = "youth"
+var slot_index: int = 1
+var flip_h: bool = false
 
 
 func setup(ctx: Dictionary) -> void:
@@ -42,6 +57,9 @@ func setup(ctx: Dictionary) -> void:
 	board = ctx.get("board", null)
 	cell_size = float(ctx.get("cell_size", 0.0))
 	board_origin = ctx.get("board_origin", Vector2.ZERO)
+	variant = _normalized_variant(String(ctx.get("variant", "youth")))
+	slot_index = clampi(int(ctx.get("slot_index", 1)), 0, SLOT_COUNT - 1)
+	flip_h = bool(ctx.get("flip_h", false))
 
 
 func play_and_retire() -> void:
@@ -69,6 +87,8 @@ func _build_visuals() -> void:
 	var frames := _build_sprite_frames()
 	if frames == null:
 		return
+	var cfg := variant_config(variant)
+	var bbox: Rect2 = cfg["bbox"]
 	var sprite := AnimatedSprite2D.new()
 	sprite.name = FRAME_NODE
 	sprite.sprite_frames = frames
@@ -77,25 +97,29 @@ func _build_visuals() -> void:
 	sprite.z_index = 0
 	var placement: Dictionary = _placement_for_visible_left_baseline(
 		_visible_left_baseline_anchor(),
-		FRAME_VISIBLE_BBOX,
-		_visible_width()
+		bbox,
+		_visible_width(),
+		flip_h
 	)
 	var s: float = float(placement["scale"])
 	sprite.position = placement["position"]
-	sprite.scale = Vector2.ONE * s
+	sprite.scale = Vector2(-s if flip_h else s, s)
 	sprite.set_meta("anchor", "visible_left_baseline")
-	sprite.set_meta("asset_dir", FRAME_DIR)
-	sprite.set_meta("frame_range", Vector2i(FRAME_FIRST, FRAME_LAST))
+	sprite.set_meta("asset_dir", String(cfg["dir"]))
+	sprite.set_meta("frame_range", Vector2i(int(cfg["first"]), int(cfg["last"])))
+	sprite.set_meta("variant", variant)
+	sprite.set_meta("visible_bbox", bbox)
 	add_child(sprite)
 
 
 func _build_sprite_frames() -> SpriteFrames:
+	var cfg := variant_config(variant)
 	var frames := SpriteFrames.new()
 	frames.add_animation("cast")
 	frames.set_animation_loop("cast", false)
 	frames.set_animation_speed("cast", FPS)
-	for i in range(FRAME_FIRST, FRAME_LAST + 1):
-		var path := FRAME_PATTERN % [FRAME_DIR, i]
+	for i in range(int(cfg["first"]), int(cfg["last"]) + 1):
+		var path := String(cfg["pattern"]) % [String(cfg["dir"]), i]
 		var tex := _load_texture(path)
 		if tex != null:
 			frames.add_frame("cast", tex)
@@ -104,18 +128,23 @@ func _build_sprite_frames() -> SpriteFrames:
 	return frames
 
 
-func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float) -> Dictionary:
+func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
 	var safe_w := maxf(1.0, visible_width)
 	var scale := safe_w / maxf(1.0, bbox.size.x)
+	var pos: Vector2
+	if flipped:
+		pos = Vector2(anchor.x + bbox.end.x * scale, anchor.y - bbox.end.y * scale)
+	else:
+		pos = anchor - Vector2(bbox.position.x, bbox.end.y) * scale
 	return {
-		"position": anchor - Vector2(bbox.position.x, bbox.end.y) * scale,
+		"position": pos,
 		"scale": scale,
 	}
 
 
 func _visible_left_baseline_anchor() -> Vector2:
 	var baseline_y := _baby_dragon_visible_foot_y()
-	var dragon_slot_center_x := DESIGN_W * (float(DRAGON_SLOT_INDEX) + 0.5) / float(SLOT_COUNT)
+	var dragon_slot_center_x := DESIGN_W * (float(slot_index) + 0.5) / float(SLOT_COUNT)
 	var left := clampf(dragon_slot_center_x - _visible_width() * 0.50, 20.0, DESIGN_W - _visible_width() - 12.0)
 	return Vector2(left, baseline_y)
 
@@ -127,18 +156,56 @@ func _baby_dragon_visible_foot_y() -> float:
 
 
 func _visible_width() -> float:
+	var cfg := variant_config(variant)
 	var board_rect := _current_board_rect()
 	if board_rect.size.x <= 0.0:
-		return TARGET_VISIBLE_W
-	return clampf(board_rect.size.x * 0.68, TARGET_VISIBLE_W_MIN, TARGET_VISIBLE_W_MAX)
+		return float(cfg["target_w"])
+	return clampf(board_rect.size.x * float(cfg["board_scale"]), float(cfg["min_w"]), float(cfg["max_w"]))
 
 
 func _animation_duration() -> float:
 	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
 	if sprite == null or sprite.sprite_frames == null:
-		return float(FRAME_LAST - FRAME_FIRST + 1) / FPS
+		return duration_for_variant(variant)
 	var count := sprite.sprite_frames.get_frame_count("cast")
 	return float(maxi(1, count)) / FPS
+
+
+static func duration_for_variant(raw_variant: String) -> float:
+	var cfg := variant_config(raw_variant)
+	return float(int(cfg["last"]) - int(cfg["first"]) + 1) / FPS
+
+
+static func variant_config(raw_variant: String) -> Dictionary:
+	var normalized := _normalized_variant(raw_variant)
+	if normalized == "baby":
+		return {
+			"dir": BABY_FRAME_DIR,
+			"pattern": BABY_FRAME_PATTERN,
+			"first": BABY_FRAME_FIRST,
+			"last": BABY_FRAME_LAST,
+			"bbox": BABY_VISIBLE_BBOX,
+			"target_w": BABY_TARGET_VISIBLE_W,
+			"min_w": BABY_TARGET_VISIBLE_W_MIN,
+			"max_w": BABY_TARGET_VISIBLE_W_MAX,
+			"board_scale": 0.42,
+		}
+	return {
+		"dir": YOUTH_FRAME_DIR,
+		"pattern": YOUTH_FRAME_PATTERN,
+		"first": YOUTH_FRAME_FIRST,
+		"last": YOUTH_FRAME_LAST,
+		"bbox": FRAME_VISIBLE_BBOX,
+		"target_w": YOUTH_TARGET_VISIBLE_W,
+		"min_w": YOUTH_TARGET_VISIBLE_W_MIN,
+		"max_w": YOUTH_TARGET_VISIBLE_W_MAX,
+		"board_scale": 0.68,
+	}
+
+
+static func _normalized_variant(raw_variant: String) -> String:
+	var key := raw_variant.strip_edges().to_lower()
+	return "baby" if key == "baby" else "youth"
 
 
 func _current_board_rect() -> Rect2:
