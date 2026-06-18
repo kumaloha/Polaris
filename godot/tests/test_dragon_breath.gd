@@ -290,6 +290,36 @@ func test_youth_dragon_runtime_skillbar_uses_clean_button_and_spawns_flipped_bre
 	_free_live_level(level)
 
 
+func test_dragon_cast_hides_static_idle_button_until_retired() -> void:
+	var level := _prepare_live_level_for_dragon()
+	if level == null:
+		return
+	level.skills._skill_charge[1] = level.skills.get("SKILL_CHARGE_REQ")
+	level.skills.refresh_visual()
+	var btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(btn != null, "youth dragon button exists")
+	if btn == null:
+		_free_live_level(level)
+		return
+	assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == DRAGON_YOUTH_FIRST_FRAME, "youth dragon starts from its idle first frame")
+	level.skills.set_slot_casting(1, true)
+	assert_true(bool(btn.get_meta("slot_casting", false)), "casting state marks the static skill slot as occupied by the live actor")
+	assert_eq(btn.texture_normal, null, "casting state hides the static idle button frame so only the live animation is visible")
+	level.skills.set_slot_casting(1, false)
+	assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == DRAGON_YOUTH_FIRST_FRAME, "leaving casting state restores the youth dragon idle first frame")
+	btn.emit_signal("pressed")
+	var cast_controller := _find_node_with_script_path(level, DRAGON_CAST_SCRIPT)
+	assert_true(cast_controller != null, "charged youth dragon press starts a cast controller")
+	assert_true(level.skill_bar.get_node_or_null(DRAGON_CAST_NODE) != null, "cast builds the live dragon visual rig")
+	if cast_controller != null and cast_controller.is_inside_tree():
+		assert_true(bool(btn.get_meta("slot_casting", false)), "active cast keeps the static slot hidden while the live actor plays")
+		assert_eq(btn.texture_normal, null, "active cast leaves no idle frame under the live dragon animation")
+		level.call("_cancel_active_cast")
+	var restored_path := btn.texture_normal.resource_path if btn.texture_normal != null else "<null>"
+	assert_true(btn.texture_normal != null and btn.texture_normal.resource_path == DRAGON_YOUTH_FIRST_FRAME, "retiring the cast restores the youth dragon idle first frame; got %s, slot_casting=%s" % [restored_path, str(btn.get_meta("slot_casting", "<unset>"))])
+	_free_live_level(level)
+
+
 func test_uncharged_dragons_are_disabled_and_do_not_spawn_feedback() -> void:
 	var level := _prepare_live_level_for_dragon()
 	if level == null:

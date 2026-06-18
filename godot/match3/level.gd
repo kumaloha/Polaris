@@ -421,6 +421,7 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 	_cancel_active_cast()   # 同一时刻只允许一个在途施法
 	var cast: PetCast = cast_script.new()
 	add_child(cast)
+	cast.set_meta("skill_slot_index", idx)
 	var skill_cfg: Dictionary = LevelSkills.SKILLS[idx]
 	# 头像显隐/相框置顶 + 冷却刷新经 skills 子控制器(§4.7); 锁的读写仍只在 level 侧(铁律1)。
 	cast.setup({
@@ -442,7 +443,9 @@ func _cast_pet(idx: int, cast_effect: bool) -> bool:
 	cast.cast_committed.connect(_on_pet_cast_committed)
 	cast.cast_finished.connect(_on_pet_cast_finished.bind(cast))
 	_active_cast = cast
+	skills.set_slot_casting(idx, true)
 	if not cast.start_cast():
+		skills.set_slot_casting(idx, false)
 		_cancel_active_cast()
 		return false
 	return true
@@ -463,10 +466,13 @@ func _on_pet_cast_committed() -> void:
 
 func _on_pet_cast_finished(cast: PetCast) -> void:
 	# 演出全部结束(含归位/取消) → 释放锁。
-	# 技能栏冷却/置灰刷新已由施法控制器在归位时调过(_restore_avatar → refresh_skill_ui, 末尾再把头像拉满亮),
-	# 这里不重复刷, 否则会把已复原满亮的头像重新压暗(回归 OLD: 收尾后时兔头像满亮)。
+	# 技能栏静态头像显隐由 level 统一配对管理: start 前隐藏, finish/cancel 后恢复。
 	_time_rewind_cast_pending = false
 	_busy = false
+	if cast != null and is_instance_valid(cast):
+		var slot_idx := int(cast.get_meta("skill_slot_index", -1))
+		if slot_idx >= 0:
+			skills.set_slot_casting(slot_idx, false)
 	if cast == _active_cast:
 		_active_cast = null
 	if cast != null and is_instance_valid(cast):
@@ -478,6 +484,9 @@ func _cancel_active_cast() -> void:
 	var cast := _active_cast
 	_active_cast = null
 	if cast != null and is_instance_valid(cast):
+		var slot_idx := int(cast.get_meta("skill_slot_index", -1))
+		if slot_idx >= 0:
+			skills.set_slot_casting(slot_idx, false)
 		cast.cancel()
 		cast.queue_free()
 

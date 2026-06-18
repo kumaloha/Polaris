@@ -19,6 +19,8 @@ var _fx_color_cb: Callable = Callable()
 var _variant: String = "youth"
 var _slot_index: int = 1
 var _flip_h: bool = false
+var _effect_done: bool = false
+var _visual_done: bool = false
 
 const EFFECT_COMMIT_RATIO := 0.70
 
@@ -61,6 +63,7 @@ func _build_visuals() -> void:
 		"slot_index": _slot_index,
 		"flip_h": _flip_h,
 	})
+	visual.visual_retired.connect(_on_visual_retired)
 	skill_bar.add_child(visual)
 	visual.play_and_retire()
 
@@ -86,7 +89,8 @@ func _commit_dragon_async() -> void:
 	if did:
 		emit_signal("cast_committed")
 	_state = State.COMMITTED
-	_finish()
+	_effect_done = true
+	_finish_when_ready()
 
 
 func _commit_delay() -> float:
@@ -145,7 +149,6 @@ func _dragon_target_cells(best_sp: int) -> Array:
 
 
 func _restore_avatar() -> void:
-	# Dragon does not hide the static skill avatar while casting.
 	pass
 
 
@@ -158,6 +161,19 @@ func _dispose_visuals() -> void:
 	var visual := skill_bar.get_node_or_null(DragonBreathVisual.CAST_NODE)
 	if visual != null:
 		_detach_and_free_later(visual)
+
+
+func _on_visual_retired() -> void:
+	_visual_done = true
+	_finish_when_ready()
+
+
+func _finish_when_ready() -> void:
+	if _finished_emitted:
+		return
+	if _cast_effect and (not _effect_done or not _visual_done):
+		return
+	_finish()
 
 
 func _cell_center(row: int, col: int) -> Vector2:

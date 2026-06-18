@@ -8,6 +8,8 @@ extends Node2D
 
 const LevelLayout := preload("res://match3/level_layout.gd")
 
+signal visual_retired
+
 const CAST_NODE := "DragonBreathCast"
 const FRAME_NODE := "DragonBreathFrame"
 const FPS := 24.0
@@ -66,7 +68,7 @@ func play_and_retire() -> void:
 	_build_visuals()
 	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
 	if sprite == null:
-		queue_free()
+		_retire_visual()
 		return
 	sprite.play("cast")
 	if not is_inside_tree():
@@ -76,7 +78,12 @@ func play_and_retire() -> void:
 	t.tween_property(self, "modulate:a", 1.0, 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	t.tween_interval(maxf(0.10, _animation_duration() - 0.20))
 	t.tween_property(self, "modulate:a", 0.0, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	t.tween_callback(Callable(self, "queue_free"))
+	t.tween_callback(Callable(self, "_retire_visual"))
+
+
+func _retire_visual() -> void:
+	emit_signal("visual_retired")
+	queue_free()
 
 
 func _build_visuals() -> void:

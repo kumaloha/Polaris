@@ -92,6 +92,29 @@ func clear_charge(idx: int) -> void:
 func pulse(idx: int) -> void:
 	_pulse_skill_button(idx)
 
+## 施法动画占用该槽位时隐藏静态首帧, 退出后恢复为技能头像。
+func set_slot_casting(idx: int, is_casting: bool) -> void:
+	if idx < 0 or idx >= _skill_btns.size():
+		return
+	var btn = _skill_btns[idx]
+	if btn == null or not is_instance_valid(btn) or not (btn is TextureButton):
+		return
+	var tex_btn := btn as TextureButton
+	tex_btn.visible = true
+	tex_btn.set_meta("slot_casting", is_casting)
+	if is_casting:
+		if tex_btn.texture_normal != null:
+			tex_btn.set_meta("avatar_texture", tex_btn.texture_normal)
+		tex_btn.texture_normal = null
+	else:
+		var tex = tex_btn.get_meta("avatar_texture", null)
+		if tex is Texture2D:
+			tex_btn.texture_normal = tex
+		else:
+			var path := String(tex_btn.get_meta("avatar_texture_path", SKILLS[idx].get("av", "")))
+			tex_btn.texture_normal = _load_texture(path)
+		tex_btn.modulate.a = 1.0 if _skill_ready(idx) else 0.82
+
 # ───────── 技能栏渲染 ─────────
 
 func _render_skillbar() -> void:
