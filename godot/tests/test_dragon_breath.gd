@@ -318,8 +318,9 @@ func test_youth_dragon_flight_lifts_body_to_board_center_without_rescaling() -> 
 	assert_true(absf(pre_rise - (99.0 / DragonBreathVisual.FPS)) <= 0.01, "youth dragon stays at original height until frame 100")
 	assert_true(absf(rise - (147.0 / DragonBreathVisual.FPS)) <= 0.01, "youth dragon rises from frame 100 through frame 247")
 	assert_true(hold <= 0.001, "frame 247 immediately starts the descent instead of adding a separate hover beat")
-	assert_true(absf(fall - (15.0 / DragonBreathVisual.FPS)) <= 0.01, "youth dragon descends from frame 247 through frame 262")
-	assert_true(absf(post_fall - (19.0 / DragonBreathVisual.FPS)) <= 0.01, "after frame 262 the dragon remains back at its original height")
+	var slowed_fall := 15.0 / DragonBreathVisual.FPS / 0.8
+	assert_true(absf(fall - slowed_fall) <= 0.01, "youth dragon descent uses the authored frame 247-262 span at 0.8x speed")
+	assert_true(absf(post_fall - (cast.call("_animation_duration") - pre_rise - rise - hold - slowed_fall)) <= 0.01, "after the slowed descent the dragon remains back at its original height")
 	assert_true(absf(pre_rise + rise + hold + fall + post_fall - cast.call("_animation_duration")) <= 0.01, "flight timing spans the cast animation")
 	cast.free()
 

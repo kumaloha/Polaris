@@ -48,6 +48,7 @@ const SLOT_COUNT := 2
 const YOUTH_FLIGHT_RISE_START_FRAME := 100
 const YOUTH_FLIGHT_DESCENT_START_FRAME := 247
 const YOUTH_FLIGHT_LAND_FRAME := 262
+const YOUTH_FLIGHT_DESCENT_SPEED_SCALE := 0.8
 
 static var _frame_cache: Dictionary = {}
 static var _preload_requests: Dictionary = {}
@@ -287,8 +288,9 @@ func _flight_timing() -> Dictionary:
 	descent_start = clampf(descent_start, pre_rise, duration)
 	landed = clampf(landed, descent_start, duration)
 	var rise := maxf(0.0, descent_start - pre_rise)
-	var fall := maxf(0.0, landed - descent_start)
-	var post_fall := maxf(0.0, duration - landed)
+	var authored_fall := maxf(0.0, landed - descent_start)
+	var fall := minf(duration - descent_start, authored_fall / maxf(0.001, YOUTH_FLIGHT_DESCENT_SPEED_SCALE))
+	var post_fall := maxf(0.0, duration - descent_start - fall)
 	return {
 		"pre_rise": pre_rise,
 		"rise": rise,
