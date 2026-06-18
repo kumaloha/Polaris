@@ -37,6 +37,7 @@ const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
 const SKILL_CD_Y := 1440.0
 const SKILL_NAME_Y := 1472.0
+const MAGENTA_KEY_EPS := 0.08
 
 # ── 注入上下文 ──
 var _level = null   # level.gd 实例(读 live skill_bar/board + 共享 helper)
@@ -46,6 +47,7 @@ var _skill_charge := [0.0, 0.0]                 # 各技能当前充能数(消�
 var _skill_btns: Array = []                     # TextureButton 引用(随 disabled/置灰)
 var _skill_bar_fills: Array = []                # 冷却条填充 Panel 引用(随 ratio 改宽)
 var _skill_bar_geo: Array = []                  # 每条 {center,w,h,inset,ih}: 改填充宽度复用
+var _click_mask_cache: Dictionary = {}
 
 func setup(level) -> void:
 	_level = level
@@ -161,6 +163,7 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 		return
 	var btn := TextureButton.new()
 	btn.texture_normal = tex
+	btn.texture_click_mask = _texture_click_mask(tex)
 	btn.ignore_texture_size = true
 	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	var placement := _avatar_button_placement(tex, center, width, idx)
@@ -176,6 +179,32 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 	btn.pressed.connect(_on_skill_button_pressed.bind(idx))
 	skill_bar.add_child(btn)
 	_skill_btns.append(btn)
+
+func _texture_click_mask(tex: Texture2D) -> BitMap:
+	if tex == null:
+		return null
+	var key := tex.resource_path
+	if key != "" and _click_mask_cache.has(key):
+		return _click_mask_cache[key]
+	var image := tex.get_image()
+	if image == null or image.is_empty():
+		return null
+	image = image.duplicate()
+	for y in range(image.get_height()):
+		for x in range(image.get_width()):
+			var c := image.get_pixel(x, y)
+			if c.a <= 0.08 or _is_magenta_key(c):
+				image.set_pixel(x, y, Color(0, 0, 0, 0))
+			else:
+				image.set_pixel(x, y, Color(1, 1, 1, 1))
+	var mask := BitMap.new()
+	mask.create_from_image_alpha(image, 0.1)
+	if key != "":
+		_click_mask_cache[key] = mask
+	return mask
+
+func _is_magenta_key(c: Color) -> bool:
+	return c.r >= 1.0 - MAGENTA_KEY_EPS and c.g <= MAGENTA_KEY_EPS and c.b >= 1.0 - MAGENTA_KEY_EPS
 
 func _avatar_button_placement(tex: Texture2D, center: Vector2, fallback_width: float, idx: int) -> Dictionary:
 	var sz: Vector2 = tex.get_size()

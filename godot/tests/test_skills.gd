@@ -71,6 +71,18 @@ func test_build_renders_two_dragon_avatar_buttons() -> void:
 	level.free()
 
 
+func test_dragon_buttons_use_pixel_click_masks() -> void:
+	var level := _prepare_level_scene()
+	level.load_level(1)
+	var baby_btn: TextureButton = level.skills._skill_btns[0]
+	var youth_btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(baby_btn != null and youth_btn != null, "both dragon buttons exist")
+	if baby_btn != null and youth_btn != null:
+		assert_true(baby_btn.texture_click_mask != null, "baby dragon uses a pixel click mask so enlarged transparent canvas does not steal neighboring taps")
+		assert_true(youth_btn.texture_click_mask != null, "youth dragon uses a pixel click mask so its mirrored canvas does not steal left-slot taps")
+	level.free()
+
+
 # 契约 A: on_step 读 report.account.by_species 给对应色技能充能。
 func test_on_step_charges_skill_from_by_species() -> void:
 	var level := _prepare_level_scene()
