@@ -11,6 +11,8 @@ const DRAGON_BABY_AVATAR := "res://assets/pets/dragon_baby/frames/dragon_00.png"
 const DRAGON_BABY_LAST_FRAME := "res://assets/pets/dragon_baby/frames/dragon_63.png"
 const DRAGON_YOUTH_FIRST_FRAME := "res://assets/pets/dragon_youth/frames/frame_001.png"
 const DRAGON_YOUTH_LAST_FRAME := "res://assets/pets/dragon_youth/frames/frame_280.png"
+const DRAGON_YOUTH_ZOOM_ANCHOR_FRAME := "res://assets/pets/dragon_youth/frames/frame_064.png"
+const DRAGON_YOUTH_ZOOM_SETTLED_FRAME := "res://assets/pets/dragon_youth/frames/frame_082.png"
 const DRAGON_VISUAL_SCRIPT := "res://match3/pets/dragon_breath_visual.gd"
 const DRAGON_CAST_SCRIPT := "res://match3/pets/dragon_breath_cast.gd"
 const LEVEL_SCRIPT := "res://match3/level.gd"
@@ -158,6 +160,14 @@ func _function_body(path: String, func_name: String) -> String:
 	return src.substr(start, end - start)
 
 
+func _used_alpha_width(path: String) -> int:
+	var image := Image.load_from_file(ProjectSettings.globalize_path(path))
+	assert_true(image != null, "%s can be inspected as an image" % path)
+	if image == null:
+		return 0
+	return image.get_used_rect().size.x
+
+
 func test_dragon_skill_registry_owns_cast_controller() -> void:
 	assert_true(PetRegistry.has_pet("龙息大招"), "dragon breath is registry-owned, not level.gd direct-dispatch owned")
 	var cast_script: Script = PetRegistry.cast_for("龙息大招")
@@ -244,6 +254,13 @@ func test_youth_dragon_cast_keeps_runtime_scale_constant_across_frames() -> void
 	assert_true(scale_max - scale_min <= 0.001, "runtime playback must keep one constant dragon scale instead of resizing per frame; range=%0.5f" % (scale_max - scale_min))
 	assert_true(max_delta <= 0.001, "adjacent dragon frames must not jump scale; max_delta=%0.5f" % max_delta)
 	cast.free()
+
+
+func test_youth_dragon_zoom_out_is_baked_into_source_frames() -> void:
+	var anchor_w := _used_alpha_width(DRAGON_YOUTH_ZOOM_ANCHOR_FRAME)
+	var settled_w := _used_alpha_width(DRAGON_YOUTH_ZOOM_SETTLED_FRAME)
+	assert_true(anchor_w >= 1100, "frame 064 remains the authored pre-zoom size")
+	assert_true(settled_w >= int(float(anchor_w) * 0.95), "frame 082 should be postprocessed back near frame 064 size; got %d vs %d" % [settled_w, anchor_w])
 
 
 func test_youth_dragon_flight_lifts_body_to_board_center_without_rescaling() -> void:
