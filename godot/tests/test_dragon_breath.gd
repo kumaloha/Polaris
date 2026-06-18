@@ -69,7 +69,7 @@ func _dragon_visible_metrics(cast: Node) -> Dictionary:
 	}
 
 
-func _prepare_live_level_for_dragon() -> Node:
+func _prepare_live_level_for_dragon(level_idx: int = 1) -> Node:
 	var scene: PackedScene = load("res://Level.tscn")
 	var level := scene.instantiate()
 	var tree := Engine.get_main_loop() as SceneTree
@@ -93,7 +93,7 @@ func _prepare_live_level_for_dragon() -> Node:
 		var objs = level._levels[i].get("objectives", [])
 		if objs is Array and not objs.is_empty():
 			level._playable.append(i)
-	level.load_level(1)
+	level.load_level(level_idx)
 	return level
 
 
@@ -123,6 +123,12 @@ func _button_visible_width(btn: TextureButton, bbox: Rect2, texture_size: Vector
 	if btn == null or texture_size.x <= 0.0:
 		return 0.0
 	return bbox.size.x * btn.size.x * absf(btn.scale.x) / texture_size.x
+
+
+func _button_visible_top(btn: TextureButton, bbox: Rect2, texture_size: Vector2) -> float:
+	if btn == null or texture_size.y <= 0.0:
+		return 0.0
+	return btn.position.y + bbox.position.y * btn.size.y / texture_size.y
 
 
 func _expected_dragon_visible_width(level: Node, variant: String) -> float:
@@ -395,6 +401,43 @@ func test_dragon_idle_buttons_match_cast_visible_scale() -> void:
 		var youth_visible_w := _button_visible_width(youth_btn, DRAGON_YOUTH_VISIBLE_BBOX, DRAGON_YOUTH_TEXTURE_SIZE)
 		assert_true(absf(baby_visible_w - _expected_dragon_visible_width(level, "baby")) <= 1.0, "baby idle frame is scaled to the same visible width as its cast animation")
 		assert_true(absf(youth_visible_w - _expected_dragon_visible_width(level, "youth")) <= 1.0, "youth idle frame is scaled to the same visible width as its cast animation")
+	_free_live_level(level)
+
+
+func test_tall_board_dragon_idle_buttons_fit_below_book() -> void:
+	var level := _prepare_live_level_for_dragon(9)
+	if level == null:
+		return
+	assert_eq(level.board.height, 9, "regression uses a tall board like the level 10 screenshot")
+	var book_rect: Rect2 = LevelLayout.book_frame_rect(level.board.height, level.cell_size, level.board_origin)
+	var baby_btn: TextureButton = level.skills._skill_btns[0]
+	var youth_btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(baby_btn != null and youth_btn != null, "both dragon idle buttons exist on the tall board")
+	if baby_btn != null and youth_btn != null:
+		var safe_top := book_rect.end.y + 8.0
+		assert_true(_button_visible_top(baby_btn, DRAGON_BABY_VISIBLE_BBOX, DRAGON_BABY_TEXTURE_SIZE) >= safe_top, "baby dragon scales down when the book grows taller")
+		assert_true(_button_visible_top(youth_btn, DRAGON_YOUTH_VISIBLE_BBOX, DRAGON_YOUTH_TEXTURE_SIZE) >= safe_top, "youth dragon scales down when the book grows taller")
+	_free_live_level(level)
+
+
+func test_tall_board_dragon_cast_matches_height_capped_idle_size() -> void:
+	var level := _prepare_live_level_for_dragon(9)
+	if level == null:
+		return
+	level.skills._skill_charge[1] = level.skills.get("SKILL_CHARGE_REQ")
+	level.skills.refresh_visual()
+	var youth_btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(youth_btn != null, "youth dragon button exists on the tall board")
+	if youth_btn != null:
+		youth_btn.emit_signal("pressed")
+	var rig = level.skill_bar.get_node_or_null(DRAGON_CAST_NODE)
+	assert_true(rig != null, "charged tall-board youth dragon press spawns the cast visual")
+	if rig != null and youth_btn != null:
+		var metrics := _dragon_visible_metrics(rig)
+		var idle_w := _button_visible_width(youth_btn, DRAGON_YOUTH_VISIBLE_BBOX, DRAGON_YOUTH_TEXTURE_SIZE)
+		var cast_w: float = DRAGON_YOUTH_VISIBLE_BBOX.size.x * float(metrics.get("scale", 0.0))
+		assert_true(absf(cast_w - idle_w) <= 1.0, "tall-board cast animation uses the same height-capped visible width as the idle frame")
+		level.call("_cancel_active_cast")
 	_free_live_level(level)
 
 

@@ -43,6 +43,7 @@ const BABY_TARGET_VISIBLE_W_MAX := 300.0
 const DESIGN_W := LevelLayout.DESIGN_W
 const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
+const DRAGON_BOOK_GAP := 10.0
 const SLOT_COUNT := 2
 
 static var _frame_cache: Dictionary = {}
@@ -231,24 +232,36 @@ func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_
 
 
 func _visible_left_baseline_anchor() -> Vector2:
-	var baseline_y := _baby_dragon_visible_foot_y()
+	var baseline_y := avatar_baseline_y()
 	var dragon_slot_center_x := DESIGN_W * (float(slot_index) + 0.5) / float(SLOT_COUNT)
 	var left := clampf(dragon_slot_center_x - _visible_width() * 0.50, 20.0, DESIGN_W - _visible_width() - 12.0)
 	return Vector2(left, baseline_y)
 
 
-func _baby_dragon_visible_foot_y() -> float:
+static func avatar_baseline_y() -> float:
 	var button_top := SKILL_AV_Y - SKILL_AV_W * 0.5
 	var baby_scale := SKILL_AV_W / maxf(1.0, BABY_TEXTURE_SIZE.x)
 	return button_top + BABY_VISIBLE_BBOX.end.y * baby_scale
 
 
 func _visible_width() -> float:
-	var cfg := variant_config(variant)
-	var board_rect := _current_board_rect()
+	return visible_width_for_layout(variant, _current_board_rect(), _book_frame_rect())
+
+
+static func visible_width_for_layout(raw_variant: String, board_rect: Rect2, book_rect: Rect2) -> float:
+	var cfg := variant_config(raw_variant)
+	var width := float(cfg["target_w"])
 	if board_rect.size.x <= 0.0:
-		return float(cfg["target_w"])
-	return clampf(board_rect.size.x * float(cfg["board_scale"]), float(cfg["min_w"]), float(cfg["max_w"]))
+		width = float(cfg["target_w"])
+	else:
+		width = clampf(board_rect.size.x * float(cfg["board_scale"]), float(cfg["min_w"]), float(cfg["max_w"]))
+	if book_rect.size.y > 0.0:
+		var bbox: Rect2 = cfg["bbox"]
+		var available_h := avatar_baseline_y() - (book_rect.end.y + DRAGON_BOOK_GAP)
+		if available_h > 0.0:
+			var height_cap_w := available_h * bbox.size.x / maxf(1.0, bbox.size.y)
+			width = minf(width, height_cap_w)
+	return maxf(1.0, width)
 
 
 func _animation_duration() -> float:

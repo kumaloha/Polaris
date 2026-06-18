@@ -217,7 +217,7 @@ func _avatar_button_placement(tex: Texture2D, center: Vector2, fallback_width: f
 		return {"size": fallback_size, "position": center - fallback_size * 0.5}
 	var cfg: Dictionary = DragonBreathVisual.variant_config(variant)
 	var bbox: Rect2 = cfg["bbox"]
-	var visible_w := _avatar_visible_width(cfg)
+	var visible_w := _avatar_visible_width(variant)
 	var scale := visible_w / maxf(1.0, bbox.size.x)
 	var size := sz * scale
 	var baseline_y := _dragon_avatar_baseline_y()
@@ -228,22 +228,17 @@ func _avatar_button_placement(tex: Texture2D, center: Vector2, fallback_width: f
 		position_x = left - size.x + bbox.end.x * scale
 	return {"size": size, "position": Vector2(position_x, position_y)}
 
-func _avatar_visible_width(cfg: Dictionary) -> float:
+func _avatar_visible_width(variant: String) -> float:
 	var board = _level.board if _level != null else null
-	var board_w := 0.0
+	var board_rect := Rect2()
+	var book_rect := Rect2()
 	if board != null:
-		board_w = float(board.width) * float(_level.cell_size)
-	if board_w <= 0.0:
-		return float(cfg["target_w"])
-	return clampf(board_w * float(cfg["board_scale"]), float(cfg["min_w"]), float(cfg["max_w"]))
+		board_rect = Rect2(_level.board_origin, Vector2(float(board.width) * float(_level.cell_size), float(board.height) * float(_level.cell_size)))
+		book_rect = LevelLayout.book_frame_rect(board.height, float(_level.cell_size), _level.board_origin)
+	return DragonBreathVisual.visible_width_for_layout(variant, board_rect, book_rect)
 
 func _dragon_avatar_baseline_y() -> float:
-	var cfg: Dictionary = DragonBreathVisual.variant_config("baby")
-	var bbox: Rect2 = cfg["bbox"]
-	var texture_size: Vector2 = DragonBreathVisual.BABY_TEXTURE_SIZE
-	var button_top := SKILL_AV_Y - SKILL_AV_W * 0.5
-	var baby_scale := SKILL_AV_W / maxf(1.0, texture_size.x)
-	return button_top + bbox.end.y * baby_scale
+	return DragonBreathVisual.avatar_baseline_y()
 
 # 按钮点击 → 转发给 level(忙/结算闸门 + PetCast dispatch 留在 level, 铁律1/§4.7)。
 func _on_skill_button_pressed(idx: int) -> void:
