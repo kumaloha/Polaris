@@ -246,6 +246,35 @@ func test_youth_dragon_cast_keeps_runtime_scale_constant_across_frames() -> void
 	cast.free()
 
 
+func test_youth_dragon_flight_lifts_body_to_board_center_without_rescaling() -> void:
+	_clear_dragon_frame_cache()
+	var cast := _configured_dragon_visual(null, "youth", 1, true)
+	if cast == null:
+		return
+	assert_true(cast.has_method("_airborne_offset"), "youth dragon cast computes a board-center airborne target")
+	assert_true(cast.has_method("_visual_center_with_offset"), "youth dragon cast can measure its visible center with a flight offset")
+	assert_true(cast.has_method("_flight_timing"), "youth dragon cast exposes rise/hold/fall timing for the flight motion")
+	var sprite := cast.get_node_or_null(DRAGON_FRAME_NODE) as AnimatedSprite2D
+	if sprite == null or not cast.has_method("_airborne_offset") or not cast.has_method("_visual_center_with_offset") or not cast.has_method("_flight_timing"):
+		cast.free()
+		return
+	var start_scale := absf(sprite.scale.x)
+	var offset: Vector2 = cast.call("_airborne_offset")
+	var start_center: Vector2 = cast.call("_visual_center_with_offset", Vector2.ZERO)
+	var airborne_center: Vector2 = cast.call("_visual_center_with_offset", offset)
+	var board_rect: Rect2 = cast.call("_current_board_rect")
+	var board_center := board_rect.get_center()
+	var timing: Dictionary = cast.call("_flight_timing")
+	assert_true(offset.y < -120.0, "youth dragon takes off upward from the skill bar")
+	assert_true(airborne_center.distance_to(board_center) <= 1.0, "youth dragon body center reaches the middle of the board")
+	assert_true(start_center.distance_to(board_center) > 120.0, "flight target is visibly different from the idle skill-bar position")
+	assert_true(absf(absf(sprite.scale.x) - start_scale) <= 0.001, "flight target computation must not rescale the dragon")
+	assert_true(float(timing.get("rise", 0.0)) > 0.30, "takeoff is gradual, not instant")
+	assert_true(float(timing.get("fall", 0.0)) > 0.30, "landing is gradual, not instant")
+	assert_true(absf(float(timing.get("rise", 0.0)) + float(timing.get("hold", 0.0)) + float(timing.get("fall", 0.0)) - cast.call("_animation_duration")) <= 0.01, "flight timing spans the cast animation")
+	cast.free()
+
+
 func test_dragon_visual_reuses_cached_sprite_frames_between_casts() -> void:
 	var first := _configured_dragon_visual(null, "youth", 1, true)
 	var second := _configured_dragon_visual(null, "youth", 1, true)

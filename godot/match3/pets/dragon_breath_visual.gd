@@ -45,6 +45,10 @@ const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
 const DRAGON_BOOK_GAP := 10.0
 const SLOT_COUNT := 2
+const FLIGHT_RISE_RATIO := 0.16
+const FLIGHT_FALL_RATIO := 0.16
+const FLIGHT_MIN_LEG := 0.35
+const FLIGHT_MAX_LEG := 1.45
 
 static var _frame_cache: Dictionary = {}
 static var _preload_requests: Dictionary = {}
@@ -80,6 +84,7 @@ func play_and_retire() -> void:
 	sprite.play("cast")
 	if not is_inside_tree():
 		return
+	_start_flight_motion()
 	modulate.a = 0.0
 	var t := create_tween()
 	t.tween_property(self, "modulate:a", 1.0, 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -96,6 +101,7 @@ func _retire_visual() -> void:
 func _build_visuals() -> void:
 	name = CAST_NODE
 	z_index = CAST_Z
+	position = Vector2.ZERO
 	for child in get_children():
 		_detach_and_free_later(child)
 	var frames := _build_sprite_frames()
@@ -233,6 +239,58 @@ func _apply_frame_geometry(frame_index: int) -> void:
 	sprite.position = placement["position"]
 	sprite.scale = Vector2(-s if flip_h else s, s)
 	sprite.set_meta("visible_bbox", bbox)
+
+
+func _start_flight_motion() -> void:
+	if variant != "youth":
+		return
+	var offset := _airborne_offset()
+	if offset.length() <= 0.1:
+		return
+	var timing := _flight_timing()
+	var rise := float(timing["rise"])
+	var hold := float(timing["hold"])
+	var fall := float(timing["fall"])
+	if rise <= 0.0 or fall <= 0.0:
+		return
+	position = Vector2.ZERO
+	var flight := create_tween()
+	flight.tween_property(self, "position", offset, rise).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if hold > 0.0:
+		flight.tween_interval(hold)
+	flight.tween_property(self, "position", Vector2.ZERO, fall).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+func _airborne_offset() -> Vector2:
+	if variant != "youth":
+		return Vector2.ZERO
+	return _current_board_rect().get_center() - _visual_center_with_offset(Vector2.ZERO)
+
+
+func _visual_center_with_offset(offset: Vector2) -> Vector2:
+	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
+	if sprite == null:
+		return position + offset
+	var cfg := variant_config(variant)
+	var bbox: Rect2 = sprite.get_meta("visible_bbox", cfg["bbox"])
+	var scale := sprite.scale
+	var center_offset := Vector2(bbox.get_center().x * scale.x, bbox.get_center().y * scale.y)
+	return position + offset + sprite.position + center_offset
+
+
+func _flight_timing() -> Dictionary:
+	var duration := _animation_duration()
+	var rise := clampf(duration * FLIGHT_RISE_RATIO, FLIGHT_MIN_LEG, FLIGHT_MAX_LEG)
+	var fall := clampf(duration * FLIGHT_FALL_RATIO, FLIGHT_MIN_LEG, FLIGHT_MAX_LEG)
+	if rise + fall > duration:
+		rise = duration * 0.5
+		fall = duration - rise
+	var hold := maxf(0.0, duration - rise - fall)
+	return {
+		"rise": rise,
+		"hold": hold,
+		"fall": fall,
+	}
 
 
 func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
