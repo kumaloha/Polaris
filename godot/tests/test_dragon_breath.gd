@@ -131,6 +131,19 @@ func _button_visible_top(btn: TextureButton, bbox: Rect2, texture_size: Vector2)
 	return btn.position.y + bbox.position.y * btn.size.y / texture_size.y
 
 
+func _texture_used_rect(tex: Texture2D) -> Rect2:
+	if tex == null:
+		return Rect2()
+	var image := tex.get_image()
+	if image == null or image.is_empty():
+		return Rect2()
+	var used := image.get_used_rect()
+	return Rect2(
+		Vector2(float(used.position.x), float(used.position.y)),
+		Vector2(float(used.size.x), float(used.size.y))
+	)
+
+
 func _expected_dragon_visible_width(level: Node, variant: String) -> float:
 	var board_w: float = float(level.board.width) * level.cell_size
 	if variant == "baby":
@@ -215,6 +228,37 @@ func test_dragon_breath_visual_uses_youth_frames_from_first_to_last() -> void:
 		assert_true(last != null and last.resource_path == DRAGON_YOUTH_LAST_FRAME, "youth dragon cast reaches the final provided frame")
 		assert_eq(String(sprite.get_meta("variant", "")), "youth", "youth cast records its frame variant")
 		assert_true(sprite.scale.x < 0.0, "right-side youth dragon cast is mirrored")
+	cast.free()
+
+
+func test_youth_dragon_cast_normalizes_each_frame_visible_size() -> void:
+	_clear_dragon_frame_cache()
+	var cast := _configured_dragon_visual(null, "youth", 1, true)
+	if cast == null:
+		return
+	assert_true(cast.has_method("_apply_frame_geometry"), "dragon cast exposes per-frame geometry normalization for uneven AI frame sizes")
+	var sprite := cast.get_node_or_null(DRAGON_FRAME_NODE) as AnimatedSprite2D
+	assert_true(sprite != null and sprite.sprite_frames != null, "youth dragon cast builds frames for normalization")
+	if sprite == null or sprite.sprite_frames == null or not cast.has_method("_apply_frame_geometry"):
+		cast.free()
+		return
+	var raw_min := INF
+	var raw_max := -INF
+	var shown_min := INF
+	var shown_max := -INF
+	for i in range(sprite.sprite_frames.get_frame_count("cast")):
+		var tex := sprite.sprite_frames.get_frame_texture("cast", i)
+		var rect := _texture_used_rect(tex)
+		if rect.size.x <= 0.0:
+			continue
+		raw_min = minf(raw_min, rect.size.x)
+		raw_max = maxf(raw_max, rect.size.x)
+		cast.call("_apply_frame_geometry", i)
+		var shown_w := rect.size.x * absf(sprite.scale.x)
+		shown_min = minf(shown_min, shown_w)
+		shown_max = maxf(shown_max, shown_w)
+	assert_true(raw_max - raw_min > 40.0, "source youth dragon frames contain visibly different body widths")
+	assert_true(shown_max - shown_min <= 1.5, "runtime playback normalizes every youth dragon frame to the same visible width")
 	cast.free()
 
 

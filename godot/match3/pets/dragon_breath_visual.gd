@@ -47,10 +47,12 @@ const DRAGON_BOOK_GAP := 10.0
 const SLOT_COUNT := 2
 
 static var _frame_cache: Dictionary = {}
+static var _frame_bbox_cache: Dictionary = {}
 static var _preload_requests: Dictionary = {}
 static var _preload_paths: Dictionary = {}
 static var _preload_indices: Dictionary = {}
 static var _preload_frames: Dictionary = {}
+static var _preload_bboxes: Dictionary = {}
 
 var skill_bar: CanvasLayer = null
 var board = null
@@ -103,32 +105,29 @@ func _build_visuals() -> void:
 		return
 	var cfg := variant_config(variant)
 	var bbox: Rect2 = cfg["bbox"]
+	var bboxes := _frame_bboxes_for_variant(variant, frames, bbox)
 	var sprite := AnimatedSprite2D.new()
 	sprite.name = FRAME_NODE
 	sprite.sprite_frames = frames
 	sprite.animation = "cast"
 	sprite.centered = false
 	sprite.z_index = 0
-	var placement: Dictionary = _placement_for_visible_left_baseline(
-		_visible_left_baseline_anchor(),
-		bbox,
-		_visible_width(),
-		flip_h
-	)
-	var s: float = float(placement["scale"])
-	sprite.position = placement["position"]
-	sprite.scale = Vector2(-s if flip_h else s, s)
 	sprite.set_meta("anchor", "visible_left_baseline")
 	sprite.set_meta("asset_dir", String(cfg["dir"]))
 	sprite.set_meta("frame_range", Vector2i(int(cfg["first"]), int(cfg["last"])))
 	sprite.set_meta("variant", variant)
 	sprite.set_meta("visible_bbox", bbox)
+	sprite.set_meta("visible_bboxes", bboxes)
 	add_child(sprite)
+	sprite.frame_changed.connect(_apply_current_frame_geometry)
+	_apply_frame_geometry(sprite.frame)
 
 
 func _build_sprite_frames() -> SpriteFrames:
 	var key := _normalized_variant(variant)
 	if _frame_cache.has(key):
+		if not _frame_bbox_cache.has(key):
+			_frame_bbox_cache[key] = _frame_visible_bboxes_for_frames(_frame_cache[key], variant_config(key)["bbox"])
 		return _frame_cache[key]
 	if _preload_paths.has(key):
 		process_preload_budget(99999)
@@ -136,6 +135,7 @@ func _build_sprite_frames() -> SpriteFrames:
 			return _frame_cache[key]
 	var cfg := variant_config(key)
 	var frames := SpriteFrames.new()
+	var bboxes: Array = []
 	frames.add_animation("cast")
 	frames.set_animation_loop("cast", false)
 	frames.set_animation_speed("cast", FPS)
@@ -144,9 +144,11 @@ func _build_sprite_frames() -> SpriteFrames:
 		var tex := _load_texture_static(path)
 		if tex != null:
 			frames.add_frame("cast", tex)
+			bboxes.append(_visible_rect_for_texture(tex, cfg["bbox"]))
 	if frames.get_frame_count("cast") == 0:
 		return null
 	_frame_cache[key] = frames
+	_frame_bbox_cache[key] = bboxes
 	return frames
 
 
@@ -172,6 +174,7 @@ static func process_preload_budget(frame_budget: int = 3) -> void:
 		if _frame_cache.has(key):
 			_clear_preload_work(key)
 			continue
+		var cfg := variant_config(key)
 		var paths: Array = _preload_paths[key]
 		var frames: SpriteFrames = _preload_frames.get(key, null)
 		if frames == null:
@@ -180,26 +183,32 @@ static func process_preload_budget(frame_budget: int = 3) -> void:
 			frames.set_animation_loop("cast", false)
 			frames.set_animation_speed("cast", FPS)
 			_preload_frames[key] = frames
+		var bboxes: Array = _preload_bboxes.get(key, [])
 		var idx := int(_preload_indices.get(key, 0))
 		while idx < paths.size() and remaining > 0:
 			var tex := _load_texture_static(String(paths[idx]))
 			if tex != null:
 				frames.add_frame("cast", tex)
+				bboxes.append(_visible_rect_for_texture(tex, cfg["bbox"]))
 			idx += 1
 			remaining -= 1
 		_preload_indices[key] = idx
+		_preload_bboxes[key] = bboxes
 		if idx >= paths.size():
 			if frames.get_frame_count("cast") > 0:
 				_frame_cache[key] = frames
+				_frame_bbox_cache[key] = bboxes
 			_clear_preload_work(key)
 
 
 static func release_frame_cache() -> void:
 	_frame_cache.clear()
+	_frame_bbox_cache.clear()
 	_preload_requests.clear()
 	_preload_paths.clear()
 	_preload_indices.clear()
 	_preload_frames.clear()
+	_preload_bboxes.clear()
 
 
 func is_variant_preload_requested(raw_variant: String) -> bool:
@@ -215,6 +224,68 @@ static func _clear_preload_work(key: String) -> void:
 	_preload_paths.erase(key)
 	_preload_indices.erase(key)
 	_preload_frames.erase(key)
+	_preload_bboxes.erase(key)
+
+
+func _apply_current_frame_geometry() -> void:
+	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
+	if sprite == null:
+		return
+	_apply_frame_geometry(sprite.frame)
+
+
+func _apply_frame_geometry(frame_index: int) -> void:
+	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
+	if sprite == null:
+		return
+	var cfg := variant_config(variant)
+	var bbox: Rect2 = cfg["bbox"]
+	var bboxes: Array = sprite.get_meta("visible_bboxes", [])
+	if frame_index >= 0 and frame_index < bboxes.size() and bboxes[frame_index] is Rect2:
+		bbox = bboxes[frame_index]
+	var placement: Dictionary = _placement_for_visible_left_baseline(
+		_visible_left_baseline_anchor(),
+		bbox,
+		_visible_width(),
+		flip_h
+	)
+	var s: float = float(placement["scale"])
+	sprite.position = placement["position"]
+	sprite.scale = Vector2(-s if flip_h else s, s)
+	sprite.set_meta("visible_bbox", bbox)
+
+
+func _frame_bboxes_for_variant(raw_variant: String, frames: SpriteFrames, fallback: Rect2) -> Array:
+	var key := _normalized_variant(raw_variant)
+	if _frame_bbox_cache.has(key):
+		return _frame_bbox_cache[key]
+	var bboxes := _frame_visible_bboxes_for_frames(frames, fallback)
+	_frame_bbox_cache[key] = bboxes
+	return bboxes
+
+
+static func _frame_visible_bboxes_for_frames(frames: SpriteFrames, fallback: Rect2) -> Array:
+	var bboxes: Array = []
+	if frames == null or not frames.has_animation("cast"):
+		return bboxes
+	for i in range(frames.get_frame_count("cast")):
+		bboxes.append(_visible_rect_for_texture(frames.get_frame_texture("cast", i), fallback))
+	return bboxes
+
+
+static func _visible_rect_for_texture(tex: Texture2D, fallback: Rect2) -> Rect2:
+	if tex == null:
+		return fallback
+	var image := tex.get_image()
+	if image == null or image.is_empty():
+		return fallback
+	var used := image.get_used_rect()
+	if used.size.x <= 0 or used.size.y <= 0:
+		return fallback
+	return Rect2(
+		Vector2(float(used.position.x), float(used.position.y)),
+		Vector2(float(used.size.x), float(used.size.y))
+	)
 
 
 func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
