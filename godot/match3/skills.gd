@@ -11,6 +11,7 @@ extends Node
 ## 生命周期：作为 level 的子 Node(铁律2)。_pulse 的 tween 绑在按钮节点上(随 skill_bar 清理而死)。
 
 const LevelLayout := preload("res://match3/level_layout.gd")
+const DragonBreathVisual := preload("res://match3/pets/dragon_breath_visual.gd")
 
 signal skill_pressed(idx: int)
 
@@ -140,7 +141,7 @@ func _render_skillbar() -> void:
 		# v0.02: 去掉最下方技能解释文字(sk.skill)
 	_update_skill_cd_visual()  # 同步初始置灰/宽度(重画 ui 后冷却态仍在时保持一致)
 
-## 可点技能头像: TextureButton(品红抠像), 按宽等比缩放, Control 左上角定位(中心-半尺寸)。
+## 可点技能头像: TextureButton(品红抠像), 按可见宠物本体缩放, Control 左上角定位。
 ## 存进 _skill_btns 供 _process 置灰/禁用。pressed → emit skill_pressed(idx) 交 level。
 func _skill_button(path: String, center: Vector2, width: float, idx: int) -> void:
 	var skill_bar: CanvasLayer = _level.skill_bar
@@ -152,10 +153,9 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 	btn.texture_normal = tex
 	btn.ignore_texture_size = true
 	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	var sz: Vector2 = tex.get_size()
-	var h: float = width * (sz.y / sz.x) if sz.x > 0.0 else width
-	btn.size = Vector2(width, h)
-	btn.position = center - btn.size * 0.5   # TextureButton 是左上角定位 → 减半尺寸居中
+	var placement := _avatar_button_placement(tex, center, width, idx)
+	btn.size = placement["size"]
+	btn.position = placement["position"]
 	btn.z_index = 2
 	btn.material = _magenta_material()        # 品红抠像(与静态头像一致)
 	if bool(SKILLS[idx].get("flip_h", false)):
@@ -166,6 +166,45 @@ func _skill_button(path: String, center: Vector2, width: float, idx: int) -> voi
 	btn.pressed.connect(_on_skill_button_pressed.bind(idx))
 	skill_bar.add_child(btn)
 	_skill_btns.append(btn)
+
+func _avatar_button_placement(tex: Texture2D, center: Vector2, fallback_width: float, idx: int) -> Dictionary:
+	var sz: Vector2 = tex.get_size()
+	if sz.x <= 0.0 or sz.y <= 0.0:
+		return {"size": Vector2(fallback_width, fallback_width), "position": center - Vector2(fallback_width, fallback_width) * 0.5}
+	var variant := String(SKILLS[idx].get("variant", ""))
+	if variant == "":
+		var fallback_h := fallback_width * (sz.y / sz.x)
+		var fallback_size := Vector2(fallback_width, fallback_h)
+		return {"size": fallback_size, "position": center - fallback_size * 0.5}
+	var cfg: Dictionary = DragonBreathVisual.variant_config(variant)
+	var bbox: Rect2 = cfg["bbox"]
+	var visible_w := _avatar_visible_width(cfg)
+	var scale := visible_w / maxf(1.0, bbox.size.x)
+	var size := sz * scale
+	var baseline_y := _dragon_avatar_baseline_y()
+	var left := clampf(center.x - visible_w * 0.50, 20.0, DESIGN_W - visible_w - 12.0)
+	var position_y := baseline_y - bbox.end.y * scale
+	var position_x := left - bbox.position.x * scale
+	if bool(SKILLS[idx].get("flip_h", false)):
+		position_x = left - size.x + bbox.end.x * scale
+	return {"size": size, "position": Vector2(position_x, position_y)}
+
+func _avatar_visible_width(cfg: Dictionary) -> float:
+	var board = _level.board if _level != null else null
+	var board_w := 0.0
+	if board != null:
+		board_w = float(board.width) * float(_level.cell_size)
+	if board_w <= 0.0:
+		return float(cfg["target_w"])
+	return clampf(board_w * float(cfg["board_scale"]), float(cfg["min_w"]), float(cfg["max_w"]))
+
+func _dragon_avatar_baseline_y() -> float:
+	var cfg: Dictionary = DragonBreathVisual.variant_config("baby")
+	var bbox: Rect2 = cfg["bbox"]
+	var texture_size: Vector2 = DragonBreathVisual.BABY_TEXTURE_SIZE
+	var button_top := SKILL_AV_Y - SKILL_AV_W * 0.5
+	var baby_scale := SKILL_AV_W / maxf(1.0, texture_size.x)
+	return button_top + bbox.end.y * baby_scale
 
 # 按钮点击 → 转发给 level(忙/结算闸门 + PetCast dispatch 留在 level, 铁律1/§4.7)。
 func _on_skill_button_pressed(idx: int) -> void:

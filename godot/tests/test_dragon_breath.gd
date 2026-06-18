@@ -16,6 +16,8 @@ const DRAGON_CAST_NODE := "DragonBreathCast"
 const DRAGON_FRAME_NODE := "DragonBreathFrame"
 const DRAGON_BABY_TEXTURE_SIZE := Vector2(512.0, 512.0)
 const DRAGON_BABY_VISIBLE_BBOX := Rect2(Vector2(44.0, 41.0), Vector2(387.0, 418.0))
+const DRAGON_YOUTH_TEXTURE_SIZE := Vector2(1440.0, 1440.0)
+const DRAGON_YOUTH_VISIBLE_BBOX := Rect2(Vector2(279.0, 434.0), Vector2(883.0, 571.0))
 
 
 func _configured_dragon_visual(skill_layer: CanvasLayer = null, variant: String = "youth", slot_index: int = 1, flipped: bool = false) -> Node:
@@ -113,6 +115,19 @@ func _find_node_with_script_path(root: Node, script_path: String) -> Node:
 		if found != null:
 			return found
 	return null
+
+
+func _button_visible_width(btn: TextureButton, bbox: Rect2, texture_size: Vector2) -> float:
+	if btn == null or texture_size.x <= 0.0:
+		return 0.0
+	return bbox.size.x * btn.size.x * absf(btn.scale.x) / texture_size.x
+
+
+func _expected_dragon_visible_width(level: Node, variant: String) -> float:
+	var board_w: float = float(level.board.width) * level.cell_size
+	if variant == "baby":
+		return clampf(board_w * 0.42, 220.0, 300.0)
+	return clampf(board_w * 0.68, 360.0, 430.0)
 
 
 func test_dragon_skill_registry_owns_cast_controller() -> void:
@@ -287,6 +302,21 @@ func test_youth_dragon_runtime_skillbar_uses_clean_button_and_spawns_flipped_bre
 		if sprite != null:
 			assert_eq(String(sprite.get_meta("variant", "")), "youth", "youth slot spawns the youth animation sequence")
 			assert_true(sprite.scale.x < 0.0, "right youth dragon visual is mirrored")
+	_free_live_level(level)
+
+
+func test_dragon_idle_buttons_match_cast_visible_scale() -> void:
+	var level := _prepare_live_level_for_dragon()
+	if level == null:
+		return
+	var baby_btn: TextureButton = level.skills._skill_btns[0]
+	var youth_btn: TextureButton = level.skills._skill_btns[1]
+	assert_true(baby_btn != null and youth_btn != null, "both dragon idle buttons exist")
+	if baby_btn != null and youth_btn != null:
+		var baby_visible_w := _button_visible_width(baby_btn, DRAGON_BABY_VISIBLE_BBOX, DRAGON_BABY_TEXTURE_SIZE)
+		var youth_visible_w := _button_visible_width(youth_btn, DRAGON_YOUTH_VISIBLE_BBOX, DRAGON_YOUTH_TEXTURE_SIZE)
+		assert_true(absf(baby_visible_w - _expected_dragon_visible_width(level, "baby")) <= 1.0, "baby idle frame is scaled to the same visible width as its cast animation")
+		assert_true(absf(youth_visible_w - _expected_dragon_visible_width(level, "youth")) <= 1.0, "youth idle frame is scaled to the same visible width as its cast animation")
 	_free_live_level(level)
 
 
