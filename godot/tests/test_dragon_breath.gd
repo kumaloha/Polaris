@@ -131,53 +131,6 @@ func _button_visible_top(btn: TextureButton, bbox: Rect2, texture_size: Vector2)
 	return btn.position.y + bbox.position.y * btn.size.y / texture_size.y
 
 
-func _texture_used_rect(tex: Texture2D) -> Rect2:
-	if tex == null:
-		return Rect2()
-	var image := tex.get_image()
-	if image == null or image.is_empty():
-		return Rect2()
-	var used := image.get_used_rect()
-	return Rect2(
-		Vector2(float(used.position.x), float(used.position.y)),
-		Vector2(float(used.size.x), float(used.size.y))
-	)
-
-
-func _texture_horn_span(tex: Texture2D, used_rect: Rect2) -> float:
-	if tex == null or used_rect.size.x <= 0.0 or used_rect.size.y <= 0.0:
-		return 0.0
-	var image := tex.get_image()
-	if image == null or image.is_empty():
-		return 0.0
-	var x0 := int(used_rect.position.x + used_rect.size.x * 0.50)
-	var x1 := int(used_rect.end.x)
-	var y0 := int(used_rect.position.y)
-	var y1 := int(used_rect.position.y + used_rect.size.y * 0.44)
-	var min_x := 999999
-	var max_x := -999999
-	for y in range(y0, y1, 2):
-		for x in range(x0, x1, 2):
-			if _is_horn_pixel(image.get_pixel(x, y)):
-				min_x = mini(min_x, x)
-				max_x = maxi(max_x, x)
-	if max_x < min_x:
-		return 0.0
-	return float(max_x - min_x + 1)
-
-
-func _is_horn_pixel(c: Color) -> bool:
-	if c.a < 0.25:
-		return false
-	if c.r < 0.52 or c.g < 0.24 or c.b > 0.34:
-		return false
-	if c.r < c.g * 1.05:
-		return false
-	if c.g < c.b * 1.4:
-		return false
-	return true
-
-
 func _expected_dragon_visible_width(level: Node, variant: String) -> float:
 	var board_w: float = float(level.board.width) * level.cell_size
 	if variant == "baby":
@@ -265,47 +218,31 @@ func test_dragon_breath_visual_uses_youth_frames_from_first_to_last() -> void:
 	cast.free()
 
 
-func test_youth_dragon_cast_normalizes_scale_by_horn_span_not_wings() -> void:
+func test_youth_dragon_cast_keeps_runtime_scale_constant_across_frames() -> void:
 	_clear_dragon_frame_cache()
 	var cast := _configured_dragon_visual(null, "youth", 1, true)
 	if cast == null:
 		return
-	assert_true(cast.has_method("_apply_frame_geometry"), "dragon cast exposes per-frame geometry normalization for uneven AI frame sizes")
+	assert_true(cast.has_method("_apply_frame_geometry"), "dragon cast exposes frame geometry application for playback probes")
 	var sprite := cast.get_node_or_null(DRAGON_FRAME_NODE) as AnimatedSprite2D
-	assert_true(sprite != null and sprite.sprite_frames != null, "youth dragon cast builds frames for normalization")
+	assert_true(sprite != null and sprite.sprite_frames != null, "youth dragon cast builds frames for scale stability")
 	if sprite == null or sprite.sprite_frames == null or not cast.has_method("_apply_frame_geometry"):
 		cast.free()
 		return
-	var raw_min := INF
-	var raw_max := -INF
-	var horn_min := INF
-	var horn_max := -INF
-	var shown_horn_min := INF
-	var shown_horn_max := -INF
-	var shown_body_min := INF
-	var shown_body_max := -INF
+	var scale_min := INF
+	var scale_max := -INF
+	var max_delta := 0.0
+	var previous_scale := 0.0
 	for i in range(sprite.sprite_frames.get_frame_count("cast")):
-		var tex := sprite.sprite_frames.get_frame_texture("cast", i)
-		var rect := _texture_used_rect(tex)
-		if rect.size.x <= 0.0:
-			continue
-		var horn_span := _texture_horn_span(tex, rect)
-		if horn_span <= 16.0:
-			continue
-		raw_min = minf(raw_min, rect.size.x)
-		raw_max = maxf(raw_max, rect.size.x)
-		horn_min = minf(horn_min, horn_span)
-		horn_max = maxf(horn_max, horn_span)
 		cast.call("_apply_frame_geometry", i)
 		var scale := absf(sprite.scale.x)
-		shown_horn_min = minf(shown_horn_min, horn_span * scale)
-		shown_horn_max = maxf(shown_horn_max, horn_span * scale)
-		shown_body_min = minf(shown_body_min, rect.size.x * scale)
-		shown_body_max = maxf(shown_body_max, rect.size.x * scale)
-	assert_true(raw_max - raw_min > 40.0, "source youth dragon frames contain visibly different wing/body widths")
-	assert_true(horn_max - horn_min > 20.0, "source youth dragon frames contain real horn-span scale drift")
-	assert_true(shown_body_max - shown_body_min > 40.0, "runtime scale must not force wings and tail into one fixed outer width")
-	assert_true(shown_horn_max - shown_horn_min <= 3.0, "runtime playback keeps the youth dragon body scale stable by matching the two-horn span")
+		scale_min = minf(scale_min, scale)
+		scale_max = maxf(scale_max, scale)
+		if i > 0:
+			max_delta = maxf(max_delta, absf(scale - previous_scale))
+		previous_scale = scale
+	assert_true(scale_max - scale_min <= 0.001, "runtime playback must keep one constant dragon scale instead of resizing per frame; range=%0.5f" % (scale_max - scale_min))
+	assert_true(max_delta <= 0.001, "adjacent dragon frames must not jump scale; max_delta=%0.5f" % max_delta)
 	cast.free()
 
 

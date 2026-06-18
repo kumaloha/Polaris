@@ -47,14 +47,10 @@ const DRAGON_BOOK_GAP := 10.0
 const SLOT_COUNT := 2
 
 static var _frame_cache: Dictionary = {}
-static var _frame_bbox_cache: Dictionary = {}
-static var _frame_scale_ref_cache: Dictionary = {}
 static var _preload_requests: Dictionary = {}
 static var _preload_paths: Dictionary = {}
 static var _preload_indices: Dictionary = {}
 static var _preload_frames: Dictionary = {}
-static var _preload_bboxes: Dictionary = {}
-static var _preload_scale_refs: Dictionary = {}
 
 var skill_bar: CanvasLayer = null
 var board = null
@@ -107,34 +103,32 @@ func _build_visuals() -> void:
 		return
 	var cfg := variant_config(variant)
 	var bbox: Rect2 = cfg["bbox"]
-	var bboxes := _frame_bboxes_for_variant(variant, frames, bbox)
-	var scale_refs := _frame_scale_refs_for_variant(variant, frames, bboxes)
 	var sprite := AnimatedSprite2D.new()
 	sprite.name = FRAME_NODE
 	sprite.sprite_frames = frames
 	sprite.animation = "cast"
 	sprite.centered = false
 	sprite.z_index = 0
+	var placement: Dictionary = _placement_for_visible_left_baseline(
+		_visible_left_baseline_anchor(),
+		bbox,
+		_visible_width(),
+		flip_h
+	)
+	var s: float = float(placement["scale"])
+	sprite.position = placement["position"]
+	sprite.scale = Vector2(-s if flip_h else s, s)
 	sprite.set_meta("anchor", "visible_left_baseline")
 	sprite.set_meta("asset_dir", String(cfg["dir"]))
 	sprite.set_meta("frame_range", Vector2i(int(cfg["first"]), int(cfg["last"])))
 	sprite.set_meta("variant", variant)
 	sprite.set_meta("visible_bbox", bbox)
-	sprite.set_meta("visible_bboxes", bboxes)
-	sprite.set_meta("scale_refs", scale_refs)
-	sprite.set_meta("base_scale_ref", _base_scale_ref(scale_refs, bbox))
 	add_child(sprite)
-	sprite.frame_changed.connect(_apply_current_frame_geometry)
-	_apply_frame_geometry(sprite.frame)
 
 
 func _build_sprite_frames() -> SpriteFrames:
 	var key := _normalized_variant(variant)
 	if _frame_cache.has(key):
-		if not _frame_bbox_cache.has(key):
-			_frame_bbox_cache[key] = _frame_visible_bboxes_for_frames(_frame_cache[key], variant_config(key)["bbox"])
-		if not _frame_scale_ref_cache.has(key):
-			_frame_scale_ref_cache[key] = _frame_scale_refs_for_frames(key, _frame_cache[key], _frame_bbox_cache[key])
 		return _frame_cache[key]
 	if _preload_paths.has(key):
 		process_preload_budget(99999)
@@ -142,8 +136,6 @@ func _build_sprite_frames() -> SpriteFrames:
 			return _frame_cache[key]
 	var cfg := variant_config(key)
 	var frames := SpriteFrames.new()
-	var bboxes: Array = []
-	var scale_refs: Array = []
 	frames.add_animation("cast")
 	frames.set_animation_loop("cast", false)
 	frames.set_animation_speed("cast", FPS)
@@ -151,15 +143,10 @@ func _build_sprite_frames() -> SpriteFrames:
 		var path := String(cfg["pattern"]) % [String(cfg["dir"]), i]
 		var tex := _load_texture_static(path)
 		if tex != null:
-			var visible_rect := _visible_rect_for_texture(tex, cfg["bbox"])
 			frames.add_frame("cast", tex)
-			bboxes.append(visible_rect)
-			scale_refs.append(_scale_ref_for_texture(key, tex, visible_rect))
 	if frames.get_frame_count("cast") == 0:
 		return null
 	_frame_cache[key] = frames
-	_frame_bbox_cache[key] = bboxes
-	_frame_scale_ref_cache[key] = scale_refs
 	return frames
 
 
@@ -185,7 +172,6 @@ static func process_preload_budget(frame_budget: int = 3) -> void:
 		if _frame_cache.has(key):
 			_clear_preload_work(key)
 			continue
-		var cfg := variant_config(key)
 		var paths: Array = _preload_paths[key]
 		var frames: SpriteFrames = _preload_frames.get(key, null)
 		if frames == null:
@@ -194,39 +180,26 @@ static func process_preload_budget(frame_budget: int = 3) -> void:
 			frames.set_animation_loop("cast", false)
 			frames.set_animation_speed("cast", FPS)
 			_preload_frames[key] = frames
-		var bboxes: Array = _preload_bboxes.get(key, [])
-		var scale_refs: Array = _preload_scale_refs.get(key, [])
 		var idx := int(_preload_indices.get(key, 0))
 		while idx < paths.size() and remaining > 0:
 			var tex := _load_texture_static(String(paths[idx]))
 			if tex != null:
-				var visible_rect := _visible_rect_for_texture(tex, cfg["bbox"])
 				frames.add_frame("cast", tex)
-				bboxes.append(visible_rect)
-				scale_refs.append(_scale_ref_for_texture(key, tex, visible_rect))
 			idx += 1
 			remaining -= 1
 		_preload_indices[key] = idx
-		_preload_bboxes[key] = bboxes
-		_preload_scale_refs[key] = scale_refs
 		if idx >= paths.size():
 			if frames.get_frame_count("cast") > 0:
 				_frame_cache[key] = frames
-				_frame_bbox_cache[key] = bboxes
-				_frame_scale_ref_cache[key] = scale_refs
 			_clear_preload_work(key)
 
 
 static func release_frame_cache() -> void:
 	_frame_cache.clear()
-	_frame_bbox_cache.clear()
-	_frame_scale_ref_cache.clear()
 	_preload_requests.clear()
 	_preload_paths.clear()
 	_preload_indices.clear()
 	_preload_frames.clear()
-	_preload_bboxes.clear()
-	_preload_scale_refs.clear()
 
 
 func is_variant_preload_requested(raw_variant: String) -> bool:
@@ -242,15 +215,6 @@ static func _clear_preload_work(key: String) -> void:
 	_preload_paths.erase(key)
 	_preload_indices.erase(key)
 	_preload_frames.erase(key)
-	_preload_bboxes.erase(key)
-	_preload_scale_refs.erase(key)
-
-
-func _apply_current_frame_geometry() -> void:
-	var sprite := get_node_or_null(FRAME_NODE) as AnimatedSprite2D
-	if sprite == null:
-		return
-	_apply_frame_geometry(sprite.frame)
 
 
 func _apply_frame_geometry(frame_index: int) -> void:
@@ -259,135 +223,21 @@ func _apply_frame_geometry(frame_index: int) -> void:
 		return
 	var cfg := variant_config(variant)
 	var bbox: Rect2 = cfg["bbox"]
-	var bboxes: Array = sprite.get_meta("visible_bboxes", [])
-	if frame_index >= 0 and frame_index < bboxes.size() and bboxes[frame_index] is Rect2:
-		bbox = bboxes[frame_index]
-	var ref := bbox.size.x
-	var scale_refs: Array = sprite.get_meta("scale_refs", [])
-	if frame_index >= 0 and frame_index < scale_refs.size():
-		ref = float(scale_refs[frame_index])
-	var base_ref := float(sprite.get_meta("base_scale_ref", ref))
-	var target_ref := _visible_width() * base_ref / maxf(1.0, float(cfg["bbox"].size.x))
 	var placement: Dictionary = _placement_for_visible_left_baseline(
 		_visible_left_baseline_anchor(),
 		bbox,
-		target_ref,
-		ref,
+		_visible_width(),
 		flip_h
 	)
 	var s: float = float(placement["scale"])
 	sprite.position = placement["position"]
 	sprite.scale = Vector2(-s if flip_h else s, s)
 	sprite.set_meta("visible_bbox", bbox)
-	sprite.set_meta("scale_ref", ref)
 
 
-func _frame_bboxes_for_variant(raw_variant: String, frames: SpriteFrames, fallback: Rect2) -> Array:
-	var key := _normalized_variant(raw_variant)
-	if _frame_bbox_cache.has(key):
-		return _frame_bbox_cache[key]
-	var bboxes := _frame_visible_bboxes_for_frames(frames, fallback)
-	_frame_bbox_cache[key] = bboxes
-	return bboxes
-
-
-static func _frame_visible_bboxes_for_frames(frames: SpriteFrames, fallback: Rect2) -> Array:
-	var bboxes: Array = []
-	if frames == null or not frames.has_animation("cast"):
-		return bboxes
-	for i in range(frames.get_frame_count("cast")):
-		bboxes.append(_visible_rect_for_texture(frames.get_frame_texture("cast", i), fallback))
-	return bboxes
-
-
-func _frame_scale_refs_for_variant(raw_variant: String, frames: SpriteFrames, bboxes: Array) -> Array:
-	var key := _normalized_variant(raw_variant)
-	if _frame_scale_ref_cache.has(key):
-		return _frame_scale_ref_cache[key]
-	var scale_refs := _frame_scale_refs_for_frames(key, frames, bboxes)
-	_frame_scale_ref_cache[key] = scale_refs
-	return scale_refs
-
-
-static func _frame_scale_refs_for_frames(raw_variant: String, frames: SpriteFrames, bboxes: Array) -> Array:
-	var refs: Array = []
-	if frames == null or not frames.has_animation("cast"):
-		return refs
-	var fallback: Rect2 = variant_config(raw_variant)["bbox"]
-	for i in range(frames.get_frame_count("cast")):
-		var bbox: Rect2 = fallback
-		if i < bboxes.size() and bboxes[i] is Rect2:
-			bbox = bboxes[i]
-		refs.append(_scale_ref_for_texture(raw_variant, frames.get_frame_texture("cast", i), bbox))
-	return refs
-
-
-static func _base_scale_ref(scale_refs: Array, bbox: Rect2) -> float:
-	if not scale_refs.is_empty():
-		var ref := float(scale_refs[0])
-		if ref > 0.0:
-			return ref
-	return bbox.size.x
-
-
-static func _scale_ref_for_texture(raw_variant: String, tex: Texture2D, visible_rect: Rect2) -> float:
-	if _normalized_variant(raw_variant) != "youth":
-		return visible_rect.size.x
-	var horn_span := _horn_span_for_texture(tex, visible_rect)
-	return horn_span if horn_span > 0.0 else visible_rect.size.x
-
-
-static func _horn_span_for_texture(tex: Texture2D, visible_rect: Rect2) -> float:
-	if tex == null or visible_rect.size.x <= 0.0 or visible_rect.size.y <= 0.0:
-		return 0.0
-	var image := tex.get_image()
-	if image == null or image.is_empty():
-		return 0.0
-	var x0 := int(visible_rect.position.x + visible_rect.size.x * 0.50)
-	var x1 := int(visible_rect.end.x)
-	var y0 := int(visible_rect.position.y)
-	var y1 := int(visible_rect.position.y + visible_rect.size.y * 0.44)
-	var min_x := 999999
-	var max_x := -999999
-	for y in range(y0, y1, 2):
-		for x in range(x0, x1, 2):
-			if _is_horn_pixel(image.get_pixel(x, y)):
-				min_x = mini(min_x, x)
-				max_x = maxi(max_x, x)
-	if max_x < min_x:
-		return 0.0
-	return float(max_x - min_x + 1)
-
-
-static func _is_horn_pixel(c: Color) -> bool:
-	if c.a < 0.25:
-		return false
-	if c.r < 0.52 or c.g < 0.24 or c.b > 0.34:
-		return false
-	if c.r < c.g * 1.05:
-		return false
-	if c.g < c.b * 1.4:
-		return false
-	return true
-
-
-static func _visible_rect_for_texture(tex: Texture2D, fallback: Rect2) -> Rect2:
-	if tex == null:
-		return fallback
-	var image := tex.get_image()
-	if image == null or image.is_empty():
-		return fallback
-	var used := image.get_used_rect()
-	if used.size.x <= 0 or used.size.y <= 0:
-		return fallback
-	return Rect2(
-		Vector2(float(used.position.x), float(used.position.y)),
-		Vector2(float(used.size.x), float(used.size.y))
-	)
-
-
-func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, target_ref: float, scale_ref: float, flipped: bool) -> Dictionary:
-	var scale := maxf(1.0, target_ref) / maxf(1.0, scale_ref)
+func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
+	var safe_w := maxf(1.0, visible_width)
+	var scale := safe_w / maxf(1.0, bbox.size.x)
 	var pos: Vector2
 	if flipped:
 		pos = Vector2(anchor.x + bbox.end.x * scale, anchor.y - bbox.end.y * scale)
