@@ -190,9 +190,6 @@ func _restore_avatar() -> void:
 func _dispose_visuals() -> void:
 	if skill_bar == null:
 		return
-	if _state == State.RETIRED:
-		# Normal completion leaves DragonBreathVisual to finish its own fade-out.
-		return
 	var visual := skill_bar.get_node_or_null(DragonBreathVisual.CAST_NODE)
 	if visual != null:
 		_detach_and_free_later(visual)
@@ -209,6 +206,7 @@ func _finish_when_ready() -> void:
 	if _cast_effect and (not _effect_done or not _visual_done):
 		return
 	_finish()
+	_dispose_visuals()
 
 
 func _cell_center(row: int, col: int) -> Vector2:

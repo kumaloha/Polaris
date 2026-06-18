@@ -84,17 +84,14 @@ func play_and_retire() -> void:
 	if not is_inside_tree():
 		return
 	_start_flight_motion()
-	modulate.a = 0.0
+	modulate.a = 1.0
 	var t := create_tween()
-	t.tween_property(self, "modulate:a", 1.0, 0.08).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_interval(maxf(0.10, _animation_duration() - 0.20))
-	t.tween_property(self, "modulate:a", 0.0, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.tween_interval(maxf(0.10, _animation_duration()))
 	t.tween_callback(Callable(self, "_retire_visual"))
 
 
 func _retire_visual() -> void:
 	emit_signal("visual_retired")
-	queue_free()
 
 
 func _build_visuals() -> void:

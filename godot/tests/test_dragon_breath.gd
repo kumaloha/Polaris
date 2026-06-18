@@ -538,6 +538,16 @@ func test_dragon_cast_hides_static_idle_button_until_retired() -> void:
 	_free_live_level(level)
 
 
+func test_dragon_visual_holds_last_frame_until_cascade_settlement_restores_idle() -> void:
+	var play_body := _function_body(DRAGON_VISUAL_SCRIPT, "play_and_retire")
+	var retire_body := _function_body(DRAGON_VISUAL_SCRIPT, "_retire_visual")
+	var finish_body := _function_body(DRAGON_CAST_SCRIPT, "_finish_when_ready")
+	assert_false(play_body.contains("tween_property(self, \"modulate:a\", 0.0"), "dragon live animation must not fade to transparent while the static slot is still hidden")
+	assert_false(retire_body.contains("queue_free"), "visual playback completion must hold the last frame instead of freeing before cascade settlement finishes")
+	assert_true(finish_body.find("_finish()") >= 0, "dragon cast still finishes through the PetCast signal path")
+	assert_true(finish_body.find("_dispose_visuals()") > finish_body.find("_finish()"), "static idle restoration must happen before the live visual is disposed")
+
+
 func test_uncharged_dragons_are_disabled_and_do_not_spawn_feedback() -> void:
 	var level := _prepare_live_level_for_dragon()
 	if level == null:
