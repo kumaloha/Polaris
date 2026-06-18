@@ -45,10 +45,9 @@ const SKILL_AV_Y := LevelLayout.SKILL_AV_Y
 const SKILL_AV_W := LevelLayout.SKILL_AV_W
 const DRAGON_BOOK_GAP := 10.0
 const SLOT_COUNT := 2
-const FLIGHT_RISE_RATIO := 0.16
-const FLIGHT_FALL_RATIO := 0.16
-const FLIGHT_MIN_LEG := 0.35
-const FLIGHT_MAX_LEG := 1.45
+const YOUTH_FLIGHT_RISE_START_FRAME := 100
+const YOUTH_FLIGHT_DESCENT_START_FRAME := 247
+const YOUTH_FLIGHT_LAND_FRAME := 262
 
 static var _frame_cache: Dictionary = {}
 static var _preload_requests: Dictionary = {}
@@ -255,6 +254,9 @@ func _start_flight_motion() -> void:
 		return
 	position = Vector2.ZERO
 	var flight := create_tween()
+	var pre_rise := float(timing.get("pre_rise", 0.0))
+	if pre_rise > 0.0:
+		flight.tween_interval(pre_rise)
 	flight.tween_property(self, "position", offset, rise).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	if hold > 0.0:
 		flight.tween_interval(hold)
@@ -264,7 +266,8 @@ func _start_flight_motion() -> void:
 func _airborne_offset() -> Vector2:
 	if variant != "youth":
 		return Vector2.ZERO
-	return _current_board_rect().get_center() - _visual_center_with_offset(Vector2.ZERO)
+	var current_center := _visual_center_with_offset(Vector2.ZERO)
+	return Vector2(0.0, _current_board_rect().get_center().y - current_center.y)
 
 
 func _visual_center_with_offset(offset: Vector2) -> Vector2:
@@ -280,17 +283,27 @@ func _visual_center_with_offset(offset: Vector2) -> Vector2:
 
 func _flight_timing() -> Dictionary:
 	var duration := _animation_duration()
-	var rise := clampf(duration * FLIGHT_RISE_RATIO, FLIGHT_MIN_LEG, FLIGHT_MAX_LEG)
-	var fall := clampf(duration * FLIGHT_FALL_RATIO, FLIGHT_MIN_LEG, FLIGHT_MAX_LEG)
-	if rise + fall > duration:
-		rise = duration * 0.5
-		fall = duration - rise
-	var hold := maxf(0.0, duration - rise - fall)
+	var pre_rise := _time_at_frame(YOUTH_FLIGHT_RISE_START_FRAME)
+	var descent_start := _time_at_frame(YOUTH_FLIGHT_DESCENT_START_FRAME)
+	var landed := _time_at_frame(YOUTH_FLIGHT_LAND_FRAME)
+	pre_rise = clampf(pre_rise, 0.0, duration)
+	descent_start = clampf(descent_start, pre_rise, duration)
+	landed = clampf(landed, descent_start, duration)
+	var rise := maxf(0.0, descent_start - pre_rise)
+	var fall := maxf(0.0, landed - descent_start)
+	var post_fall := maxf(0.0, duration - landed)
 	return {
+		"pre_rise": pre_rise,
 		"rise": rise,
-		"hold": hold,
+		"hold": 0.0,
 		"fall": fall,
+		"post_fall": post_fall,
 	}
+
+
+func _time_at_frame(frame_number: int) -> float:
+	var cfg := variant_config(variant)
+	return float(frame_number - int(cfg["first"])) / FPS
 
 
 func _placement_for_visible_left_baseline(anchor: Vector2, bbox: Rect2, visible_width: float, flipped: bool) -> Dictionary:
